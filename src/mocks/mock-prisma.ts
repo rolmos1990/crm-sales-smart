@@ -5,6 +5,7 @@ import { mockActividades } from "@/mocks/data/actividades";
 import { mockProductos } from "@/mocks/data/productos";
 import { mockCotizaciones } from "@/mocks/data/cotizaciones";
 import { mockPedidos } from "@/mocks/data/pedidos";
+import { mockUsuarios } from "@/mocks/data/usuarios";
 
 type AnyRecord = Record<string, unknown> & { id: string };
 
@@ -92,6 +93,8 @@ const productosMock = mockProductos as any[];
 const cotizacionesMock = mockCotizaciones as any[];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const pedidosMock = mockPedidos as any[];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const usuariosMock = mockUsuarios as any[];
 
 export const mockPrisma = {
   empresa: crearModeloMock(empresasMock),
@@ -106,7 +109,7 @@ export const mockPrisma = {
   cotizacionLinea: crearModeloMock([] as AnyRecord[]),
   pedido: crearModeloMock(pedidosMock),
   pedidoLinea: crearModeloMock([] as AnyRecord[]),
-  usuario: crearModeloMock([] as AnyRecord[]),
+  usuario: crearModeloMock(usuariosMock),
   usuarioInstancia: crearModeloMock([] as AnyRecord[]),
   instancia: crearModeloMock([] as AnyRecord[]),
   pipeline: crearModeloMock([] as AnyRecord[]),

@@ -1,10 +1,15 @@
-const ahora = new Date("2025-01-15T10:00:00Z");
-
 export const mockPedidos = [
   {
     id: "ped-1",
     numero: "PED-2024-0012",
     estado: "ENTREGADO",
+    // Datos del comprador desde cotización (campos opcionales para pedido manual)
+    nombre: null,
+    apellido: null,
+    telefono: null,
+    email: null,
+    ruc: null,
+    empresaNombre: null,
     fechaPedido: new Date("2024-12-20T09:00:00Z"),
     fechaEntrega: new Date("2025-01-05T17:00:00Z"),
     subtotal: 10176,
@@ -22,6 +27,7 @@ export const mockPedidos = [
     usuarioId: "usr-1",
     cotizacionId: "cot-3",
     cotizacion: { id: "cot-3", numero: "COT-2024-0028" },
+    oportunidadId: "op-9",
     lineas: [
       {
         id: "pedlin-1",
@@ -29,7 +35,10 @@ export const mockPedidos = [
         cantidad: 1,
         precioUnitario: 4800,
         descuento: 0,
+        impuesto: 0,
         subtotal: 4800,
+        total: 4800,
+        orden: 0,
         pedidoId: "ped-1",
         productoId: "prod-3",
         producto: { id: "prod-3", nombre: "Soporte Técnico Anual" },
@@ -40,6 +49,12 @@ export const mockPedidos = [
     id: "ped-2",
     numero: "PED-2025-0001",
     estado: "CONFIRMADO",
+    nombre: null,
+    apellido: null,
+    telefono: null,
+    email: null,
+    ruc: null,
+    empresaNombre: null,
     fechaPedido: new Date("2025-01-13T10:00:00Z"),
     fechaEntrega: new Date("2025-01-28T17:00:00Z"),
     subtotal: 32000,
@@ -57,6 +72,7 @@ export const mockPedidos = [
     usuarioId: "usr-1",
     cotizacionId: null,
     cotizacion: null,
+    oportunidadId: "op-7",
     lineas: [
       {
         id: "pedlin-2",
@@ -64,7 +80,10 @@ export const mockPedidos = [
         cantidad: 10,
         precioUnitario: 3200,
         descuento: 1600,
+        impuesto: 0,
         subtotal: 30400,
+        total: 30400,
+        orden: 0,
         pedidoId: "ped-2",
         productoId: "prod-6",
         producto: { id: "prod-6", nombre: "Terminal POS Touch" },

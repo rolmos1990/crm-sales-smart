@@ -20,6 +20,7 @@ export const mockCotizaciones = [
     empresaId: "emp-1",
     empresa: { id: "emp-1", nombre: "TechSoft Peru SAC" },
     usuarioId: "usr-1",
+    oportunidadId: "op-1",
     lineas: [
       {
         id: "cotlin-1",
@@ -27,7 +28,10 @@ export const mockCotizaciones = [
         cantidad: 1,
         precioUnitario: 15000,
         descuento: 0,
+        impuesto: 0,
         subtotal: 15000,
+        total: 15000,
+        orden: 0,
         cotizacionId: "cot-1",
         productoId: "prod-1",
         producto: { id: "prod-1", nombre: "Licencia ERP Módulo Base" },
@@ -38,7 +42,10 @@ export const mockCotizaciones = [
         cantidad: 34,
         precioUnitario: 250,
         descuento: 0,
+        impuesto: 0,
         subtotal: 8500,
+        total: 8500,
+        orden: 1,
         cotizacionId: "cot-1",
         productoId: "prod-4",
         producto: { id: "prod-4", nombre: "Consultoría de Implementación" },
@@ -64,6 +71,7 @@ export const mockCotizaciones = [
     empresaId: "emp-2",
     empresa: { id: "emp-2", nombre: "Distribuidora Lima Norte SA" },
     usuarioId: "usr-1",
+    oportunidadId: "op-3",
     lineas: [
       {
         id: "cotlin-3",
@@ -71,7 +79,10 @@ export const mockCotizaciones = [
         cantidad: 1,
         precioUnitario: 8500,
         descuento: 425,
+        impuesto: 0,
         subtotal: 8075,
+        total: 8075,
+        orden: 0,
         cotizacionId: "cot-2",
         productoId: "prod-2",
         producto: { id: "prod-2", nombre: "Módulo Inventarios y Almacenes" },
@@ -97,6 +108,7 @@ export const mockCotizaciones = [
     empresaId: "emp-1",
     empresa: { id: "emp-1", nombre: "TechSoft Peru SAC" },
     usuarioId: "usr-1",
+    oportunidadId: "op-9",
     lineas: [
       {
         id: "cotlin-4",
@@ -104,7 +116,10 @@ export const mockCotizaciones = [
         cantidad: 1,
         precioUnitario: 4800,
         descuento: 0,
+        impuesto: 0,
         subtotal: 4800,
+        total: 4800,
+        orden: 0,
         cotizacionId: "cot-3",
         productoId: "prod-3",
         producto: { id: "prod-3", nombre: "Soporte Técnico Anual" },

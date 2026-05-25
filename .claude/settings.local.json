@@ -21,7 +21,11 @@
       "Bash(sed -n '28,55p' src/crm/oportunidades/components/form-oportunidad.tsx)",
       "Bash(mkdir -p \"src/app/crm/oportunidades/[id]/editar\")",
       "Bash(mkdir -p \"src/app/productos/nuevo\" \"src/app/productos/[id]/editar\")",
-      "Bash(python3)"
+      "Bash(python3)",
+      "Bash(npm view *)",
+      "Bash(timeout 15 npm run dev)",
+      "Bash(npm run *)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
