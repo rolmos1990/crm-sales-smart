@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ===== ENUMS =====
+
+enum Rol {
+  ADMIN
+  AGENTE
+}
+
+enum EstadoContacto {
+  ACTIVO
+  INACTIVO
+  LEAD
+}
+
+enum Etapa {
+  PROSPECTO
+  CALIFICADO
+  PROPUESTA
+  NEGOCIACION
+  GANADO
+  PERDIDO
+}
+
+enum TipoActividad {
+  LLAMADA
+  EMAIL
+  REUNION
+  TAREA
+  NOTA
+}
+
+enum EstadoCotizacion {
+  BORRADOR
+  ENVIADA
+  APROBADA
+  RECHAZADA
+  VENCIDA
+}
+
+enum EstadoPedido {
+  PENDIENTE
+  CONFIRMADO
+  EN_PROCESO
+  ENVIADO
+  ENTREGADO
+  CANCELADO
+}
+
+// ===== MODELOS =====
+
+model Usuario {
+  id           String        @id @default(cuid())
+  nombre       String
+  email        String        @unique
+  passwordHash String
+  rol          Rol           @default(AGENTE)
+  activo       Boolean       @default(true)
+  creadoEn     DateTime      @default(now())
+
+  empresas      Empresa[]
+  contactos     Contacto[]
+  oportunidades Oportunidad[]
+  actividades   Actividad[]
+  cotizaciones  Cotizacion[]
+  pedidos       Pedido[]
+}
+
+model Empresa {
+  id            String   @id @default(cuid())
+  nombre        String
+  ruc           String?
+  industria     String?
+  tamano        String?
+  sitioWeb      String?
+  telefono      String?
+  email         String?
+  notas         String?
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  contactos     Contacto[]
+  oportunidades Oportunidad[]
+  actividades   Actividad[]
+  cotizaciones  Cotizacion[]
+  pedidos       Pedido[]
+}
+
+model Contacto {
+  id            String         @id @default(cuid())
+  nombre        String
+  apellido      String
+  email         String?
+  telefono      String?
+  cargo         String?
+  notas         String?
+  estado        EstadoContacto @default(LEAD)
+  creadoEn      DateTime       @default(now())
+  actualizadoEn DateTime       @updatedAt
+
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id])
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  oportunidades OportunidadContacto[]
+  actividades   Actividad[]
+  cotizaciones  Cotizacion[]
+  pedidos       Pedido[]
+}
+
+model Producto {
+  id            String   @id @default(cuid())
+  nombre        String
+  descripcion   String?
+  precio        Decimal  @default(0)
+  moneda        String   @default("PEN")
+  categoria     String?
+  unidad        String   @default("unidad")
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  oportunidadLineas OportunidadProducto[]
+  cotizacionLineas  CotizacionLinea[]
+  pedidoLineas      PedidoLinea[]
+}
+
+model Oportunidad {
+  id            String    @id @default(cuid())
+  titulo        String
+  valor         Decimal   @default(0)
+  moneda        String    @default("PEN")
+  etapa         Etapa     @default(PROSPECTO)
+  probabilidad  Int       @default(20)
+  fechaCierre   DateTime?
+  notas         String?
+  motivoPerdida String?
+  creadoEn      DateTime  @default(now())
+  actualizadoEn DateTime  @updatedAt
+
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id])
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  contactos   OportunidadContacto[]
+  productos   OportunidadProducto[]
+  actividades Actividad[]
+}
+
+model OportunidadContacto {
+  oportunidadId String
+  contactoId    String
+
+  oportunidad Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  contacto    Contacto    @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  @@id([oportunidadId, contactoId])
+}
+
+model OportunidadProducto {
+  id             String  @id @default(cuid())
+  cantidad       Decimal @default(1)
+  precioUnitario Decimal
+  descuento      Decimal @default(0)
+
+  oportunidadId String
+  oportunidad   Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  productoId    String
+  producto      Producto    @relation(fields: [productoId], references: [id])
+}
+
+model Actividad {
+  id           String        @id @default(cuid())
+  tipo         TipoActividad @default(TAREA)
+  titulo       String
+  descripcion  String?
+  fecha        DateTime
+  completada   Boolean       @default(false)
+  completadaEn DateTime?
+  creadoEn     DateTime      @default(now())
+
+  contactoId    String?
+  contacto      Contacto?    @relation(fields: [contactoId], references: [id])
+  empresaId     String?
+  empresa       Empresa?     @relation(fields: [empresaId], references: [id])
+  oportunidadId String?
+  oportunidad   Oportunidad? @relation(fields: [oportunidadId], references: [id])
+  usuarioId     String?
+  usuario       Usuario?     @relation(fields: [usuarioId], references: [id])
+}
+
+model Cotizacion {
+  id               String           @id @default(cuid())
+  numero           String           @unique
+  estado           EstadoCotizacion @default(BORRADOR)
+  fechaEmision     DateTime         @default(now())
+  fechaVencimiento DateTime?
+  subtotal         Decimal          @default(0)
+  descuento        Decimal          @default(0)
+  impuesto         Decimal          @default(0)
+  total            Decimal          @default(0)
+  moneda           String           @default("PEN")
+  notas            String?
+  creadoEn         DateTime         @default(now())
+  actualizadoEn    DateTime         @updatedAt
+
+  contactoId String?
+  contacto   Contacto? @relation(fields: [contactoId], references: [id])
+  empresaId  String?
+  empresa    Empresa?  @relation(fields: [empresaId], references: [id])
+  usuarioId  String?
+  usuario    Usuario?  @relation(fields: [usuarioId], references: [id])
+
+  lineas  CotizacionLinea[]
+  pedidos Pedido[]
+}
+
+model CotizacionLinea {
+  id             String  @id @default(cuid())
+  descripcion    String?
+  cantidad       Decimal
+  precioUnitario Decimal
+  descuento      Decimal @default(0)
+  subtotal       Decimal
+
+  cotizacionId String
+  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  productoId   String?
+  producto     Producto?  @relation(fields: [productoId], references: [id])
+}
+
+model Pedido {
+  id            String       @id @default(cuid())
+  numero        String       @unique
+  estado        EstadoPedido @default(PENDIENTE)
+  fechaPedido   DateTime     @default(now())
+  fechaEntrega  DateTime?
+  subtotal      Decimal      @default(0)
+  descuento     Decimal      @default(0)
+  impuesto      Decimal      @default(0)
+  total         Decimal      @default(0)
+  moneda        String       @default("PEN")
+  notas         String?
+  creadoEn      DateTime     @default(now())
+  actualizadoEn DateTime     @updatedAt
+
+  contactoId   String?
+  contacto     Contacto?   @relation(fields: [contactoId], references: [id])
+  empresaId    String?
+  empresa      Empresa?    @relation(fields: [empresaId], references: [id])
+  usuarioId    String?
+  usuario      Usuario?    @relation(fields: [usuarioId], references: [id])
+  cotizacionId String?
+  cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
+
+  lineas PedidoLinea[]
+}
+
+model PedidoLinea {
+  id             String    @id @default(cuid())
+  descripcion    String?
+  cantidad       Decimal
+  precioUnitario Decimal
+  descuento      Decimal   @default(0)
+  subtotal       Decimal
+
+  pedidoId   String
+  pedido     Pedido    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  productoId String?
+  producto   Producto? @relation(fields: [productoId], references: [id])
+}
+
+model EventoLog {
+  id          String   @id @default(cuid())
+  tipo        String
+  payload     Json
+  ocurridoEn  DateTime @default(now())
+  entidadTipo String?
+  entidadId   String?
+
+  @@index([entidadTipo, entidadId])
+  @@index([tipo])
+}

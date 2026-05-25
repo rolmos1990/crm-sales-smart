@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --src-dir --import-alias \"@/*\" --no-eslint --yes)",
+      "Read(//private/tmp/**)",
+      "Bash(npx create-next-app@latest crm-temp --typescript --tailwind --app --src-dir --import-alias \"@/*\" --no-eslint --yes)",
+      "Bash(cp /tmp/crm-temp/.gitignore /Users/ramonolmos/Repositories/crm-sales-smart/)",
+      "Bash(cp /tmp/crm-temp/next-env.d.ts /Users/ramonolmos/Repositories/crm-sales-smart/)",
+      "Bash(cp /tmp/crm-temp/next.config.ts /Users/ramonolmos/Repositories/crm-sales-smart/)",
+      "Bash(cp /tmp/crm-temp/package.json /Users/ramonolmos/Repositories/crm-sales-smart/)",
+      "Bash(cp /tmp/crm-temp/package-lock.json /Users/ramonolmos/Repositories/crm-sales-smart/)",
+      "Bash(npm install *)",
+      "Bash(npx next *)",
+      "Bash(npx prisma *)",
+      "Bash(npx shadcn@latest add table form input select textarea badge card dialog sheet tabs separator dropdown-menu tooltip avatar skeleton command popover calendar checkbox label switch scroll-area alert-dialog progress --yes)",
+      "Bash(mkdir -p \\\\ *)",
+      "Bash(npx shadcn@latest add form --yes)",
+      "Bash(xargs sed -i '' 's/validado\\\\.error\\\\.errors\\\\[0\\\\]\\\\.message/validado.error.issues[0]?.message ?? \"Error de validación\"/g')",
+      "Bash(sed -n '30,60p' src/crm/contactos/components/form-contacto.tsx)",
+      "Bash(sed -n '28,55p' src/crm/oportunidades/components/form-oportunidad.tsx)",
+      "Bash(mkdir -p \"src/app/crm/oportunidades/[id]/editar\")",
+      "Bash(mkdir -p \"src/app/productos/nuevo\" \"src/app/productos/[id]/editar\")",
+      "Bash(python3)"
+    ],
+    "additionalDirectories": [
+      "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
+      "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/oportunidades/[id]",
+      "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/productos/[id]"
+    ]
+  }
+}
