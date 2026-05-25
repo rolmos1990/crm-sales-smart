@@ -4,11 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "premock": "node scripts/create-mock-stubs.mjs",
+    "mock": "cross-env USE_MOCK=true next dev",
     "build": "next build",
     "start": "next start",
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -50,6 +55,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^7.0.3",
     "dotenv": "^17.4.2",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",

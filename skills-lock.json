@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": {
+    "nextjs-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nextjs-best-practices/SKILL.md",
+      "computedHash": "3c40a7ea604cdbee772bd7b3efe59aafd6fedf62252a76d43b9f835a6adc92cd"
+    },
+    "nodejs-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nodejs-best-practices/SKILL.md",
+      "computedHash": "6500f0617cb3bf5e5e565b42f5606365792591d3bdb1b2bd9cad3ef63a08ea39"
+    },
+    "prompt-engineering-patterns": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/prompt-engineering-patterns/SKILL.md",
+      "computedHash": "1620c8952bf719a9decbd659589ce3351e7ab7607433e669be1ebcfd07e27922"
+    },
+    "react-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "0de58562407e40b42ea14a670817a6db7583657a2503b833c25834e5832aebb1"
+    },
+    "readme": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/readme/SKILL.md",
+      "computedHash": "a000dd43ab3f5fed0345b6d4dc5726db78ad505523117ad25b31e3c7fe49d61d"
+    },
+    "seo-audit": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/seo-audit/SKILL.md",
+      "computedHash": "f70c4f1da4018ee90146eabfde65b183be2ee275fa22c4188ce802c79509d9f8"
+    },
+    "ui-component": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ui-component/SKILL.md",
+      "computedHash": "3f008883ce74d9560b313bda5f5b0131ef4b05b8b519dd00fb904f37fad74030"
+    },
+    "ui-pattern": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ui-pattern/SKILL.md",
+      "computedHash": "0f1d2d832fa1a84fc1e08e7b2f91e435553859f6c678dfd005168260fede8b07"
+    }
+  }
+}
