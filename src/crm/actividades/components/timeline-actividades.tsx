@@ -4,7 +4,7 @@ import { useState } from "react";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
-import { CheckCircle2, Circle, Trash2, Phone, Mail, Users, CheckSquare, FileText } from "lucide-react";
+import { CheckCircle2, Circle, Trash2, Phone, Mail, Users, CheckSquare, FileText, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
@@ -18,6 +18,7 @@ const ICONOS_TIPO: Record<TipoActividad, React.ElementType> = {
   REUNION: Users,
   TAREA: CheckSquare,
   NOTA: FileText,
+  WHATSAPP: MessageCircle,
 };
 
 const COLORES_TIPO: Record<TipoActividad, string> = {
@@ -26,6 +27,7 @@ const COLORES_TIPO: Record<TipoActividad, string> = {
   REUNION: "text-green-500 bg-green-50",
   TAREA: "text-amber-500 bg-amber-50",
   NOTA: "text-slate-500 bg-slate-50",
+  WHATSAPP: "text-emerald-500 bg-emerald-50",
 };
 
 function formatearFecha(fecha: Date) {

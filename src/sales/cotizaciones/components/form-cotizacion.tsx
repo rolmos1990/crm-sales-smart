@@ -16,15 +16,18 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
+import type { ProductoCatalogo } from "@/shared/productos/types";
 import { crearCotizacion } from "../actions";
 import { CrearCotizacionSchema, type CrearCotizacionInput } from "../schema";
 
 interface FormCotizacionProps {
   contactos: OpcionCombobox[];
   empresas: OpcionCombobox[];
+  productos?: ProductoCatalogo[];
 }
 
-export function FormCotizacion({ contactos, empresas }: FormCotizacionProps) {
+export function FormCotizacion({ contactos, empresas, productos = [] }: FormCotizacionProps) {
   const router = useRouter();
 
   const form = useForm<CrearCotizacionInput>({
@@ -70,7 +73,7 @@ export function FormCotizacion({ contactos, empresas }: FormCotizacionProps) {
           <FormField control={form.control} name="moneda" render={({ field }) => (
             <FormItem>
               <FormLabel>Moneda</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value ?? "PEN"}>
+              <Select onValueChange={field.onChange} value={field.value ?? "PEN"}>
                 <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                 <SelectContent>
                   <SelectItem value="PEN">PEN (S/)</SelectItem>
@@ -158,6 +161,20 @@ export function FormCotizacion({ contactos, empresas }: FormCotizacionProps) {
                   return (
                     <tr key={field.id} className="border-t">
                       <td className="px-2 py-1.5">
+                        {productos.length > 0 && (
+                          <SelectorProductoLinea
+                            productos={productos}
+                            productoId={lineas[idx]?.productoId ?? ""}
+                            onSeleccionar={(p) => {
+                              form.setValue(`lineas.${idx}.productoId`, p.id);
+                              form.setValue(`lineas.${idx}.descripcion`, p.nombre);
+                              form.setValue(`lineas.${idx}.precioUnitario`, p.precio);
+                            }}
+                            onLimpiar={() => {
+                              form.setValue(`lineas.${idx}.productoId`, "");
+                            }}
+                          />
+                        )}
                         <Input
                           placeholder="Producto o descripción..."
                           className="h-8 text-sm"

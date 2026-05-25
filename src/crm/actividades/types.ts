@@ -26,6 +26,7 @@ export const TIPOS_ACTIVIDAD: { valor: TipoActividad; etiqueta: string; icono: s
   { valor: "REUNION", etiqueta: "Reunión", icono: "🤝" },
   { valor: "TAREA", etiqueta: "Tarea", icono: "✅" },
   { valor: "NOTA", etiqueta: "Nota", icono: "📝" },
+  { valor: "WHATSAPP", etiqueta: "WhatsApp", icono: "💬" },
 ];
 
 export type ResultadoAccion<T = void> =

@@ -28,7 +28,7 @@ export default async function EditarProductoPage({ params }: { params: Promise<{
       </div>
       <PageHeader titulo="Editar producto" descripcion={producto?.nombre ?? ""} />
       <FormProducto
-        inicial={producto ? { ...producto, precio: Number(producto.precio) } : undefined}
+        inicial={producto ? { ...producto, precio: Number(producto.precio), cantidadDisponible: Number(producto.cantidadDisponible) } : undefined}
         modo="editar"
       />
     </div>

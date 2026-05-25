@@ -12,8 +12,37 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { lineas, contactoId, empresaId, cotizacionId, notas, impuesto, ...resto } = validado.data;
+    const {
+      lineas, contactoId, empresaId, cotizacionId, notas, impuesto,
+      nombre, apellido, telefono, email, ruc, empresaNombre,
+      ...resto
+    } = validado.data;
     const numero = await generarNumeroPedido();
+
+    // Cargar y validar stock de productos que lo manejan
+    const idsProducto = lineas.map(l => l.productoId).filter(Boolean) as string[];
+    const productosConStock: { id: string; nombre: string; cantidadDisponible: number }[] = [];
+
+    if (idsProducto.length > 0) {
+      const productosDB = await prisma.producto.findMany({
+        where: { id: { in: idsProducto }, manejaStock: true },
+        select: { id: true, nombre: true, cantidadDisponible: true },
+      });
+
+      for (const linea of lineas) {
+        if (!linea.productoId) continue;
+        const prod = productosDB.find(p => p.id === linea.productoId);
+        if (!prod) continue;
+        const disponible = Number(prod.cantidadDisponible);
+        if (disponible < linea.cantidad) {
+          return {
+            exito: false,
+            error: `Stock insuficiente para "${prod.nombre}". Disponible: ${disponible} — solicitado: ${linea.cantidad}`,
+          };
+        }
+        productosConStock.push({ id: prod.id, nombre: prod.nombre, cantidadDisponible: disponible });
+      }
+    }
 
     const subtotal = lineas.reduce((acc, l) => {
       return acc + l.cantidad * l.precioUnitario * (1 - l.descuento / 100);
@@ -32,6 +61,12 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
         contactoId: contactoId || null,
         empresaId: empresaId || null,
         cotizacionId: cotizacionId || null,
+        nombre: nombre || null,
+        apellido: apellido || null,
+        telefono: telefono || null,
+        email: email || null,
+        ruc: ruc || null,
+        empresaNombre: empresaNombre || null,
         lineas: {
           create: lineas.map(l => ({
             productoId: l.productoId || null,
@@ -48,6 +83,20 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
         empresa: { select: { id: true, nombre: true } },
       },
     });
+
+    // Descontar stock de los productos que lo manejan
+    if (productosConStock.length > 0) {
+      await Promise.all(
+        lineas
+          .filter(l => l.productoId && productosConStock.some(p => p.id === l.productoId))
+          .map(l =>
+            prisma.producto.update({
+              where: { id: l.productoId! },
+              data: { cantidadDisponible: { decrement: l.cantidad } },
+            })
+          )
+      );
+    }
 
     busEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, { pedidoId: pedido.id, numero: pedido.numero, total });
     revalidatePath("/sales/pedidos");

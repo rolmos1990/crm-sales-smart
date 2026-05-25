@@ -14,9 +14,17 @@ export const CrearPedidoSchema = z.object({
   moneda: z.string().optional(),
   impuesto: z.number().min(0).max(100),
   notas: z.string().max(2000).optional().or(z.literal("")),
+  // Relaciones CRM
   contactoId: z.string().optional().or(z.literal("")),
   empresaId: z.string().optional().or(z.literal("")),
   cotizacionId: z.string().optional().or(z.literal("")),
+  // Datos del comprador (pedido manual)
+  nombre: z.string().max(100).optional().or(z.literal("")),
+  apellido: z.string().max(100).optional().or(z.literal("")),
+  telefono: z.string().max(30).optional().or(z.literal("")),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  ruc: z.string().max(20).optional().or(z.literal("")),
+  empresaNombre: z.string().max(200).optional().or(z.literal("")),
   lineas: z.array(LineaPedidoSchema).min(1, "Debe agregar al menos un producto"),
 });
 

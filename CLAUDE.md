@@ -220,3 +220,79 @@ npm run db:migrate   # Ejecutar migraciones Prisma
 npm run db:seed      # Poblar base de datos con datos de prueba
 npm run db:studio    # Abrir Prisma Studio
 ```
+
+---
+---
+
+## `premium-olive-ui`
+
+Aplicar cuando:
+- Se diseñen dashboards, menús, cards, layouts o pantallas principales
+- La UI se vea básica, plana o poco moderna
+- Se pida mejorar dark mode, glassmorphism o minimalismo visual
+
+Objetivo:
+Crear una interfaz moderna tipo SaaS premium usando:
+- Dark Mode elegante
+- Glassmorfismo sutil
+- Minimalismo inteligente
+- Tonalidades verde oliva/lime/emerald
+- Mejor jerarquía visual y espaciado
+
+Reglas visuales obligatorias:
+1. Evitar fondos completamente negros planos.
+2. Usar fondos con degradados oscuros:
+   - `bg-[radial-gradient(...)]`
+   - `from-stone-950`
+   - `via-neutral-950`
+   - `to-black`
+3. Las cards deben usar glassmorphism:
+   - `bg-white/5`
+   - `backdrop-blur-xl`
+   - `border border-white/10`
+   - `shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]`
+4. Los botones deben verse modernos:
+   - `rounded-xl`
+   - `bg-lime-500/90`
+   - `text-stone-950`
+   - `hover:bg-lime-400`
+   - `shadow-lg`
+   - `transition-all`
+   - `hover:scale-[1.02]`
+5. El sidebar debe tener:
+   - fondo translúcido `bg-stone-950/80`
+   - `backdrop-blur-xl`
+   - separadores suaves `border-white/10`
+   - items con hover visible
+   - item activo con fondo oliva/lime translúcido
+6. Los textos deben tener buena jerarquía:
+   - títulos `text-2xl font-semibold tracking-tight`
+   - subtítulos `text-sm text-muted-foreground`
+   - labels en mayúscula ligera `uppercase tracking-wide text-xs`
+7. Evitar demasiados bordes duros.
+8. Usar iconos con contenedores suaves.
+9. Usar animaciones sutiles, nunca exageradas.
+10. Mantener siempre buena legibilidad.
+
+Colores recomendados:
+- Fondo principal: `stone-950`, `neutral-950`, `zinc-950`
+- Primario: `lime-400`, `lime-500`, `green-500`, `emerald-400`
+- Superficies: `white/5`, `white/10`, `stone-900/60`
+- Bordes: `white/10`, `lime-400/20`
+- Texto principal: `text-stone-50`
+- Texto secundario: `text-stone-400`
+
+Errores a corregir:
+- Menús muy planos
+- Botones básicos sin jerarquía
+- Cards demasiado oscuras sin contraste
+- Falta de hover/active state
+- Espaciado comprimido
+- Fuentes o tamaños inconsistentes
+- Íconos sin tratamiento visual
+
+Regla de aplicación:
+- Si el componente ya cumple este estilo premium, dejarlo igual.
+- Si el componente se ve básico, plano o inconsistente, aplicar esta política visual.
+- No cambiar lógica de negocio.
+- No cambiar nombres de rutas, hooks, actions, queries o modelos.

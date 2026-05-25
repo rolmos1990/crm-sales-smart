@@ -18,9 +18,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarDays, Building2, TrendingUp, MoreHorizontal, Plus } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,75 +62,85 @@ function TarjetaOportunidad({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform) }}
-      className={cn("mb-2 touch-none", isDragging && "opacity-30")}
+      className={cn("mb-2.5 touch-none", isDragging && "opacity-25")}
       {...attributes}
       {...listeners}
     >
-      <Card
-        className="cursor-pointer border hover:shadow-md transition-all group select-none"
+      <div
+        className={cn(
+          "cursor-pointer rounded-xl border bg-white dark:bg-white/6 dark:backdrop-blur-sm",
+          "border-stone-200 dark:border-white/10",
+          "hover:border-stone-300 dark:hover:border-white/20",
+          "hover:shadow-md dark:hover:shadow-[0_4px_20px_-6px_rgba(0,0,0,0.5)]",
+          "transition-all duration-150 group select-none p-4 space-y-3"
+        )}
         onClick={onClick}
       >
-        <CardContent className="p-3 space-y-2">
-          <div className="flex items-start justify-between gap-1">
-            <span className="text-sm font-medium leading-tight line-clamp-2 flex-1 pointer-events-none">
-              {oportunidad.titulo}
-            </span>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="inline-flex size-6 items-center justify-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-muted transition-all outline-none flex-shrink-0"
+        {/* Título + menú */}
+        <div className="flex items-start justify-between gap-1.5">
+          <span className="text-sm font-semibold leading-snug line-clamp-2 flex-1 text-stone-900 dark:text-stone-100 pointer-events-none">
+            {oportunidad.titulo}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="inline-flex size-6 items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 hover:bg-stone-100 dark:hover:bg-white/10 transition-all outline-none flex-shrink-0 mt-0.5"
+            >
+              <MoreHorizontal className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClick();
+                }}
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onClick();
-                  }}
-                >
-                  Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={`/crm/oportunidades/${oportunidad.id}`}>
-                    Ver completo
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/crm/oportunidades/${oportunidad.id}`}>
+                  Ver completo
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-          <div className="text-base font-semibold text-primary tabular-nums pointer-events-none">
-            {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
-          </div>
+        {/* Valor */}
+        <div className="text-lg font-bold text-lime-600 dark:text-lime-400 tabular-nums pointer-events-none">
+          {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
+        </div>
 
-          <div className="space-y-1 pointer-events-none">
-            {oportunidad.empresa && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Building2 className="h-3 w-3 shrink-0" />
-                <span className="truncate">{oportunidad.empresa.nombre}</span>
-              </div>
-            )}
-            {oportunidad.fechaCierre && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <CalendarDays className="h-3 w-3 shrink-0" />
-                {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between pointer-events-none">
-            <span className="text-xs text-muted-foreground">{oportunidad.probabilidad}%</span>
-            <div className="w-16 bg-muted rounded-full h-1.5">
-              <div
-                className="bg-primary rounded-full h-1.5 transition-all"
-                style={{ width: `${oportunidad.probabilidad}%` }}
-              />
+        {/* Meta */}
+        <div className="space-y-1.5 pointer-events-none">
+          {oportunidad.empresa && (
+            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+              <Building2 className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
+              <span className="truncate">{oportunidad.empresa.nombre}</span>
             </div>
+          )}
+          {oportunidad.fechaCierre && (
+            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+              <CalendarDays className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
+              {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
+            </div>
+          )}
+        </div>
+
+        {/* Barra de probabilidad */}
+        <div className="flex items-center justify-between gap-3 pointer-events-none">
+          <span className="text-xs font-medium text-stone-500 dark:text-stone-400 tabular-nums">
+            {oportunidad.probabilidad}%
+          </span>
+          <div className="flex-1 bg-stone-100 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
+            <div
+              className="bg-lime-500 dark:bg-lime-400 rounded-full h-1.5 transition-all"
+              style={{ width: `${oportunidad.probabilidad}%` }}
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
@@ -141,17 +149,17 @@ function TarjetaOportunidad({
 
 function TarjetaOverlay({ oportunidad }: { oportunidad: Oportunidad }) {
   return (
-    <Card className="w-[272px] rotate-1 shadow-2xl border-2 border-primary/20 opacity-95">
-      <CardContent className="p-3 space-y-1">
-        <p className="text-sm font-medium line-clamp-1">{oportunidad.titulo}</p>
-        <p className="text-sm font-semibold text-primary">
-          {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
-        </p>
-        {oportunidad.empresa && (
-          <p className="text-xs text-muted-foreground">{oportunidad.empresa.nombre}</p>
-        )}
-      </CardContent>
-    </Card>
+    <div className="w-[280px] rotate-1 rounded-xl border-2 border-lime-400/30 bg-white dark:bg-stone-900 shadow-2xl p-4 space-y-2 opacity-95">
+      <p className="text-sm font-semibold line-clamp-1 text-stone-900 dark:text-stone-100">
+        {oportunidad.titulo}
+      </p>
+      <p className="text-lg font-bold text-lime-600 dark:text-lime-400 tabular-nums">
+        {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
+      </p>
+      {oportunidad.empresa && (
+        <p className="text-xs text-stone-500 dark:text-stone-400">{oportunidad.empresa.nombre}</p>
+      )}
+    </div>
   );
 }
 
@@ -170,53 +178,61 @@ function ColumnaKanban({
   const totalValor = items.reduce((sum, o) => sum + o.valor, 0);
 
   return (
-    <div className="flex-shrink-0 w-[272px]">
+    <div className="flex-shrink-0 w-[280px]">
       <div
         className={cn(
-          "flex flex-col rounded-xl border bg-card transition-all",
-          isOver && "ring-2 ring-primary/40 bg-primary/5"
+          "flex flex-col rounded-2xl border transition-all",
+          "bg-stone-100/60 dark:bg-white/4 dark:backdrop-blur-xl",
+          "border-stone-200 dark:border-white/10",
+          isOver && "ring-2 ring-lime-400/40 bg-lime-50 dark:bg-lime-400/5"
         )}
       >
         {/* Encabezado de columna */}
-        <div className="px-3 pt-3 pb-2">
+        <div className="px-3.5 pt-3.5 pb-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span
                 className={cn(
-                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  "inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-semibold",
                   etapaConfig.color
                 )}
               >
                 {etapaConfig.etiqueta}
               </span>
-              <Badge variant="secondary" className="text-xs h-5">
+              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-md bg-stone-200 dark:bg-white/10 text-xs font-bold text-stone-600 dark:text-stone-400">
                 {items.length}
-              </Badge>
+              </span>
             </div>
             <Link href={`/crm/oportunidades/nueva?etapa=${etapaConfig.valor}`}>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-200 dark:hover:bg-white/10"
+              >
                 <Plus className="h-3.5 w-3.5" />
               </Button>
             </Link>
           </div>
           {items.length > 0 && (
-            <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
-              <TrendingUp className="h-3 w-3" />
-              {formatearMoneda(totalValor, "PEN")}
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-stone-500 dark:text-stone-400">
+              <TrendingUp className="h-3 w-3 text-lime-500 dark:text-lime-500" />
+              <span className="text-lime-600 dark:text-lime-400 font-semibold">
+                {formatearMoneda(totalValor, "PEN")}
+              </span>
             </div>
           )}
         </div>
 
         {/* Área droppable con tarjetas */}
-        <ScrollArea className="h-[calc(100vh-260px)]">
+        <ScrollArea className="h-[calc(100vh-300px)]">
           <div ref={setNodeRef} className="px-3 pb-3 min-h-[80px]">
             {items.length === 0 ? (
               <div
                 className={cn(
-                  "rounded-lg border-2 border-dashed py-8 text-center text-xs text-muted-foreground transition-colors",
+                  "rounded-xl border-2 border-dashed py-10 text-center text-xs transition-colors",
                   isOver
-                    ? "border-primary/50 bg-primary/5 text-primary font-medium"
-                    : "border-muted"
+                    ? "border-lime-400/50 bg-lime-500/5 text-lime-500 dark:text-lime-400 font-semibold"
+                    : "border-stone-300 dark:border-white/10 text-stone-400 dark:text-stone-600"
                 )}
               >
                 {isOver ? "Soltar aquí" : "Sin oportunidades"}
@@ -301,7 +317,6 @@ export function PipelineKanban({
       for (const [etapa, ops] of next.entries()) {
         next.set(etapa, ops.filter((o) => o.id !== updated.id));
       }
-      // Si pasa a GANADO o PERDIDO, la tarjeta desaparece del kanban
       if (updated.etapa !== "GANADO" && updated.etapa !== "PERDIDO") {
         next.set(updated.etapa, [updated, ...(next.get(updated.etapa) ?? [])]);
       }
@@ -327,7 +342,7 @@ export function PipelineKanban({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto pb-6">
           {ETAPAS_ACTIVAS.map((etapaConfig) => (
             <ColumnaKanban
               key={etapaConfig.valor}

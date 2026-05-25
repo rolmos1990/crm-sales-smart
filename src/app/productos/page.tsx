@@ -12,7 +12,7 @@ export default async function ProductosPage() {
 
   try {
     const datos = await obtenerProductos();
-    productos = datos.map((p) => ({ ...p, precio: Number(p.precio) })) as Producto[];
+    productos = datos.map((p) => ({ ...p, precio: Number(p.precio), cantidadDisponible: Number(p.cantidadDisponible) })) as Producto[];
   } catch {
     // DB not configured — show empty state
   }

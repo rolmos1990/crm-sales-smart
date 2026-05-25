@@ -5,6 +5,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { FormPedido } from "@/sales/pedidos/components/form-pedido";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
+import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 
 export default async function NuevoPedidoPage() {
   let empresas: { id: string; nombre: string }[] = [];
@@ -18,6 +19,7 @@ export default async function NuevoPedidoPage() {
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
   const opcionesContactos = contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));
+  const productos = await obtenerProductosCatalogo();
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
@@ -25,7 +27,7 @@ export default async function NuevoPedidoPage() {
         <ButtonLink variant="ghost" size="icon-sm" href="/sales/pedidos"><ArrowLeft className="h-4 w-4" /></ButtonLink>
       </div>
       <PageHeader titulo="Nuevo pedido" descripcion="Crea un pedido con líneas de productos" />
-      <FormPedido empresas={opcionesEmpresas} contactos={opcionesContactos} />
+      <FormPedido empresas={opcionesEmpresas} contactos={opcionesContactos} productos={productos} />
     </div>
   );
 }

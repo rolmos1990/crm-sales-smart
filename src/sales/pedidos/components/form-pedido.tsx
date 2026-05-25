@@ -4,7 +4,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -16,15 +16,18 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
+import type { ProductoCatalogo } from "@/shared/productos/types";
 import { crearPedido } from "../actions";
 import { CrearPedidoSchema, type CrearPedidoInput } from "../schema";
 
 interface FormPedidoProps {
   contactos: OpcionCombobox[];
   empresas: OpcionCombobox[];
+  productos?: ProductoCatalogo[];
 }
 
-export function FormPedido({ contactos, empresas }: FormPedidoProps) {
+export function FormPedido({ contactos, empresas, productos = [] }: FormPedidoProps) {
   const router = useRouter();
 
   const form = useForm<CrearPedidoInput>({
@@ -37,6 +40,12 @@ export function FormPedido({ contactos, empresas }: FormPedidoProps) {
       contactoId: "",
       empresaId: "",
       cotizacionId: "",
+      nombre: "",
+      apellido: "",
+      telefono: "",
+      email: "",
+      ruc: "",
+      empresaNombre: "",
       lineas: [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
     },
   });
@@ -71,7 +80,7 @@ export function FormPedido({ contactos, empresas }: FormPedidoProps) {
           <FormField control={form.control} name="moneda" render={({ field }) => (
             <FormItem>
               <FormLabel>Moneda</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value ?? "PEN"}>
+              <Select onValueChange={field.onChange} value={field.value ?? "PEN"}>
                 <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                 <SelectContent>
                   <SelectItem value="PEN">PEN (S/)</SelectItem>
@@ -110,7 +119,7 @@ export function FormPedido({ contactos, empresas }: FormPedidoProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField control={form.control} name="empresaId" render={({ field }) => (
             <FormItem>
-              <FormLabel>Empresa</FormLabel>
+              <FormLabel>Empresa (CRM)</FormLabel>
               <FormControl>
                 <Combobox opciones={empresas} valor={field.value} onChange={field.onChange} placeholder="Seleccionar empresa..." />
               </FormControl>
@@ -118,9 +127,71 @@ export function FormPedido({ contactos, empresas }: FormPedidoProps) {
           )} />
           <FormField control={form.control} name="contactoId" render={({ field }) => (
             <FormItem>
-              <FormLabel>Contacto</FormLabel>
+              <FormLabel>Contacto (CRM)</FormLabel>
               <FormControl>
                 <Combobox opciones={contactos} valor={field.value} onChange={field.onChange} placeholder="Seleccionar contacto..." />
+              </FormControl>
+            </FormItem>
+          )} />
+        </div>
+
+        {/* Datos del comprador — pedido manual */}
+        <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4 space-y-4">
+          <p className="text-sm font-medium flex items-center gap-2 text-stone-700 dark:text-stone-300">
+            <User className="h-4 w-4 text-stone-400" />
+            Datos del comprador
+            <span className="text-xs font-normal text-stone-400 dark:text-stone-500">(opcional — para pedidos sin contacto en CRM)</span>
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField control={form.control} name="nombre" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre</FormLabel>
+                <FormControl>
+                  <Input placeholder="Juan" {...field} value={field.value ?? ""} />
+                </FormControl>
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="apellido" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Apellido</FormLabel>
+                <FormControl>
+                  <Input placeholder="Pérez" {...field} value={field.value ?? ""} />
+                </FormControl>
+              </FormItem>
+            )} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormField control={form.control} name="telefono" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Teléfono</FormLabel>
+                <FormControl>
+                  <Input placeholder="+51 999 888 777" {...field} value={field.value ?? ""} />
+                </FormControl>
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="email" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="correo@ejemplo.com" {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="ruc" render={({ field }) => (
+              <FormItem>
+                <FormLabel>RUC</FormLabel>
+                <FormControl>
+                  <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
+                </FormControl>
+              </FormItem>
+            )} />
+          </div>
+          <FormField control={form.control} name="empresaNombre" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Razón social / Empresa</FormLabel>
+              <FormControl>
+                <Input placeholder="Empresa SAC" {...field} value={field.value ?? ""} />
               </FormControl>
             </FormItem>
           )} />
@@ -159,6 +230,20 @@ export function FormPedido({ contactos, empresas }: FormPedidoProps) {
                   return (
                     <tr key={field.id} className="border-t">
                       <td className="px-2 py-1.5">
+                        {productos.length > 0 && (
+                          <SelectorProductoLinea
+                            productos={productos}
+                            productoId={lineas[idx]?.productoId ?? ""}
+                            onSeleccionar={(p) => {
+                              form.setValue(`lineas.${idx}.productoId`, p.id);
+                              form.setValue(`lineas.${idx}.descripcion`, p.nombre);
+                              form.setValue(`lineas.${idx}.precioUnitario`, p.precio);
+                            }}
+                            onLimpiar={() => {
+                              form.setValue(`lineas.${idx}.productoId`, "");
+                            }}
+                          />
+                        )}
                         <Input
                           placeholder="Producto o descripción..."
                           className="h-8 text-sm"

@@ -11,7 +11,7 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { descripcion, categoria, unidad, ...resto } = validado.data;
+    const { descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, ...resto } = validado.data;
     const producto = await prisma.producto.create({
       data: {
         ...resto,
@@ -20,6 +20,10 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
         descripcion: descripcion || null,
         categoria: categoria || null,
         unidad: unidad || undefined,
+        sku: sku || null,
+        imagenUrl: imagenUrl || null,
+        manejaStock: manejaStock ?? false,
+        cantidadDisponible: cantidadDisponible ?? 0,
       },
     });
 
@@ -29,9 +33,12 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
       precio: Number(producto.precio),
     });
     revalidatePath("/productos");
-    return { exito: true, datos: { ...producto, precio: Number(producto.precio) } as Producto };
-  } catch {
-    return { exito: false, error: "Error al crear el producto" };
+    return { exito: true, datos: { ...producto, precio: Number(producto.precio), cantidadDisponible: Number(producto.cantidadDisponible) } as Producto };
+  } catch (e: unknown) {
+    const msg = e instanceof Error && e.message.includes("Unique constraint") && e.message.includes("sku")
+      ? "Ya existe un producto con ese SKU"
+      : "Error al crear el producto";
+    return { exito: false, error: msg };
   }
 }
 
@@ -40,7 +47,7 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { descripcion, categoria, unidad, ...resto } = validado.data;
+    const { descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, ...resto } = validado.data;
     const productoAntes = await prisma.producto.findUnique({ where: { id }, select: { precio: true } });
     const producto = await prisma.producto.update({
       where: { id },
@@ -49,6 +56,10 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
         ...(descripcion !== undefined && { descripcion: descripcion || null }),
         ...(categoria !== undefined && { categoria: categoria || null }),
         ...(unidad !== undefined && { unidad: unidad || undefined }),
+        ...(sku !== undefined && { sku: sku || null }),
+        ...(imagenUrl !== undefined && { imagenUrl: imagenUrl || null }),
+        ...(manejaStock !== undefined && { manejaStock }),
+        ...(cantidadDisponible !== undefined && { cantidadDisponible }),
       },
     });
 
@@ -64,9 +75,12 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
 
     revalidatePath("/productos");
     revalidatePath(`/productos/${id}`);
-    return { exito: true, datos: { ...producto, precio: Number(producto.precio) } as Producto };
-  } catch {
-    return { exito: false, error: "Error al actualizar el producto" };
+    return { exito: true, datos: { ...producto, precio: Number(producto.precio), cantidadDisponible: Number(producto.cantidadDisponible) } as Producto };
+  } catch (e: unknown) {
+    const msg = e instanceof Error && e.message.includes("Unique constraint") && e.message.includes("sku")
+      ? "Ya existe un producto con ese SKU"
+      : "Error al actualizar el producto";
+    return { exito: false, error: msg };
   }
 }
 

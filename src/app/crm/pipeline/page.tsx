@@ -35,7 +35,7 @@ export default async function PipelinePage() {
     [...oportunidades.values()].every((v) => v.length === 0);
 
   return (
-    <div className="space-y-6 h-full">
+    <div className="flex flex-col gap-6 p-6 h-full">
       <PageHeader
         titulo="Pipeline de Ventas"
         descripcion="Arrastra las oportunidades entre etapas · Haz clic en una tarjeta para editarla"

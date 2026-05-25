@@ -99,6 +99,7 @@ export const mockPrisma = {
   oportunidad: crearModeloMock(oportunidadesMock),
   oportunidadContacto: crearModeloMock([] as AnyRecord[]),
   oportunidadProducto: crearModeloMock([] as AnyRecord[]),
+  oportunidadTag: crearModeloMock([] as AnyRecord[]),
   actividad: crearModeloMock(actividadesMock),
   producto: crearModeloMock(productosMock),
   cotizacion: crearModeloMock(cotizacionesMock),
@@ -106,6 +107,13 @@ export const mockPrisma = {
   pedido: crearModeloMock(pedidosMock),
   pedidoLinea: crearModeloMock([] as AnyRecord[]),
   usuario: crearModeloMock([] as AnyRecord[]),
+  usuarioInstancia: crearModeloMock([] as AnyRecord[]),
+  instancia: crearModeloMock([] as AnyRecord[]),
+  pipeline: crearModeloMock([] as AnyRecord[]),
+  pipelineStage: crearModeloMock([] as AnyRecord[]),
+  tag: crearModeloMock([] as AnyRecord[]),
+  campoPersonalizado: crearModeloMock([] as AnyRecord[]),
+  campoPersonalizadoValor: crearModeloMock([] as AnyRecord[]),
   eventoLog: crearModeloMock([] as AnyRecord[]),
 
   // Prisma transaction stub — ejecuta el callback con el mismo mock

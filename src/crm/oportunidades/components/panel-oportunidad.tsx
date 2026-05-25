@@ -4,8 +4,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ExternalLink } from "lucide-react";
-import Link from "next/link";
+import { ExternalLink, Pencil } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -30,8 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { actualizarOportunidad, eliminarOportunidad } from "../actions";
@@ -103,11 +101,20 @@ export function PanelOportunidad({
 
   return (
     <Sheet open={!!oportunidad} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
-        <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle className="text-left text-sm font-medium text-muted-foreground">
-            Editar oportunidad
-          </SheetTitle>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-[500px] bg-white dark:bg-stone-950 border-l border-stone-200 dark:border-white/10 shadow-2xl"
+      >
+        {/* Header */}
+        <SheetHeader className="border-b border-stone-100 dark:border-white/10 px-6 py-4 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg bg-lime-500/10 dark:bg-lime-400/10 p-1.5">
+              <Pencil className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400" />
+            </div>
+            <SheetTitle className="text-sm font-semibold text-stone-500 dark:text-stone-400 tracking-wide">
+              Editar oportunidad
+            </SheetTitle>
+          </div>
         </SheetHeader>
 
         {oportunidad && (
@@ -116,18 +123,20 @@ export function PanelOportunidad({
               onSubmit={form.handleSubmit(onSubmit)}
               className="flex flex-1 flex-col overflow-hidden"
             >
-              <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-                {/* Título grande editable */}
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                {/* Título como textarea para permitir wrap */}
                 <FormField
                   control={form.control}
                   name="titulo"
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <input
+                        <textarea
                           {...field}
-                          className="w-full border-0 bg-transparent p-0 text-xl font-semibold placeholder:text-muted-foreground/50 focus:outline-none"
+                          rows={2}
+                          className="w-full border-0 bg-transparent p-0 text-xl font-semibold leading-snug placeholder:text-stone-300 dark:placeholder:text-stone-700 focus:outline-none resize-none text-stone-900 dark:text-stone-50"
                           placeholder="Título de la oportunidad"
+                          value={field.value ?? ""}
                         />
                       </FormControl>
                       <FormMessage />
@@ -141,10 +150,12 @@ export function PanelOportunidad({
                   name="etapa"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Etapa</FormLabel>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                        Etapa
+                      </FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9">
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
@@ -153,7 +164,7 @@ export function PanelOportunidad({
                             <SelectItem key={e.valor} value={e.valor}>
                               <span
                                 className={cn(
-                                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                                  "inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-semibold",
                                   e.color
                                 )}
                               >
@@ -168,7 +179,7 @@ export function PanelOportunidad({
                   )}
                 />
 
-                <Separator />
+                <div className="h-px bg-stone-100 dark:bg-white/8" />
 
                 {/* Valor + Moneda */}
                 <div className="grid grid-cols-2 gap-3">
@@ -177,12 +188,15 @@ export function PanelOportunidad({
                     name="valor"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Valor</FormLabel>
+                        <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                          Valor
+                        </FormLabel>
                         <FormControl>
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
+                            className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
                             value={field.value ?? ""}
                             onChange={(e) => field.onChange(e.target.valueAsNumber)}
                           />
@@ -196,10 +210,12 @@ export function PanelOportunidad({
                     name="moneda"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Moneda</FormLabel>
+                        <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                          Moneda
+                        </FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9">
                               <SelectValue />
                             </SelectTrigger>
                           </FormControl>
@@ -221,12 +237,15 @@ export function PanelOportunidad({
                     name="probabilidad"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Probabilidad (%)</FormLabel>
+                        <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                          Probabilidad (%)
+                        </FormLabel>
                         <FormControl>
                           <Input
                             type="number"
                             min="0"
                             max="100"
+                            className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
                             value={field.value ?? ""}
                             onChange={(e) => field.onChange(e.target.valueAsNumber)}
                           />
@@ -240,10 +259,13 @@ export function PanelOportunidad({
                     name="fechaCierre"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Fecha de cierre</FormLabel>
+                        <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                          Fecha de cierre
+                        </FormLabel>
                         <FormControl>
                           <Input
                             type="date"
+                            className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
                             value={
                               field.value
                                 ? new Date(field.value).toISOString().split("T")[0]
@@ -262,7 +284,7 @@ export function PanelOportunidad({
                   />
                 </div>
 
-                <Separator />
+                <div className="h-px bg-stone-100 dark:bg-white/8" />
 
                 {/* Empresa */}
                 <FormField
@@ -270,7 +292,9 @@ export function PanelOportunidad({
                   name="empresaId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Empresa</FormLabel>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                        Empresa
+                      </FormLabel>
                       <FormControl>
                         <Combobox
                           opciones={empresas}
@@ -284,9 +308,11 @@ export function PanelOportunidad({
                   )}
                 />
 
-                {/* Contacto (solo lectura, sin onChange en action actual) */}
+                {/* Contacto (solo lectura) */}
                 <FormItem>
-                  <FormLabel>Contacto principal</FormLabel>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                    Contacto principal
+                  </FormLabel>
                   <Combobox
                     opciones={contactos}
                     valor={oportunidad.contactos?.[0]?.contacto.id ?? ""}
@@ -296,7 +322,7 @@ export function PanelOportunidad({
                   />
                 </FormItem>
 
-                <Separator />
+                <div className="h-px bg-stone-100 dark:bg-white/8" />
 
                 {/* Notas */}
                 <FormField
@@ -304,11 +330,13 @@ export function PanelOportunidad({
                   name="notas"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Notas</FormLabel>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                        Notas
+                      </FormLabel>
                       <FormControl>
                         <Textarea
                           rows={4}
-                          className="resize-none"
+                          className="resize-none bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl text-sm"
                           placeholder="Escribe los detalles de esta oportunidad..."
                           {...field}
                           value={field.value ?? ""}
@@ -320,15 +348,16 @@ export function PanelOportunidad({
                 />
               </div>
 
-              <SheetFooter className="flex-row items-center justify-between gap-2 border-t px-6 py-4">
-                <div className="flex gap-1">
+              {/* Footer */}
+              <SheetFooter className="flex-row items-center justify-between gap-2 border-t border-stone-100 dark:border-white/10 px-6 py-4 flex-shrink-0">
+                <div className="flex items-center gap-1">
                   <ConfirmacionDialog
                     trigger={
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        className="text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 rounded-lg"
                       >
                         Eliminar
                       </Button>
@@ -337,14 +366,22 @@ export function PanelOportunidad({
                     descripcion={`Se eliminará permanentemente "${oportunidad.titulo}".`}
                     onConfirmar={handleDelete}
                   />
-                  <Button type="button" variant="ghost" size="sm" asChild>
-                    <Link href={`/crm/oportunidades/${oportunidad.id}`}>
-                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                      Ver completo
-                    </Link>
-                  </Button>
+                  <ButtonLink
+                    href={`/crm/oportunidades/${oportunidad.id}`}
+                    variant="ghost"
+                    size="sm"
+                    className="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 rounded-lg"
+                  >
+                    <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                    Ver completo
+                  </ButtonLink>
                 </div>
-                <Button type="submit" size="sm" disabled={form.formState.isSubmitting}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={form.formState.isSubmitting}
+                  className="bg-lime-500 dark:bg-lime-500 text-stone-950 hover:bg-lime-400 dark:hover:bg-lime-400 rounded-xl px-5 font-semibold shadow-sm transition-all hover:scale-[1.02]"
+                >
                   {form.formState.isSubmitting ? "Guardando..." : "Guardar"}
                 </Button>
               </SheetFooter>

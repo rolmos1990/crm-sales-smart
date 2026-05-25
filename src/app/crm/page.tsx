@@ -12,9 +12,9 @@ import {
   Clock,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { prisma } from "@/shared/db/prisma";
+import { cn } from "@/lib/utils";
 
 // ---- KPI data ----
 
@@ -136,75 +136,99 @@ const TIPO_LABELS: Record<string, string> = {
   NOTA: "Nota",
 };
 
+function getBadgeEtapaClass(etapa: string): string {
+  const mapa: Record<string, string> = {
+    PROSPECTO: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+    CALIFICADO: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+    PROPUESTA: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    NEGOCIACION: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+    GANADO: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    PERDIDO: "bg-red-500/15 text-red-400 border-red-500/30",
+  };
+  return mapa[etapa] ?? "bg-stone-500/15 text-stone-400 border-stone-500/30";
+}
+
 // ---- Components ----
 
 async function KpiCards() {
   const kpis = await obtenerKpis();
 
+  const tarjetas = [
+    {
+      etiqueta: "Contactos activos",
+      valor: kpis.totalContactos,
+      subvalor: null,
+      href: "/crm/contactos",
+      enlace: "Ver todos",
+      Icono: Users,
+      colorIcono: "text-sky-400",
+      bgIcono: "bg-sky-500/10 dark:bg-sky-500/10 ring-1 ring-sky-500/20",
+    },
+    {
+      etiqueta: "Pipeline activo",
+      valor: kpis.totalOportunidadesAbiertas,
+      subvalor: formatCurrency(kpis.valorPipeline),
+      href: "/crm/pipeline",
+      enlace: "Ver pipeline",
+      Icono: TrendingUp,
+      colorIcono: "text-violet-400",
+      bgIcono: "bg-violet-500/10 dark:bg-violet-500/10 ring-1 ring-violet-500/20",
+    },
+    {
+      etiqueta: "Ganadas este mes",
+      valor: kpis.totalGanadasMes,
+      subvalor: formatCurrency(kpis.valorGanadoMes),
+      href: "/crm/oportunidades",
+      enlace: "Ver oportunidades",
+      Icono: CheckCircle2,
+      colorIcono: "text-emerald-400",
+      bgIcono: "bg-emerald-500/10 dark:bg-emerald-500/10 ring-1 ring-emerald-500/20",
+    },
+    {
+      etiqueta: "Actividades hoy",
+      valor: kpis.actividadesPendientesHoy,
+      subvalor: "pendientes",
+      href: "/crm/actividades",
+      enlace: "Ver actividades",
+      Icono: CalendarCheck,
+      colorIcono: "text-amber-400",
+      bgIcono: "bg-amber-500/10 dark:bg-amber-500/10 ring-1 ring-amber-500/20",
+    },
+  ];
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5 text-blue-500" />
-            Contactos activos
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{kpis.totalContactos}</p>
-          <Link href="/crm/contactos" className="text-xs text-muted-foreground hover:underline flex items-center gap-1 mt-1">
-            Ver todos <ArrowRight className="h-3 w-3" />
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <TrendingUp className="h-3.5 w-3.5 text-violet-500" />
-            Pipeline activo
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{kpis.totalOportunidadesAbiertas}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(kpis.valorPipeline)}</p>
-          <Link href="/crm/pipeline" className="text-xs text-muted-foreground hover:underline flex items-center gap-1 mt-1">
-            Ver pipeline <ArrowRight className="h-3 w-3" />
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-            Ganadas este mes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{kpis.totalGanadasMes}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(kpis.valorGanadoMes)}</p>
-          <Link href="/crm/oportunidades" className="text-xs text-muted-foreground hover:underline flex items-center gap-1 mt-1">
-            Ver oportunidades <ArrowRight className="h-3 w-3" />
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <CalendarCheck className="h-3.5 w-3.5 text-amber-500" />
-            Actividades hoy
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{kpis.actividadesPendientesHoy}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">pendientes</p>
-          <Link href="/crm/actividades" className="text-xs text-muted-foreground hover:underline flex items-center gap-1 mt-1">
-            Ver actividades <ArrowRight className="h-3 w-3" />
-          </Link>
-        </CardContent>
-      </Card>
+      {tarjetas.map((t) => (
+        <Card
+          key={t.etiqueta}
+          className="bg-white dark:bg-white/5 dark:backdrop-blur-xl border-stone-200 dark:border-white/10 shadow-sm dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden"
+        >
+          <CardHeader className="pb-2 pt-5">
+            <CardTitle className="text-xs font-semibold text-stone-500 dark:text-stone-400 flex items-center gap-2 uppercase tracking-wide">
+              <div className={cn("rounded-lg p-1.5 flex-shrink-0", t.bgIcono)}>
+                <t.Icono className={cn("h-3.5 w-3.5", t.colorIcono)} />
+              </div>
+              {t.etiqueta}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-5">
+            <p className="text-3xl font-bold text-stone-900 dark:text-stone-50 tabular-nums tracking-tight">
+              {t.valor}
+            </p>
+            {t.subvalor && (
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 font-medium">
+                {t.subvalor}
+              </p>
+            )}
+            <Link
+              href={t.href}
+              className="text-xs text-stone-400 dark:text-stone-500 hover:text-lime-600 dark:hover:text-lime-400 flex items-center gap-1 mt-2.5 transition-colors"
+            >
+              {t.enlace} <ArrowRight className="h-3 w-3" />
+            </Link>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -221,28 +245,38 @@ async function UltimasOportunidades() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {oportunidades.map((op) => {
         const contacto = op.contactos[0]?.contacto;
         return (
           <Link
             key={op.id}
             href={`/crm/oportunidades/${op.id}`}
-            className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-muted/50 transition-colors group"
+            className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-stone-50 dark:hover:bg-white/5 transition-all duration-150 group"
           >
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate group-hover:text-primary">
-                {op.titulo}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {op.empresa?.nombre ?? contacto ? `${contacto?.nombre} ${contacto?.apellido}` : "Sin vinculación"}
-              </p>
+            <div className="min-w-0 flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-lg bg-stone-100 dark:bg-white/8 flex items-center justify-center flex-shrink-0">
+                <Building2 className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate text-stone-900 dark:text-stone-100 group-hover:text-lime-600 dark:group-hover:text-lime-400 transition-colors">
+                  {op.titulo}
+                </p>
+                <p className="text-xs text-stone-400 dark:text-stone-500 truncate">
+                  {op.empresa?.nombre ?? (contacto ? `${contacto.nombre} ${contacto.apellido}` : "Sin vinculación")}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-              <Badge variant="secondary" className="text-xs">
+            <div className="flex items-center gap-2.5 flex-shrink-0 ml-3">
+              <span
+                className={cn(
+                  "inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md border",
+                  getBadgeEtapaClass(op.etapa)
+                )}
+              >
                 {ETAPA_LABELS[op.etapa] ?? op.etapa}
-              </Badge>
-              <span className="text-xs font-medium tabular-nums">
+              </span>
+              <span className="text-xs font-semibold tabular-nums text-stone-700 dark:text-stone-300">
                 {formatCurrency(Number(op.valor), op.moneda)}
               </span>
             </div>
@@ -265,7 +299,7 @@ async function ActividadesHoy() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {actividades.map((act) => {
         const vinculo =
           act.empresa?.nombre ??
@@ -274,15 +308,21 @@ async function ActividadesHoy() {
           "Sin vinculación";
 
         return (
-          <div key={act.id} className="flex items-start gap-2.5 py-2 px-3 rounded-md">
-            <Clock className="h-3.5 w-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+          <div
+            key={act.id}
+            className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-stone-50 dark:hover:bg-white/5 transition-colors"
+          >
+            <div className="flex-shrink-0 h-1.5 w-1.5 rounded-full bg-lime-500 dark:bg-lime-400 mt-0.5" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate">{act.titulo}</p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-sm font-medium truncate text-stone-900 dark:text-stone-100">
+                {act.titulo}
+              </p>
+              <p className="text-xs text-stone-400 dark:text-stone-500 truncate">
                 {TIPO_LABELS[act.tipo] ?? act.tipo} · {vinculo}
               </p>
             </div>
-            <span className="text-xs text-muted-foreground flex-shrink-0">
+            <span className="text-xs font-medium text-stone-500 dark:text-stone-400 flex-shrink-0 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
               {new Date(act.fecha).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
             </span>
           </div>
@@ -296,13 +336,16 @@ function KpiCardsSkeleton() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {[...Array(4)].map((_, i) => (
-        <Card key={i}>
-          <CardHeader className="pb-2">
-            <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+        <Card
+          key={i}
+          className="bg-white dark:bg-white/5 dark:backdrop-blur-xl border-stone-200 dark:border-white/10 rounded-2xl"
+        >
+          <CardHeader className="pb-2 pt-5">
+            <div className="h-3 w-24 bg-stone-100 dark:bg-white/8 animate-pulse rounded-full" />
           </CardHeader>
-          <CardContent>
-            <div className="h-8 w-16 bg-muted animate-pulse rounded mb-2" />
-            <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+          <CardContent className="pb-5">
+            <div className="h-9 w-16 bg-stone-100 dark:bg-white/8 animate-pulse rounded-lg mb-2" />
+            <div className="h-3 w-20 bg-stone-100 dark:bg-white/8 animate-pulse rounded-full" />
           </CardContent>
         </Card>
       ))}
@@ -312,14 +355,14 @@ function KpiCardsSkeleton() {
 
 function TableSkeleton() {
   return (
-    <div className="space-y-2 py-2">
+    <div className="space-y-1 py-1">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="flex items-center justify-between px-3 py-2">
+        <div key={i} className="flex items-center justify-between px-3 py-2.5">
           <div className="space-y-1.5">
-            <div className="h-3.5 w-40 bg-muted animate-pulse rounded" />
-            <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-3.5 w-40 bg-stone-100 dark:bg-white/8 animate-pulse rounded" />
+            <div className="h-3 w-24 bg-stone-100 dark:bg-white/8 animate-pulse rounded" />
           </div>
-          <div className="h-5 w-20 bg-muted animate-pulse rounded" />
+          <div className="h-5 w-20 bg-stone-100 dark:bg-white/8 animate-pulse rounded" />
         </div>
       ))}
     </div>
@@ -328,12 +371,26 @@ function TableSkeleton() {
 
 // ---- Page ----
 
+const ACCIONES_RAPIDAS = [
+  { href: "/crm/contactos/nuevo", label: "Nuevo contacto", Icono: Users },
+  { href: "/crm/empresas/nueva", label: "Nueva empresa", Icono: Building2 },
+  { href: "/crm/oportunidades/nueva", label: "Nueva oportunidad", Icono: TrendingUp },
+  { href: "/crm/actividades/nueva", label: "Nueva actividad", Icono: CalendarCheck },
+  { href: "/sales/cotizaciones/nueva", label: "Nueva cotización", Icono: TrendingUp },
+  { href: "/sales/pedidos/nuevo", label: "Nuevo pedido", Icono: Building2 },
+];
+
 export default function DashboardPage() {
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-6 max-w-screen-xl">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">Bienvenido a CRM Sales Smart</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
+          Dashboard
+        </h1>
+        <p className="text-sm text-stone-500 dark:text-stone-400 mt-0.5">
+          Bienvenido a{" "}
+          <span className="text-lime-600 dark:text-lime-400 font-medium">CRM Sales Smart</span>
+        </p>
       </div>
 
       <Suspense fallback={<KpiCardsSkeleton />}>
@@ -341,28 +398,44 @@ export default function DashboardPage() {
       </Suspense>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Últimas oportunidades</CardTitle>
-            <ButtonLink href="/crm/oportunidades" variant="ghost" size="sm">
-              Ver todas <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        <Card className="bg-white dark:bg-white/5 dark:backdrop-blur-xl border-stone-200 dark:border-white/10 shadow-sm dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)] rounded-2xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-stone-100 dark:border-white/8">
+            <CardTitle className="text-sm font-semibold text-stone-900 dark:text-stone-50 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-lime-500 dark:text-lime-400" />
+              Últimas oportunidades
+            </CardTitle>
+            <ButtonLink
+              href="/crm/oportunidades"
+              variant="ghost"
+              size="sm"
+              className="text-stone-400 dark:text-stone-500 hover:text-lime-600 dark:hover:text-lime-400 hover:bg-lime-500/5 dark:hover:bg-lime-400/10 h-7 px-2 text-xs rounded-lg"
+            >
+              Ver todas <ArrowRight className="ml-1 h-3 w-3" />
             </ButtonLink>
           </CardHeader>
-          <CardContent className="px-3 pb-3">
+          <CardContent className="px-2 pb-2 pt-2">
             <Suspense fallback={<TableSkeleton />}>
               <UltimasOportunidades />
             </Suspense>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Actividades de hoy</CardTitle>
-            <ButtonLink href="/crm/actividades" variant="ghost" size="sm">
-              Ver todas <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        <Card className="bg-white dark:bg-white/5 dark:backdrop-blur-xl border-stone-200 dark:border-white/10 shadow-sm dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)] rounded-2xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-stone-100 dark:border-white/8">
+            <CardTitle className="text-sm font-semibold text-stone-900 dark:text-stone-50 flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4 text-lime-500 dark:text-lime-400" />
+              Actividades de hoy
+            </CardTitle>
+            <ButtonLink
+              href="/crm/actividades"
+              variant="ghost"
+              size="sm"
+              className="text-stone-400 dark:text-stone-500 hover:text-lime-600 dark:hover:text-lime-400 hover:bg-lime-500/5 dark:hover:bg-lime-400/10 h-7 px-2 text-xs rounded-lg"
+            >
+              Ver todas <ArrowRight className="ml-1 h-3 w-3" />
             </ButtonLink>
           </CardHeader>
-          <CardContent className="px-3 pb-3">
+          <CardContent className="px-2 pb-2 pt-2">
             <Suspense fallback={<TableSkeleton />}>
               <ActividadesHoy />
             </Suspense>
@@ -370,20 +443,33 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {[
-          { href: "/crm/contactos/nuevo", label: "Nuevo contacto", Icono: Users },
-          { href: "/crm/empresas/nueva", label: "Nueva empresa", Icono: Building2 },
-          { href: "/crm/oportunidades/nueva", label: "Nueva oportunidad", Icono: TrendingUp },
-          { href: "/crm/actividades/nueva", label: "Nueva actividad", Icono: CalendarCheck },
-          { href: "/sales/cotizaciones/nueva", label: "Nueva cotización", Icono: TrendingUp },
-          { href: "/sales/pedidos/nuevo", label: "Nuevo pedido", Icono: Building2 },
-        ].map(({ href, label, Icono }) => (
-          <ButtonLink key={href} href={href} variant="outline" size="sm" className="flex-col h-auto py-3 gap-1.5">
-            <Icono className="h-4 w-4" />
-            <span className="text-xs text-center leading-tight">{label}</span>
-          </ButtonLink>
-        ))}
+      <div>
+        <p className="text-xs font-semibold text-stone-400 dark:text-stone-600 uppercase tracking-widest mb-3">
+          Acciones rápidas
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {ACCIONES_RAPIDAS.map(({ href, label, Icono }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex flex-col items-center justify-center h-auto py-4 gap-2 rounded-xl border text-center transition-all duration-150",
+                "border-stone-200 dark:border-white/10 bg-white dark:bg-white/5",
+                "hover:border-lime-500/40 dark:hover:border-lime-400/30",
+                "hover:bg-lime-50 dark:hover:bg-lime-400/8",
+                "hover:shadow-sm dark:hover:shadow-[0_2px_12px_-4px_rgba(163,230,53,0.15)]",
+                "group"
+              )}
+            >
+              <div className="rounded-lg bg-stone-100 dark:bg-white/8 p-1.5 group-hover:bg-lime-500/10 dark:group-hover:bg-lime-400/10 transition-colors">
+                <Icono className="h-3.5 w-3.5 text-stone-500 dark:text-stone-400 group-hover:text-lime-600 dark:group-hover:text-lime-400 transition-colors" />
+              </div>
+              <span className="text-xs text-center leading-tight text-stone-600 dark:text-stone-300 group-hover:text-stone-900 dark:group-hover:text-stone-100 transition-colors px-1">
+                {label}
+              </span>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );

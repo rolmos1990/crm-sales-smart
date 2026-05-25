@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, Package } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, Package, ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,9 +15,29 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
-import { Button } from "@/components/ui/button";
 import { eliminarProducto } from "../actions";
 import type { Producto } from "../types";
+
+function ImagenProducto({ src, nombre }: { src: string | null; nombre: string }) {
+  if (!src) {
+    return (
+      <div className="h-8 w-8 rounded-lg bg-stone-100 dark:bg-white/8 border border-stone-200 dark:border-white/10 flex items-center justify-center flex-shrink-0">
+        <Package className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={nombre}
+      className="h-8 w-8 rounded-lg object-cover flex-shrink-0 border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5"
+      onError={(e) => {
+        (e.currentTarget as HTMLImageElement).style.display = "none";
+      }}
+    />
+  );
+}
 
 function AccionesProducto({ producto }: { producto: Producto }) {
   const router = useRouter();
@@ -62,22 +82,38 @@ const columnas: ColumnDef<Producto>[] = [
     accessorKey: "nombre",
     header: ({ column }) => (
       <button className="flex items-center gap-1 font-medium" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Nombre <ArrowUpDown className="h-3.5 w-3.5" />
+        Producto <ArrowUpDown className="h-3.5 w-3.5" />
       </button>
     ),
     cell: ({ row }) => (
-      <div className="flex items-center gap-2">
-        <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-        <Link href={`/productos/${row.original.id}`} className="font-medium hover:underline">
-          {row.original.nombre}
-        </Link>
+      <div className="flex items-center gap-2.5">
+        <ImagenProducto src={row.original.imagenUrl} nombre={row.original.nombre} />
+        <div className="min-w-0">
+          <Link href={`/productos/${row.original.id}/editar`} className="font-medium hover:text-lime-600 dark:hover:text-lime-400 transition-colors block leading-tight truncate">
+            {row.original.nombre}
+          </Link>
+          {row.original.descripcion && (
+            <p className="text-xs text-stone-400 dark:text-stone-500 truncate max-w-xs">
+              {row.original.descripcion}
+            </p>
+          )}
+        </div>
       </div>
     ),
   },
   {
+    accessorKey: "sku",
+    header: "SKU",
+    cell: ({ row }) => row.original.sku
+      ? <span className="font-mono text-xs bg-stone-100 dark:bg-white/8 border border-stone-200 dark:border-white/10 px-2 py-0.5 rounded-md text-stone-700 dark:text-stone-300">{row.original.sku}</span>
+      : <span className="text-stone-400 dark:text-stone-600">—</span>,
+  },
+  {
     accessorKey: "categoria",
     header: "Categoría",
-    cell: ({ row }) => row.original.categoria ? <Badge variant="secondary">{row.original.categoria}</Badge> : <span className="text-muted-foreground">—</span>,
+    cell: ({ row }) => row.original.categoria
+      ? <Badge variant="secondary">{row.original.categoria}</Badge>
+      : <span className="text-stone-400 dark:text-stone-600">—</span>,
   },
   {
     accessorKey: "precio",
@@ -87,15 +123,13 @@ const columnas: ColumnDef<Producto>[] = [
       </button>
     ),
     cell: ({ row }) => (
-      <div className="text-right font-medium tabular-nums">
+      <div className="text-right font-semibold tabular-nums text-stone-900 dark:text-stone-100">
         {row.original.moneda} {Number(row.original.precio).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+        {row.original.unidad && (
+          <span className="ml-1 text-xs font-normal text-stone-400 dark:text-stone-500">/{row.original.unidad}</span>
+        )}
       </div>
     ),
-  },
-  {
-    accessorKey: "unidad",
-    header: "Unidad",
-    cell: ({ row }) => <span className="text-muted-foreground">{row.original.unidad ?? "—"}</span>,
   },
   {
     accessorKey: "activo",
@@ -122,7 +156,7 @@ export function ListaProductos({ productos }: ListaProductosProps) {
       columnas={columnas}
       datos={productos}
       filtroPor="nombre"
-      placeholderFiltro="Buscar productos..."
+      placeholderFiltro="Buscar por nombre, SKU..."
     />
   );
 }

@@ -25,6 +25,13 @@ export interface Pedido {
   total: number;
   moneda: string;
   notas: string | null;
+  // Datos del comprador (pedido manual)
+  nombre: string | null;
+  apellido: string | null;
+  telefono: string | null;
+  email: string | null;
+  ruc: string | null;
+  empresaNombre: string | null;
   creadoEn: Date;
   actualizadoEn: Date;
   contactoId: string | null;
