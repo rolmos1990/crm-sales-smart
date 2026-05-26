@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { Plus, Building2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaEmpresas } from "@/crm/empresas/components/lista-empresas";
@@ -17,17 +16,15 @@ export default async function EmpresasPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 p-6">
       <PageHeader
         titulo="Empresas"
         descripcion="Gestiona las empresas y organizaciones de tu CRM"
         accion={
-          <Link href="/crm/empresas/nueva">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva empresa
-            </Button>
-          </Link>
+          <ButtonLink href="/crm/empresas/nueva">
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva empresa
+          </ButtonLink>
         }
       />
       {empresas.length === 0 ? (
@@ -36,12 +33,10 @@ export default async function EmpresasPage() {
           titulo="Sin empresas todavía"
           descripcion="Agrega tu primera empresa para organizar tus contactos y oportunidades."
           accion={
-            <Link href="/crm/empresas/nueva">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Crear primera empresa
-              </Button>
-            </Link>
+            <ButtonLink href="/crm/empresas/nueva">
+              <Plus className="mr-2 h-4 w-4" />
+              Crear primera empresa
+            </ButtonLink>
           }
         />
       ) : (

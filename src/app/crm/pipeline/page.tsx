@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { Plus, KanbanSquare } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
 import { PipelineKanban } from "@/crm/pipeline/components/pipeline-kanban";
 import { obtenerOportunidadesPorEtapa } from "@/crm/oportunidades/queries";
@@ -40,12 +39,10 @@ export default async function PipelinePage() {
         titulo="Pipeline de Ventas"
         descripcion="Arrastra las oportunidades entre etapas · Haz clic en una tarjeta para editarla"
         accion={
-          <Link href="/crm/oportunidades/nueva">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva oportunidad
-            </Button>
-          </Link>
+          <ButtonLink href="/crm/oportunidades/nueva">
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva oportunidad
+          </ButtonLink>
         }
       />
       {isEmpty ? (

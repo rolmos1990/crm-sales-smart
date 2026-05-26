@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { Plus, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaContactos } from "@/crm/contactos/components/lista-contactos";
@@ -17,17 +16,15 @@ export default async function ContactosPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 p-6">
       <PageHeader
         titulo="Contactos"
         descripcion="Gestiona tus contactos y relaciones comerciales"
         accion={
-          <Link href="/crm/contactos/nuevo">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo contacto
-            </Button>
-          </Link>
+          <ButtonLink href="/crm/contactos/nuevo">
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo contacto
+          </ButtonLink>
         }
       />
       {contactos.length === 0 ? (
@@ -36,12 +33,10 @@ export default async function ContactosPage() {
           titulo="Sin contactos todavía"
           descripcion="Crea tu primer contacto para empezar a gestionar tus relaciones."
           accion={
-            <Link href="/crm/contactos/nuevo">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Crear primer contacto
-              </Button>
-            </Link>
+            <ButtonLink href="/crm/contactos/nuevo">
+              <Plus className="mr-2 h-4 w-4" />
+              Crear primer contacto
+            </ButtonLink>
           }
         />
       ) : (
