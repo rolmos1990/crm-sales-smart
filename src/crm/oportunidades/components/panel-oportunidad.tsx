@@ -34,8 +34,9 @@ import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { actualizarOportunidad, eliminarOportunidad } from "../actions";
 import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "../schema";
-import type { Oportunidad } from "../types";
+import type { Oportunidad, Etapa } from "../types";
 import { ETAPAS_PIPELINE } from "../types";
+import { MoverPipelinePopover } from "./mover-pipeline-popover";
 import { cn } from "@/lib/utils";
 
 interface PanelOportunidadProps {
@@ -99,6 +100,12 @@ export function PanelOportunidad({
     }
   };
 
+  const handleMovidoEtapa = (nuevaEtapa: Etapa) => {
+    if (!oportunidad) return;
+    form.setValue("etapa", nuevaEtapa);
+    onUpdate({ ...oportunidad, etapa: nuevaEtapa });
+  };
+
   return (
     <Sheet open={!!oportunidad} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
@@ -114,6 +121,14 @@ export function PanelOportunidad({
             <SheetTitle className="text-sm font-semibold text-stone-500 dark:text-stone-400 tracking-wide">
               Editar oportunidad
             </SheetTitle>
+            <span className="flex-1" />
+            {oportunidad && (
+              <MoverPipelinePopover
+                oportunidadId={oportunidad.id}
+                etapaActual={oportunidad.etapa}
+                onMovidoEtapa={handleMovidoEtapa}
+              />
+            )}
           </div>
         </SheetHeader>
 

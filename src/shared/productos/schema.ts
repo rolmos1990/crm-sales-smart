@@ -8,7 +8,14 @@ export const CrearProductoSchema = z.object({
   moneda: z.string().optional(),
   categoria: z.string().max(100).optional().or(z.literal("")),
   unidad: z.string().max(50).optional().or(z.literal("")),
-  imagenUrl: z.string().url("La URL de la imagen no es válida").optional().or(z.literal("")),
+  imagenUrl: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || v === "" || v.startsWith("/") || v.startsWith("http://") || v.startsWith("https://"),
+      "La URL de la imagen no es válida"
+    )
+    .or(z.literal("")),
   activo: z.boolean().optional(),
   manejaStock: z.boolean().optional(),
   cantidadDisponible: z.number().min(0, "La cantidad debe ser mayor o igual a 0").optional(),

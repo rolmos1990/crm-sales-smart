@@ -11,12 +11,14 @@ export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { empresaId, contactoId, notas, ...resto } = validado.data;
+    const { empresaId, contactoId, notas, pipelineId, stageId, ...resto } = validado.data;
     const oportunidad = await prisma.oportunidad.create({
       data: {
         ...resto,
         notas: notas || null,
         empresaId: empresaId || null,
+        pipelineId: pipelineId || null,
+        stageId: stageId || null,
         ...(contactoId && {
           contactos: { create: { contactoId } },
         }),
@@ -101,6 +103,47 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
     return { exito: true, datos: { ...oportunidad, valor: Number(oportunidad.valor) } as unknown as Oportunidad };
   } catch {
     return { exito: false, error: "Error al actualizar la oportunidad" };
+  }
+}
+
+export async function obtenerOportunidadAction(id: string) {
+  return prisma.oportunidad.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      titulo: true,
+      valor: true,
+      moneda: true,
+      etapa: true,
+      probabilidad: true,
+      fechaCierre: true,
+      notas: true,
+      motivoPerdida: true,
+      creadoEn: true,
+      actualizadoEn: true,
+      empresaId: true,
+      usuarioId: true,
+      stageId: true,
+      pipelineId: true,
+      metadata: true,
+      empresa: { select: { id: true, nombre: true } },
+      contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },
+    },
+  });
+}
+
+export async function actualizarMetadataOportunidad(
+  id: string,
+  metadata: Record<string, unknown>,
+): Promise<ResultadoAccion> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await prisma.oportunidad.update({ where: { id }, data: { metadata: metadata as any } });
+    revalidatePath("/crm/pipeline");
+    revalidatePath(`/crm/oportunidades/${id}`);
+    return { exito: true, datos: undefined };
+  } catch {
+    return { exito: false, error: "Error al guardar los campos personalizados" };
   }
 }
 

@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ImageIcon, X, Package } from "lucide-react";
+import { Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -18,6 +18,7 @@ import {
 import { crearProducto, actualizarProducto } from "../actions";
 import { CrearProductoSchema, type CrearProductoInput } from "../schema";
 import type { Producto } from "../types";
+import { UploadImagenProducto } from "./upload-imagen-producto";
 
 interface FormProductoProps {
   inicial?: Partial<Producto>;
@@ -26,7 +27,7 @@ interface FormProductoProps {
 
 export function FormProducto({ inicial, modo = "crear" }: FormProductoProps) {
   const router = useRouter();
-  const [previewUrl, setPreviewUrl] = useState<string>(inicial?.imagenUrl ?? "");
+  const [productoId, setProductoId] = useState<string | null>(inicial?.id ?? null);
 
   const form = useForm<CrearProductoInput>({
     resolver: zodResolver(CrearProductoSchema),
@@ -46,15 +47,32 @@ export function FormProducto({ inicial, modo = "crear" }: FormProductoProps) {
   });
 
   const onSubmit = async (datos: CrearProductoInput) => {
-    const resultado = modo === "crear"
-      ? await crearProducto(datos)
-      : await actualizarProducto(inicial!.id!, datos);
+    if (modo === "crear") {
+      // 1. Crear sin imagen para obtener el ID
+      const sinImagen = await crearProducto({ ...datos, imagenUrl: "" });
+      if (!sinImagen.exito) { toast.error(sinImagen.error); return; }
 
-    if (resultado.exito) {
-      toast.success(modo === "crear" ? "Producto creado" : "Producto actualizado");
+      const nuevoId = sinImagen.datos.id;
+      setProductoId(nuevoId);
+
+      // 2. Si hay imagen pendiente, subirla ahora que tenemos el ID
+      const imagenUrl = datos.imagenUrl?.trim();
+      if (imagenUrl && !imagenUrl.startsWith("http") && !imagenUrl.startsWith("/")) {
+        // no es URL externa ni ruta — ignorar
+      } else if (imagenUrl) {
+        await actualizarProducto(nuevoId, { imagenUrl });
+      }
+
+      toast.success("Producto creado");
       router.push("/productos");
     } else {
-      toast.error(resultado.error);
+      const resultado = await actualizarProducto(inicial!.id!, datos);
+      if (resultado.exito) {
+        toast.success("Producto actualizado");
+        router.push("/productos");
+      } else {
+        toast.error(resultado.error);
+      }
     }
   };
 
@@ -153,56 +171,21 @@ export function FormProducto({ inicial, modo = "crear" }: FormProductoProps) {
           </FormItem>
         )} />
 
-        {/* Imagen URL + preview */}
+        {/* Imagen */}
         <FormField control={form.control} name="imagenUrl" render={({ field }) => (
           <FormItem>
-            <FormLabel>URL de imagen</FormLabel>
-            <div className="flex gap-3">
-              <FormControl>
-                <Input
-                  placeholder="https://ejemplo.com/imagen.jpg"
-                  {...field}
-                  value={field.value ?? ""}
-                  onChange={(e) => {
-                    field.onChange(e);
-                    setPreviewUrl(e.target.value);
-                  }}
-                />
-              </FormControl>
-              {previewUrl && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="flex-shrink-0"
-                  onClick={() => {
-                    field.onChange("");
-                    setPreviewUrl("");
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <FormMessage />
-
-            {/* Preview */}
-            {previewUrl ? (
-              <div className="mt-2 relative w-32 h-32 rounded-xl overflow-hidden border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="w-full h-full object-cover"
-                  onError={() => setPreviewUrl("")}
-                />
-              </div>
-            ) : (
-              <div className="mt-2 w-32 h-32 rounded-xl border-2 border-dashed border-stone-200 dark:border-white/10 flex flex-col items-center justify-center gap-1.5 text-stone-400 dark:text-stone-600">
-                <ImageIcon className="h-6 w-6" />
-                <span className="text-xs">Sin imagen</span>
-              </div>
+            <FormLabel>Imagen del producto</FormLabel>
+            {modo === "crear" && !productoId && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">
+                Para subir un archivo, guarda el producto primero. Puedes pegar una URL externa ahora.
+              </p>
             )}
+            <UploadImagenProducto
+              productoId={productoId}
+              value={field.value ?? ""}
+              onChange={field.onChange}
+            />
+            <FormMessage />
           </FormItem>
         )} />
 

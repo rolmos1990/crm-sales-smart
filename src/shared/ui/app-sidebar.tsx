@@ -14,6 +14,7 @@ import {
   Package,
   ShoppingCart,
   Leaf,
+  Puzzle,
 } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,10 @@ const NAVEGACION = [
   {
     grupo: "Catálogo",
     items: [{ href: "/productos", etiqueta: "Productos", Icono: Package }],
+  },
+  {
+    grupo: "Sistema",
+    items: [{ href: "/integraciones", etiqueta: "Integraciones", Icono: Puzzle }],
   },
 ];
 

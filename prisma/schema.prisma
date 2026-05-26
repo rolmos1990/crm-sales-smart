@@ -89,6 +89,13 @@ enum EstadoInstancia {
   SUSPENDIDA
 }
 
+enum EstadoIntegracion {
+  INSTALADA
+  ACTIVA
+  INACTIVA
+  ERROR
+}
+
 // =====================
 // INSTANCIA / TENANT
 // =====================
@@ -118,6 +125,7 @@ model Instancia {
   tags          Tag[]
   campos        CampoPersonalizado[]
   eventos       EventoLog[]
+  integraciones IntegracionInstancia[]
 
   @@index([slug])
   @@index([estado])
@@ -290,6 +298,7 @@ model PipelineStage {
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
 
   oportunidades Oportunidad[]
+  campos        CampoPersonalizado[]
 
   @@unique([pipelineId, orden])
   @@index([pipelineId])
@@ -417,6 +426,7 @@ model CampoPersonalizado {
   tipo          TipoCampoPersonalizado
   entidad       EntidadCampoPersonalizado
   requerido     Boolean                   @default(false)
+  bloqueado     Boolean                   @default(false)
   activo        Boolean                   @default(true)
   orden         Int                       @default(0)
   opciones      Json?
@@ -431,11 +441,15 @@ model CampoPersonalizado {
   pipelineId String?
   pipeline   Pipeline? @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
 
+  stageId String?
+  stage   PipelineStage? @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
   valores CampoPersonalizadoValor[]
 
   @@index([instanciaId])
   @@index([entidad])
   @@index([pipelineId])
+  @@index([stageId])
 }
 
 model CampoPersonalizadoValor {
@@ -708,4 +722,25 @@ model EventoLog {
   @@index([entidadTipo, entidadId])
   @@index([tipo])
   @@index([ocurridoEn])
+}
+
+// =====================
+// INTEGRACIONES
+// =====================
+
+model IntegracionInstancia {
+  id            String            @id @default(cuid())
+  clave         String
+  estado        EstadoIntegracion @default(INSTALADA)
+  configuracion Json?
+  metadata      Json?
+  creadoEn      DateTime          @default(now())
+  actualizadoEn DateTime          @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@unique([instanciaId, clave])
+  @@index([instanciaId])
+  @@index([clave])
 }

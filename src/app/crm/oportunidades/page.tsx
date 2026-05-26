@@ -10,7 +10,7 @@ export default async function OportunidadesPage() {
   let oportunidades: Oportunidad[] = [];
   try {
     const datos = await obtenerOportunidades();
-    oportunidades = datos as unknown as Oportunidad[];
+    oportunidades = datos.map((o) => ({ ...o, valor: Number(o.valor) })) as unknown as Oportunidad[];
   } catch {
     // DB no configurada
   }

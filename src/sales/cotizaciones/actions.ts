@@ -5,6 +5,7 @@ import { prisma } from "@/shared/db/prisma";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearCotizacionSchema } from "./schema";
 import { generarNumeroCotizacion } from "./queries";
+import { generarNumeroPedido } from "@/sales/pedidos/queries";
 import type { ResultadoAccion, Cotizacion } from "./types";
 
 export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<Cotizacion>> {
@@ -70,6 +71,102 @@ export async function cambiarEstadoCotizacion(id: string, estado: string): Promi
     return { exito: true, datos: undefined };
   } catch {
     return { exito: false, error: "Error al cambiar el estado" };
+  }
+}
+
+export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ pedidoId: string; numeroPedido: string }>> {
+  try {
+    const cotizacion = await prisma.cotizacion.findUnique({
+      where: { id },
+      include: {
+        lineas: {
+          include: {
+            producto: { select: { id: true, nombre: true, manejaStock: true, cantidadDisponible: true } },
+          },
+        },
+      },
+    });
+
+    if (!cotizacion) return { exito: false, error: "Cotización no encontrada" };
+    if (cotizacion.estado === "APROBADA") return { exito: false, error: "La cotización ya fue aprobada" };
+
+    // Validar stock antes de hacer cualquier cambio
+    const erroresStock: string[] = [];
+    for (const linea of cotizacion.lineas) {
+      if (!linea.producto?.manejaStock) continue;
+      const disponible = Number(linea.producto.cantidadDisponible);
+      const solicitado = Number(linea.cantidad);
+      if (disponible < solicitado) {
+        erroresStock.push(
+          `"${linea.producto.nombre}": disponible ${disponible}, solicitado ${solicitado}`
+        );
+      }
+    }
+    if (erroresStock.length > 0) {
+      return { exito: false, error: `Stock insuficiente — ${erroresStock.join(" · ")}` };
+    }
+
+    const numeroPedido = await generarNumeroPedido();
+
+    const pedido = await prisma.$transaction(async (tx) => {
+      // Aprobar cotización
+      await tx.cotizacion.update({ where: { id }, data: { estado: "APROBADA" } });
+
+      // Crear pedido vinculado
+      const nuevoPedido = await tx.pedido.create({
+        data: {
+          numero:       numeroPedido,
+          estado:       "CONFIRMADO",
+          moneda:       cotizacion.moneda,
+          subtotal:     cotizacion.subtotal,
+          descuento:    cotizacion.descuento,
+          impuesto:     cotizacion.impuesto,
+          total:        cotizacion.total,
+          notas:        cotizacion.notas,
+          contactoId:   cotizacion.contactoId,
+          empresaId:    cotizacion.empresaId,
+          cotizacionId: cotizacion.id,
+          lineas: {
+            create: cotizacion.lineas.map((l) => ({
+              productoId:     l.productoId,
+              descripcion:    l.descripcion,
+              cantidad:       l.cantidad,
+              precioUnitario: l.precioUnitario,
+              descuento:      l.descuento,
+              impuesto:       l.impuesto,
+              subtotal:       l.subtotal,
+              total:          l.total,
+            })),
+          },
+        },
+      });
+
+      // Descontar stock de productos que lo manejan
+      const lineasConStock = cotizacion.lineas.filter((l) => l.producto?.manejaStock && l.productoId);
+      if (lineasConStock.length > 0) {
+        await Promise.all(
+          lineasConStock.map((l) =>
+            tx.producto.update({
+              where: { id: l.productoId! },
+              data: { cantidadDisponible: { decrement: l.cantidad } },
+            })
+          )
+        );
+      }
+
+      return nuevoPedido;
+    });
+
+    busEventos.publicar(TIPOS_EVENTO.COTIZACION_ENVIADA, { cotizacionId: id, numero: cotizacion.numero });
+    busEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, { pedidoId: pedido.id, numero: numeroPedido, total: Number(cotizacion.total) });
+
+    revalidatePath("/sales/cotizaciones");
+    revalidatePath("/sales/pedidos");
+    revalidatePath(`/sales/cotizaciones/${id}`);
+
+    return { exito: true, datos: { pedidoId: pedido.id, numeroPedido } };
+  } catch {
+    return { exito: false, error: "Error al aprobar la cotización" };
   }
 }
 

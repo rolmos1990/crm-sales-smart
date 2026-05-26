@@ -27,6 +27,12 @@ interface FormCotizacionProps {
   productos?: ProductoCatalogo[];
 }
 
+const nv = (v: number | undefined | null): number | string =>
+  v !== undefined && v !== null && !Number.isNaN(v) ? v : "";
+
+const parseNum = (e: React.ChangeEvent<HTMLInputElement>): number =>
+  Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber;
+
 export function FormCotizacion({ contactos, empresas, productos = [] }: FormCotizacionProps) {
   const router = useRouter();
 
@@ -88,8 +94,8 @@ export function FormCotizacion({ contactos, empresas, productos = [] }: FormCoti
               <FormControl>
                 <Input
                   type="number" min="0" max="100" step="0.1"
-                  value={field.value ?? ""}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                  value={nv(field.value)}
+                  onChange={(e) => field.onChange(parseNum(e))}
                 />
               </FormControl>
               <FormMessage />
@@ -184,22 +190,22 @@ export function FormCotizacion({ contactos, empresas, productos = [] }: FormCoti
                       <td className="px-2 py-1.5">
                         <Input
                           type="number" min="0.01" step="0.01" className="h-8 text-sm text-right"
-                          value={lineas[idx]?.cantidad ?? ""}
-                          onChange={(e) => form.setValue(`lineas.${idx}.cantidad`, e.target.valueAsNumber)}
+                          value={nv(lineas[idx]?.cantidad)}
+                          onChange={(e) => form.setValue(`lineas.${idx}.cantidad`, parseNum(e))}
                         />
                       </td>
                       <td className="px-2 py-1.5">
                         <Input
                           type="number" min="0" step="0.01" className="h-8 text-sm text-right"
-                          value={lineas[idx]?.precioUnitario ?? ""}
-                          onChange={(e) => form.setValue(`lineas.${idx}.precioUnitario`, e.target.valueAsNumber)}
+                          value={nv(lineas[idx]?.precioUnitario)}
+                          onChange={(e) => form.setValue(`lineas.${idx}.precioUnitario`, parseNum(e))}
                         />
                       </td>
                       <td className="px-2 py-1.5">
                         <Input
                           type="number" min="0" max="100" step="0.1" className="h-8 text-sm text-right"
-                          value={lineas[idx]?.descuento ?? ""}
-                          onChange={(e) => form.setValue(`lineas.${idx}.descuento`, e.target.valueAsNumber)}
+                          value={nv(lineas[idx]?.descuento)}
+                          onChange={(e) => form.setValue(`lineas.${idx}.descuento`, parseNum(e))}
                         />
                       </td>
                       <td className="px-3 py-1.5 text-right font-medium tabular-nums">

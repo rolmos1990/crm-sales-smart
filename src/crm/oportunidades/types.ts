@@ -17,6 +17,10 @@ export interface Oportunidad {
   empresaId: string | null;
   empresa: { id: string; nombre: string } | null;
   usuarioId: string | null;
+  stageId?: string | null;
+  pipelineId?: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: any;
   contactos?: Array<{ contacto: { id: string; nombre: string; apellido: string } }>;
 }
 

@@ -10,6 +10,8 @@ export const CrearOportunidadSchema = z.object({
   notas: z.string().max(2000).optional().or(z.literal("")),
   empresaId: z.string().optional().or(z.literal("")),
   contactoId: z.string().optional().or(z.literal("")),
+  pipelineId: z.string().optional().or(z.literal("")),
+  stageId: z.string().optional().or(z.literal("")),
 });
 
 export const CambiarEtapaSchema = z.object({

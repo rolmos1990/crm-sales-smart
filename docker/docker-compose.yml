@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crm_sales_smart_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm_sales_smart_user
+      POSTGRES_PASSWORD: kW8!Ty.om0n3
+      POSTGRES_DB: crm_sales_smart_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_sales_smart_user -d crm_sales_smart_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    name: crm_sales_smart_postgres_data

@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, Send } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, Send, CheckCircle2, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
-import { eliminarCotizacion, cambiarEstadoCotizacion } from "../actions";
+import { eliminarCotizacion, cambiarEstadoCotizacion, aprobarCotizacion } from "../actions";
 import type { Cotizacion, EstadoCotizacion } from "../types";
 import { ESTADO_COTIZACION_CONFIG } from "../types";
 
@@ -30,11 +30,30 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
     else toast.error(resultado.error);
   };
 
+  const handleAprobar = async () => {
+    const resultado = await aprobarCotizacion(cotizacion.id);
+    if (resultado.exito) {
+      const { pedidoId, numeroPedido } = resultado.datos;
+      toast.success(`Pedido ${numeroPedido} generado`, {
+        description: "La cotización fue aprobada y el pedido fue creado.",
+        action: {
+          label: "Ver pedido",
+          onClick: () => router.push(`/sales/pedidos/${pedidoId}`),
+        },
+        duration: 8000,
+      });
+    } else {
+      toast.error("No se pudo aprobar", { description: resultado.error, duration: 7000 });
+    }
+  };
+
   const handleEliminar = async () => {
     const resultado = await eliminarCotizacion(cotizacion.id);
     if (resultado.exito) toast.success("Cotización eliminada");
     else toast.error(resultado.error);
   };
+
+  const puedeAprobar = cotizacion.estado === "ENVIADA" || cotizacion.estado === "BORRADOR";
 
   return (
     <DropdownMenu>
@@ -43,7 +62,7 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => router.push(`/sales/cotizaciones/${cotizacion.id}`)}>
-          Ver detalle
+          <ExternalLink className="mr-2 h-4 w-4" />Ver detalle
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => router.push(`/sales/cotizaciones/${cotizacion.id}/editar`)}>
           <Pencil className="mr-2 h-4 w-4" />Editar
@@ -52,6 +71,21 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
           <DropdownMenuItem onClick={handleEnviar}>
             <Send className="mr-2 h-4 w-4" />Marcar enviada
           </DropdownMenuItem>
+        )}
+        {puedeAprobar && (
+          <ConfirmacionDialog
+            trigger={
+              <DropdownMenuItem
+                onSelect={(e) => e.preventDefault()}
+                className="text-emerald-600 dark:text-emerald-400 focus:text-emerald-700 dark:focus:text-emerald-300"
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />Aprobar y generar pedido
+              </DropdownMenuItem>
+            }
+            titulo="¿Aprobar cotización?"
+            descripcion={`Se aprobará la cotización ${cotizacion.numero} y se generará un pedido confirmado automáticamente. Si algún producto no tiene stock suficiente, la operación fallará.`}
+            onConfirmar={handleAprobar}
+          />
         )}
         <DropdownMenuSeparator />
         <ConfirmacionDialog

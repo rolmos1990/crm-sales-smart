@@ -98,10 +98,8 @@ function TarjetaOportunidad({
               >
                 Editar
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={`/crm/oportunidades/${oportunidad.id}`}>
-                  Ver completo
-                </Link>
+              <DropdownMenuItem onClick={() => window.location.href = `/crm/oportunidades/${oportunidad.id}`}>
+                Ver completo
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

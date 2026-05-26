@@ -10,7 +10,13 @@ export default async function PedidosPage() {
   let pedidos: Pedido[] = [];
   try {
     const datos = await obtenerPedidos();
-    pedidos = datos as unknown as Pedido[];
+    pedidos = datos.map((p) => ({
+      ...p,
+      subtotal:  Number(p.subtotal),
+      descuento: Number(p.descuento),
+      impuesto:  Number(p.impuesto),
+      total:     Number(p.total),
+    })) as unknown as Pedido[];
   } catch {
     // DB no configurada
   }

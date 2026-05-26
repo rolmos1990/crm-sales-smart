@@ -20,9 +20,9 @@ export default async function NuevaActividadPage({
       buscarEmpresas(""),
       obtenerOportunidades(),
     ]);
-    contactos = c.map(x => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
-    empresas = e.map(x => ({ valor: x.id, etiqueta: x.nombre }));
-    oportunidades = o.map(x => ({ valor: x.id, etiqueta: x.titulo }));
+    contactos = c.map((x: { id: string; nombre: string; apellido: string }) => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
+    empresas = e.map((x: { id: string; nombre: string }) => ({ valor: x.id, etiqueta: x.nombre }));
+    oportunidades = o.map((x: { id: string; titulo: string }) => ({ valor: x.id, etiqueta: x.titulo }));
   } catch {
     // DB no configurada
   }

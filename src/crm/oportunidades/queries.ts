@@ -13,7 +13,7 @@ export async function obtenerOportunidades() {
 
 export async function obtenerOportunidadesPorEtapa() {
   const oportunidades = await prisma.oportunidad.findMany({
-    where: { etapa: { notIn: ["GANADO", "PERDIDO"] } },
+    where: { etapa: { notIn: ["GANADO", "PERDIDO"] }, pipelineId: null },
     include: {
       empresa: { select: { id: true, nombre: true } },
       contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },

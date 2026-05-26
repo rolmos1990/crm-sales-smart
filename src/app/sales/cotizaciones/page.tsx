@@ -10,7 +10,13 @@ export default async function CotizacionesPage() {
   let cotizaciones: Cotizacion[] = [];
   try {
     const datos = await obtenerCotizaciones();
-    cotizaciones = datos as unknown as Cotizacion[];
+    cotizaciones = datos.map((c) => ({
+      ...c,
+      subtotal:  Number(c.subtotal),
+      descuento: Number(c.descuento),
+      impuesto:  Number(c.impuesto),
+      total:     Number(c.total),
+    })) as unknown as Cotizacion[];
   } catch {
     // DB no configurada
   }
