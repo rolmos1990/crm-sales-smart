@@ -54,6 +54,7 @@ import {
   eliminarPipeline,
 } from "../actions";
 import { PanelConfigCampos } from "./panel-config-campos";
+import { PanelConfigDisparadores } from "./panel-config-disparadores";
 import type { PipelineConStages, PipelineStage } from "../types";
 
 const COLORES_PALETTE = [
@@ -402,6 +403,9 @@ export function PanelConfigPipeline({
         <TabsTrigger value="campos" className="rounded-none px-4 py-2 text-sm font-medium border-b-2 border-transparent data-active:border-lime-500 dark:data-active:border-lime-400 data-active:text-stone-900 dark:data-active:text-stone-50">
           Campos personalizados
         </TabsTrigger>
+        <TabsTrigger value="disparadores" className="rounded-none px-4 py-2 text-sm font-medium border-b-2 border-transparent data-active:border-lime-500 dark:data-active:border-lime-400 data-active:text-stone-900 dark:data-active:text-stone-50">
+          Disparadores
+        </TabsTrigger>
         <TabsTrigger value="peligro" className="rounded-none px-4 py-2 text-sm font-medium border-b-2 border-transparent data-active:border-red-500 data-active:text-red-600 dark:data-active:text-red-400">
           Zona peligrosa
         </TabsTrigger>
@@ -533,6 +537,11 @@ export function PanelConfigPipeline({
       {/* ── Tab: Campos personalizados ───────────────────────────── */}
       <TabsContent value="campos">
         <PanelConfigCampos pipeline={{ ...pipeline, stages }} />
+      </TabsContent>
+
+      {/* ── Tab: Disparadores ───────────────────────────────────── */}
+      <TabsContent value="disparadores">
+        <PanelConfigDisparadores pipeline={{ ...pipeline, stages }} />
       </TabsContent>
 
       {/* ── Tab: Zona peligrosa ──────────────────────────────────── */}

@@ -96,6 +96,21 @@ enum EstadoIntegracion {
   ERROR
 }
 
+enum TipoAccionDisparador {
+  CREAR_TAREA
+  CREAR_NOTA
+  WEBHOOK
+  ASIGNAR_USUARIO
+}
+
+enum EstadoDisparadorJob {
+  PENDIENTE
+  PROCESANDO
+  COMPLETADO
+  CANCELADO
+  FALLIDO
+}
+
 // =====================
 // INSTANCIA / TENANT
 // =====================
@@ -275,6 +290,7 @@ model Pipeline {
   stages        PipelineStage[]
   oportunidades Oportunidad[]
   campos        CampoPersonalizado[]
+  disparadores  Disparador[]
 
   @@index([instanciaId])
   @@index([esDefault])
@@ -299,6 +315,7 @@ model PipelineStage {
 
   oportunidades Oportunidad[]
   campos        CampoPersonalizado[]
+  disparadores  Disparador[]
 
   @@unique([pipelineId, orden])
   @@index([pipelineId])
@@ -344,13 +361,14 @@ model Oportunidad {
   usuarioInstanciaId String?
   usuarioInstancia   UsuarioInstancia? @relation(fields: [usuarioInstanciaId], references: [id])
 
-  contactos    OportunidadContacto[]
-  productos    OportunidadProducto[]
-  actividades  Actividad[]
-  cotizaciones Cotizacion[]
-  pedidos      Pedido[]
-  tags         OportunidadTag[]
-  campos       CampoPersonalizadoValor[]
+  contactos       OportunidadContacto[]
+  productos       OportunidadProducto[]
+  actividades     Actividad[]
+  cotizaciones    Cotizacion[]
+  pedidos         Pedido[]
+  tags            OportunidadTag[]
+  campos          CampoPersonalizadoValor[]
+  disparadorJobs  DisparadorJob[]
 
   @@index([instanciaId])
   @@index([pipelineId])
@@ -722,6 +740,57 @@ model EventoLog {
   @@index([entidadTipo, entidadId])
   @@index([tipo])
   @@index([ocurridoEn])
+}
+
+// =====================
+// DISPARADORES (TRIGGERS)
+// =====================
+
+model Disparador {
+  id            String               @id @default(cuid())
+  nombre        String
+  activo        Boolean              @default(true)
+  orden         Int                  @default(0)
+  delayMinutos  Int?
+  tipo          TipoAccionDisparador
+  config        Json
+  creadoEn      DateTime             @default(now())
+  actualizadoEn DateTime             @updatedAt
+
+  stageId    String
+  stage      PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  jobs DisparadorJob[]
+
+  @@index([stageId])
+  @@index([pipelineId])
+}
+
+model DisparadorJob {
+  id           String              @id @default(cuid())
+  estado       EstadoDisparadorJob @default(PENDIENTE)
+  ejecutarEn   DateTime
+  payload      Json
+  resultado    Json?
+  error        String?
+  creadoEn     DateTime            @default(now())
+  procesadoEn  DateTime?
+
+  disparadorId String
+  disparador   Disparador @relation(fields: [disparadorId], references: [id])
+
+  oportunidadId String
+  oportunidad   Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+
+  stageId    String
+  pipelineId String
+
+  @@index([estado, ejecutarEn])
+  @@index([oportunidadId, stageId])
+  @@index([disparadorId])
 }
 
 // =====================

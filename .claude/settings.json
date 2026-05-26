@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc *)",
-      "Bash(Get-Content \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\.env\" -Raw)"
+      "Bash(Get-Content \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\.env\" -Raw)",
+      "Bash(npx tsx *)"
     ]
   }
 }

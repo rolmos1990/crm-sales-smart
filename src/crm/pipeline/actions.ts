@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { SchemaPipeline, SchemaStage, SchemaCampoPersonalizado } from "./schema";
 import { obtenerPipelines } from "./queries";
+import { procesarCambioStage } from "./disparadores/motor";
 
 export async function obtenerPipelinesAction() {
   return obtenerPipelines();
@@ -134,6 +135,8 @@ export async function moverAStage(oportunidadId: string, stageId: string, pipeli
         ...(stage != null && { probabilidad: stage.probabilidad }),
       },
     });
+    // Cancelar jobs pendientes anteriores y encolar nuevos disparadores del stage destino
+    await procesarCambioStage(oportunidadId, stageId, pipelineId);
     revalidatePath("/crm/pipeline");
     return { exito: true as const };
   } catch {
