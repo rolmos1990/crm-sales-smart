@@ -87,6 +87,22 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
   }
 }
 
+export async function obtenerContactoAction(id: string) {
+  return prisma.contacto.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      nombre: true,
+      apellido: true,
+      email: true,
+      telefono: true,
+      cargo: true,
+      notas: true,
+      estado: true,
+    },
+  });
+}
+
 export async function eliminarContacto(id: string): Promise<ResultadoAccion> {
   try {
     await prisma.contacto.delete({ where: { id } });

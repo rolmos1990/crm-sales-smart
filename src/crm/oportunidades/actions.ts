@@ -157,6 +157,28 @@ export async function obtenerOportunidadAction(id: string) {
   });
 }
 
+export async function asignarContactoAOportunidad(
+  oportunidadId: string,
+  contactoId: string | null,
+): Promise<ResultadoAccion<void>> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.oportunidadContacto.deleteMany({ where: { oportunidadId } });
+      if (contactoId) {
+        await tx.oportunidadContacto.create({
+          data: { oportunidadId, contactoId, principal: true },
+        });
+      }
+    });
+    revalidatePath("/crm/oportunidades");
+    revalidatePath(`/crm/oportunidades/${oportunidadId}`);
+    revalidatePath("/crm/pipeline");
+    return { exito: true, datos: undefined };
+  } catch {
+    return { exito: false, error: "Error al asignar el contacto" };
+  }
+}
+
 export async function actualizarMetadataOportunidad(
   id: string,
   metadata: Record<string, unknown>,
