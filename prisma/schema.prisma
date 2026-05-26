@@ -101,6 +101,9 @@ enum TipoAccionDisparador {
   CREAR_NOTA
   WEBHOOK
   ASIGNAR_USUARIO
+  ASIGNAR_ETIQUETA
+  MODIFICAR_CAMPO
+  CAMBIAR_ETAPA
 }
 
 enum EstadoDisparadorJob {

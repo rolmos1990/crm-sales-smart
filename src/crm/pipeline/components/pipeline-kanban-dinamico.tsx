@@ -26,6 +26,7 @@ import type { PipelineConStages, PipelineStage, OportunidadEnStage } from "../ty
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import { PanelOportunidadDinamico } from "@/crm/oportunidades/components/panel-oportunidad-dinamico";
 import type { Oportunidad } from "@/crm/oportunidades/types";
+import { KanbanScrollContainer } from "./kanban-scroll-container";
 
 const formatearMoneda = (valor: number, moneda: string) =>
   new Intl.NumberFormat("es-PE", {
@@ -153,7 +154,7 @@ function ColumnaStage({
     <div className="flex-shrink-0 w-[280px]">
       <div
         className={cn(
-          "flex flex-col rounded-2xl border transition-all",
+          "flex flex-col rounded-2xl border overflow-hidden transition-all",
           "bg-stone-100/60 dark:bg-white/4 dark:backdrop-blur-xl",
           "border-stone-200 dark:border-white/10",
           isOver && "ring-2 ring-offset-1 dark:ring-offset-stone-950"
@@ -161,7 +162,7 @@ function ColumnaStage({
         style={isOver ? { "--tw-ring-color": `${color}40` } as React.CSSProperties : undefined}
       >
         <div
-          className="h-1 rounded-t-2xl opacity-70"
+          className="h-[3px] flex-shrink-0"
           style={{ backgroundColor: color }}
         />
 
@@ -338,7 +339,9 @@ export function PipelineKanbanDinamico({
   return (
     <>
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-6">
+        <KanbanScrollContainer
+          stageColors={pipeline.stages.map((s) => s.color ?? "#818cf8")}
+        >
           {pipeline.stages.map((stage) => (
             <ColumnaStage
               key={stage.id}
@@ -348,7 +351,7 @@ export function PipelineKanbanDinamico({
               onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
             />
           ))}
-        </div>
+        </KanbanScrollContainer>
 
         <DragOverlay dropAnimation={{ duration: 150 }}>
           {activeCard && <TarjetaOverlay oportunidad={activeCard} />}

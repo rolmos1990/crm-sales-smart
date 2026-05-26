@@ -6,6 +6,26 @@ import { SchemaDisparador } from "./schema";
 import { obtenerDisparadoresPorPipeline } from "./queries";
 import type { Disparador, DisparadorJob } from "./types";
 
+export async function obtenerTagsParaDisparadorAction() {
+  return prisma.tag.findMany({
+    where: { activo: true },
+    select: { id: true, nombre: true, color: true },
+    orderBy: { nombre: "asc" },
+  });
+}
+
+export async function obtenerPipelinesParaDisparadorAction() {
+  return prisma.pipeline.findMany({
+    include: {
+      stages: {
+        select: { id: true, nombre: true, color: true, orden: true },
+        orderBy: { orden: "asc" },
+      },
+    },
+    orderBy: { nombre: "asc" },
+  });
+}
+
 export async function obtenerDisparadoresAction(
   pipelineId: string
 ): Promise<(Disparador & { jobs: Pick<DisparadorJob, "id" | "estado" | "ejecutarEn" | "creadoEn">[] })[]> {

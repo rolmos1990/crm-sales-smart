@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -32,12 +32,15 @@ import {
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
-import { actualizarOportunidad, eliminarOportunidad } from "../actions";
+import { actualizarOportunidad, eliminarOportunidad, obtenerOportunidadAction } from "../actions";
 import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "../schema";
 import type { Oportunidad, Etapa } from "../types";
 import { ETAPAS_PIPELINE } from "../types";
 import { MoverPipelinePopover } from "./mover-pipeline-popover";
 import { cn } from "@/lib/utils";
+import { SelectorTags } from "@/crm/tags/components/selector-tags";
+import { obtenerTagsAction } from "@/crm/tags/actions";
+import type { Tag } from "@/crm/tags/types";
 
 interface PanelOportunidadProps {
   oportunidad: Oportunidad | null;
@@ -56,6 +59,9 @@ export function PanelOportunidad({
   onUpdate,
   onDelete,
 }: PanelOportunidadProps) {
+  const [tagsDisponibles, setTagsDisponibles] = useState<Tag[]>([]);
+  const [tagIds, setTagIds] = useState<string[]>([]);
+
   const form = useForm<ActualizarOportunidadInput>({
     resolver: zodResolver(ActualizarOportunidadSchema),
   });
@@ -73,12 +79,19 @@ export function PanelOportunidad({
       notas: oportunidad.notas ?? "",
       empresaId: oportunidad.empresaId ?? "",
     });
+    Promise.all([
+      obtenerTagsAction(),
+      obtenerOportunidadAction(oportunidad.id),
+    ]).then(([tags, op]) => {
+      setTagsDisponibles(tags as Tag[]);
+      setTagIds(op?.tags?.map((t: { tagId: string }) => t.tagId) ?? []);
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oportunidad?.id]);
 
   const onSubmit = async (datos: ActualizarOportunidadInput) => {
     if (!oportunidad) return;
-    const resultado = await actualizarOportunidad(oportunidad.id, datos);
+    const resultado = await actualizarOportunidad(oportunidad.id, { ...datos, tagIds });
     if (resultado.exito) {
       toast.success("Oportunidad actualizada");
       onUpdate(resultado.datos);
@@ -336,6 +349,25 @@ export function PanelOportunidad({
                     </FormItem>
                   )}
                 />
+
+                {/* Etiquetas */}
+                {tagsDisponibles.length > 0 && (
+                  <>
+                    <div className="h-px bg-stone-100 dark:bg-white/8" />
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                        Etiquetas
+                      </FormLabel>
+                      <FormControl>
+                        <SelectorTags
+                          tags={tagsDisponibles}
+                          seleccionados={tagIds}
+                          onChange={setTagIds}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  </>
+                )}
               </div>
 
               {/* Footer */}

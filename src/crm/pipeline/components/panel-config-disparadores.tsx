@@ -14,6 +14,10 @@ import {
   ChevronDown,
   ChevronRight,
   Zap,
+  Tag,
+  SlidersHorizontal,
+  ArrowRightCircle,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -42,6 +46,8 @@ import {
   actualizarDisparador,
   toggleDisparador,
   eliminarDisparador,
+  obtenerTagsParaDisparadorAction,
+  obtenerPipelinesParaDisparadorAction,
 } from "../disparadores/actions";
 import {
   ETIQUETAS_TIPO,
@@ -51,16 +57,22 @@ import {
   type ConfigCrearNota,
   type ConfigWebhook,
   type ConfigAsignarUsuario,
+  type ConfigAsignarEtiqueta,
+  type ConfigModificarCampo,
+  type ConfigCambiarEtapa,
 } from "../disparadores/types";
 import type { PipelineConStages, PipelineStage } from "../types";
 
-// ── Icono por tipo ────────────────────────────────────────────────
+// ── Íconos y colores por tipo ─────────────────────────────────────────────────
 
 const ICONO_TIPO: Record<TipoAccionDisparador, React.ElementType> = {
   CREAR_TAREA: CheckSquare,
   CREAR_NOTA: FileText,
   WEBHOOK: Webhook,
   ASIGNAR_USUARIO: UserCheck,
+  ASIGNAR_ETIQUETA: Tag,
+  MODIFICAR_CAMPO: SlidersHorizontal,
+  CAMBIAR_ETAPA: ArrowRightCircle,
 };
 
 const COLOR_TIPO: Record<TipoAccionDisparador, string> = {
@@ -68,9 +80,89 @@ const COLOR_TIPO: Record<TipoAccionDisparador, string> = {
   CREAR_NOTA: "#60a5fa",
   WEBHOOK: "#c084fc",
   ASIGNAR_USUARIO: "#fbbf24",
+  ASIGNAR_ETIQUETA: "#34d399",
+  MODIFICAR_CAMPO: "#fb923c",
+  CAMBIAR_ETAPA: "#f472b6",
 };
 
-// ── Fila de disparador ────────────────────────────────────────────
+// ── Conversión delay ──────────────────────────────────────────────────────────
+
+type UnidadDelay = "minutos" | "horas" | "dias" | "semanas" | "meses";
+const MULTIPLICADORES: Record<UnidadDelay, number> = {
+  minutos: 1,
+  horas: 60,
+  dias: 1440,
+  semanas: 10080,
+  meses: 43200,
+};
+const ETIQUETAS_UNIDAD: Record<UnidadDelay, string> = {
+  minutos: "minutos",
+  horas: "horas",
+  dias: "días",
+  semanas: "semanas",
+  meses: "meses",
+};
+
+function minutosAFrecuencia(mins: number): { frecuencia: string; unidad: UnidadDelay } {
+  if (mins >= 43200 && mins % 43200 === 0) return { frecuencia: String(mins / 43200), unidad: "meses" };
+  if (mins >= 10080 && mins % 10080 === 0) return { frecuencia: String(mins / 10080), unidad: "semanas" };
+  if (mins >= 1440 && mins % 1440 === 0) return { frecuencia: String(mins / 1440), unidad: "dias" };
+  if (mins >= 60 && mins % 60 === 0) return { frecuencia: String(mins / 60), unidad: "horas" };
+  return { frecuencia: String(mins), unidad: "minutos" };
+}
+
+function formatearDelay(mins: number): string {
+  if (mins >= 43200 && mins % 43200 === 0) {
+    const n = mins / 43200;
+    return `${n} mes${n !== 1 ? "es" : ""}`;
+  }
+  if (mins >= 10080 && mins % 10080 === 0) return `${mins / 10080}sem`;
+  if (mins >= 1440 && mins % 1440 === 0) return `${mins / 1440}d`;
+  if (mins >= 60) return `${Math.round(mins / 60)}h`;
+  return `${mins}m`;
+}
+
+// ── Tipos helper para datos externos ─────────────────────────────────────────
+
+type TagOpcion = { id: string; nombre: string; color: string | null };
+type StageOpcion = { id: string; nombre: string; color: string | null; orden: number };
+type PipelineOpcion = { id: string; nombre: string; stages: StageOpcion[] };
+
+// ── Campos directos de Oportunidad disponibles para MODIFICAR_CAMPO ──────────
+
+const CAMPOS_DIRECTOS: Array<{
+  clave: string;
+  nombre: string;
+  tipo: "texto" | "numero" | "select";
+  opciones?: { v: string; n: string }[];
+}> = [
+  { clave: "titulo", nombre: "Título", tipo: "texto" },
+  { clave: "notas", nombre: "Notas", tipo: "texto" },
+  { clave: "moneda", nombre: "Moneda", tipo: "select", opciones: [{ v: "PEN", n: "PEN (S/)" }, { v: "USD", n: "USD ($)" }] },
+  { clave: "etapa", nombre: "Etapa", tipo: "select", opciones: [
+    { v: "PROSPECTO", n: "Prospecto" },
+    { v: "CALIFICADO", n: "Calificado" },
+    { v: "PROPUESTA", n: "Propuesta" },
+    { v: "NEGOCIACION", n: "Negociación" },
+    { v: "GANADO", n: "Ganado" },
+    { v: "PERDIDO", n: "Perdido" },
+  ]},
+  { clave: "valor", nombre: "Valor (monto)", tipo: "numero" },
+  { clave: "probabilidad", nombre: "Probabilidad (%)", tipo: "numero" },
+];
+
+// ── Parseo de campos de metadata desde .env ────────────────────────────────
+
+function parsearCamposMetadata(): { clave: string; nombre: string }[] {
+  const raw = process.env.NEXT_PUBLIC_METADATA_CAMPOS_DISPONIBLES ?? "";
+  if (!raw) return [];
+  return raw.split(",").map((entry) => {
+    const [clave, ...rest] = entry.trim().split(":");
+    return { clave: clave.trim(), nombre: rest.join(":").trim() || clave.trim() };
+  }).filter((c) => c.clave);
+}
+
+// ── Fila de disparador ────────────────────────────────────────────────────────
 
 function FilaDisparador({
   d,
@@ -87,14 +179,12 @@ function FilaDisparador({
   const color = COLOR_TIPO[d.tipo];
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
-        "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10",
-        !d.activo && "opacity-50",
-        "hover:border-stone-300 dark:hover:border-white/20"
-      )}
-    >
+    <div className={cn(
+      "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
+      "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10",
+      !d.activo && "opacity-50",
+      "hover:border-stone-300 dark:hover:border-white/20"
+    )}>
       <div
         className="flex-shrink-0 h-7 w-7 rounded-lg flex items-center justify-center"
         style={{ backgroundColor: `${color}20`, border: `1px solid ${color}30` }}
@@ -103,28 +193,22 @@ function FilaDisparador({
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
-          {d.nombre}
-        </p>
+        <p className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">{d.nombre}</p>
         <p className="text-xs text-stone-400 dark:text-stone-500">
           {ETIQUETAS_TIPO[d.tipo]}
           {d.delayMinutos ? (
             <span className="ml-2 inline-flex items-center gap-0.5">
               <Clock className="h-2.5 w-2.5" />
-              {d.delayMinutos < 60
-                ? `${d.delayMinutos}m`
-                : `${Math.round(d.delayMinutos / 60)}h`}
+              {formatearDelay(d.delayMinutos)}
             </span>
-          ) : null}
+          ) : (
+            <span className="ml-1.5 text-stone-300 dark:text-stone-600">· inmediato</span>
+          )}
         </p>
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <Switch
-          checked={d.activo}
-          onCheckedChange={(v) => onToggle(d.id, v)}
-          className="scale-75"
-        />
+        <Switch checked={d.activo} onCheckedChange={(v) => onToggle(d.id, v)} className="scale-75" />
         <button
           onClick={() => onEditar(d)}
           className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
@@ -142,7 +226,7 @@ function FilaDisparador({
   );
 }
 
-// ── Sección de stage ──────────────────────────────────────────────
+// ── Sección de stage ──────────────────────────────────────────────────────────
 
 function SeccionStage({
   stage,
@@ -214,7 +298,65 @@ function SeccionStage({
   );
 }
 
-// ── Dialog de formulario ──────────────────────────────────────────
+// ── Editor de encabezados webhook ─────────────────────────────────────────────
+
+function EditorHeaders({
+  headers,
+  onChange,
+}: {
+  headers: { clave: string; valor: string }[];
+  onChange: (h: { clave: string; valor: string }[]) => void;
+}) {
+  const agregar = () => onChange([...headers, { clave: "", valor: "" }]);
+  const eliminar = (i: number) => onChange(headers.filter((_, idx) => idx !== i));
+  const actualizar = (i: number, campo: "clave" | "valor", val: string) =>
+    onChange(headers.map((h, idx) => (idx === i ? { ...h, [campo]: val } : h)));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-medium text-stone-500 dark:text-stone-400">
+          Encabezados personalizados
+        </Label>
+        <button
+          type="button"
+          onClick={agregar}
+          className="text-xs text-lime-600 dark:text-lime-400 hover:underline flex items-center gap-1"
+        >
+          <Plus className="h-3 w-3" /> Agregar
+        </button>
+      </div>
+      {headers.length === 0 && (
+        <p className="text-xs text-stone-400 italic">Sin encabezados adicionales</p>
+      )}
+      {headers.map((h, i) => (
+        <div key={i} className="flex gap-1.5 items-center">
+          <Input
+            placeholder="Clave (ej. Authorization)"
+            value={h.clave}
+            onChange={(e) => actualizar(i, "clave", e.target.value)}
+            className="flex-1 h-7 text-xs bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-lg font-mono"
+          />
+          <Input
+            placeholder="Valor"
+            value={h.valor}
+            onChange={(e) => actualizar(i, "valor", e.target.value)}
+            className="flex-1 h-7 text-xs bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-lg font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => eliminar(i)}
+            className="h-7 w-7 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-500/8 transition-colors flex-shrink-0"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Dialog de formulario ──────────────────────────────────────────────────────
 
 function DialogFormDisparador({
   open,
@@ -233,24 +375,62 @@ function DialogFormDisparador({
 }) {
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState<TipoAccionDisparador>("CREAR_TAREA");
-  const [delayMinutos, setDelayMinutos] = useState<string>("");
+
+  // Delay
+  const [delayMode, setDelayMode] = useState<"inmediato" | "programado">("inmediato");
+  const [frecuencia, setFrecuencia] = useState("1");
+  const [unidad, setUnidad] = useState<UnidadDelay>("horas");
+
   const [activo, setActivo] = useState(true);
-  // config fields
+
+  // Configs
   const [tareaTitle, setTareaTitle] = useState("");
   const [tareaDesc, setTareaDesc] = useState("");
   const [notaContenido, setNotaContenido] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
   const [webhookMethod, setWebhookMethod] = useState<"POST" | "GET">("POST");
+  const [webhookHeaders, setWebhookHeaders] = useState<{ clave: string; valor: string }[]>([]);
   const [usuarioId, setUsuarioId] = useState("");
+  // ASIGNAR_ETIQUETA
+  const [tagId, setTagId] = useState("");
+  const [tagsDisponibles, setTagsDisponibles] = useState<TagOpcion[]>([]);
+  // MODIFICAR_CAMPO
+  const [campoModo, setCampoModo] = useState<"campo_directo" | "metadata">("metadata");
+  const [campoClave, setCampoClave] = useState("");
+  const [campoValor, setCampoValor] = useState("");
+  const camposMetadata = parsearCamposMetadata();
+  // CAMBIAR_ETAPA
+  const [pipelines, setPipelines] = useState<PipelineOpcion[]>([]);
+  const [targetPipelineId, setTargetPipelineId] = useState("");
+  const [targetStageId, setTargetStageId] = useState("");
 
   const [isPending, startTransition] = useTransition();
 
+  // Cargar datos externos cuando se abre
+  useEffect(() => {
+    if (!open) return;
+    obtenerTagsParaDisparadorAction().then(setTagsDisponibles);
+    obtenerPipelinesParaDisparadorAction().then(setPipelines);
+  }, [open]);
+
+  // Poblar form al editar
   useEffect(() => {
     if (inicial) {
       setNombre(inicial.nombre);
       setTipo(inicial.tipo);
-      setDelayMinutos(inicial.delayMinutos != null ? String(inicial.delayMinutos) : "");
       setActivo(inicial.activo);
+
+      if (inicial.delayMinutos) {
+        setDelayMode("programado");
+        const { frecuencia: f, unidad: u } = minutosAFrecuencia(inicial.delayMinutos);
+        setFrecuencia(f);
+        setUnidad(u);
+      } else {
+        setDelayMode("inmediato");
+        setFrecuencia("1");
+        setUnidad("horas");
+      }
+
       const cfg = inicial.config;
       if (inicial.tipo === "CREAR_TAREA") {
         const c = cfg as ConfigCrearTarea;
@@ -262,37 +442,94 @@ function DialogFormDisparador({
         const c = cfg as ConfigWebhook;
         setWebhookUrl(c.url);
         setWebhookMethod(c.method ?? "POST");
+        const hdrs = c.headers ?? {};
+        setWebhookHeaders(Object.entries(hdrs).map(([k, v]) => ({ clave: k, valor: v })));
       } else if (inicial.tipo === "ASIGNAR_USUARIO") {
         setUsuarioId((cfg as ConfigAsignarUsuario).usuarioId);
+      } else if (inicial.tipo === "ASIGNAR_ETIQUETA") {
+        setTagId((cfg as ConfigAsignarEtiqueta).tagId);
+      } else if (inicial.tipo === "MODIFICAR_CAMPO") {
+        const c = cfg as ConfigModificarCampo;
+        setCampoModo(c.modo ?? "metadata");
+        setCampoClave(c.clave);
+        setCampoValor(c.valor);
+      } else if (inicial.tipo === "CAMBIAR_ETAPA") {
+        const c = cfg as ConfigCambiarEtapa;
+        setTargetPipelineId(c.pipelineId);
+        setTargetStageId(c.stageId);
       }
     } else {
       setNombre("");
       setTipo("CREAR_TAREA");
-      setDelayMinutos("");
+      setDelayMode("inmediato");
+      setFrecuencia("1");
+      setUnidad("horas");
       setActivo(true);
-      setTareaTitle("");
-      setTareaDesc("");
+      setTareaTitle(""); setTareaDesc("");
       setNotaContenido("");
-      setWebhookUrl("");
-      setWebhookMethod("POST");
+      setWebhookUrl(""); setWebhookMethod("POST"); setWebhookHeaders([]);
       setUsuarioId("");
+      setTagId("");
+      setCampoModo("metadata"); setCampoClave(""); setCampoValor("");
+      setTargetPipelineId(""); setTargetStageId("");
     }
   }, [inicial, open]);
+
+  // Reset stage cuando cambia pipeline destino
+  useEffect(() => {
+    if (targetPipelineId && (!inicial || (inicial.config as ConfigCambiarEtapa).pipelineId !== targetPipelineId)) {
+      setTargetStageId("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetPipelineId]);
 
   const buildConfig = () => {
     if (tipo === "CREAR_TAREA") return { titulo: tareaTitle, descripcion: tareaDesc || undefined };
     if (tipo === "CREAR_NOTA") return { contenido: notaContenido };
-    if (tipo === "WEBHOOK") return { url: webhookUrl, method: webhookMethod };
-    return { usuarioId };
+    if (tipo === "WEBHOOK") {
+      const headersObj = Object.fromEntries(
+        webhookHeaders.filter((h) => h.clave.trim()).map((h) => [h.clave.trim(), h.valor])
+      );
+      return {
+        url: webhookUrl,
+        method: webhookMethod,
+        ...(Object.keys(headersObj).length > 0 && { headers: headersObj }),
+      };
+    }
+    if (tipo === "ASIGNAR_USUARIO") return { usuarioId };
+    if (tipo === "ASIGNAR_ETIQUETA") {
+      const tag = tagsDisponibles.find((t) => t.id === tagId);
+      return { tagId, tagNombre: tag?.nombre };
+    }
+    if (tipo === "MODIFICAR_CAMPO") return { modo: campoModo, clave: campoClave, valor: campoValor };
+    if (tipo === "CAMBIAR_ETAPA") {
+      const p = pipelines.find((p) => p.id === targetPipelineId);
+      const s = p?.stages.find((s) => s.id === targetStageId);
+      return {
+        pipelineId: targetPipelineId,
+        stageId: targetStageId,
+        pipelineNombre: p?.nombre,
+        stageNombre: s?.nombre,
+      };
+    }
+    return {};
+  };
+
+  const calcularDelayMinutos = (): number | null => {
+    if (delayMode === "inmediato") return null;
+    const minFrc = unidad === "minutos" ? 5 : 1;
+    const n = Math.min(600, Math.max(minFrc, parseInt(frecuencia, 10) || minFrc));
+    return n * MULTIPLICADORES[unidad];
   };
 
   const handleGuardar = () => {
     if (!stage) return;
+    const delayMinutos = calcularDelayMinutos();
     const datos = {
       nombre: nombre.trim(),
       tipo,
       activo,
-      delayMinutos: delayMinutos ? Number(delayMinutos) : null,
+      delayMinutos,
       config: buildConfig(),
     };
 
@@ -309,7 +546,7 @@ function DialogFormDisparador({
           nombre: datos.nombre,
           tipo,
           activo,
-          delayMinutos: datos.delayMinutos,
+          delayMinutos,
           config: datos.config as Disparador["config"],
           orden: inicial?.orden ?? 0,
           stageId: stage.id,
@@ -323,16 +560,34 @@ function DialogFormDisparador({
     });
   };
 
-  const esValido = nombre.trim().length > 0 && (
-    tipo === "CREAR_TAREA" ? tareaTitle.trim().length > 0 :
-    tipo === "CREAR_NOTA" ? notaContenido.trim().length > 0 :
-    tipo === "WEBHOOK" ? webhookUrl.trim().length > 0 :
-    usuarioId.trim().length > 0
-  );
+  const esConfigValida = () => {
+    if (tipo === "CREAR_TAREA") return tareaTitle.trim().length > 0;
+    if (tipo === "CREAR_NOTA") return notaContenido.trim().length > 0;
+    if (tipo === "WEBHOOK") return webhookUrl.trim().length > 0;
+    if (tipo === "ASIGNAR_USUARIO") return usuarioId.trim().length > 0;
+    if (tipo === "ASIGNAR_ETIQUETA") return tagId.length > 0;
+    if (tipo === "MODIFICAR_CAMPO") return campoClave.trim().length > 0;
+    if (tipo === "CAMBIAR_ETAPA") return targetPipelineId.length > 0 && targetStageId.length > 0;
+    return false;
+  };
+
+  const delayValido =
+    delayMode === "inmediato" ||
+    ((calcularDelayMinutos() ?? 0) >= 5);
+
+  const esValido = nombre.trim().length > 0 && esConfigValida() && delayValido;
+  const stagesDestino = pipelines.find((p) => p.id === targetPipelineId)?.stages ?? [];
+  const minFrecuencia = unidad === "minutos" ? 5 : 1;
+
+  const inputCls = "bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl";
+  const inputInnerCls = "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl";
+  const labelCls = "text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-1.5 block";
+  const labelSmCls = "text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block";
+  const sectionCls = "space-y-3 rounded-xl border border-stone-200 dark:border-white/10 p-3 bg-stone-50/50 dark:bg-white/3";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10">
+      <DialogContent className="sm:max-w-md bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-stone-900 dark:text-stone-50 flex items-center gap-2">
             <Zap className="h-4 w-4 text-lime-500" />
@@ -348,26 +603,28 @@ function DialogFormDisparador({
         <div className="space-y-4 py-1">
           {/* Nombre */}
           <div>
-            <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-1.5 block">
-              Nombre
-            </Label>
+            <Label className={labelCls}>Nombre</Label>
             <Input
               autoFocus
               placeholder="Ej. Enviar recordatorio"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
+              className={inputCls}
             />
           </div>
 
-          {/* Tipo */}
+          {/* Tipo / Acción — trigger muestra el nombre, no el id */}
           <div>
-            <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-1.5 block">
-              Acción
-            </Label>
+            <Label className={labelCls}>Acción</Label>
             <Select value={tipo} onValueChange={(v) => setTipo(v as TipoAccionDisparador)}>
-              <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl">
-                <SelectValue />
+              <SelectTrigger className={inputCls}>
+                <span className="flex items-center gap-2">
+                  {(() => {
+                    const Ic = ICONO_TIPO[tipo];
+                    return <Ic className="h-3.5 w-3.5 flex-shrink-0" style={{ color: COLOR_TIPO[tipo] }} />;
+                  })()}
+                  <span>{ETIQUETAS_TIPO[tipo]}</span>
+                </span>
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
                 {(Object.entries(ETIQUETAS_TIPO) as [TipoAccionDisparador, string][]).map(([val, etq]) => {
@@ -387,70 +644,57 @@ function DialogFormDisparador({
 
           {/* Config por tipo */}
           {tipo === "CREAR_TAREA" && (
-            <div className="space-y-3 rounded-xl border border-stone-200 dark:border-white/10 p-3 bg-stone-50/50 dark:bg-white/3">
+            <div className={sectionCls}>
               <div>
-                <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">
-                  Título de la tarea
-                </Label>
+                <Label className={labelSmCls}>Título de la tarea</Label>
                 <Input
                   placeholder="Ej. Hacer seguimiento al cliente"
                   value={tareaTitle}
                   onChange={(e) => setTareaTitle(e.target.value)}
-                  className="bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
+                  className={inputInnerCls}
                 />
               </div>
               <div>
-                <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">
-                  Descripción (opcional)
-                </Label>
+                <Label className={labelSmCls}>Descripción (opcional)</Label>
                 <Textarea
                   placeholder="Detalles de la tarea..."
                   value={tareaDesc}
                   onChange={(e) => setTareaDesc(e.target.value)}
                   rows={2}
-                  className="bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl resize-none text-sm"
+                  className={`${inputInnerCls} resize-none text-sm`}
                 />
               </div>
             </div>
           )}
 
           {tipo === "CREAR_NOTA" && (
-            <div className="rounded-xl border border-stone-200 dark:border-white/10 p-3 bg-stone-50/50 dark:bg-white/3">
-              <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">
-                Contenido de la nota
-              </Label>
+            <div className={sectionCls.replace("space-y-3 ", "")}>
+              <Label className={labelSmCls}>Contenido de la nota</Label>
               <Textarea
                 placeholder="Ej. El cliente pasó a propuesta. Revisar condiciones."
                 value={notaContenido}
                 onChange={(e) => setNotaContenido(e.target.value)}
                 rows={3}
-                className="bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl resize-none text-sm"
+                className={`${inputInnerCls} resize-none text-sm`}
               />
             </div>
           )}
 
           {tipo === "WEBHOOK" && (
-            <div className="space-y-3 rounded-xl border border-stone-200 dark:border-white/10 p-3 bg-stone-50/50 dark:bg-white/3">
+            <div className={sectionCls}>
               <div>
-                <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">
-                  URL del webhook
-                </Label>
+                <Label className={labelSmCls}>URL del webhook</Label>
                 <Input
                   placeholder="https://..."
                   value={webhookUrl}
                   onChange={(e) => setWebhookUrl(e.target.value)}
-                  className="bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl font-mono text-xs"
+                  className={`${inputInnerCls} font-mono text-xs`}
                 />
               </div>
               <div>
-                <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">
-                  Método
-                </Label>
-                <Select
-                  value={webhookMethod}
-                  onValueChange={(v) => setWebhookMethod(v as "POST" | "GET")}
-                >
-                  <SelectTrigger className="bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl w-28">
+                <Label className={labelSmCls}>Método</Label>
+                <Select value={webhookMethod} onValueChange={(v) => setWebhookMethod(v as "POST" | "GET")}>
+                  <SelectTrigger className={`${inputInnerCls} w-28`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
@@ -459,48 +703,381 @@ function DialogFormDisparador({
                   </SelectContent>
                 </Select>
               </div>
+              <EditorHeaders headers={webhookHeaders} onChange={setWebhookHeaders} />
             </div>
           )}
 
           {tipo === "ASIGNAR_USUARIO" && (
-            <div className="rounded-xl border border-stone-200 dark:border-white/10 p-3 bg-stone-50/50 dark:bg-white/3">
-              <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">
-                ID del usuario a asignar
-              </Label>
+            <div className={sectionCls.replace("space-y-3 ", "")}>
+              <Label className={labelSmCls}>ID del usuario a asignar</Label>
               <Input
                 placeholder="ID del usuario"
                 value={usuarioId}
                 onChange={(e) => setUsuarioId(e.target.value)}
-                className="bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
+                className={inputInnerCls}
               />
             </div>
           )}
 
-          {/* Delay + Activo */}
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-1.5 block">
-                Delay (minutos)
-              </Label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
-                <Input
-                  type="number"
-                  min={0}
-                  max={10080}
-                  placeholder="Inmediato"
-                  value={delayMinutos}
-                  onChange={(e) => setDelayMinutos(e.target.value)}
-                  className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl pl-8"
-                />
+          {tipo === "ASIGNAR_ETIQUETA" && (
+            <div className={sectionCls.replace("space-y-3 ", "")}>
+              <Label className={labelSmCls}>Etiqueta a asignar</Label>
+              {tagsDisponibles.length === 0 ? (
+                <p className="text-xs text-stone-400 py-1">
+                  No hay etiquetas. Créalas en <span className="font-medium">CRM → Etiquetas</span>.
+                </p>
+              ) : (
+                <Select value={tagId} onValueChange={(v) => setTagId(v ?? "")}>
+                  <SelectTrigger className={inputInnerCls}>
+                    {tagId ? (
+                      <span className="flex items-center gap-2">
+                        {(() => {
+                          const t = tagsDisponibles.find((t) => t.id === tagId);
+                          return (
+                            <>
+                              <span
+                                className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: t?.color ?? "#a8a29e" }}
+                              />
+                              <span>{t?.nombre ?? tagId}</span>
+                            </>
+                          );
+                        })()}
+                      </span>
+                    ) : (
+                      <SelectValue placeholder="Seleccionar etiqueta..." />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
+                    {tagsDisponibles.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: t.color ?? "#a8a29e" }}
+                          />
+                          {t.nombre}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          {tipo === "MODIFICAR_CAMPO" && (
+            <div className={sectionCls}>
+              {/* Selector de modo */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setCampoModo("campo_directo"); setCampoClave(""); setCampoValor(""); }}
+                  className={cn(
+                    "flex-1 py-1.5 px-2 rounded-lg border text-xs font-medium transition-all",
+                    campoModo === "campo_directo"
+                      ? "bg-lime-500/10 border-lime-500/30 text-lime-700 dark:bg-lime-400/10 dark:border-lime-400/30 dark:text-lime-400"
+                      : "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5"
+                  )}
+                >
+                  Campo de oportunidad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCampoModo("metadata"); setCampoClave(""); setCampoValor(""); }}
+                  className={cn(
+                    "flex-1 py-1.5 px-2 rounded-lg border text-xs font-medium transition-all",
+                    campoModo === "metadata"
+                      ? "bg-lime-500/10 border-lime-500/30 text-lime-700 dark:bg-lime-400/10 dark:border-lime-400/30 dark:text-lime-400"
+                      : "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5"
+                  )}
+                >
+                  Metadata (clave-valor)
+                </button>
               </div>
+
+              {/* Modo: campo directo de la oportunidad */}
+              {campoModo === "campo_directo" && (
+                <>
+                  <div>
+                    <Label className={labelSmCls}>Campo a modificar</Label>
+                    <Select value={campoClave} onValueChange={(v) => { setCampoClave(v ?? ""); setCampoValor(""); }}>
+                      <SelectTrigger className={inputInnerCls}>
+                        {campoClave ? (
+                          <span>{CAMPOS_DIRECTOS.find((c) => c.clave === campoClave)?.nombre ?? campoClave}</span>
+                        ) : (
+                          <SelectValue placeholder="Seleccionar campo..." />
+                        )}
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
+                        {CAMPOS_DIRECTOS.map((c) => (
+                          <SelectItem key={c.clave} value={c.clave}>{c.nombre}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {campoClave && (() => {
+                    const defCampo = CAMPOS_DIRECTOS.find((c) => c.clave === campoClave);
+                    if (!defCampo) return null;
+                    return (
+                      <div>
+                        <Label className={labelSmCls}>Nuevo valor</Label>
+                        {defCampo.tipo === "select" ? (
+                          <Select value={campoValor} onValueChange={(v) => setCampoValor(v ?? "")}>
+                            <SelectTrigger className={inputInnerCls}>
+                              {campoValor ? (
+                                <span>{defCampo.opciones?.find((o) => o.v === campoValor)?.n ?? campoValor}</span>
+                              ) : (
+                                <SelectValue placeholder="Seleccionar valor..." />
+                              )}
+                            </SelectTrigger>
+                            <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
+                              {defCampo.opciones?.map((o) => (
+                                <SelectItem key={o.v} value={o.v}>{o.n}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : defCampo.tipo === "numero" ? (
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={campoValor}
+                            onChange={(e) => setCampoValor(e.target.value)}
+                            className={inputInnerCls}
+                          />
+                        ) : (
+                          <Input
+                            placeholder={`Nuevo valor para ${defCampo.nombre}`}
+                            value={campoValor}
+                            onChange={(e) => setCampoValor(e.target.value)}
+                            className={inputInnerCls}
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+
+              {/* Modo: metadata clave-valor */}
+              {campoModo === "metadata" && (
+                <>
+                  <div>
+                    <Label className={labelSmCls}>Clave</Label>
+                    {camposMetadata.length > 0 ? (
+                      <Select value={campoClave} onValueChange={(v) => setCampoClave(v ?? "")}>
+                        <SelectTrigger className={inputInnerCls}>
+                          {campoClave ? (
+                            <span>{camposMetadata.find((c) => c.clave === campoClave)?.nombre ?? campoClave}</span>
+                          ) : (
+                            <SelectValue placeholder="Seleccionar campo..." />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
+                          {camposMetadata.map((c) => (
+                            <SelectItem key={c.clave} value={c.clave}>
+                              <span className="flex flex-col leading-tight">
+                                <span>{c.nombre}</span>
+                                <span className="text-xs text-stone-400 font-mono">{c.clave}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        placeholder="Ej. estado_interno"
+                        value={campoClave}
+                        onChange={(e) => setCampoClave(e.target.value)}
+                        className={`${inputInnerCls} font-mono text-xs`}
+                      />
+                    )}
+                    {camposMetadata.length === 0 && (
+                      <p className="text-xs text-stone-400 mt-1">
+                        Configura sugerencias en <code className="font-mono bg-stone-100 dark:bg-white/8 px-1 rounded">NEXT_PUBLIC_METADATA_CAMPOS_DISPONIBLES</code> en tu .env
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className={labelSmCls}>Valor</Label>
+                    <Input
+                      placeholder="Ej. Urgente"
+                      value={campoValor}
+                      onChange={(e) => setCampoValor(e.target.value)}
+                      className={inputInnerCls}
+                    />
+                  </div>
+                </>
+              )}
             </div>
-            <div className="flex flex-col items-center gap-1 pb-1">
-              <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide">
-                Activo
-              </Label>
-              <Switch checked={activo} onCheckedChange={setActivo} />
+          )}
+
+          {tipo === "CAMBIAR_ETAPA" && (
+            <div className={sectionCls}>
+              <div>
+                <Label className={labelSmCls}>Pipeline destino</Label>
+                <Select value={targetPipelineId} onValueChange={(v) => setTargetPipelineId(v ?? "")}>
+                  <SelectTrigger className={inputInnerCls}>
+                    {targetPipelineId ? (
+                      <span>{pipelines.find((p) => p.id === targetPipelineId)?.nombre ?? targetPipelineId}</span>
+                    ) : (
+                      <SelectValue placeholder="Seleccionar pipeline..." />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
+                    {pipelines.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.nombre}
+                        {p.id === pipeline.id && (
+                          <span className="ml-1.5 text-xs text-stone-400">(este)</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {targetPipelineId && (
+                <div>
+                  <Label className={labelSmCls}>Etapa destino</Label>
+                  {stagesDestino.length === 0 ? (
+                    <p className="text-xs text-stone-400 py-1">Este pipeline no tiene etapas.</p>
+                  ) : (
+                    <Select value={targetStageId} onValueChange={(v) => setTargetStageId(v ?? "")}>
+                      <SelectTrigger className={inputInnerCls}>
+                        {targetStageId ? (
+                          <span className="flex items-center gap-2">
+                            {(() => {
+                              const s = stagesDestino.find((s) => s.id === targetStageId);
+                              return (
+                                <>
+                                  {s?.color && (
+                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                                  )}
+                                  <span>{s?.nombre ?? targetStageId}</span>
+                                </>
+                              );
+                            })()}
+                          </span>
+                        ) : (
+                          <SelectValue placeholder="Seleccionar etapa..." />
+                        )}
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
+                        {stagesDestino.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            <span className="flex items-center gap-2">
+                              {s.color && (
+                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                              )}
+                              {s.nombre}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Cuándo ejecutar */}
+          <div className="space-y-2">
+            <Label className={labelCls}>Cuándo ejecutar</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDelayMode("inmediato")}
+                className={cn(
+                  "flex-1 py-2 px-3 rounded-xl border text-xs font-medium transition-all",
+                  delayMode === "inmediato"
+                    ? "bg-lime-500/10 border-lime-500/30 text-lime-700 dark:bg-lime-400/10 dark:border-lime-400/30 dark:text-lime-400"
+                    : "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5"
+                )}
+              >
+                Al llegar a esta etapa
+              </button>
+              <button
+                type="button"
+                onClick={() => setDelayMode("programado")}
+                className={cn(
+                  "flex-1 py-2 px-3 rounded-xl border text-xs font-medium transition-all",
+                  delayMode === "programado"
+                    ? "bg-lime-500/10 border-lime-500/30 text-lime-700 dark:bg-lime-400/10 dark:border-lime-400/30 dark:text-lime-400"
+                    : "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5"
+                )}
+              >
+                Después de...
+              </button>
+            </div>
+
+            {delayMode === "programado" && (
+              <div className="space-y-1.5">
+                <div className="flex gap-2 items-center">
+                  <div className="relative w-24 flex-shrink-0">
+                    <Clock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+                    <Input
+                      type="number"
+                      min={minFrecuencia}
+                      max={600}
+                      step={1}
+                      value={frecuencia}
+                      onKeyDown={(e) => {
+                        if (e.key === "." || e.key === "," || e.key === "e" || e.key === "E") {
+                          e.preventDefault();
+                        }
+                      }}
+                      onChange={(e) => {
+                        if (!e.target.value) { setFrecuencia(""); return; }
+                        const n = Math.min(600, Math.max(minFrecuencia, parseInt(e.target.value, 10) || minFrecuencia));
+                        setFrecuencia(String(n));
+                      }}
+                      onBlur={() => {
+                        const n = Math.min(600, Math.max(minFrecuencia, parseInt(frecuencia, 10) || minFrecuencia));
+                        setFrecuencia(String(n));
+                      }}
+                      className={`${inputCls} pl-8`}
+                    />
+                  </div>
+                  <Select
+                    value={unidad}
+                    onValueChange={(v) => {
+                      const nuevaUnidad = v as UnidadDelay;
+                      setUnidad(nuevaUnidad);
+                      if (nuevaUnidad === "minutos") {
+                        const actual = Number(frecuencia) || 1;
+                        if (actual < 5) setFrecuencia("5");
+                      }
+                    }}
+                  >
+                    <SelectTrigger className={`${inputCls} flex-1`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
+                      {(Object.entries(ETIQUETAS_UNIDAD) as [UnidadDelay, string][]).map(([val, etq]) => (
+                        <SelectItem key={val} value={val}>{etq}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {unidad === "minutos" && (
+                  <p className="text-xs text-stone-400 dark:text-stone-500">
+                    Mínimo 5 minutos · Máximo 600
+                  </p>
+                )}
+                {unidad !== "minutos" && (
+                  <p className="text-xs text-stone-400 dark:text-stone-500">Máximo 600</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Activo */}
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide">
+              Activo
+            </Label>
+            <Switch checked={activo} onCheckedChange={setActivo} />
           </div>
         </div>
 
@@ -522,7 +1099,7 @@ function DialogFormDisparador({
   );
 }
 
-// ── Panel principal ───────────────────────────────────────────────
+// ── Panel principal ───────────────────────────────────────────────────────────
 
 export function PanelConfigDisparadores({ pipeline }: { pipeline: PipelineConStages }) {
   const [disparadores, setDisparadores] = useState<Disparador[]>([]);
@@ -577,12 +1154,10 @@ export function PanelConfigDisparadores({ pipeline }: { pipeline: PipelineConSta
     });
   };
 
-  const stageActual = stageParaAgregar;
   const totalActivos = disparadores.filter((d) => d.activo).length;
 
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
-      {/* Encabezado informativo */}
       <div className="flex items-start gap-3 rounded-xl border border-lime-500/20 dark:border-lime-400/15 bg-lime-500/5 dark:bg-lime-400/5 px-4 py-3">
         <Zap className="h-4 w-4 text-lime-600 dark:text-lime-400 flex-shrink-0 mt-0.5" />
         <div>
@@ -591,7 +1166,7 @@ export function PanelConfigDisparadores({ pipeline }: { pipeline: PipelineConSta
           </p>
           <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
             Cada vez que una oportunidad llegue a una etapa, los disparadores activos se ejecutan
-            automáticamente según el delay configurado.
+            automáticamente según el tiempo configurado.
           </p>
         </div>
         {totalActivos > 0 && (
@@ -602,7 +1177,6 @@ export function PanelConfigDisparadores({ pipeline }: { pipeline: PipelineConSta
         )}
       </div>
 
-      {/* Lista por stage */}
       {cargando ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
@@ -629,8 +1203,11 @@ export function PanelConfigDisparadores({ pipeline }: { pipeline: PipelineConSta
 
       <DialogFormDisparador
         open={dialogOpen}
-        onOpenChange={(v) => { if (!v) { setDialogOpen(false); setEditando(null); setStageParaAgregar(null); } else setDialogOpen(v); }}
-        stage={stageActual}
+        onOpenChange={(v) => {
+          if (!v) { setDialogOpen(false); setEditando(null); setStageParaAgregar(null); }
+          else setDialogOpen(v);
+        }}
+        stage={stageParaAgregar}
         pipeline={pipeline}
         inicial={editando}
         onGuardado={handleGuardado}

@@ -5,6 +5,13 @@ import { prisma } from "@/shared/db/prisma";
 import { CrearTagSchema, ActualizarTagSchema } from "./schema";
 import type { ResultadoAccion, Tag } from "./types";
 
+export async function obtenerTagsAction(): Promise<Tag[]> {
+  return prisma.tag.findMany({
+    where: { activo: true },
+    orderBy: { nombre: "asc" },
+  }) as unknown as Promise<Tag[]>;
+}
+
 export async function crearTag(datos: unknown): Promise<ResultadoAccion<Tag>> {
   const validado = CrearTagSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };

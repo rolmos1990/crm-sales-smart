@@ -131,46 +131,108 @@
   }
 }
 
-/* ── Sonner Toasts — progress bar + close button ─────────────────── */
+/* ── Sonner Toasts — Premium Olive ──────────────────────────────── */
 
-/* Barra de progreso via ::after */
-[data-sonner-toast]::after {
+/* Contiene el botón X y la barra de progreso dentro del toast */
+[data-sonner-toast][data-styled='true'] {
+  overflow: hidden;
+  border-radius: 14px !important;
+}
+
+/* Padding derecho para no solapar texto con el botón X */
+[data-sonner-toast][data-styled='true']:has([data-close-button]) {
+  padding-right: 36px !important;
+}
+
+/* Botón X — reposicionado dentro del toast, esquina superior derecha */
+[data-sonner-toast][data-styled='true'] [data-close-button] {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  left: auto !important;
+  transform: none !important;
+  height: 18px !important;
+  width: 18px !important;
+  border-radius: 50% !important;
+  opacity: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: opacity 150ms ease, transform 150ms ease !important;
+}
+
+[data-sonner-toast][data-styled='true'] [data-close-button] svg {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+[data-sonner-toast][data-styled='true'] [data-close-button]:hover {
+  opacity: 0.8 !important;
+  transform: scale(1.15) !important;
+}
+
+/* Colores del X según tipo de notificación */
+[data-rich-colors='true'][data-sonner-toast][data-type='success'] [data-close-button] {
+  background: rgba(132, 204, 22, 0.18) !important;
+  border-color: rgba(132, 204, 22, 0.45) !important;
+  color: #a3e635 !important;
+}
+[data-rich-colors='true'][data-sonner-toast][data-type='error'] [data-close-button] {
+  background: rgba(248, 113, 113, 0.18) !important;
+  border-color: rgba(248, 113, 113, 0.45) !important;
+  color: #f87171 !important;
+}
+[data-rich-colors='true'][data-sonner-toast][data-type='warning'] [data-close-button] {
+  background: rgba(251, 191, 36, 0.18) !important;
+  border-color: rgba(251, 191, 36, 0.45) !important;
+  color: #fbbf24 !important;
+}
+[data-rich-colors='true'][data-sonner-toast][data-type='info'] [data-close-button] {
+  background: rgba(96, 165, 250, 0.18) !important;
+  border-color: rgba(96, 165, 250, 0.45) !important;
+  color: #60a5fa !important;
+}
+/* Toast neutral/default */
+[data-sonner-toast][data-styled='true']:not([data-type]) [data-close-button],
+[data-sonner-toast][data-styled='true'][data-type='default'] [data-close-button] {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* Barra de progreso en el fondo (correctamente contenida con overflow:hidden) */
+[data-sonner-toast][data-styled='true']::after {
   content: '';
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 100%;
-  height: 2px;
-  border-radius: 0 0 calc(var(--radius, 0.75rem) - 1px) calc(var(--radius, 0.75rem) - 1px);
+  right: 0;
+  height: 2.5px;
   transform-origin: left;
-  animation: toast-progress 4s linear forwards;
+  animation: sonner-progress 4s linear forwards;
   pointer-events: none;
 }
 
-[data-sonner-toast]:hover::after {
+[data-sonner-toast][data-styled='true']:hover::after {
   animation-play-state: paused;
 }
 
-[data-sonner-toast][data-type='success']::after  { background: #84cc16; opacity: 0.65; }
-[data-sonner-toast][data-type='error']::after    { background: #f87171; opacity: 0.65; }
-[data-sonner-toast][data-type='warning']::after  { background: #fbbf24; opacity: 0.65; }
-[data-sonner-toast][data-type='info']::after     { background: #60a5fa; opacity: 0.65; }
-[data-sonner-toast]:not([data-type])::after,
-[data-sonner-toast][data-type='default']::after  { background: #a8a29e; opacity: 0.45; }
+[data-sonner-toast][data-styled='true'][data-type='success']::after  { background: #a3e635; opacity: 0.85; }
+[data-sonner-toast][data-styled='true'][data-type='error']::after    { background: #f87171; opacity: 0.85; }
+[data-sonner-toast][data-styled='true'][data-type='warning']::after  { background: #fbbf24; opacity: 0.85; }
+[data-sonner-toast][data-styled='true'][data-type='info']::after     { background: #60a5fa; opacity: 0.85; }
+[data-sonner-toast][data-styled='true']:not([data-type])::after,
+[data-sonner-toast][data-styled='true'][data-type='default']::after  { background: rgba(168, 162, 158, 0.55); }
 
-@keyframes toast-progress {
+@keyframes sonner-progress {
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
 }
 
-/* Botón X — invisible en reposo, aparece sutil al hover */
-[data-sonner-toast] [data-close-button] {
-  opacity: 0 !important;
-  transition: opacity 200ms ease !important;
+/* Kanban — hide native scrollbar */
+[data-kanban-scroll]::-webkit-scrollbar {
+  display: none;
 }
-
-[data-sonner-toast]:hover [data-close-button] { opacity: 0.45 !important; }
-[data-sonner-toast] [data-close-button]:hover  { opacity: 1   !important; }
 
 /* Premium SaaS gradient background — dark mode only */
 .dark .app-gradient-bg {

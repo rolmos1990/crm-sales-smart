@@ -152,6 +152,7 @@ export async function obtenerOportunidadAction(id: string) {
       metadata: true,
       empresa: { select: { id: true, nombre: true } },
       contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },
+      tags: { include: { tag: { select: { id: true, nombre: true, color: true } } } },
     },
   });
 }

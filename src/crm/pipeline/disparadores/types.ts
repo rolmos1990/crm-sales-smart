@@ -1,4 +1,12 @@
-export type TipoAccionDisparador = "CREAR_TAREA" | "CREAR_NOTA" | "WEBHOOK" | "ASIGNAR_USUARIO";
+export type TipoAccionDisparador =
+  | "CREAR_TAREA"
+  | "CREAR_NOTA"
+  | "WEBHOOK"
+  | "ASIGNAR_USUARIO"
+  | "ASIGNAR_ETIQUETA"
+  | "MODIFICAR_CAMPO"
+  | "CAMBIAR_ETAPA";
+
 export type EstadoDisparadorJob = "PENDIENTE" | "PROCESANDO" | "COMPLETADO" | "CANCELADO" | "FALLIDO";
 
 export interface ConfigCrearTarea {
@@ -21,11 +29,32 @@ export interface ConfigAsignarUsuario {
   usuarioNombre?: string;
 }
 
+export interface ConfigAsignarEtiqueta {
+  tagId: string;
+  tagNombre?: string;
+}
+
+export interface ConfigModificarCampo {
+  modo: "campo_directo" | "metadata";
+  clave: string;
+  valor: string;
+}
+
+export interface ConfigCambiarEtapa {
+  pipelineId: string;
+  stageId: string;
+  pipelineNombre?: string;
+  stageNombre?: string;
+}
+
 export type ConfigDisparador =
   | ConfigCrearTarea
   | ConfigCrearNota
   | ConfigWebhook
-  | ConfigAsignarUsuario;
+  | ConfigAsignarUsuario
+  | ConfigAsignarEtiqueta
+  | ConfigModificarCampo
+  | ConfigCambiarEtapa;
 
 export interface Disparador {
   id: string;
@@ -64,6 +93,9 @@ export const ETIQUETAS_TIPO: Record<TipoAccionDisparador, string> = {
   CREAR_NOTA: "Crear nota",
   WEBHOOK: "Webhook",
   ASIGNAR_USUARIO: "Asignar usuario",
+  ASIGNAR_ETIQUETA: "Asignar etiqueta",
+  MODIFICAR_CAMPO: "Modificar campo",
+  CAMBIAR_ETAPA: "Cambiar etapa",
 };
 
 export const ICONOS_TIPO: Record<TipoAccionDisparador, string> = {
@@ -71,4 +103,7 @@ export const ICONOS_TIPO: Record<TipoAccionDisparador, string> = {
   CREAR_NOTA: "FileText",
   WEBHOOK: "Webhook",
   ASIGNAR_USUARIO: "UserCheck",
+  ASIGNAR_ETIQUETA: "Tag",
+  MODIFICAR_CAMPO: "SlidersHorizontal",
+  CAMBIAR_ETAPA: "ArrowRightCircle",
 };

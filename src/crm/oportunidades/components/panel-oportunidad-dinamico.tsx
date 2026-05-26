@@ -38,6 +38,9 @@ import {
   actualizarMetadataOportunidad,
   eliminarOportunidad,
 } from "../actions";
+import { SelectorTags } from "@/crm/tags/components/selector-tags";
+import { obtenerTagsAction } from "@/crm/tags/actions";
+import type { Tag } from "@/crm/tags/types";
 import { moverAStage } from "@/crm/pipeline/actions";
 import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "../schema";
 import type { Oportunidad } from "../types";
@@ -67,6 +70,8 @@ interface FormularioProps {
   pipeline: PipelineConStages;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
+  tagsDisponibles: Tag[];
+  tagIdsIniciales: string[];
   onClose: () => void;
   onUpdate: (updated: Oportunidad & { stageId?: string | null }) => void;
   onDelete: (id: string) => void;
@@ -85,6 +90,8 @@ export function PanelOportunidadDinamico({
   onDelete,
 }: PanelOportunidadDinamicoProps) {
   const [oportunidad, setOportunidad] = useState<OportunidadFetched | null>(null);
+  const [tagsDisponibles, setTagsDisponibles] = useState<Tag[]>([]);
+  const [tagIdsIniciales, setTagIdsIniciales] = useState<string[]>([]);
   const [cargando, setCargando] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const fetchedIdRef = useRef<string | null>(null);
@@ -98,9 +105,14 @@ export function PanelOportunidadDinamico({
     if (fetchedIdRef.current === oportunidadId) return;
     fetchedIdRef.current = oportunidadId;
     setCargando(true);
-    obtenerOportunidadAction(oportunidadId).then((data) => {
+    Promise.all([
+      obtenerOportunidadAction(oportunidadId),
+      obtenerTagsAction(),
+    ]).then(([data, tags]) => {
       if (!data) { setCargando(false); return; }
       setOportunidad(data);
+      setTagsDisponibles(tags as Tag[]);
+      setTagIdsIniciales((data as any).tags?.map((t: { tagId: string }) => t.tagId) ?? []);
       setResetKey((k) => k + 1);
       setCargando(false);
     });
@@ -130,6 +142,8 @@ export function PanelOportunidadDinamico({
             pipeline={pipeline}
             empresas={empresas}
             contactos={contactos}
+            tagsDisponibles={tagsDisponibles}
+            tagIdsIniciales={tagIdsIniciales}
             onClose={onClose}
             onUpdate={onUpdate}
             onDelete={onDelete}
@@ -149,6 +163,8 @@ function PanelFormulario({
   pipeline,
   empresas,
   contactos,
+  tagsDisponibles,
+  tagIdsIniciales,
   onClose,
   onUpdate,
   onDelete,
@@ -156,6 +172,7 @@ function PanelFormulario({
   const [stageActualId, setStageActualId] = useState<string | null>(initialStageId);
   const [metadata, setMetadata] = useState<Record<string, unknown>>(initialMetadata);
   const [guardandoStage, setGuardandoStage] = useState(false);
+  const [tagIds, setTagIds] = useState<string[]>(tagIdsIniciales);
 
   // useForm con defaultValues del fetch — se instancia UNA vez con los valores correctos
   const form = useForm<ActualizarOportunidadInput>({
@@ -202,7 +219,7 @@ function PanelFormulario({
       camposActuales.length > 0
         ? actualizarMetadataOportunidad(oportunidad.id, metadata)
         : Promise.resolve({ exito: true as const, datos: undefined }),
-      actualizarOportunidad(oportunidad.id, datos),
+      actualizarOportunidad(oportunidad.id, { ...datos, tagIds }),
     ]);
 
     if (!resultadoBase.exito) { toast.error(resultadoBase.error); return; }
@@ -472,6 +489,25 @@ function PanelFormulario({
                 </FormItem>
               )}
             />
+
+            {/* ── Etiquetas ─────────────────────────────────── */}
+            {tagsDisponibles.length > 0 && (
+              <>
+                <div className="h-px bg-stone-100 dark:bg-white/8" />
+                <FormItem>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                    Etiquetas
+                  </FormLabel>
+                  <FormControl>
+                    <SelectorTags
+                      tags={tagsDisponibles}
+                      seleccionados={tagIds}
+                      onChange={setTagIds}
+                    />
+                  </FormControl>
+                </FormItem>
+              </>
+            )}
 
             {/* ── Campos dinámicos del stage ─────────────────── */}
             {camposActuales.length > 0 && (

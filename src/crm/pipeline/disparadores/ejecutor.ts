@@ -6,6 +6,9 @@ import type {
   ConfigCrearNota,
   ConfigWebhook,
   ConfigAsignarUsuario,
+  ConfigAsignarEtiqueta,
+  ConfigModificarCampo,
+  ConfigCambiarEtapa,
 } from "./types";
 
 // ── Prisma singleton (safe for both Next.js HMR and long-running worker) ────
@@ -76,6 +79,48 @@ async function ejecutarJob(job: JobConDisparador): Promise<{ exito: boolean }> {
       await prisma.oportunidad.update({
         where: { id: job.oportunidadId },
         data: { usuarioId: cfg.usuarioId },
+      });
+    } else if (tipo === "ASIGNAR_ETIQUETA") {
+      const cfg = config as unknown as ConfigAsignarEtiqueta;
+      await prisma.oportunidadTag.upsert({
+        where: { oportunidadId_tagId: { oportunidadId: job.oportunidadId, tagId: cfg.tagId } },
+        create: { oportunidadId: job.oportunidadId, tagId: cfg.tagId },
+        update: {},
+      });
+    } else if (tipo === "MODIFICAR_CAMPO") {
+      const cfg = config as unknown as ConfigModificarCampo;
+      if (cfg.modo === "campo_directo") {
+        const CAMPOS_PERMITIDOS = ["titulo", "notas", "moneda", "etapa", "valor", "probabilidad"];
+        if (!CAMPOS_PERMITIDOS.includes(cfg.clave)) throw new Error(`Campo no permitido: ${cfg.clave}`);
+        const valorConvertido: unknown =
+          cfg.clave === "valor" || cfg.clave === "probabilidad"
+            ? parseFloat(cfg.valor) || 0
+            : cfg.valor;
+        await prisma.oportunidad.update({
+          where: { id: job.oportunidadId },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: { [cfg.clave]: valorConvertido } as any,
+        });
+      } else {
+        const actual = await prisma.oportunidad.findUnique({
+          where: { id: job.oportunidadId },
+          select: { metadata: true },
+        });
+        const metadataActual = (actual?.metadata ?? {}) as Record<string, unknown>;
+        await prisma.oportunidad.update({
+          where: { id: job.oportunidadId },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: { metadata: { ...metadataActual, [cfg.clave]: cfg.valor } as any },
+        });
+      }
+    } else if (tipo === "CAMBIAR_ETAPA") {
+      const cfg = config as unknown as ConfigCambiarEtapa;
+      await prisma.oportunidad.update({
+        where: { id: job.oportunidadId },
+        data: {
+          stageId: cfg.stageId,
+          pipelineId: cfg.pipelineId,
+        },
       });
     }
 

@@ -32,6 +32,7 @@ import { ETAPAS_PIPELINE, PROBABILIDADES_ETAPA } from "@/crm/oportunidades/types
 import { cn } from "@/lib/utils";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import { PanelOportunidad } from "@/crm/oportunidades/components/panel-oportunidad";
+import { KanbanScrollContainer } from "./kanban-scroll-container";
 
 const ETAPAS_ACTIVAS = ETAPAS_PIPELINE.filter(
   (e) => e.valor !== "GANADO" && e.valor !== "PERDIDO"
@@ -340,7 +341,9 @@ export function PipelineKanban({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-6">
+        <KanbanScrollContainer
+          stageColors={["#0ea5e9", "#8b5cf6", "#f59e0b", "#f97316"]}
+        >
           {ETAPAS_ACTIVAS.map((etapaConfig) => (
             <ColumnaKanban
               key={etapaConfig.valor}
@@ -349,7 +352,7 @@ export function PipelineKanban({
               onCardClick={setSelected}
             />
           ))}
-        </div>
+        </KanbanScrollContainer>
 
         <DragOverlay dropAnimation={{ duration: 150 }}>
           {activeCard && <TarjetaOverlay oportunidad={activeCard} />}

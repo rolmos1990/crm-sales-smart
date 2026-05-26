@@ -46,6 +46,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   const etapaConf = ETAPAS_PIPELINE.find((e) => e.valor === oportunidad.etapa);
   const productos = (oportunidad as any).productos ?? [];
   const contactos = (oportunidad as any).contactos ?? [];
+  const tags = (oportunidad as any).tags ?? [];
   const valor = Number(oportunidad.valor);
 
   const diasHastacierre = oportunidad.fechaCierre
@@ -127,6 +128,29 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
         <TabsContent value="info" className="mt-4 space-y-4">
           <Card>
             <CardContent className="pt-4 space-y-3">
+              {tags.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Etiquetas</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map((rel: any) => (
+                      <span
+                        key={rel.tagId}
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                        style={
+                          rel.tag?.color
+                            ? { backgroundColor: `${rel.tag.color}22`, color: rel.tag.color, border: `1px solid ${rel.tag.color}44` }
+                            : undefined
+                        }
+                      >
+                        {rel.tag?.color && (
+                          <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: rel.tag.color }} />
+                        )}
+                        {rel.tag?.nombre}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {contactos.length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">Contactos</p>
