@@ -16,6 +16,7 @@ export async function obtenerContactoPorId(id: string) {
       oportunidades: {
         include: { oportunidad: { select: { id: true, titulo: true, etapa: true, valor: true } } },
       },
+      tags: { include: { tag: true } },
     },
   });
 }

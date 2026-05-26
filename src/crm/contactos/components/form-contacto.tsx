@@ -23,17 +23,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { crearContacto, actualizarContacto } from "../actions";
 import { CrearContactoSchema, type CrearContactoInput } from "../schema";
 import type { Contacto } from "../types";
+import type { Tag } from "@/crm/tags/types";
 
 interface FormContactoProps {
   empresas: OpcionCombobox[];
+  tags?: Tag[];
+  tagIdsIniciales?: string[];
   inicial?: Partial<Contacto>;
   modo?: "crear" | "editar";
 }
 
-export function FormContacto({ empresas, inicial, modo = "crear" }: FormContactoProps) {
+export function FormContacto({ empresas, tags = [], tagIdsIniciales = [], inicial, modo = "crear" }: FormContactoProps) {
   const router = useRouter();
 
   const form = useForm<CrearContactoInput>({
@@ -47,6 +51,7 @@ export function FormContacto({ empresas, inicial, modo = "crear" }: FormContacto
       notas: inicial?.notas ?? "",
       estado: inicial?.estado ?? "LEAD",
       empresaId: inicial?.empresaId ?? "",
+      tagIds: tagIdsIniciales,
     },
   });
 
@@ -176,6 +181,26 @@ export function FormContacto({ empresas, inicial, modo = "crear" }: FormContacto
             </FormItem>
           )}
         />
+
+        {tags.length > 0 && (
+          <FormField
+            control={form.control}
+            name="tagIds"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Etiquetas</FormLabel>
+                <FormControl>
+                  <SelectorTags
+                    tags={tags}
+                    seleccionados={field.value ?? []}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={form.control}

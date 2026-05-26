@@ -3,6 +3,7 @@ import { FormOportunidad } from "@/crm/oportunidades/components/form-oportunidad
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerPipelines } from "@/crm/pipeline/queries";
+import { obtenerTags } from "@/crm/tags/queries";
 import type { PipelineConStages } from "@/crm/pipeline/types";
 
 export default async function NuevaOportunidadPage(props: {
@@ -15,15 +16,18 @@ export default async function NuevaOportunidadPage(props: {
   let empresas: { valor: string; etiqueta: string }[] = [];
   let contactos: { valor: string; etiqueta: string }[] = [];
   let pipeline: PipelineConStages | null = null;
+  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
 
   try {
-    const [e, c, pipelines] = await Promise.all([
+    const [e, c, pipelines, t] = await Promise.all([
       buscarEmpresas(""),
       buscarContactos(""),
       pipelineId ? obtenerPipelines() : Promise.resolve([]),
+      obtenerTags(),
     ]);
     empresas = e.map(x => ({ valor: x.id, etiqueta: x.nombre }));
     contactos = c.map(x => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
+    tags = t;
     if (pipelineId) {
       pipeline = (pipelines as unknown as PipelineConStages[]).find(p => p.id === pipelineId) ?? null;
     }
@@ -49,6 +53,7 @@ export default async function NuevaOportunidadPage(props: {
           <FormOportunidad
             empresas={empresas}
             contactos={contactos}
+            tags={tags}
             pipelineId={pipelineId}
             stageId={stageId}
             pipeline={pipeline}

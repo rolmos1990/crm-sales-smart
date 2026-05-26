@@ -37,6 +37,7 @@ export async function obtenerOportunidadPorId(id: string) {
       contactos: { include: { contacto: true } },
       productos: { include: { producto: true } },
       actividades: { orderBy: { fecha: "desc" }, take: 10 },
+      tags: { include: { tag: true } },
     },
   });
 }

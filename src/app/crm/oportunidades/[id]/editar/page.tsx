@@ -7,19 +7,22 @@ import { FormOportunidad } from "@/crm/oportunidades/components/form-oportunidad
 import { obtenerOportunidadPorId } from "@/crm/oportunidades/queries";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
+import { obtenerTags } from "@/crm/tags/queries";
 
 export default async function EditarOportunidadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   let oportunidad = null;
   let empresas: { id: string; nombre: string }[] = [];
-  let contactos: any[] = [];
+  let contactos: { id: string; nombre: string; apellido: string }[] = [];
+  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
 
   try {
-    [oportunidad, empresas, contactos] = await Promise.all([
+    [oportunidad, empresas, contactos, tags] = await Promise.all([
       obtenerOportunidadPorId(id),
       buscarEmpresas(""),
       buscarContactos(""),
+      obtenerTags(),
     ]);
   } catch {
     // DB not configured
@@ -41,6 +44,8 @@ export default async function EditarOportunidadPage({ params }: { params: Promis
       <FormOportunidad
         empresas={opcionesEmpresas}
         contactos={opcionesContactos}
+        tags={tags}
+        tagIdsIniciales={oportunidad?.tags?.map((t) => t.tagId) ?? []}
         inicial={oportunidad ? { ...oportunidad, valor: Number(oportunidad.valor) } : undefined}
         modo="editar"
       />

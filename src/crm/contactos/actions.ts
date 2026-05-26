@@ -13,7 +13,7 @@ export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Con
   }
 
   try {
-    const { empresaId, email, telefono, cargo, notas, ...resto } = validado.data;
+    const { empresaId, email, telefono, cargo, notas, tagIds, ...resto } = validado.data;
     const contacto = await prisma.contacto.create({
       data: {
         ...resto,
@@ -22,6 +22,9 @@ export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Con
         cargo: cargo || null,
         notas: notas || null,
         empresaId: empresaId || null,
+        ...(tagIds && tagIds.length > 0 && {
+          tags: { createMany: { data: tagIds.map((tagId) => ({ tagId })) } },
+        }),
       },
       include: { empresa: { select: { id: true, nombre: true } } },
     });
@@ -48,7 +51,7 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
   }
 
   try {
-    const { empresaId, email, telefono, cargo, notas, ...resto } = validado.data;
+    const { empresaId, email, telefono, cargo, notas, tagIds, ...resto } = validado.data;
     const contacto = await prisma.contacto.update({
       where: { id },
       data: {
@@ -61,6 +64,15 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
       },
       include: { empresa: { select: { id: true, nombre: true } } },
     });
+
+    if (tagIds !== undefined) {
+      await prisma.$transaction([
+        prisma.contactoTag.deleteMany({ where: { contactoId: id } }),
+        ...(tagIds.length > 0
+          ? [prisma.contactoTag.createMany({ data: tagIds.map((tagId) => ({ contactoId: id, tagId })) })]
+          : []),
+      ]);
+    }
 
     busEventos.publicar(TIPOS_EVENTO.CONTACTO_ACTUALIZADO, {
       contactoId: id,

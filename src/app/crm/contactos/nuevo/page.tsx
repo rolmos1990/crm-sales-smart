@@ -1,12 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormContacto } from "@/crm/contactos/components/form-contacto";
 import { buscarEmpresas } from "@/crm/empresas/queries";
+import { obtenerTags } from "@/crm/tags/queries";
 
 export default async function NuevoContactoPage() {
   let empresas: { valor: string; etiqueta: string }[] = [];
+  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
   try {
-    const datos = await buscarEmpresas("");
+    const [datos, t] = await Promise.all([buscarEmpresas(""), obtenerTags()]);
     empresas = datos.map(e => ({ valor: e.id, etiqueta: e.nombre }));
+    tags = t;
   } catch {
     // DB no configurada
   }
@@ -22,7 +25,7 @@ export default async function NuevoContactoPage() {
           <CardTitle className="text-base">Información del contacto</CardTitle>
         </CardHeader>
         <CardContent>
-          <FormContacto empresas={empresas} />
+          <FormContacto empresas={empresas} tags={tags} />
         </CardContent>
       </Card>
     </div>

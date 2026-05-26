@@ -9,6 +9,7 @@ export const CrearContactoSchema = z.object({
   notas: z.string().max(2000).optional().or(z.literal("")),
   estado: z.enum(["ACTIVO", "INACTIVO", "LEAD"]).optional(),
   empresaId: z.string().optional().or(z.literal("")),
+  tagIds: z.array(z.string()).optional(),
 });
 
 export const ActualizarContactoSchema = CrearContactoSchema.partial();

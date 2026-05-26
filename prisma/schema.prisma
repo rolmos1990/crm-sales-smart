@@ -264,6 +264,7 @@ model Contacto {
   cotizaciones  Cotizacion[]
   pedidos       Pedido[]
   campos        CampoPersonalizadoValor[]
+  tags          ContactoTag[]
 
   @@index([instanciaId])
   @@index([nombre])
@@ -418,6 +419,7 @@ model Tag {
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
   oportunidades OportunidadTag[]
+  contactos     ContactoTag[]
 
   @@index([instanciaId])
 }
@@ -430,6 +432,16 @@ model OportunidadTag {
   tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([oportunidadId, tagId])
+}
+
+model ContactoTag {
+  contactoId String
+  tagId      String
+
+  contacto Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactoId, tagId])
 }
 
 // =====================

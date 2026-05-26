@@ -14,15 +14,19 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { crearOportunidad, actualizarOportunidad } from "../actions";
 import { CrearOportunidadSchema, type CrearOportunidadInput } from "../schema";
 import type { Oportunidad } from "../types";
 import type { PipelineConStages } from "@/crm/pipeline/types";
+import type { Tag } from "@/crm/tags/types";
 import { cn } from "@/lib/utils";
 
 interface FormOportunidadProps {
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
+  tags?: Tag[];
+  tagIdsIniciales?: string[];
   inicial?: Partial<Oportunidad>;
   modo?: "crear" | "editar";
   pipelineId?: string | null;
@@ -33,6 +37,8 @@ interface FormOportunidadProps {
 export function FormOportunidad({
   empresas,
   contactos,
+  tags = [],
+  tagIdsIniciales = [],
   inicial,
   modo = "crear",
   pipelineId,
@@ -55,6 +61,7 @@ export function FormOportunidad({
       contactoId: "",
       pipelineId: pipelineId ?? "",
       stageId: stageId ?? "",
+      tagIds: tagIdsIniciales,
     },
   });
 
@@ -214,6 +221,22 @@ export function FormOportunidad({
             </FormItem>
           )} />
         </div>
+
+        {tags.length > 0 && (
+          <FormField control={form.control} name="tagIds" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Etiquetas</FormLabel>
+              <FormControl>
+                <SelectorTags
+                  tags={tags}
+                  seleccionados={field.value ?? []}
+                  onChange={field.onChange}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        )}
 
         <FormField control={form.control} name="notas" render={({ field }) => (
           <FormItem>

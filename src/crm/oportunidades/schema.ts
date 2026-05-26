@@ -12,6 +12,7 @@ export const CrearOportunidadSchema = z.object({
   contactoId: z.string().optional().or(z.literal("")),
   pipelineId: z.string().optional().or(z.literal("")),
   stageId: z.string().optional().or(z.literal("")),
+  tagIds: z.array(z.string()).optional(),
 });
 
 export const CambiarEtapaSchema = z.object({

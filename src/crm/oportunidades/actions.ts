@@ -12,7 +12,7 @@ export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { empresaId, contactoId, notas, pipelineId, stageId, probabilidad: _prob, ...resto } = validado.data;
+    const { empresaId, contactoId, notas, pipelineId, stageId, probabilidad: _prob, tagIds, ...resto } = validado.data;
 
     let probabilidad: number;
     if (stageId) {
@@ -32,6 +32,9 @@ export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<
         stageId: stageId || null,
         ...(contactoId && {
           contactos: { create: { contactoId } },
+        }),
+        ...(tagIds && tagIds.length > 0 && {
+          tags: { createMany: { data: tagIds.map((tagId) => ({ tagId })) } },
         }),
       },
       include: {
@@ -98,7 +101,7 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { empresaId, contactoId: _, notas, probabilidad: _prob, ...resto } = validado.data;
+    const { empresaId, contactoId: _, notas, probabilidad: _prob, tagIds, ...resto } = validado.data;
     const oportunidad = await prisma.oportunidad.update({
       where: { id },
       data: {
@@ -108,6 +111,15 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
       },
       include: { empresa: { select: { id: true, nombre: true } }, contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } } },
     });
+
+    if (tagIds !== undefined) {
+      await prisma.$transaction([
+        prisma.oportunidadTag.deleteMany({ where: { oportunidadId: id } }),
+        ...(tagIds.length > 0
+          ? [prisma.oportunidadTag.createMany({ data: tagIds.map((tagId) => ({ oportunidadId: id, tagId })) })]
+          : []),
+      ]);
+    }
 
     busEventos.publicar(TIPOS_EVENTO.OPORTUNIDAD_ACTUALIZADA, { oportunidadId: id, cambios: validado.data as Record<string, unknown> });
     revalidatePath("/crm/oportunidades");

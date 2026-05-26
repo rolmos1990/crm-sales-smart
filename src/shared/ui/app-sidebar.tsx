@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Leaf,
   Puzzle,
+  Tag,
 } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ const NAVEGACION = [
       { href: "/crm/empresas", etiqueta: "Empresas", Icono: Building2 },
       { href: "/crm/oportunidades", etiqueta: "Oportunidades", Icono: TrendingUp },
       { href: "/crm/actividades", etiqueta: "Actividades", Icono: CalendarCheck },
+      { href: "/crm/etiquetas", etiqueta: "Etiquetas", Icono: Tag },
     ],
   },
   {
