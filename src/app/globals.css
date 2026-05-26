@@ -131,6 +131,47 @@
   }
 }
 
+/* ── Sonner Toasts — progress bar + close button ─────────────────── */
+
+/* Barra de progreso via ::after */
+[data-sonner-toast]::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 0 0 calc(var(--radius, 0.75rem) - 1px) calc(var(--radius, 0.75rem) - 1px);
+  transform-origin: left;
+  animation: toast-progress 4s linear forwards;
+  pointer-events: none;
+}
+
+[data-sonner-toast]:hover::after {
+  animation-play-state: paused;
+}
+
+[data-sonner-toast][data-type='success']::after  { background: #84cc16; opacity: 0.65; }
+[data-sonner-toast][data-type='error']::after    { background: #f87171; opacity: 0.65; }
+[data-sonner-toast][data-type='warning']::after  { background: #fbbf24; opacity: 0.65; }
+[data-sonner-toast][data-type='info']::after     { background: #60a5fa; opacity: 0.65; }
+[data-sonner-toast]:not([data-type])::after,
+[data-sonner-toast][data-type='default']::after  { background: #a8a29e; opacity: 0.45; }
+
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+/* Botón X — invisible en reposo, aparece sutil al hover */
+[data-sonner-toast] [data-close-button] {
+  opacity: 0 !important;
+  transition: opacity 200ms ease !important;
+}
+
+[data-sonner-toast]:hover [data-close-button] { opacity: 0.45 !important; }
+[data-sonner-toast] [data-close-button]:hover  { opacity: 1   !important; }
+
 /* Premium SaaS gradient background — dark mode only */
 .dark .app-gradient-bg {
   background: radial-gradient(

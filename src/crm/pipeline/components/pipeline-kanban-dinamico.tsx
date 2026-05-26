@@ -270,12 +270,19 @@ export function PipelineKanbanDinamico({
     const nuevoStageId = over.id as string;
     if (oportunidad.stageId === nuevoStageId) return;
 
+    const nuevoStage = pipeline.stages.find((s) => s.id === nuevoStageId);
+
     setLocalOps((prev) => {
       const next = new Map(prev);
       const anteriorKey = oportunidad.stageId ?? "__sin_stage__";
       next.set(anteriorKey, (next.get(anteriorKey) ?? []).filter((o) => o.id !== oportunidad.id));
       next.set(nuevoStageId, [
-        { ...oportunidad, stageId: nuevoStageId, pipelineId: pipeline.id },
+        {
+          ...oportunidad,
+          stageId: nuevoStageId,
+          pipelineId: pipeline.id,
+          probabilidad: nuevoStage?.probabilidad ?? oportunidad.probabilidad,
+        },
         ...(next.get(nuevoStageId) ?? []),
       ]);
       return next;

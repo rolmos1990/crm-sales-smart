@@ -125,9 +125,14 @@ export async function reordenarStages(pipelineId: string, stageIds: string[]) {
 
 export async function moverAStage(oportunidadId: string, stageId: string, pipelineId: string) {
   try {
+    const stage = await prisma.pipelineStage.findUnique({ where: { id: stageId }, select: { probabilidad: true } });
     await prisma.oportunidad.update({
       where: { id: oportunidadId },
-      data: { stageId, pipelineId },
+      data: {
+        stageId,
+        pipelineId,
+        ...(stage != null && { probabilidad: stage.probabilidad }),
+      },
     });
     revalidatePath("/crm/pipeline");
     return { exito: true as const };

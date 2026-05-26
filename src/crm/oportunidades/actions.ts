@@ -5,16 +5,27 @@ import { prisma } from "@/shared/db/prisma";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearOportunidadSchema, ActualizarOportunidadSchema, CambiarEtapaSchema } from "./schema";
 import type { ResultadoAccion, Oportunidad } from "./types";
+import { PROBABILIDADES_ETAPA } from "./types";
 
 export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<Oportunidad>> {
   const validado = CrearOportunidadSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { empresaId, contactoId, notas, pipelineId, stageId, ...resto } = validado.data;
+    const { empresaId, contactoId, notas, pipelineId, stageId, probabilidad: _prob, ...resto } = validado.data;
+
+    let probabilidad: number;
+    if (stageId) {
+      const stage = await prisma.pipelineStage.findUnique({ where: { id: stageId }, select: { probabilidad: true } });
+      probabilidad = stage?.probabilidad ?? 20;
+    } else {
+      probabilidad = PROBABILIDADES_ETAPA[(resto.etapa ?? "PROSPECTO")];
+    }
+
     const oportunidad = await prisma.oportunidad.create({
       data: {
         ...resto,
+        probabilidad,
         notas: notas || null,
         empresaId: empresaId || null,
         pipelineId: pipelineId || null,
@@ -56,6 +67,7 @@ export async function cambiarEtapa(id: string, datos: unknown): Promise<Resultad
       where: { id },
       data: {
         etapa: validado.data.etapa,
+        probabilidad: PROBABILIDADES_ETAPA[validado.data.etapa],
         motivoPerdida: validado.data.motivoPerdida || null,
       },
     });
@@ -86,7 +98,7 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { empresaId, contactoId: _, notas, ...resto } = validado.data;
+    const { empresaId, contactoId: _, notas, probabilidad: _prob, ...resto } = validado.data;
     const oportunidad = await prisma.oportunidad.update({
       where: { id },
       data: {

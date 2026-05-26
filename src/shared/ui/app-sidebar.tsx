@@ -153,7 +153,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <Toaster richColors position="top-right" />
+      <Toaster richColors position="top-right" closeButton />
     </div>
   );
 }

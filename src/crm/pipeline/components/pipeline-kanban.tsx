@@ -28,7 +28,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cambiarEtapa } from "@/crm/oportunidades/actions";
 import type { Oportunidad, Etapa } from "@/crm/oportunidades/types";
-import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
+import { ETAPAS_PIPELINE, PROBABILIDADES_ETAPA } from "@/crm/oportunidades/types";
 import { cn } from "@/lib/utils";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import { PanelOportunidad } from "@/crm/oportunidades/components/panel-oportunidad";
@@ -292,7 +292,7 @@ export function PipelineKanban({
         (next.get(oportunidad.etapa) ?? []).filter((o) => o.id !== oportunidad.id)
       );
       next.set(nuevaEtapa, [
-        { ...oportunidad, etapa: nuevaEtapa },
+        { ...oportunidad, etapa: nuevaEtapa, probabilidad: PROBABILIDADES_ETAPA[nuevaEtapa] },
         ...(next.get(nuevaEtapa) ?? []),
       ]);
       return next;

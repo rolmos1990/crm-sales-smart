@@ -67,7 +67,6 @@ export function PanelOportunidad({
       valor: oportunidad.valor,
       moneda: oportunidad.moneda,
       etapa: oportunidad.etapa,
-      probabilidad: oportunidad.probabilidad,
       fechaCierre: oportunidad.fechaCierre
         ? new Date(oportunidad.fechaCierre)
         : undefined,
@@ -245,59 +244,35 @@ export function PanelOportunidad({
                   />
                 </div>
 
-                {/* Probabilidad + Fecha cierre */}
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="probabilidad"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
-                          Probabilidad (%)
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
-                            value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="fechaCierre"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
-                          Fecha de cierre
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="date"
-                            className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
-                            value={
-                              field.value
-                                ? new Date(field.value).toISOString().split("T")[0]
-                                : ""
-                            }
-                            onChange={(e) =>
-                              field.onChange(
-                                e.target.value ? new Date(e.target.value) : undefined
-                              )
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                {/* Fecha cierre */}
+                <FormField
+                  control={form.control}
+                  name="fechaCierre"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                        Fecha de cierre
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
+                          value={
+                            field.value
+                              ? new Date(field.value).toISOString().split("T")[0]
+                              : ""
+                          }
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value ? new Date(e.target.value) : undefined
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="h-px bg-stone-100 dark:bg-white/8" />
 

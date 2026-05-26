@@ -49,7 +49,6 @@ export function FormOportunidad({
       valor: inicial?.valor ?? 0,
       moneda: inicial?.moneda ?? "PEN",
       etapa: inicial?.etapa ?? "PROSPECTO",
-      probabilidad: inicial?.probabilidad ?? 20,
       fechaCierre: inicial?.fechaCierre ? new Date(inicial.fechaCierre) : undefined,
       notas: inicial?.notas ?? "",
       empresaId: inicial?.empresaId ?? "",
@@ -87,7 +86,7 @@ export function FormOportunidad({
           </FormItem>
         )} />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField control={form.control} name="valor" render={({ field }) => (
             <FormItem>
               <FormLabel>Valor *</FormLabel>
@@ -111,19 +110,6 @@ export function FormOportunidad({
                   <SelectItem value="USD">USD ($)</SelectItem>
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
-          )} />
-          <FormField control={form.control} name="probabilidad" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Probabilidad (%)</FormLabel>
-              <FormControl>
-                <Input
-                  type="number" min="0" max="100"
-                  value={field.value ?? ""}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                />
-              </FormControl>
               <FormMessage />
             </FormItem>
           )} />
