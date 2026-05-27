@@ -34,11 +34,28 @@ export async function obtenerOportunidadPorId(id: string) {
   return prisma.oportunidad.findUnique({
     where: { id },
     include: {
-      empresa: { select: { id: true, nombre: true } },
-      contactos: { include: { contacto: true } },
+      empresa: {
+        select: {
+          id: true, nombre: true, ruc: true, industria: true,
+          sitioWeb: true, telefono: true, email: true, notas: true,
+        },
+      },
+      contactos: {
+        include: {
+          contacto: {
+            select: {
+              id: true, nombre: true, apellido: true, email: true,
+              telefonoPrincipal: true, telefonoSecundario: true,
+              cargo: true, notas: true, estado: true,
+              empresa: { select: { id: true, nombre: true } },
+            },
+          },
+        },
+      },
       productos: { include: { producto: true } },
       actividades: { orderBy: { fecha: "desc" }, take: 10 },
       tags: { include: { tag: true } },
+      campos: { include: { campo: true }, orderBy: { campo: { orden: "asc" } } },
     },
   });
 }

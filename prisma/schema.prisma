@@ -253,11 +253,12 @@ model Empresa {
 
 model Contacto {
   id            String         @id @default(cuid())
-  nombre        String
-  apellido      String
-  email         String?
-  telefono      String?
-  cargo         String?
+  nombre             String
+  apellido           String
+  email              String?
+  telefonoPrincipal  String?
+  telefonoSecundario String?
+  cargo              String?
   notas         String?
   estado        EstadoContacto @default(LEAD)
   activo        Boolean        @default(true)

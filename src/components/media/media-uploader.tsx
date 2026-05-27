@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { ImageIcon, Upload, X, Loader2, Link2, CheckCircle2, AlertCircle, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaModulo, CanalOrigen, MediaUploadApiResponse, MediaUploadApiError } from "@/lib/media";
@@ -23,7 +23,6 @@ interface MediaUploaderProps {
 
 interface UploadState {
   estado: "idle" | "uploading" | "success" | "error";
-  progreso?: number;
   pesoOriginal?: number;
   pesoOptimizado?: number;
   error?: string;
@@ -43,6 +42,47 @@ function ahorroPercent(original: number, optimizado: number): number {
   return Math.round((1 - optimizado / original) * 100);
 }
 
+// ─── Sub-componente: banner URL pública ──────────────────────────────────────
+
+function UrlPublicaBanner({ urlPublica }: { urlPublica: string }) {
+  const [copiado, setCopiado] = useState(false);
+
+  const copiar = async () => {
+    try {
+      const texto =
+        typeof window !== "undefined"
+          ? `${window.location.origin}${urlPublica}`
+          : urlPublica;
+      await navigator.clipboard.writeText(texto);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      // clipboard no disponible en todos los contextos
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-lime-500/20 bg-lime-500/5 dark:bg-lime-400/5 px-3 py-2">
+      <span className="text-xs text-stone-400 dark:text-stone-500 flex-shrink-0">URL pública:</span>
+      <span className="text-xs font-mono text-lime-700 dark:text-lime-400 truncate flex-1">
+        {urlPublica}
+      </span>
+      <button
+        type="button"
+        onClick={copiar}
+        className="flex-shrink-0 text-stone-400 hover:text-lime-500 transition-colors"
+        title="Copiar URL pública"
+      >
+        {copiado ? (
+          <Check className="h-3.5 w-3.5 text-green-500" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+      </button>
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function MediaUploader({
@@ -57,18 +97,45 @@ export function MediaUploader({
   className,
 }: MediaUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  // Iniciar en modo URL solo si el valor actual es una URL externa
   const [modoUrl, setModoUrl] = useState(
     () => value.startsWith("http://") || value.startsWith("https://")
   );
   const [dragging, setDragging] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>({ estado: "idle" });
   const [cacheBust, setCacheBust] = useState(0);
-  const [copiado, setCopiado] = useState(false);
+
+  // URL pública del archivo actualmente en el campo (imagen pre-existente)
+  const [urlPublicaExistente, setUrlPublicaExistente] = useState<string | null>(null);
+
+  // Cuando el valor viene de una imagen ya guardada, buscar su URL pública
+  useEffect(() => {
+    setUrlPublicaExistente(null);
+
+    // Solo buscar si hay un valor local (no URL externa, no vacío)
+    if (!value || value.startsWith("http://") || value.startsWith("https://")) return;
+
+    // No buscar si el último upload ya nos dio la URL pública
+    if (uploadState.urlPublica) return;
+
+    const controller = new AbortController();
+
+    fetch(`/api/media/lookup?url=${encodeURIComponent(value)}`, {
+      signal: controller.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { urlPublica?: string } | null) => {
+        if (data?.urlPublica) setUrlPublicaExistente(data.urlPublica);
+      })
+      .catch(() => {});
+
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   const subirArchivo = useCallback(
     async (file: File) => {
       setUploadState({ estado: "uploading", pesoOriginal: file.size });
+      setUrlPublicaExistente(null);
 
       const fd = new FormData();
       fd.append("file", file);
@@ -119,20 +186,10 @@ export function MediaUploader({
     onChange("");
     setCacheBust(0);
     setUploadState({ estado: "idle" });
+    setUrlPublicaExistente(null);
   };
 
-  const handleCopiarUrl = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(
-        typeof window !== "undefined" ? `${window.location.origin}${url}` : url
-      );
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
-    } catch {
-      // clipboard no disponible en todos los contextos
-    }
-  };
-
+  const urlPublicaActiva = uploadState.urlPublica ?? urlPublicaExistente;
   const preview = value ? `${value}${cacheBust ? `?t=${cacheBust}` : ""}` : "";
   const uploading = uploadState.estado === "uploading";
 
@@ -278,47 +335,54 @@ export function MediaUploader({
         </div>
       )}
 
-      {/* ── URL pública (post-upload) ── */}
-      {uploadState.urlPublica && (
-        <div className="flex items-center gap-2 rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 px-3 py-2">
-          <span className="text-xs text-stone-400 dark:text-stone-500 flex-shrink-0">URL pública:</span>
-          <span className="text-xs font-mono text-stone-600 dark:text-stone-300 truncate flex-1">
-            {uploadState.urlPublica}
-          </span>
-          <button
-            type="button"
-            onClick={() => handleCopiarUrl(uploadState.urlPublica!)}
-            className="flex-shrink-0 text-stone-400 hover:text-lime-500 transition-colors"
-            title="Copiar URL pública"
-          >
-            {copiado ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      )}
-
-      {/* ── Preview ── */}
+      {/* ── Preview + URL pública ── */}
       {preview ? (
-        <div className="relative w-28 h-28 rounded-xl overflow-hidden border border-stone-200 dark:border-white/10 group">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={preview}
-            alt="Preview"
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              // Ocultar imagen rota sin limpiar el campo del formulario
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-          <button
-            type="button"
-            onClick={handleQuitar}
-            className="absolute top-1 right-1 h-6 w-6 flex items-center justify-center rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
-          >
-            <X className="h-3 w-3" />
-          </button>
+        <div className="flex gap-3 items-start">
+          {/* Imagen preview */}
+          <div className="relative flex-shrink-0 w-32 h-32 rounded-xl overflow-hidden border border-stone-200 dark:border-white/10 bg-stone-100 dark:bg-white/5 group">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview}
+              alt="Preview"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Mostrar placeholder si la imagen no carga, sin limpiar el campo
+                const img = e.target as HTMLImageElement;
+                img.style.display = "none";
+                const parent = img.parentElement;
+                if (parent) {
+                  const placeholder = parent.querySelector("[data-placeholder]") as HTMLElement | null;
+                  if (placeholder) placeholder.style.display = "flex";
+                }
+              }}
+            />
+            {/* Placeholder visible si la imagen falla */}
+            <div
+              data-placeholder
+              style={{ display: "none" }}
+              className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-stone-400 dark:text-stone-600"
+            >
+              <ImageIcon className="h-6 w-6" />
+              <span className="text-xs">Sin vista previa</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleQuitar}
+              className="absolute top-1 right-1 h-6 w-6 flex items-center justify-center rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+
+          {/* URL pública */}
+          {urlPublicaActiva && (
+            <div className="flex-1 min-w-0">
+              <UrlPublicaBanner urlPublica={urlPublicaActiva} />
+            </div>
+          )}
         </div>
       ) : (
-        <div className="w-28 h-28 rounded-xl border-2 border-dashed border-stone-200 dark:border-white/10 flex flex-col items-center justify-center gap-1.5 text-stone-400 dark:text-stone-600">
+        <div className="w-32 h-32 rounded-xl border-2 border-dashed border-stone-200 dark:border-white/10 flex flex-col items-center justify-center gap-1.5 text-stone-400 dark:text-stone-600">
           <ImageIcon className="h-5 w-5" />
           <span className="text-xs">Sin imagen</span>
         </div>

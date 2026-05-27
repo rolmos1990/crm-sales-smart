@@ -13,12 +13,13 @@ export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Con
   }
 
   try {
-    const { empresaId, email, telefono, cargo, notas, tagIds, ...resto } = validado.data;
+    const { empresaId, email, telefonoPrincipal, telefonoSecundario, cargo, notas, tagIds, ...resto } = validado.data;
     const contacto = await prisma.contacto.create({
       data: {
         ...resto,
         email: email || null,
-        telefono: telefono || null,
+        telefonoPrincipal: telefonoPrincipal || null,
+        telefonoSecundario: telefonoSecundario || null,
         cargo: cargo || null,
         notas: notas || null,
         empresaId: empresaId || null,
@@ -51,13 +52,14 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
   }
 
   try {
-    const { empresaId, email, telefono, cargo, notas, tagIds, ...resto } = validado.data;
+    const { empresaId, email, telefonoPrincipal, telefonoSecundario, cargo, notas, tagIds, ...resto } = validado.data;
     const contacto = await prisma.contacto.update({
       where: { id },
       data: {
         ...resto,
         ...(email !== undefined && { email: email || null }),
-        ...(telefono !== undefined && { telefono: telefono || null }),
+        ...(telefonoPrincipal !== undefined && { telefonoPrincipal: telefonoPrincipal || null }),
+        ...(telefonoSecundario !== undefined && { telefonoSecundario: telefonoSecundario || null }),
         ...(cargo !== undefined && { cargo: cargo || null }),
         ...(notas !== undefined && { notas: notas || null }),
         ...(empresaId !== undefined && { empresaId: empresaId || null }),
@@ -95,7 +97,8 @@ export async function obtenerContactoAction(id: string) {
       nombre: true,
       apellido: true,
       email: true,
-      telefono: true,
+      telefonoPrincipal: true,
+      telefonoSecundario: true,
       cargo: true,
       notas: true,
       estado: true,

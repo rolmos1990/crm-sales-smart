@@ -18,7 +18,15 @@ export const CrearPlantillaSchema = z.object({
   descripcion: z.string().max(255).optional().or(z.literal("")),
   tipo: z.enum(["TEXTO", "TEXTO_IMAGEN"]),
   contenidoTexto: z.string().min(1, "El contenido es requerido").max(5000),
-  imagenUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")),
+  imagenUrl: z
+    .string()
+    .max(2048)
+    .optional()
+    .refine(
+      (v) => !v || v === "" || v.startsWith("/") || v.startsWith("http://") || v.startsWith("https://"),
+      "URL de imagen inválida"
+    )
+    .or(z.literal("")),
   instanciaId: z.string().min(1),
 });
 
@@ -35,7 +43,15 @@ export const ActualizarPlantillaSchema = z.object({
   descripcion: z.string().max(255).optional().or(z.literal("")),
   tipo: z.enum(["TEXTO", "TEXTO_IMAGEN"]).optional(),
   contenidoTexto: z.string().min(1, "El contenido es requerido").max(5000).optional(),
-  imagenUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")),
+  imagenUrl: z
+    .string()
+    .max(2048)
+    .optional()
+    .refine(
+      (v) => !v || v === "" || v.startsWith("/") || v.startsWith("http://") || v.startsWith("https://"),
+      "URL de imagen inválida"
+    )
+    .or(z.literal("")),
 });
 
 export type CrearPlantillaInput = z.infer<typeof CrearPlantillaSchema>;

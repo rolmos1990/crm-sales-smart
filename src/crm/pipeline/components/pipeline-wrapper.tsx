@@ -21,6 +21,7 @@ interface PipelineWrapperProps {
   oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
+  defaultCountryCode?: string;
 }
 
 export function PipelineWrapper({
@@ -30,6 +31,7 @@ export function PipelineWrapper({
   oportunidadesLegacy,
   empresas,
   contactos,
+  defaultCountryCode = "PA",
 }: PipelineWrapperProps) {
   const router = useRouter();
   const [modoConfig, setModoConfig] = useState(false);
@@ -146,6 +148,7 @@ export function PipelineWrapper({
               oportunidadesPorStage={oportunidadesDinamicas ?? new Map()}
               empresas={empresas}
               contactos={contactos}
+              defaultCountryCode={defaultCountryCode}
             />
           )
         )}
@@ -157,6 +160,7 @@ export function PipelineWrapper({
               oportunidades={oportunidadesLegacy}
               empresas={empresas}
               contactos={contactos}
+              defaultCountryCode={defaultCountryCode}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3">

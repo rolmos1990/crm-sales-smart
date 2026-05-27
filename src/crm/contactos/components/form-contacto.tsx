@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { crearContacto, actualizarContacto } from "../actions";
@@ -35,23 +36,32 @@ interface FormContactoProps {
   tagIdsIniciales?: string[];
   inicial?: Partial<Contacto>;
   modo?: "crear" | "editar";
+  defaultCountryCode?: string;
 }
 
-export function FormContacto({ empresas, tags = [], tagIdsIniciales = [], inicial, modo = "crear" }: FormContactoProps) {
+export function FormContacto({
+  empresas,
+  tags = [],
+  tagIdsIniciales = [],
+  inicial,
+  modo = "crear",
+  defaultCountryCode = "PA",
+}: FormContactoProps) {
   const router = useRouter();
 
   const form = useForm<CrearContactoInput>({
     resolver: zodResolver(CrearContactoSchema),
     defaultValues: {
-      nombre: inicial?.nombre ?? "",
-      apellido: inicial?.apellido ?? "",
-      email: inicial?.email ?? "",
-      telefono: inicial?.telefono ?? "",
-      cargo: inicial?.cargo ?? "",
-      notas: inicial?.notas ?? "",
-      estado: inicial?.estado ?? "LEAD",
-      empresaId: inicial?.empresaId ?? "",
-      tagIds: tagIdsIniciales,
+      nombre:             inicial?.nombre             ?? "",
+      apellido:           inicial?.apellido           ?? "",
+      email:              inicial?.email              ?? "",
+      telefonoPrincipal:  inicial?.telefonoPrincipal  ?? "",
+      telefonoSecundario: inicial?.telefonoSecundario ?? "",
+      cargo:              inicial?.cargo              ?? "",
+      notas:              inicial?.notas              ?? "",
+      estado:             inicial?.estado             ?? "LEAD",
+      empresaId:          inicial?.empresaId          ?? "",
+      tagIds:             tagIdsIniciales,
     },
   });
 
@@ -113,12 +123,12 @@ export function FormContacto({ empresas, tags = [], tagIdsIniciales = [], inicia
           />
           <FormField
             control={form.control}
-            name="telefono"
+            name="cargo"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Teléfono</FormLabel>
+                <FormLabel>Cargo</FormLabel>
                 <FormControl>
-                  <Input placeholder="+51 999 999 999" {...field} />
+                  <Input placeholder="Gerente de Compras" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -126,12 +136,35 @@ export function FormContacto({ empresas, tags = [], tagIdsIniciales = [], inicia
           />
           <FormField
             control={form.control}
-            name="cargo"
+            name="telefonoPrincipal"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Cargo</FormLabel>
+                <FormLabel>Teléfono principal</FormLabel>
                 <FormControl>
-                  <Input placeholder="Gerente de Compras" {...field} />
+                  <PhoneInput
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    defaultCountryCode={defaultCountryCode}
+                    placeholder="000 000 0000"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="telefonoSecundario"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Teléfono secundario</FormLabel>
+                <FormControl>
+                  <PhoneInput
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    defaultCountryCode={defaultCountryCode}
+                    placeholder="000 000 0000"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

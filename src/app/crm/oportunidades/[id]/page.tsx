@@ -1,8 +1,14 @@
+"use server";
+
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowLeft, Pencil, Building2, Calendar, TrendingUp, Plus, Target } from "lucide-react";
+import {
+  ArrowLeft, Pencil, Building2, Calendar, Plus,
+  Phone, Mail, User, Globe, FileText, Hash,
+  Briefcase, ExternalLink,
+} from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,20 +57,35 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   const etapaConf = ETAPAS_PIPELINE.find((e) => e.valor === oportunidad.etapa);
   const productos = (oportunidad as any).productos ?? [];
   const contactos = (oportunidad as any).contactos ?? [];
+  const campos = (oportunidad as any).campos ?? [];
   const tagIdsActuales: string[] = ((oportunidad as any).tags ?? []).map((r: any) => r.tagId);
   const valor = Number(oportunidad.valor);
+  const empresa = (oportunidad as any).empresa ?? null;
 
-  const diasHastacierre = oportunidad.fechaCierre
+  const diasHastaCierre = oportunidad.fechaCierre
     ? Math.ceil((new Date(oportunidad.fechaCierre).getTime() - Date.now()) / 86400000)
     : null;
 
+  const formatearValorCampo = (campo: any) => {
+    if (campo.valor === null || campo.valor === undefined) return "—";
+    const tipo = campo.campo?.tipo;
+    if (tipo === "BOOLEANO") return campo.valor ? "Sí" : "No";
+    if (tipo === "FECHA") {
+      try { return format(new Date(campo.valor as string), "dd MMM yyyy", { locale: es }); } catch { return String(campo.valor); }
+    }
+    if (tipo === "MULTISELECT" && Array.isArray(campo.valor)) return campo.valor.join(", ");
+    return String(campo.valor);
+  };
+
   return (
     <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto">
+      {/* Breadcrumb */}
       <div className="flex items-center gap-2">
         <ButtonLink variant="ghost" size="icon-sm" href="/crm/oportunidades"><ArrowLeft className="h-4 w-4" /></ButtonLink>
         <span className="text-muted-foreground text-sm">Oportunidades</span>
       </div>
 
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold">{oportunidad.titulo}</h1>
@@ -72,18 +93,19 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
             {etapaConf && (
               <Badge className={cn("text-xs", etapaConf.color)}>{etapaConf.etiqueta}</Badge>
             )}
-            {oportunidad.empresa && (
-              <Link href={`/crm/empresas/${oportunidad.empresa.id}`} className="text-sm text-primary hover:underline flex items-center gap-1">
-                <Building2 className="h-3 w-3" />{oportunidad.empresa.nombre}
+            {empresa && (
+              <Link href={`/crm/empresas/${empresa.id}`} className="text-sm text-primary hover:underline flex items-center gap-1">
+                <Building2 className="h-3 w-3" />{empresa.nombre}
               </Link>
             )}
           </div>
         </div>
         <ButtonLink href={`/crm/oportunidades/${id}/editar`}>
-            <Pencil className="h-4 w-4" />Editar
-          </ButtonLink>
+          <Pencil className="h-4 w-4" />Editar
+        </ButtonLink>
       </div>
 
+      {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="pt-4 pb-3">
@@ -107,9 +129,9 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
               <p className="text-sm font-medium mt-0.5">
                 {format(new Date(oportunidad.fechaCierre), "dd MMM yyyy", { locale: es })}
               </p>
-              {diasHastacierre !== null && (
-                <p className={cn("text-xs mt-0.5", diasHastacierre < 0 ? "text-destructive" : diasHastacierre < 7 ? "text-amber-600" : "text-muted-foreground")}>
-                  {diasHastacierre < 0 ? `Venció hace ${Math.abs(diasHastacierre)} días` : `En ${diasHastacierre} días`}
+              {diasHastaCierre !== null && (
+                <p className={cn("text-xs mt-0.5", diasHastaCierre < 0 ? "text-destructive" : diasHastaCierre < 7 ? "text-amber-600" : "text-muted-foreground")}>
+                  {diasHastaCierre < 0 ? `Venció hace ${Math.abs(diasHastaCierre)} días` : `En ${diasHastaCierre} días`}
                 </p>
               )}
             </CardContent>
@@ -130,7 +152,10 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
           <TabsTrigger value="actividades">Actividades ({actividades.length})</TabsTrigger>
         </TabsList>
 
+        {/* ── Tab Información ───────────────────────────────── */}
         <TabsContent value="info" className="mt-4 space-y-4">
+
+          {/* Etiquetas + fecha creación */}
           <Card>
             <CardContent className="pt-4 space-y-3">
               <div>
@@ -142,40 +167,184 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
                   todosLosTags={todosLosTags}
                 />
               </div>
-              {contactos.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Contactos</p>
-                  <div className="flex flex-wrap gap-2">
-                    {contactos.map((rel: any) => (
-                      <Link key={rel.contacto.id} href={`/crm/contactos/${rel.contacto.id}`}>
-                        <Badge variant="outline" className="hover:bg-muted cursor-pointer">
-                          {rel.contacto.nombre} {rel.contacto.apellido}
-                        </Badge>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
                 <span>Creada {format(new Date(oportunidad.creadoEn), "dd MMM yyyy", { locale: es })}</span>
               </div>
-              {oportunidad.notas && (
-                <div className="pt-2 border-t">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Notas</p>
-                  <p className="text-sm whitespace-pre-wrap">{oportunidad.notas}</p>
-                </div>
-              )}
-              {oportunidad.motivoPerdida && (
-                <div className="pt-2 border-t">
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Motivo de pérdida</p>
-                  <p className="text-sm text-destructive">{oportunidad.motivoPerdida}</p>
-                </div>
-              )}
             </CardContent>
           </Card>
+
+          {/* Notas */}
+          {oportunidad.notas && (
+            <Card>
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  Notas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4">
+                <p className="text-sm whitespace-pre-wrap text-foreground leading-relaxed">{oportunidad.notas}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Motivo de pérdida */}
+          {oportunidad.motivoPerdida && (
+            <Card className="border-destructive/30 bg-destructive/5">
+              <CardContent className="pt-4 pb-4">
+                <p className="text-xs font-medium text-destructive mb-1">Motivo de pérdida</p>
+                <p className="text-sm text-destructive/80">{oportunidad.motivoPerdida}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Empresa */}
+          {empresa && (
+            <Card>
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  Empresa
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4 space-y-2">
+                <Link
+                  href={`/crm/empresas/${empresa.id}`}
+                  className="text-base font-semibold hover:underline text-primary flex items-center gap-1.5"
+                >
+                  {empresa.nombre}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-2">
+                  {empresa.industria && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                      <span>{empresa.industria}</span>
+                    </div>
+                  )}
+                  {empresa.ruc && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Hash className="h-3.5 w-3.5 shrink-0" />
+                      <span>RUC: {empresa.ruc}</span>
+                    </div>
+                  )}
+                  {empresa.telefono && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <a href={`tel:${empresa.telefono}`} className="hover:underline text-primary">{empresa.telefono}</a>
+                    </div>
+                  )}
+                  {empresa.email && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <a href={`mailto:${empresa.email}`} className="hover:underline text-primary truncate">{empresa.email}</a>
+                    </div>
+                  )}
+                  {empresa.sitioWeb && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Globe className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <a href={empresa.sitioWeb} target="_blank" rel="noopener noreferrer" className="hover:underline text-primary truncate">
+                        {empresa.sitioWeb.replace(/^https?:\/\//, "")}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Contactos */}
+          {contactos.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  Contactos ({contactos.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4 space-y-3">
+                {contactos.map((rel: any) => {
+                  const c = rel.contacto;
+                  return (
+                    <div key={c.id} className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Link
+                          href={`/crm/contactos/${c.id}`}
+                          className="text-sm font-semibold hover:underline text-primary flex items-center gap-1"
+                        >
+                          {c.nombre} {c.apellido}
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                        {rel.principal && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">Principal</Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                        {c.cargo && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                            <span>{c.cargo}</span>
+                          </div>
+                        )}
+                        {c.empresa?.nombre && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Building2 className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{c.empresa.nombre}</span>
+                          </div>
+                        )}
+                        {c.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <a href={`mailto:${c.email}`} className="hover:underline text-primary truncate">{c.email}</a>
+                          </div>
+                        )}
+                        {c.telefonoPrincipal && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <a href={`tel:${c.telefonoPrincipal}`} className="hover:underline text-primary">{c.telefonoPrincipal}</a>
+                          </div>
+                        )}
+                        {c.telefonoSecundario && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <a href={`tel:${c.telefonoSecundario}`} className="hover:underline text-primary">{c.telefonoSecundario}
+                              <span className="ml-1 text-[10px] text-muted-foreground">(alt)</span>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Campos Personalizados */}
+          {campos.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Hash className="h-4 w-4 text-muted-foreground" />
+                  Campos personalizados
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                  {campos.map((cv: any) => (
+                    <div key={cv.id}>
+                      <dt className="text-xs font-medium text-muted-foreground mb-0.5">{cv.campo?.nombre ?? cv.campo?.clave}</dt>
+                      <dd className="text-sm text-foreground">{formatearValorCampo(cv)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
+        {/* ── Tab Productos ─────────────────────────────────── */}
         <TabsContent value="productos" className="mt-4">
           {productos.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Sin productos vinculados.</p>
@@ -211,11 +380,12 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
           )}
         </TabsContent>
 
+        {/* ── Tab Actividades ───────────────────────────────── */}
         <TabsContent value="actividades" className="mt-4">
           <div className="flex justify-end mb-4">
             <ButtonLink size="sm" href={`/crm/actividades/nueva?oportunidadId=${id}`}>
-                <Plus className="h-4 w-4" />Nueva actividad
-              </ButtonLink>
+              <Plus className="h-4 w-4" />Nueva actividad
+            </ButtonLink>
           </div>
           <TimelineActividades actividades={actividades} />
         </TabsContent>

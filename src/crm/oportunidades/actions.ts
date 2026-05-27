@@ -151,10 +151,88 @@ export async function obtenerOportunidadAction(id: string) {
       pipelineId: true,
       metadata: true,
       empresa: { select: { id: true, nombre: true } },
-      contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },
+      contactos: {
+        include: {
+          contacto: {
+            select: {
+              id: true, nombre: true, apellido: true,
+              email: true, telefonoPrincipal: true, telefonoSecundario: true,
+              cargo: true, estado: true, notas: true,
+            },
+          },
+        },
+        orderBy: { principal: "desc" },
+      },
       tags: { include: { tag: { select: { id: true, nombre: true, color: true } } } },
     },
   });
+}
+
+export async function agregarContactoAOportunidad(
+  oportunidadId: string,
+  contactoId: string,
+): Promise<ResultadoAccion<void>> {
+  try {
+    const count = await prisma.oportunidadContacto.count({ where: { oportunidadId } });
+    await prisma.oportunidadContacto.upsert({
+      where: { oportunidadId_contactoId: { oportunidadId, contactoId } },
+      create: { oportunidadId, contactoId, principal: count === 0 },
+      update: {},
+    });
+    revalidatePath("/crm/oportunidades");
+    revalidatePath(`/crm/oportunidades/${oportunidadId}`);
+    revalidatePath("/crm/pipeline");
+    return { exito: true, datos: undefined };
+  } catch {
+    return { exito: false, error: "Error al agregar el contacto" };
+  }
+}
+
+export async function removerContactoDeOportunidad(
+  oportunidadId: string,
+  contactoId: string,
+): Promise<ResultadoAccion<void>> {
+  try {
+    const eliminado = await prisma.oportunidadContacto.delete({
+      where: { oportunidadId_contactoId: { oportunidadId, contactoId } },
+    });
+    if (eliminado.principal) {
+      const otro = await prisma.oportunidadContacto.findFirst({ where: { oportunidadId } });
+      if (otro) {
+        await prisma.oportunidadContacto.update({
+          where: { oportunidadId_contactoId: { oportunidadId, contactoId: otro.contactoId } },
+          data: { principal: true },
+        });
+      }
+    }
+    revalidatePath("/crm/oportunidades");
+    revalidatePath(`/crm/oportunidades/${oportunidadId}`);
+    revalidatePath("/crm/pipeline");
+    return { exito: true, datos: undefined };
+  } catch {
+    return { exito: false, error: "Error al remover el contacto" };
+  }
+}
+
+export async function marcarContactoPrincipal(
+  oportunidadId: string,
+  contactoId: string,
+): Promise<ResultadoAccion<void>> {
+  try {
+    await prisma.$transaction([
+      prisma.oportunidadContacto.updateMany({ where: { oportunidadId }, data: { principal: false } }),
+      prisma.oportunidadContacto.update({
+        where: { oportunidadId_contactoId: { oportunidadId, contactoId } },
+        data: { principal: true },
+      }),
+    ]);
+    revalidatePath("/crm/oportunidades");
+    revalidatePath(`/crm/oportunidades/${oportunidadId}`);
+    revalidatePath("/crm/pipeline");
+    return { exito: true, datos: undefined };
+  } catch {
+    return { exito: false, error: "Error al marcar como principal" };
+  }
 }
 
 export async function asignarContactoAOportunidad(

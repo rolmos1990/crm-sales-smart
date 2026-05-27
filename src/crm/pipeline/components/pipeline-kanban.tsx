@@ -287,12 +287,14 @@ interface PipelineKanbanProps {
   oportunidades: Map<Etapa, Oportunidad[]>;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
+  defaultCountryCode?: string;
 }
 
 export function PipelineKanban({
   oportunidades,
   empresas,
   contactos,
+  defaultCountryCode = "PA",
 }: PipelineKanbanProps) {
   const [localOps, setLocalOps] = useState<Map<Etapa, Oportunidad[]>>(oportunidades);
   const [selected, setSelected] = useState<Oportunidad | null>(null);
@@ -397,6 +399,7 @@ export function PipelineKanban({
         oportunidad={selected}
         empresas={empresas}
         contactos={contactos}
+        defaultCountryCode={defaultCountryCode}
         onClose={() => setSelected(null)}
         onUpdate={handleUpdate}
         onDelete={handleDelete}

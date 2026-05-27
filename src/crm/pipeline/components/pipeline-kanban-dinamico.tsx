@@ -272,6 +272,7 @@ interface PipelineKanbanDinamicoProps {
   oportunidadesPorStage: Map<string, OportunidadEnStage[]>;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
+  defaultCountryCode?: string;
 }
 
 export function PipelineKanbanDinamico({
@@ -279,6 +280,7 @@ export function PipelineKanbanDinamico({
   oportunidadesPorStage,
   empresas,
   contactos,
+  defaultCountryCode = "PA",
 }: PipelineKanbanDinamicoProps) {
   const [localOps, setLocalOps] = useState(oportunidadesPorStage);
   const [activeCard, setActiveCard] = useState<OportunidadEnStage | null>(null);
@@ -399,6 +401,7 @@ export function PipelineKanbanDinamico({
         pipeline={pipeline}
         empresas={empresas}
         contactos={contactos}
+        defaultCountryCode={defaultCountryCode}
         onClose={() => setSelected(null)}
         onUpdate={handleUpdate}
         onDelete={handleDelete}

@@ -7,7 +7,8 @@ export interface Contacto {
   nombre: string;
   apellido: string;
   email: string | null;
-  telefono: string | null;
+  telefonoPrincipal: string | null;
+  telefonoSecundario: string | null;
   cargo: string | null;
   notas: string | null;
   estado: EstadoContacto;
