@@ -224,7 +224,13 @@ export function PanelOportunidad({
     const resultado = await actualizarOportunidad(oportunidad.id, { ...datos, tagIds });
     if (resultado.exito) {
       toast.success("Oportunidad actualizada");
-      onUpdate(resultado.datos);
+      onUpdate({
+        ...resultado.datos,
+        tags: tagIds.map((tagId) => ({
+          tagId,
+          tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
+        })),
+      });
     } else {
       toast.error(resultado.error);
     }
@@ -297,7 +303,7 @@ export function PanelOportunidad({
   const handleMovidoEtapa = (nuevaEtapa: Etapa) => {
     if (!oportunidad) return;
     form.setValue("etapa", nuevaEtapa);
-    onUpdate({ ...oportunidad, etapa: nuevaEtapa });
+    onUpdate({ ...oportunidad, etapa: nuevaEtapa, tags: oportunidad.tags });
   };
 
   return (

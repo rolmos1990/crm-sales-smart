@@ -22,6 +22,7 @@ export interface Oportunidad {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: any;
   contactos?: Array<{ contacto: { id: string; nombre: string; apellido: string } }>;
+  tags?: Array<{ tagId: string; tag: { id: string; nombre: string; color: string | null } }>;
 }
 
 export const PROBABILIDADES_ETAPA: Record<Etapa, number> = {

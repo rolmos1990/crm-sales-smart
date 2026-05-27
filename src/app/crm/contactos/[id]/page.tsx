@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowLeft, Pencil, Phone, Mail, Building2, Briefcase, Calendar, Plus } from "lucide-react";
+import { ArrowLeft, Pencil, Phone, Mail, Building2, Briefcase, Calendar, Plus, Tag } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,10 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { TimelineActividades } from "@/crm/actividades/components/timeline-actividades";
 import { obtenerContactoPorId } from "@/crm/contactos/queries";
 import { obtenerActividadesPorContacto } from "@/crm/actividades/queries";
+import { obtenerTags } from "@/crm/tags/queries";
+import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
 import type { Actividad } from "@/crm/actividades/types";
+import type { Tag as TagType } from "@/crm/tags/types";
 import { cn } from "@/lib/utils";
 
 const ESTADO_CONFIG = {
@@ -34,11 +37,13 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
 
   let contacto = null;
   let actividades: Actividad[] = [];
+  let todosLosTags: TagType[] = [];
 
   try {
-    [contacto, actividades] = await Promise.all([
+    [contacto, actividades, todosLosTags] = await Promise.all([
       obtenerContactoPorId(id),
       obtenerActividadesPorContacto(id),
+      obtenerTags(),
     ]);
   } catch {
     // DB not configured — show empty state
@@ -63,6 +68,7 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
   const iniciales = `${contacto.nombre[0]}${contacto.apellido[0]}`.toUpperCase();
 
   const oportunidades = (contacto as any).oportunidades ?? [];
+  const tagIdsActuales: string[] = ((contacto as any).tags ?? []).map((r: any) => r.tagId);
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto">
@@ -148,6 +154,23 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
               </Card>
             )}
           </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                <Tag className="h-3.5 w-3.5" />
+                Etiquetas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GestorTagsInline
+                entidadId={id}
+                tipo="contacto"
+                tagIdsActuales={tagIdsActuales}
+                todosLosTags={todosLosTags}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="oportunidades" className="mt-4">

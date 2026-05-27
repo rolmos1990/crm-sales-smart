@@ -60,4 +60,5 @@ export interface OportunidadEnStage {
   stageId: string | null;
   pipelineId: string | null;
   empresa: { id: string; nombre: string } | null;
+  tags: Array<{ tagId: string; tag: { id: string; nombre: string; color: string | null } }>;
 }

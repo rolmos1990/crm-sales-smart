@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -39,7 +39,6 @@ import {
 import {
   Select,
   SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
@@ -218,6 +217,21 @@ function DialogCampo({
   const [claveManual, setClaveManual] = useState(!esNuevo);
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    if (open) {
+      setForm({
+        nombre:      campoInicial?.nombre      ?? "",
+        clave:       campoInicial?.clave       ?? "",
+        tipo:        campoInicial?.tipo        ?? "TEXTO",
+        requerido:   campoInicial?.requerido   ?? false,
+        bloqueado:   campoInicial?.bloqueado   ?? false,
+        descripcion: campoInicial?.descripcion ?? "",
+        opciones:    campoInicial?.opciones    ?? [],
+      });
+      setClaveManual(campoInicial !== null);
+    }
+  }, [open]);
+
   const setField = <K extends keyof DatosFormCampo>(k: K, v: DatosFormCampo[K]) =>
     setForm((prev) => ({ ...prev, [k]: v }));
 
@@ -322,7 +336,7 @@ function DialogCampo({
             </Label>
             <Select value={form.tipo} onValueChange={(v) => setField("tipo", v as TipoCampo)}>
               <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl">
-                <SelectValue />
+                <span>{TIPO_LABEL[form.tipo]}</span>
               </SelectTrigger>
               <SelectContent>
                 {TIPOS.map((t) => (

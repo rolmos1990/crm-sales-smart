@@ -17,6 +17,7 @@ export async function obtenerOportunidadesPorEtapa() {
     include: {
       empresa: { select: { id: true, nombre: true } },
       contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },
+      tags: { select: { tagId: true, tag: { select: { id: true, nombre: true, color: true } } } },
     },
     orderBy: { actualizadoEn: "desc" },
   });

@@ -261,6 +261,10 @@ function PanelFormulario({
         ...oportunidad,
         valor: Number(oportunidad.valor),
         stageId: nuevoStageId,
+        tags: tagIds.map((tagId) => ({
+          tagId,
+          tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
+        })),
       } as Oportunidad & { stageId: string });
     } else {
       toast.error(resultado.error);
@@ -334,7 +338,14 @@ function PanelFormulario({
     if (!resultadoCampos.exito) { toast.error(resultadoCampos.error); return; }
 
     toast.success("Oportunidad actualizada");
-    onUpdate({ ...resultadoBase.datos, stageId: stageActualId });
+    onUpdate({
+      ...resultadoBase.datos,
+      stageId: stageActualId,
+      tags: tagIds.map((tagId) => ({
+        tagId,
+        tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
+      })),
+    });
   };
 
   const onSubmitContacto = async (datos: ContactoPanelInput) => {

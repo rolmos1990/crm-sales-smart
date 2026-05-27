@@ -40,6 +40,7 @@ export async function obtenerOportunidadesPorPipeline(pipelineId: string) {
       stageId: true,
       pipelineId: true,
       empresa: { select: { id: true, nombre: true } },
+      tags: { select: { tagId: true, tag: { select: { id: true, nombre: true, color: true } } } },
     },
     orderBy: { actualizadoEn: "desc" },
   });

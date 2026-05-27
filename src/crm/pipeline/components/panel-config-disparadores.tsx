@@ -695,7 +695,7 @@ function DialogFormDisparador({
                 <Label className={labelSmCls}>Método</Label>
                 <Select value={webhookMethod} onValueChange={(v) => setWebhookMethod(v as "POST" | "GET")}>
                   <SelectTrigger className={`${inputInnerCls} w-28`}>
-                    <SelectValue />
+                    <span>{webhookMethod}</span>
                   </SelectTrigger>
                   <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
                     <SelectItem value="POST">POST</SelectItem>
@@ -1051,7 +1051,7 @@ function DialogFormDisparador({
                     }}
                   >
                     <SelectTrigger className={`${inputCls} flex-1`}>
-                      <SelectValue />
+                      <span>{ETIQUETAS_UNIDAD[unidad]}</span>
                     </SelectTrigger>
                     <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
                       {(Object.entries(ETIQUETAS_UNIDAD) as [UnidadDelay, string][]).map(([val, etq]) => (

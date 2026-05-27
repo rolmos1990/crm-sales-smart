@@ -127,6 +127,35 @@ function TarjetaOportunidad({
           )}
         </div>
 
+        {/* Etiquetas */}
+        {oportunidad.tags && oportunidad.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 pointer-events-none">
+            {oportunidad.tags.slice(0, 3).map(({ tagId, tag }) => (
+              <span
+                key={tagId}
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium border"
+                style={tag.color ? {
+                  backgroundColor: `${tag.color}20`,
+                  borderColor: `${tag.color}40`,
+                  color: tag.color,
+                } : {
+                  backgroundColor: "rgba(0,0,0,0.05)",
+                  borderColor: "rgba(0,0,0,0.1)",
+                  color: "#78716c",
+                }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color ?? "#a8a29e" }} />
+                {tag.nombre}
+              </span>
+            ))}
+            {oportunidad.tags.length > 3 && (
+              <span className="text-[10px] text-stone-400 dark:text-stone-500 self-center">
+                +{oportunidad.tags.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Barra de probabilidad */}
         <div className="flex items-center justify-between gap-3 pointer-events-none">
           <span className="text-xs font-medium text-stone-500 dark:text-stone-400 tabular-nums">
@@ -313,11 +342,16 @@ export function PipelineKanban({
   const handleUpdate = (updated: Oportunidad) => {
     setLocalOps((prev) => {
       const next = new Map(prev);
+      let tagsExistentes: Oportunidad["tags"] = [];
+      for (const ops of next.values()) {
+        const found = ops.find((o) => o.id === updated.id);
+        if (found) { tagsExistentes = found.tags; break; }
+      }
       for (const [etapa, ops] of next.entries()) {
         next.set(etapa, ops.filter((o) => o.id !== updated.id));
       }
       if (updated.etapa !== "GANADO" && updated.etapa !== "PERDIDO") {
-        next.set(updated.etapa, [updated, ...(next.get(updated.etapa) ?? [])]);
+        next.set(updated.etapa, [{ ...updated, tags: updated.tags ?? tagsExistentes }, ...(next.get(updated.etapa) ?? [])]);
       }
       return next;
     });
