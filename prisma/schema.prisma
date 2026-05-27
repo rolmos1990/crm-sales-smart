@@ -126,6 +126,39 @@ enum EstadoMedia {
   ERROR
 }
 
+enum EstadoConversacion {
+  ABIERTA
+  CERRADA
+  ARCHIVADA
+  EN_ESPERA
+}
+
+enum TipoMensaje {
+  TEXTO
+  IMAGEN
+  VIDEO
+  AUDIO
+  NOTA_VOZ
+  DOCUMENTO
+  PLANTILLA
+  BOTON
+}
+
+enum RemitenteMsg {
+  CONTACTO
+  AGENTE
+  SISTEMA
+  BOT
+}
+
+enum EstadoMensaje {
+  RECIBIDO
+  ENVIADO
+  ENTREGADO
+  LEIDO
+  FALLIDO
+}
+
 // =====================
 // INSTANCIA / TENANT
 // =====================
@@ -159,6 +192,9 @@ model Instancia {
   configuracionEmpresa ConfiguracionEmpresa?
   plantillas           PlantillaCRM[]
   mediaArchivos        MediaArchivo[]
+  cuentasCanal         CuentaCanal[]
+  conversaciones       Conversacion[]
+  identificadoresCanal ContactoIdentificadorCanal[]
 
   @@index([slug])
   @@index([estado])
@@ -278,12 +314,14 @@ model Contacto {
   usuarioInstanciaId String?
   usuarioInstancia   UsuarioInstancia? @relation(fields: [usuarioInstanciaId], references: [id])
 
-  oportunidades OportunidadContacto[]
-  actividades   Actividad[]
-  cotizaciones  Cotizacion[]
-  pedidos       Pedido[]
-  campos        CampoPersonalizadoValor[]
-  tags          ContactoTag[]
+  oportunidades        OportunidadContacto[]
+  actividades          Actividad[]
+  cotizaciones         Cotizacion[]
+  pedidos              Pedido[]
+  campos               CampoPersonalizadoValor[]
+  tags                 ContactoTag[]
+  conversaciones       Conversacion[]
+  identificadoresCanal ContactoIdentificadorCanal[]
 
   @@index([instanciaId])
   @@index([nombre])
@@ -389,6 +427,7 @@ model Oportunidad {
   tags            OportunidadTag[]
   campos          CampoPersonalizadoValor[]
   disparadorJobs  DisparadorJob[]
+  conversaciones  OportunidadConversacion[]
 
   @@index([instanciaId])
   @@index([pipelineId])
@@ -962,4 +1001,117 @@ model MediaArchivo {
   @@index([entidadTipo, entidadId])
   @@index([hash])
   @@index([estadoProcesado])
+}
+
+// =====================
+// CONVERSACIONES
+// =====================
+
+// Identificador externo del contacto por canal (teléfono, email, instagramId, etc.)
+model ContactoIdentificadorCanal {
+  id            String   @id @default(cuid())
+  canal         String   // "whatsapp", "email", "instagram", "tiktok"
+  identificador String   // número, email, userId externo
+
+  contactoId String
+  contacto   Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  creadoEn DateTime @default(now())
+
+  @@unique([canal, identificador, instanciaId])
+  @@index([instanciaId])
+  @@index([contactoId])
+}
+
+// Cuenta configurada por canal (número de WhatsApp, email, cuenta Instagram, etc.)
+model CuentaCanal {
+  id            String  @id @default(cuid())
+  canal         String  // "whatsapp_lite", "whatsapp_business", "email", "instagram"
+  nombre        String  // "WhatsApp Principal", "Email Ventas"
+  identificador String  // +51955..., info@empresa.com
+  configuracion Json    // tokens, credenciales
+  activa        Boolean @default(true)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  conversaciones Conversacion[]
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([instanciaId])
+  @@index([canal])
+}
+
+// Agrupador de mensajes por contacto + canal/cuenta
+model Conversacion {
+  id     String             @id @default(cuid())
+  asunto String?
+  estado EstadoConversacion @default(ABIERTA)
+
+  contactoId    String
+  contacto      Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  cuentaCanalId String
+  cuentaCanal   CuentaCanal @relation(fields: [cuentaCanalId], references: [id])
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  mensajes      MensajeConversacion[]
+  oportunidades OportunidadConversacion[]
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([instanciaId])
+  @@index([contactoId])
+  @@index([cuentaCanalId])
+  @@index([estado])
+}
+
+// Mensaje individual dentro de una conversación
+model MensajeConversacion {
+  id            String        @id @default(cuid())
+  contenido     String?
+  tipo          TipoMensaje   @default(TEXTO)
+  remitente     RemitenteMsg
+  estado        EstadoMensaje @default(ENVIADO)
+  esNotaInterna Boolean       @default(false)
+  idExterno     String?       // ID del mensaje en el canal externo
+
+  conversacionId String
+  conversacion   Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+
+  usuarioId String? // agente que envió (si remitente = AGENTE)
+
+  creadoEn  DateTime  @default(now())
+  enviadoEn DateTime?
+  leidoEn   DateTime?
+
+  @@index([conversacionId])
+  @@index([creadoEn])
+  @@index([remitente])
+}
+
+// Relación conversación ↔ oportunidad
+model OportunidadConversacion {
+  id       String  @id @default(cuid())
+  esActiva Boolean @default(true)
+
+  oportunidadId String
+  oportunidad   Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+
+  conversacionId String
+  conversacion   Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+
+  creadoEn DateTime @default(now())
+
+  @@unique([oportunidadId, conversacionId])
+  @@index([oportunidadId])
+  @@index([conversacionId])
 }
