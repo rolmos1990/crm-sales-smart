@@ -26,7 +26,8 @@ import { Badge } from "@/components/ui/badge";
 import { CrearPlantillaSchema, normalizarAlias, type CrearPlantillaInput } from "@/configuracion/plantillas/schema";
 import { crearPlantilla, actualizarPlantilla } from "@/configuracion/plantillas/actions";
 import type { Plantilla } from "@/configuracion/plantillas/types";
-import { UploadImagenPlantilla } from "./upload-imagen-plantilla";
+import { MediaUploader } from "@/components/media/media-uploader";
+import { vincularMediaArchivo } from "@/lib/media/server-actions";
 
 interface FormPlantillaProps {
   instanciaId: string;
@@ -37,6 +38,7 @@ interface FormPlantillaProps {
 
 export function FormPlantilla({ instanciaId, inicial, modo = "crear", onExito }: FormPlantillaProps) {
   const [plantillaId, setPlantillaId] = useState<string | null>(inicial?.id ?? null);
+  const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
 
   const form = useForm<CrearPlantillaInput>({
     resolver: zodResolver(CrearPlantillaSchema),
@@ -57,19 +59,13 @@ export function FormPlantilla({ instanciaId, inicial, modo = "crear", onExito }:
 
   const onSubmit = async (datos: CrearPlantillaInput) => {
     if (modo === "crear") {
-      // Crear primero sin imagen para obtener el ID
-      const resultado = await crearPlantilla({ ...datos, imagenUrl: "" });
+      const resultado = await crearPlantilla(datos);
       if (!resultado.exito) { toast.error(resultado.error); return; }
-
       const nuevoId = resultado.datos!.id;
       setPlantillaId(nuevoId);
-
-      // Si había URL externa de imagen, actualizarla
-      const imagenUrl = datos.imagenUrl?.trim();
-      if (imagenUrl && (imagenUrl.startsWith("http") || imagenUrl.startsWith("/"))) {
-        await actualizarPlantilla(nuevoId, { imagenUrl });
+      if (pendingMediaId) {
+        await vincularMediaArchivo(pendingMediaId, nuevoId, "plantilla");
       }
-
       toast.success("Plantilla creada");
       form.reset();
       onExito?.();
@@ -163,16 +159,16 @@ export function FormPlantilla({ instanciaId, inicial, modo = "crear", onExito }:
           <FormField control={form.control} name="imagenUrl" render={({ field }) => (
             <FormItem>
               <FormLabel>Imagen adjunta</FormLabel>
-              {modo === "crear" && !plantillaId && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">
-                  Para subir un archivo, guarda la plantilla primero. Puedes pegar una URL externa ahora.
-                </p>
-              )}
-              <UploadImagenPlantilla
-                plantillaId={plantillaId}
+              <MediaUploader
                 instanciaId={instanciaId}
+                modulo="plantillas"
+                entidadId={plantillaId ?? undefined}
+                entidadTipo="plantilla"
                 value={field.value ?? ""}
-                onChange={field.onChange}
+                onChange={(url, mediaId) => {
+                  field.onChange(url);
+                  if (mediaId) setPendingMediaId(mediaId);
+                }}
               />
               <FormMessage />
             </FormItem>

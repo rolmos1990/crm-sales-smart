@@ -18,16 +18,19 @@ import {
 import { crearProducto, actualizarProducto } from "../actions";
 import { CrearProductoSchema, type CrearProductoInput } from "../schema";
 import type { Producto } from "../types";
-import { UploadImagenProducto } from "./upload-imagen-producto";
+import { MediaUploader } from "@/components/media/media-uploader";
+import { vincularMediaArchivo } from "@/lib/media/server-actions";
 
 interface FormProductoProps {
+  instanciaId: string;
   inicial?: Partial<Producto>;
   modo?: "crear" | "editar";
 }
 
-export function FormProducto({ inicial, modo = "crear" }: FormProductoProps) {
+export function FormProducto({ instanciaId, inicial, modo = "crear" }: FormProductoProps) {
   const router = useRouter();
   const [productoId, setProductoId] = useState<string | null>(inicial?.id ?? null);
+  const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
 
   const form = useForm<CrearProductoInput>({
     resolver: zodResolver(CrearProductoSchema),
@@ -48,21 +51,13 @@ export function FormProducto({ inicial, modo = "crear" }: FormProductoProps) {
 
   const onSubmit = async (datos: CrearProductoInput) => {
     if (modo === "crear") {
-      // 1. Crear sin imagen para obtener el ID
-      const sinImagen = await crearProducto({ ...datos, imagenUrl: "" });
-      if (!sinImagen.exito) { toast.error(sinImagen.error); return; }
-
-      const nuevoId = sinImagen.datos.id;
+      const resultado = await crearProducto(datos);
+      if (!resultado.exito) { toast.error(resultado.error); return; }
+      const nuevoId = resultado.datos.id;
       setProductoId(nuevoId);
-
-      // 2. Si hay imagen pendiente, subirla ahora que tenemos el ID
-      const imagenUrl = datos.imagenUrl?.trim();
-      if (imagenUrl && !imagenUrl.startsWith("http") && !imagenUrl.startsWith("/")) {
-        // no es URL externa ni ruta — ignorar
-      } else if (imagenUrl) {
-        await actualizarProducto(nuevoId, { imagenUrl });
+      if (pendingMediaId) {
+        await vincularMediaArchivo(pendingMediaId, nuevoId, "producto");
       }
-
       toast.success("Producto creado");
       router.push("/productos");
     } else {
@@ -175,15 +170,16 @@ export function FormProducto({ inicial, modo = "crear" }: FormProductoProps) {
         <FormField control={form.control} name="imagenUrl" render={({ field }) => (
           <FormItem>
             <FormLabel>Imagen del producto</FormLabel>
-            {modo === "crear" && !productoId && (
-              <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">
-                Para subir un archivo, guarda el producto primero. Puedes pegar una URL externa ahora.
-              </p>
-            )}
-            <UploadImagenProducto
-              productoId={productoId}
+            <MediaUploader
+              instanciaId={instanciaId}
+              modulo="productos"
+              entidadId={productoId ?? undefined}
+              entidadTipo="producto"
               value={field.value ?? ""}
-              onChange={field.onChange}
+              onChange={(url, mediaId) => {
+                field.onChange(url);
+                if (mediaId) setPendingMediaId(mediaId);
+              }}
             />
             <FormMessage />
           </FormItem>

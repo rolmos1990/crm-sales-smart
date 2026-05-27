@@ -119,6 +119,13 @@ enum TipoPlantilla {
   TEXTO_IMAGEN
 }
 
+enum EstadoMedia {
+  PENDIENTE
+  PROCESANDO
+  LISTO
+  ERROR
+}
+
 // =====================
 // INSTANCIA / TENANT
 // =====================
@@ -151,6 +158,7 @@ model Instancia {
   integraciones        IntegracionInstancia[]
   configuracionEmpresa ConfiguracionEmpresa?
   plantillas           PlantillaCRM[]
+  mediaArchivos        MediaArchivo[]
 
   @@index([slug])
   @@index([estado])
@@ -895,4 +903,62 @@ model PlantillaCRM {
   @@index([instanciaId])
   @@index([alias])
   @@index([activo])
+}
+
+// =====================
+// MEDIA / ARCHIVOS
+// =====================
+
+model MediaArchivo {
+  id String @id @default(cuid())
+
+  // Tenant
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  // Módulo de origen
+  modulo      String  // "productos" | "plantillas" | "logos" | "conversaciones" | ...
+  entidadTipo String? // tipo de entidad relacionada, ej: "producto"
+  entidadId   String? // ID de la entidad relacionada
+
+  // Archivo original
+  nombreOriginal  String
+  mimeOriginal    String
+  pesoOriginal    Int
+  anchoOriginal   Int?
+  altoOriginal    Int?
+
+  // Archivo procesado
+  mimeOptimizado  String       @default("image/webp")
+  pesoOptimizado  Int?
+  ancho           Int?
+  alto            Int?
+
+  // URLs de storage
+  keyOptimizado   String  // clave en el storage (ej: {instanciaId}/productos/optimized/{id}.webp)
+  keyThumbnail    String? // clave del thumbnail
+  keyOriginal     String? // clave del original (si se guarda)
+
+  urlOptimizada   String
+  urlThumbnail    String?
+  urlOriginal     String?
+
+  // Metadatos
+  hash            String       // SHA-256 del buffer original para deduplicación
+  proveedor       String       @default("local") // "r2" | "local" | "s3" | "azure"
+  canalOrigen     String?      // "web" | "whatsapp" | "instagram" | ...
+  estadoProcesado EstadoMedia  @default(LISTO)
+  errorMensaje    String?
+
+  // Auditoría
+  creadoPorId   String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@unique([instanciaId, hash])
+  @@index([instanciaId])
+  @@index([instanciaId, modulo])
+  @@index([entidadTipo, entidadId])
+  @@index([hash])
+  @@index([estadoProcesado])
 }

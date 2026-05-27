@@ -1,0 +1,61 @@
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
+} from "@aws-sdk/client-s3";
+import { R2_CONFIG } from "../config";
+import type { IStorageProvider, UploadParams, UploadResult, StorageProveedor } from "../types";
+
+export class R2Provider implements IStorageProvider {
+  readonly nombre: StorageProveedor = "r2";
+
+  private client: S3Client;
+
+  constructor() {
+    this.client = new S3Client({
+      region: "auto",
+      endpoint: R2_CONFIG.endpoint,
+      credentials: {
+        accessKeyId: R2_CONFIG.accessKeyId,
+        secretAccessKey: R2_CONFIG.secretAccessKey,
+      },
+    });
+  }
+
+  async upload({ key, buffer, contentType, metadata }: UploadParams): Promise<UploadResult> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: R2_CONFIG.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+        Metadata: metadata,
+        CacheControl: "public, max-age=31536000, immutable",
+      })
+    );
+
+    return { key, url: this.getPublicUrl(key) };
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: R2_CONFIG.bucketName, Key: key })
+    );
+  }
+
+  getPublicUrl(key: string): string {
+    return `${R2_CONFIG.publicUrl}/${key}`;
+  }
+
+  async exists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(
+        new HeadObjectCommand({ Bucket: R2_CONFIG.bucketName, Key: key })
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
