@@ -16,6 +16,7 @@ import {
   Leaf,
   Puzzle,
   Tag,
+  Settings,
 } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
@@ -47,7 +48,10 @@ const NAVEGACION = [
   },
   {
     grupo: "Sistema",
-    items: [{ href: "/integraciones", etiqueta: "Integraciones", Icono: Puzzle }],
+    items: [
+      { href: "/integraciones", etiqueta: "Integraciones", Icono: Puzzle },
+      { href: "/configuracion", etiqueta: "Configuración", Icono: Settings },
+    ],
   },
 ];
 

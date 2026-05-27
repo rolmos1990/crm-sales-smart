@@ -114,6 +114,11 @@ enum EstadoDisparadorJob {
   FALLIDO
 }
 
+enum TipoPlantilla {
+  TEXTO
+  TEXTO_IMAGEN
+}
+
 // =====================
 // INSTANCIA / TENANT
 // =====================
@@ -131,19 +136,21 @@ model Instancia {
   creadoEn      DateTime        @default(now())
   actualizadoEn DateTime        @updatedAt
 
-  usuarios      UsuarioInstancia[]
-  empresas      Empresa[]
-  contactos     Contacto[]
-  pipelines     Pipeline[]
-  oportunidades Oportunidad[]
-  productos     Producto[]
-  actividades   Actividad[]
-  cotizaciones  Cotizacion[]
-  pedidos       Pedido[]
-  tags          Tag[]
-  campos        CampoPersonalizado[]
-  eventos       EventoLog[]
-  integraciones IntegracionInstancia[]
+  usuarios             UsuarioInstancia[]
+  empresas             Empresa[]
+  contactos            Contacto[]
+  pipelines            Pipeline[]
+  oportunidades        Oportunidad[]
+  productos            Producto[]
+  actividades          Actividad[]
+  cotizaciones         Cotizacion[]
+  pedidos              Pedido[]
+  tags                 Tag[]
+  campos               CampoPersonalizado[]
+  eventos              EventoLog[]
+  integraciones        IntegracionInstancia[]
+  configuracionEmpresa ConfiguracionEmpresa?
+  plantillas           PlantillaCRM[]
 
   @@index([slug])
   @@index([estado])
@@ -827,4 +834,65 @@ model IntegracionInstancia {
   @@unique([instanciaId, clave])
   @@index([instanciaId])
   @@index([clave])
+}
+
+// =====================
+// CONFIGURACIÓN EMPRESA
+// =====================
+
+model ConfiguracionEmpresa {
+  id                String   @id @default(cuid())
+  nombreEmpresa     String?
+  nombreComercial   String?
+  razonSocial       String?
+  ruc               String?
+  tipoNegocio       String?
+  industria         String?
+  correoPrincipal   String?
+  telefonoPrincipal String?
+  whatsappPrincipal String?
+  sitioWeb          String?
+  pais              String?
+  provincia         String?
+  ciudad            String?
+  direccion         String?
+  zonaHoraria       String   @default("America/Lima")
+  monedaPrincipal   String   @default("PEN")
+  idiomaPrincipal   String   @default("es")
+  formatoFecha      String   @default("DD/MM/YYYY")
+  formatoHora       String   @default("24h")
+  activo            Boolean  @default(true)
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+
+  instanciaId String    @unique
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+}
+
+// =====================
+// PLANTILLAS CRM
+// =====================
+
+model PlantillaCRM {
+  id             String        @id @default(cuid())
+  nombre         String
+  alias          String
+  descripcion    String?
+  tipo           TipoPlantilla @default(TEXTO)
+  contenidoTexto String?
+  imagenUrl      String?
+  activo         Boolean       @default(true)
+  creadoEn       DateTime      @default(now())
+  actualizadoEn  DateTime      @updatedAt
+
+  instanciaId      String
+  instancia        Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  creadoPorId      String?
+  actualizadoPorId String?
+
+  @@unique([instanciaId, alias])
+  @@index([instanciaId])
+  @@index([alias])
+  @@index([activo])
 }
