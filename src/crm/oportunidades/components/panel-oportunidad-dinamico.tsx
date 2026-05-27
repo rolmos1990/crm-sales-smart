@@ -44,7 +44,8 @@ import {
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { obtenerTagsAction } from "@/crm/tags/actions";
 import type { Tag } from "@/crm/tags/types";
-import { moverAStage } from "@/crm/pipeline/actions";
+import { moverAStage, obtenerPipelinesAction } from "@/crm/pipeline/actions";
+import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
 import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "../schema";
 import type { Oportunidad } from "../types";
 import type { PipelineConStages, CampoPersonalizadoStage } from "@/crm/pipeline/types";
@@ -84,7 +85,8 @@ interface FormularioProps {
   oportunidad: OportunidadFetched;
   initialMetadata: Record<string, unknown>;
   initialStageId: string | null;
-  pipeline: PipelineConStages;
+  initialPipelineId: string | null;
+  todosPipelines: PipelineConStages[];
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   tagsDisponibles: Tag[];
@@ -113,6 +115,7 @@ export function PanelOportunidadDinamico({
   const [tagIdsIniciales, setTagIdsIniciales] = useState<string[]>([]);
   const [contactoIdInicial, setContactoIdInicial] = useState<string>("");
   const [contactoDataInicial, setContactoDataInicial] = useState<ContactoBasica | null>(null);
+  const [todosPipelines, setTodosPipelines] = useState<PipelineConStages[]>([pipeline]);
   const [cargando, setCargando] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const fetchedIdRef = useRef<string | null>(null);
@@ -129,10 +132,12 @@ export function PanelOportunidadDinamico({
     Promise.all([
       obtenerOportunidadAction(oportunidadId),
       obtenerTagsAction(),
-    ]).then(async ([data, tags]) => {
+      obtenerPipelinesAction(),
+    ]).then(async ([data, tags, pipelines]) => {
       if (!data) { setCargando(false); return; }
       setOportunidad(data);
       setTagsDisponibles(tags as Tag[]);
+      setTodosPipelines(pipelines as PipelineConStages[]);
       setTagIdsIniciales((data as any).tags?.map((t: { tagId: string }) => t.tagId) ?? []);
 
       const ctId = data.contactos?.[0]?.contacto.id ?? "";
@@ -170,7 +175,8 @@ export function PanelOportunidadDinamico({
             oportunidad={oportunidad}
             initialMetadata={(oportunidad.metadata as Record<string, unknown>) ?? {}}
             initialStageId={oportunidad.stageId ?? initialStageId}
-            pipeline={pipeline}
+            initialPipelineId={oportunidad.pipelineId ?? pipeline.id}
+            todosPipelines={todosPipelines}
             empresas={empresas}
             contactos={contactos}
             tagsDisponibles={tagsDisponibles}
@@ -193,7 +199,8 @@ function PanelFormulario({
   oportunidad,
   initialMetadata,
   initialStageId,
-  pipeline,
+  initialPipelineId,
+  todosPipelines,
   empresas,
   contactos,
   tagsDisponibles,
@@ -206,6 +213,7 @@ function PanelFormulario({
 }: FormularioProps) {
   const [activeTab, setActiveTab] = useState<"info" | "contacto">("info");
   const [stageActualId, setStageActualId] = useState<string | null>(initialStageId);
+  const [pipelineActualId, setPipelineActualId] = useState<string | null>(initialPipelineId);
   const [metadata, setMetadata] = useState<Record<string, unknown>>(initialMetadata);
   const [guardandoStage, setGuardandoStage] = useState(false);
   const [tagIds, setTagIds] = useState<string[]>(tagIdsIniciales);
@@ -243,24 +251,30 @@ function PanelFormulario({
       : { nombre: "", apellido: "", email: "", telefono: "", cargo: "", notas: "", estado: "ACTIVO" },
   });
 
-  const camposActuales: CampoPersonalizadoStage[] =
-    pipeline.stages.find((s) => s.id === stageActualId)?.campos ?? [];
+  const pipelineActual = todosPipelines.find((p) => p.id === pipelineActualId) ?? todosPipelines[0];
 
-  const stageActual = pipeline.stages.find((s) => s.id === stageActualId);
+  const stageActual = pipelineActual?.stages.find((s) => s.id === stageActualId);
 
-  const handleCambiarStage = async (nuevoStageId: string | null) => {
-    if (!nuevoStageId || nuevoStageId === stageActualId) return;
+  const camposActuales: CampoPersonalizadoStage[] = stageActual?.campos ?? [];
+
+  const handleCambiarStage = async (nuevoStageId: string, nuevoPipelineId: string) => {
+    if (nuevoStageId === stageActualId && nuevoPipelineId === pipelineActualId) return;
     setGuardandoStage(true);
-    const resultado = await moverAStage(oportunidad.id, nuevoStageId, pipeline.id);
+    const resultado = await moverAStage(oportunidad.id, nuevoStageId, nuevoPipelineId);
     setGuardandoStage(false);
     if (resultado.exito) {
-      const stage = pipeline.stages.find((s) => s.id === nuevoStageId);
-      toast.success(`Movido a "${stage?.nombre}"`);
+      const nuevoPipeline = todosPipelines.find((p) => p.id === nuevoPipelineId);
+      const nuevoStage = nuevoPipeline?.stages.find((s) => s.id === nuevoStageId);
+      const cambioPipeline = nuevoPipelineId !== pipelineActualId;
+      if (cambioPipeline) setMetadata({});
+      toast.success(`Movido a "${nuevoStage?.nombre ?? nuevoStageId}"`);
       setStageActualId(nuevoStageId);
+      setPipelineActualId(nuevoPipelineId);
       onUpdate({
         ...oportunidad,
         valor: Number(oportunidad.valor),
         stageId: nuevoStageId,
+        pipelineId: nuevoPipelineId,
         tags: tagIds.map((tagId) => ({
           tagId,
           tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
@@ -422,54 +436,15 @@ function PanelFormulario({
           </SheetTitle>
           <span className="flex-1" />
 
-          {/* Selector de stage */}
-          <div className="flex items-center gap-1.5">
-            {guardandoStage && <Loader2 className="h-3 w-3 animate-spin text-stone-400" />}
-            <Select
-              value={stageActualId ?? ""}
-              onValueChange={handleCambiarStage}
-              disabled={guardandoStage}
-            >
-              <SelectTrigger
-                className={cn(
-                  "h-7 rounded-lg border text-xs font-medium gap-1.5 px-2",
-                  "border-stone-200 dark:border-white/10",
-                  "bg-white dark:bg-white/5 text-stone-600 dark:text-stone-300",
-                  "hover:bg-stone-50 dark:hover:bg-white/8",
-                  "[&>svg]:h-3 [&>svg]:w-3",
-                )}
-              >
-                {stageActual ? (
-                  <span className="flex items-center gap-1.5">
-                    {stageActual.color && (
-                      <span
-                        className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: stageActual.color }}
-                      />
-                    )}
-                    {stageActual.nombre}
-                  </span>
-                ) : (
-                  <SelectValue placeholder="Etapa..." />
-                )}
-              </SelectTrigger>
-              <SelectContent>
-                {pipeline.stages.map((stage) => (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    <span className="flex items-center gap-2">
-                      {stage.color && (
-                        <span
-                          className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: stage.color }}
-                        />
-                      )}
-                      {stage.nombre}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Selector de pipeline + stage */}
+          <SelectorPipelineStage
+            pipelineId={pipelineActualId}
+            stageId={stageActualId}
+            stageNombre={stageActual?.nombre}
+            stageColor={stageActual?.color}
+            onSelect={handleCambiarStage}
+            cargando={guardandoStage}
+          />
         </div>
       </SheetHeader>
 
