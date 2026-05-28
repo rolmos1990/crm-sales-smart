@@ -19,7 +19,8 @@
       "Bash(Remove-Item \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\check-instancia.mjs\" -ErrorAction SilentlyContinue)",
       "Bash(Write-Host \"done\")",
       "Bash(node --input-type=module)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(git commit -m ' *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\RamonOlmos\\source\\repos\\crm-sales-smart\\crm-sales-smart\\src\\app\\api\\webhooks",
