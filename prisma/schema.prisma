@@ -1057,11 +1057,11 @@ model Conversacion {
   contactoId    String
   contacto      Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
 
-  cuentaCanalId String
-  cuentaCanal   CuentaCanal @relation(fields: [cuentaCanalId], references: [id])
+  cuentaCanalId String?
+  cuentaCanal   CuentaCanal? @relation(fields: [cuentaCanalId], references: [id])
 
-  instanciaId String
-  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+  instanciaId String?
+  instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: SetNull)
 
   mensajes      MensajeConversacion[]
   oportunidades OportunidadConversacion[]

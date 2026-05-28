@@ -9,11 +9,11 @@ class BusEventos implements IBusEventos {
 
   constructor() {
     this.emisor.setMaxListeners(50);
-    if (process.env.NODE_ENV === "development") {
-      this.suscribirTodos((evento) => {
-        console.log(`[EventoBus] ${evento.tipo}`, evento.payload);
-      });
-    }
+    this.suscribirTodos((evento) => {
+      const instanciaId = (evento.payload as Record<string, unknown>).instanciaId;
+      const sufijo = instanciaId ? ` | instancia: ${instanciaId}` : "";
+      console.log(`[EventoBus] ${evento.tipo} | ${evento.ocurridoEn.toISOString()}${sufijo}`);
+    });
   }
 
   publicar<P extends Record<string, unknown>>(tipo: string, payload: P): EventoDominio<P> {

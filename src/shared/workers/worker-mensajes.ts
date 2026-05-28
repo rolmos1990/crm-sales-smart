@@ -49,11 +49,15 @@ class WorkerMensajes {
   }
 
   private async ejecutarJob(job: {
-    id: string; tipo: string; intentos: number; maxIntentos: number; instanciaId: string; payload: unknown;
+    id: string; tipo: string; intentos: number; maxIntentos: number; instanciaId: string | null; payload: unknown;
   }) {
+    const ahora = new Date().toISOString();
+    const sufijo = job.instanciaId ? ` | instancia: ${job.instanciaId}` : "";
+    console.log(`[WorkerMensajes] evento: ${job.tipo} | ${ahora}${sufijo}`);
+
     try {
       if (job.tipo === "ENVIAR_MENSAJE") {
-        await this.procesarEnvio(job.instanciaId, job.payload as Record<string, unknown>);
+        await this.procesarEnvio(job.instanciaId ?? "", job.payload as Record<string, unknown>);
       } else if (job.tipo === "PROCESAR_ENTRANTE") {
         await this.procesarEntrante(job.payload as Record<string, unknown>);
       }

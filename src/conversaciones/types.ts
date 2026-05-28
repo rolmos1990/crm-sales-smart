@@ -27,6 +27,7 @@ export interface CuentaCanalResumen {
   canal: string;
   nombre: string;
   identificador: string;
+  instanciaId?: string;
 }
 
 export interface ContactoResumen {
@@ -39,15 +40,15 @@ export interface ContactoResumen {
 
 export interface ConversacionResumen {
   id: string;
-  instanciaId: string;
+  instanciaId: string | null;
   contactoId: string;
-  cuentaCanalId: string;
+  cuentaCanalId: string | null;
   asunto: string | null;
   estado: EstadoConversacion;
   creadoEn: Date;
   actualizadoEn: Date;
   contacto: ContactoResumen;
-  cuentaCanal: CuentaCanalResumen;
+  cuentaCanal: CuentaCanalResumen | null;
   ultimoMensaje?: MensajeConMeta | null;
   oportunidades: { id: string; oportunidadId: string; conversacionId: string; esActiva: boolean; creadoEn: Date }[];
   _count?: { mensajes: number };

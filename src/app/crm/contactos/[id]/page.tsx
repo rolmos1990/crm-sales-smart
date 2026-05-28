@@ -15,7 +15,7 @@ import { obtenerActividadesPorContacto } from "@/crm/actividades/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
 import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
-import { obtenerConversacionesResumenPorContacto, obtenerCuentasCanal } from "@/conversaciones/queries";
+import { obtenerConversacionesResumenPorContacto, obtenerTodasLasCuentasCanal } from "@/conversaciones/queries";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag as TagType } from "@/crm/tags/types";
@@ -52,7 +52,7 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
   let actividades: Actividad[] = [];
   let todosLosTags: TagType[] = [];
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesResumenPorContacto>> = [];
-  let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];
+  let cuentasCanal: Awaited<ReturnType<typeof obtenerTodasLasCuentasCanal>> = [];
 
   try {
     [contacto, actividades, todosLosTags] = await Promise.all([
@@ -79,12 +79,10 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
     );
   }
 
-  const instanciaId = (contacto as any).instanciaId ?? "";
-
   try {
     [conversaciones, cuentasCanal] = await Promise.all([
       obtenerConversacionesResumenPorContacto(id),
-      instanciaId ? obtenerCuentasCanal(instanciaId) : Promise.resolve([]),
+      obtenerTodasLasCuentasCanal(),
     ]);
   } catch {
     // Conversaciones no disponibles
@@ -104,7 +102,6 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
       <div className="w-[360px] shrink-0 flex flex-col">
         <PanelConversacion
           oportunidadId=""
-          instanciaId={instanciaId}
           contactoId={id}
           nombreContacto={nombreCompleto}
           telefonoContacto={contacto.telefonoPrincipal}

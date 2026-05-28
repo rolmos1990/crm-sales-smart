@@ -61,7 +61,15 @@ export async function obtenerCuentasCanal(instanciaId: string) {
   return prisma.cuentaCanal.findMany({
     where: { instanciaId, activa: true },
     orderBy: { nombre: "asc" as const },
-    select: { id: true, canal: true, nombre: true, identificador: true },
+    select: { id: true, canal: true, nombre: true, identificador: true, instanciaId: true },
+  });
+}
+
+export async function obtenerTodasLasCuentasCanal() {
+  return prisma.cuentaCanal.findMany({
+    where: { activa: true },
+    orderBy: { nombre: "asc" as const },
+    select: { id: true, canal: true, nombre: true, identificador: true, instanciaId: true },
   });
 }
 

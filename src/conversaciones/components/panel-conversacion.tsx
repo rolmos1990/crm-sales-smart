@@ -13,7 +13,6 @@ import type { ConversacionResumen, MensajeConMeta, CuentaCanalResumen } from "..
 
 interface PanelConversacionProps {
   oportunidadId: string;
-  instanciaId: string;
   contactoId: string;
   nombreContacto: string;
   telefonoContacto?: string | null;
@@ -29,7 +28,6 @@ async function fetchMensajes(conversacionId: string): Promise<MensajeConMeta[]> 
 
 export function PanelConversacion({
   oportunidadId,
-  instanciaId,
   contactoId,
   nombreContacto,
   telefonoContacto,
@@ -55,10 +53,11 @@ export function PanelConversacion({
     staleTime: 0,
   });
 
-  // SSE: escucha mensajes nuevos y revalida
+  // SSE: escucha mensajes nuevos usando instanciaId de la conversación activa
+  const instanciaIdActivo = conversaciones.find((c) => c.id === conversacionActiva)?.instanciaId ?? null;
   useEffect(() => {
-    if (!instanciaId) return;
-    const source = new EventSource(`/api/sse/conversaciones?instanciaId=${instanciaId}`);
+    if (!instanciaIdActivo) return;
+    const source = new EventSource(`/api/sse/conversaciones?instanciaId=${instanciaIdActivo}`);
     source.addEventListener("MENSAJE_RECIBIDO", () => {
       queryClient.invalidateQueries({ queryKey: ["mensajes", conversacionActiva] });
     });
@@ -66,36 +65,30 @@ export function PanelConversacion({
       queryClient.invalidateQueries({ queryKey: ["mensajes", conversacionActiva] });
     });
     return () => source.close();
-  }, [instanciaId, conversacionActiva, queryClient]);
+  }, [instanciaIdActivo, conversacionActiva, queryClient]);
 
   const handleIniciarConversacion = () => {
-    if (!cuentaSeleccionadaId) {
-      toast.error("Selecciona un canal para iniciar la conversación");
-      return;
-    }
     startIniciando(async () => {
       const result = await iniciarConversacion({
-        instanciaId,
         contactoId,
-        cuentaCanalId: cuentaSeleccionadaId,
+        cuentaCanalId: cuentaSeleccionadaId ?? null,
       });
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      // Construir resumen mínimo para el estado local
-      const cuentaSeleccionada = cuentas.find((c) => c.id === cuentaSeleccionadaId);
+      const cuentaSeleccionada = cuentas.find((c) => c.id === cuentaSeleccionadaId) ?? null;
       const nueva: ConversacionResumen = {
         id: result.conversacionId,
-        instanciaId,
+        instanciaId: cuentaSeleccionada?.instanciaId ?? null,
         contactoId,
-        cuentaCanalId: cuentaSeleccionadaId,
+        cuentaCanalId: cuentaSeleccionadaId ?? null,
         asunto: null,
         estado: "ABIERTA",
         creadoEn: new Date(),
         actualizadoEn: new Date(),
         contacto: { id: contactoId, nombre: nombreContacto.split(" ")[0] ?? "", apellido: nombreContacto.split(" ").slice(1).join(" "), telefonoPrincipal: telefonoContacto ?? null, email: null },
-        cuentaCanal: cuentaSeleccionada ?? { id: cuentaSeleccionadaId, canal: "whatsapp_lite", nombre: "WhatsApp", identificador: "" },
+        cuentaCanal: cuentaSeleccionada,
         oportunidades: [],
         _count: { mensajes: 0 },
         ultimoMensaje: null,
@@ -139,7 +132,7 @@ export function PanelConversacion({
           <p className="text-sm font-semibold text-stone-100 truncate">{nombreContacto}</p>
           {conversacionActiva && conversaciones.find(c => c.id === conversacionActiva)?.cuentaCanal && (
             <p className="text-[10px] text-stone-500 truncate">
-              {conversaciones.find(c => c.id === conversacionActiva)?.cuentaCanal.nombre}
+              {conversaciones.find(c => c.id === conversacionActiva)?.cuentaCanal?.nombre}
             </p>
           )}
         </div>
@@ -155,7 +148,7 @@ export function PanelConversacion({
               type="button"
               onClick={() => {
                 setConversacionActiva(conv.id);
-                setCuentaSeleccionadaId(conv.cuentaCanalId);
+                setCuentaSeleccionadaId(conv.cuentaCanalId ?? null);
               }}
               className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap transition-colors ${
                 conversacionActiva === conv.id
@@ -163,7 +156,7 @@ export function PanelConversacion({
                   : "bg-white/5 text-stone-400 hover:text-stone-200"
               }`}
             >
-              {conv.cuentaCanal.nombre}
+              {conv.cuentaCanal?.nombre ?? "Sin canal"}
             </button>
           ))}
         </div>
@@ -188,36 +181,37 @@ export function PanelConversacion({
             </p>
           </div>
 
-          {cuentas.length === 0 ? (
-            <p className="text-xs text-stone-600 text-center px-4">
-              Sin canales configurados. Ve a Integraciones para conectar WhatsApp u otro canal.
-            </p>
-          ) : (
-            <div className="w-full space-y-3">
-              {/* Selector de canal prominente */}
+          <div className="w-full space-y-3">
+            {cuentas.length > 0 && (
               <div className="rounded-xl border border-white/10 bg-white/3 p-3 space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Canal</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Canal (opcional)</p>
                 <SelectorCuentaCanal
                   cuentas={cuentas}
                   seleccionada={cuentaSeleccionadaId}
                   onSeleccionar={setCuentaSeleccionadaId}
                 />
               </div>
+            )}
 
-              <button
-                type="button"
-                onClick={handleIniciarConversacion}
-                disabled={!cuentaSeleccionadaId || iniciando}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-lime-500/90 text-stone-950 text-sm font-semibold hover:bg-lime-400 transition-all shadow-lg hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {iniciando ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Iniciando…</>
-                ) : (
-                  <><Plus className="h-4 w-4" /> Iniciar conversación</>
-                )}
-              </button>
-            </div>
-          )}
+            <button
+              type="button"
+              onClick={handleIniciarConversacion}
+              disabled={iniciando}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-lime-500/90 text-stone-950 text-sm font-semibold hover:bg-lime-400 transition-all shadow-lg hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {iniciando ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Iniciando…</>
+              ) : (
+                <><Plus className="h-4 w-4" /> Iniciar conversación</>
+              )}
+            </button>
+
+            {cuentas.length === 0 && (
+              <p className="text-[10px] text-stone-600 text-center">
+                Sin canales. Ve a Integraciones para conectar WhatsApp u otro canal.
+              </p>
+            )}
+          </div>
         </div>
       )}
 

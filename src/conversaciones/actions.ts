@@ -112,47 +112,62 @@ export async function procesarMensajeEntrante(
 // ── Iniciar conversación manual (agente inicia el contacto) ────────────────
 
 export async function iniciarConversacion(input: {
-  instanciaId: string;
   contactoId: string;
-  cuentaCanalId: string;
+  cuentaCanalId?: string | null;
 }): Promise<{ ok: true; conversacionId: string } | { ok: false; error: string }> {
   try {
+    // Resolver instanciaId desde el canal seleccionado (si aplica)
+    let instanciaId: string | null = null;
+    if (input.cuentaCanalId) {
+      const cuenta = await prisma.cuentaCanal.findUnique({
+        where: { id: input.cuentaCanalId },
+        select: { instanciaId: true },
+      });
+      instanciaId = cuenta?.instanciaId ?? null;
+    }
+
     // Reusar conversación abierta si ya existe para este contacto + canal
     const existente = await prisma.conversacion.findFirst({
-      where: { contactoId: input.contactoId, cuentaCanalId: input.cuentaCanalId, estado: "ABIERTA" },
-    });
-
-    const conversacion = existente ?? await prisma.conversacion.create({
-      data: {
-        instanciaId: input.instanciaId,
+      where: {
         contactoId: input.contactoId,
-        cuentaCanalId: input.cuentaCanalId,
+        cuentaCanalId: input.cuentaCanalId ?? undefined,
         estado: "ABIERTA",
       },
     });
 
-    // Registrar identificador de canal del contacto para que los webhooks entrantes lo reconozcan
-    const [cuentaCanal, contacto] = await Promise.all([
-      prisma.cuentaCanal.findUnique({ where: { id: input.cuentaCanalId }, select: { canal: true } }),
-      prisma.contacto.findUnique({ where: { id: input.contactoId }, select: { telefonoPrincipal: true, email: true } }),
-    ]);
+    const conversacion = existente ?? await prisma.conversacion.create({
+      data: {
+        contactoId: input.contactoId,
+        cuentaCanalId: input.cuentaCanalId ?? undefined,
+        instanciaId: instanciaId ?? undefined,
+        estado: "ABIERTA",
+      },
+    });
 
-    if (cuentaCanal && contacto) {
-      const canalBase = cuentaCanal.canal.replace("_lite", "").replace("_business", "");
-      const identificador = canalBase === "email" ? contacto.email : contacto.telefonoPrincipal;
-      if (identificador) {
-        await prisma.contactoIdentificadorCanal.upsert({
-          where: { canal_identificador_instanciaId: { canal: canalBase, identificador, instanciaId: input.instanciaId } },
-          create: { canal: canalBase, identificador, contactoId: input.contactoId, instanciaId: input.instanciaId },
-          update: {},
-        });
+    // Registrar identificador de canal del contacto solo si hay canal activo
+    if (input.cuentaCanalId && instanciaId) {
+      const [cuentaCanal, contacto] = await Promise.all([
+        prisma.cuentaCanal.findUnique({ where: { id: input.cuentaCanalId }, select: { canal: true } }),
+        prisma.contacto.findUnique({ where: { id: input.contactoId }, select: { telefonoPrincipal: true, email: true } }),
+      ]);
+
+      if (cuentaCanal && contacto) {
+        const canalBase = cuentaCanal.canal.replace("_lite", "").replace("_business", "");
+        const identificador = canalBase === "email" ? contacto.email : contacto.telefonoPrincipal;
+        if (identificador) {
+          await prisma.contactoIdentificadorCanal.upsert({
+            where: { canal_identificador_instanciaId: { canal: canalBase, identificador, instanciaId } },
+            create: { canal: canalBase, identificador, contactoId: input.contactoId, instanciaId },
+            update: {},
+          });
+        }
       }
     }
 
     if (!existente) {
       busEventos.publicar(TIPOS_EVENTO.CONVERSACION_CREADA, {
         conversacionId: conversacion.id,
-        instanciaId: input.instanciaId,
+        instanciaId: instanciaId ?? "",
         contactoId: input.contactoId,
       });
     }
@@ -199,14 +214,16 @@ export async function enviarMensaje(input: {
   });
 
   // Notificar SSE de inmediato para que el panel lo muestre sin esperar al worker
-  busEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, {
-    mensajeId: mensaje.id,
-    conversacionId: validado.conversacionId,
-    instanciaId: conversacion.instanciaId,
-  });
+  if (conversacion.instanciaId) {
+    busEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, {
+      mensajeId: mensaje.id,
+      conversacionId: validado.conversacionId,
+      instanciaId: conversacion.instanciaId,
+    });
+  }
 
-  // Encolar job asíncrono para la entrega real por el canal (solo si no es nota interna)
-  if (!validado.esNotaInterna) {
+  // Encolar job asíncrono para la entrega real solo si hay canal configurado
+  if (!validado.esNotaInterna && conversacion.cuentaCanalId && conversacion.instanciaId && conversacion.cuentaCanal) {
     await prisma.jobMensaje.create({
       data: {
         tipo: "ENVIAR_MENSAJE",

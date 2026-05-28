@@ -20,7 +20,7 @@ import { obtenerActividadesPorOportunidad } from "@/crm/actividades/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
 import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
-import { obtenerConversacionesPorOportunidad, obtenerCuentasCanal } from "@/conversaciones/queries";
+import { obtenerConversacionesPorOportunidad, obtenerTodasLasCuentasCanal } from "@/conversaciones/queries";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag } from "@/crm/tags/types";
@@ -33,7 +33,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   let actividades: Actividad[] = [];
   let todosLosTags: Tag[] = [];
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesPorOportunidad>> = [];
-  let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];
+  let cuentasCanal: Awaited<ReturnType<typeof obtenerTodasLasCuentasCanal>> = [];
 
   try {
     [oportunidad, actividades, todosLosTags] = await Promise.all([
@@ -60,10 +60,9 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
 
   // Cargar datos de conversaciones (no bloquea si falla)
   try {
-    const instanciaId = (oportunidad as any).instanciaId;
     [conversaciones, cuentasCanal] = await Promise.all([
       obtenerConversacionesPorOportunidad(id),
-      instanciaId ? obtenerCuentasCanal(instanciaId) : Promise.resolve([]),
+      obtenerTodasLasCuentasCanal(),
     ]);
   } catch {
     // Conversaciones aún no disponibles
@@ -78,7 +77,6 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   const empresa = (oportunidad as any).empresa ?? null;
 
   const contactoPrincipal = contactos.find((r: any) => r.principal)?.contacto ?? contactos[0]?.contacto ?? null;
-  const instanciaId = (oportunidad as any).instanciaId ?? "";
 
   const diasHastaCierre = oportunidad.fechaCierre
     ? Math.ceil((new Date(oportunidad.fechaCierre).getTime() - Date.now()) / 86400000)
@@ -101,10 +99,9 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
       <div className="w-[360px] shrink-0 flex flex-col">
         <PanelConversacion
           oportunidadId={id}
-          instanciaId={instanciaId}
           contactoId={contactoPrincipal?.id ?? ""}
           nombreContacto={contactoPrincipal ? `${contactoPrincipal.nombre} ${contactoPrincipal.apellido}`.trim() : "Sin contacto"}
-          cuentas={cuentasCanal.map((c) => ({ id: c.id, canal: c.canal, nombre: c.nombre, identificador: c.identificador }))}
+          cuentas={cuentasCanal}
           conversacionesIniciales={conversaciones}
         />
       </div>
