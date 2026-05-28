@@ -10,6 +10,7 @@ import {
   TrendingUp,
   CalendarCheck,
   KanbanSquare,
+  MessageSquare,
   FileText,
   Package,
   ShoppingCart,
@@ -28,6 +29,7 @@ const NAVEGACION = [
     items: [
       { href: "/crm", etiqueta: "Dashboard", Icono: LayoutDashboard, exact: true },
       { href: "/crm/pipeline", etiqueta: "Pipeline", Icono: KanbanSquare },
+      { href: "/crm/inbox", etiqueta: "Inbox", Icono: MessageSquare },
       { href: "/crm/contactos", etiqueta: "Contactos", Icono: Users },
       { href: "/crm/empresas", etiqueta: "Empresas", Icono: Building2 },
       { href: "/crm/oportunidades", etiqueta: "Oportunidades", Icono: TrendingUp },

@@ -28,6 +28,7 @@ export async function procesarMensajeEntrante(
         apellido: "",
         instanciaId,
         estado: "LEAD",
+        ...(canal !== "email" ? { telefonoPrincipal: identificadorContacto } : {}),
       },
     });
     identificador = await prisma.contactoIdentificadorCanal.create({
@@ -57,7 +58,7 @@ export async function procesarMensajeEntrante(
   }
 
   // 5. Buscar oportunidad activa del contacto en esta instancia
-  const oportunidadActiva = await prisma.oportunidad.findFirst({
+  let oportunidadActiva = await prisma.oportunidad.findFirst({
     where: {
       instanciaId,
       etapa: { notIn: ["GANADO", "PERDIDO"] },
@@ -66,13 +67,27 @@ export async function procesarMensajeEntrante(
     orderBy: { actualizadoEn: "desc" },
   });
 
-  // 6. Asociar conversación ↔ oportunidad si no está ya asociada
+  // 6. Asociar conversación ↔ oportunidad, o crear una nueva si no existe ninguna activa
   if (oportunidadActiva) {
     await prisma.oportunidadConversacion.upsert({
       where: { oportunidadId_conversacionId: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id } },
       create: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id, esActiva: true },
       update: { esActiva: true },
     });
+  } else {
+    const count = await prisma.oportunidad.count({ where: { instanciaId } });
+    oportunidadActiva = await prisma.oportunidad.create({
+      data: {
+        titulo: `Oportunidad #${count + 1}`,
+        etapa: "PROSPECTO",
+        valor: 0,
+        instanciaId,
+        contactos: { create: { contactoId, principal: true } },
+        conversaciones: { create: { conversacionId: conversacion.id, esActiva: true } },
+      },
+    });
+    revalidatePath("/crm/oportunidades");
+    revalidatePath("/crm/pipeline");
   }
 
   // 7. Guardar mensaje
@@ -244,4 +259,21 @@ export async function enviarMensaje(input: {
 
   revalidatePath(`/crm/oportunidades`);
   return { ok: true, mensaje };
+}
+
+// ── Cerrar conversación ─────────────────────────────────────────────────────
+
+export async function cerrarConversacion(
+  conversacionId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await prisma.conversacion.update({
+      where: { id: conversacionId },
+      data: { estado: "CERRADA" },
+    });
+    revalidatePath("/crm/inbox");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al cerrar la conversación" };
+  }
 }
