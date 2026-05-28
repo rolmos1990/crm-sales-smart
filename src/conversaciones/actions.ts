@@ -5,7 +5,6 @@ import { prisma } from "@/shared/db/prisma";
 import { busEventos } from "@/shared/eventos/bus";
 import { TIPOS_EVENTO } from "@/shared/eventos/registro";
 import { EnviarMensajeSchema } from "./schema";
-import { obtenerProvider } from "./providers/registry";
 import type { MensajeEntranteNormalizado } from "./types";
 
 // ── Procesar mensaje entrante desde webhook ─────────────────────────────────
@@ -110,6 +109,60 @@ export async function procesarMensajeEntrante(
   return { mensaje, conversacion };
 }
 
+// ── Iniciar conversación manual (agente inicia el contacto) ────────────────
+
+export async function iniciarConversacion(input: {
+  instanciaId: string;
+  contactoId: string;
+  cuentaCanalId: string;
+}): Promise<{ ok: true; conversacionId: string } | { ok: false; error: string }> {
+  try {
+    // Reusar conversación abierta si ya existe para este contacto + canal
+    const existente = await prisma.conversacion.findFirst({
+      where: { contactoId: input.contactoId, cuentaCanalId: input.cuentaCanalId, estado: "ABIERTA" },
+    });
+
+    const conversacion = existente ?? await prisma.conversacion.create({
+      data: {
+        instanciaId: input.instanciaId,
+        contactoId: input.contactoId,
+        cuentaCanalId: input.cuentaCanalId,
+        estado: "ABIERTA",
+      },
+    });
+
+    // Registrar identificador de canal del contacto para que los webhooks entrantes lo reconozcan
+    const [cuentaCanal, contacto] = await Promise.all([
+      prisma.cuentaCanal.findUnique({ where: { id: input.cuentaCanalId }, select: { canal: true } }),
+      prisma.contacto.findUnique({ where: { id: input.contactoId }, select: { telefonoPrincipal: true, email: true } }),
+    ]);
+
+    if (cuentaCanal && contacto) {
+      const canalBase = cuentaCanal.canal.replace("_lite", "").replace("_business", "");
+      const identificador = canalBase === "email" ? contacto.email : contacto.telefonoPrincipal;
+      if (identificador) {
+        await prisma.contactoIdentificadorCanal.upsert({
+          where: { canal_identificador_instanciaId: { canal: canalBase, identificador, instanciaId: input.instanciaId } },
+          create: { canal: canalBase, identificador, contactoId: input.contactoId, instanciaId: input.instanciaId },
+          update: {},
+        });
+      }
+    }
+
+    if (!existente) {
+      busEventos.publicar(TIPOS_EVENTO.CONVERSACION_CREADA, {
+        conversacionId: conversacion.id,
+        instanciaId: input.instanciaId,
+        contactoId: input.contactoId,
+      });
+    }
+
+    return { ok: true, conversacionId: conversacion.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al iniciar conversación" };
+  }
+}
+
 // ── Enviar mensaje saliente ─────────────────────────────────────────────────
 
 export async function enviarMensaje(input: {
@@ -126,30 +179,15 @@ export async function enviarMensaje(input: {
     include: { cuentaCanal: true, contacto: true },
   });
 
-  let idExterno: string | undefined;
-
-  if (!validado.esNotaInterna) {
-    const provider = obtenerProvider(conversacion.cuentaCanal.canal);
-    if (provider) {
-      const result = await provider.enviarMensaje({
-        destinatario: conversacion.contacto.telefonoPrincipal ?? conversacion.contacto.email ?? "",
-        contenido: validado.contenido,
-        tipo: validado.tipo as Parameters<typeof provider.enviarMensaje>[0]["tipo"],
-        configuracion: conversacion.cuentaCanal.configuracion as Record<string, unknown>,
-      });
-      idExterno = result.idExterno;
-    }
-  }
-
+  // Crear mensaje en BD de inmediato (optimistic — el agente lo ve al instante)
   const mensaje = await prisma.mensajeConversacion.create({
     data: {
       conversacionId: validado.conversacionId,
       contenido: validado.contenido ?? null,
       tipo: validado.tipo,
       remitente: validado.esNotaInterna ? "SISTEMA" : "AGENTE",
-      estado: validado.esNotaInterna ? "ENVIADO" : "ENVIADO",
+      estado: "ENVIADO",
       esNotaInterna: validado.esNotaInterna,
-      idExterno: idExterno ?? null,
       usuarioId: input.usuarioId ?? null,
       enviadoEn: new Date(),
     },
@@ -160,11 +198,32 @@ export async function enviarMensaje(input: {
     data: { actualizadoEn: new Date() },
   });
 
+  // Notificar SSE de inmediato para que el panel lo muestre sin esperar al worker
   busEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, {
     mensajeId: mensaje.id,
     conversacionId: validado.conversacionId,
     instanciaId: conversacion.instanciaId,
   });
+
+  // Encolar job asíncrono para la entrega real por el canal (solo si no es nota interna)
+  if (!validado.esNotaInterna) {
+    await prisma.jobMensaje.create({
+      data: {
+        tipo: "ENVIAR_MENSAJE",
+        instanciaId: conversacion.instanciaId,
+        payload: {
+          mensajeId: mensaje.id,
+          conversacionId: validado.conversacionId,
+          contenido: validado.contenido,
+          tipo: validado.tipo,
+          destinatario: conversacion.contacto.telefonoPrincipal ?? conversacion.contacto.email ?? "",
+          canal: conversacion.cuentaCanal.canal,
+          cuentaCanalId: conversacion.cuentaCanalId,
+          instanciaId: conversacion.instanciaId,
+        },
+      },
+    });
+  }
 
   revalidatePath(`/crm/oportunidades`);
   return { ok: true, mensaje };

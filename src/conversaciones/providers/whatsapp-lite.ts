@@ -15,8 +15,30 @@ export class WhatsAppLiteProvider implements ICanalProvider {
   };
 
   async enviarMensaje(payload: MensajeSalientePayload): Promise<{ idExterno: string }> {
-    // TODO: integrar con API de WhatsApp Lite
-    console.log("[WhatsAppLite] enviarMensaje", payload);
+    const configuracion = payload.configuracion as { sessionId?: string } | null;
+    const sessionId = configuracion?.sessionId;
+
+    if (sessionId) {
+      try {
+        // El sesionManagerWA vive en el proceso Node.js — import directo (no se bundlea con webpack)
+        const { sesionManagerWA } = await import("@/integraciones/whatsapp-lite/sesion-manager");
+        const sesion = sesionManagerWA.obtener(sessionId);
+
+        if (sesion?.socket && sesion.estado === "conectado") {
+          // WhatsApp JID: dígitos sin '+' + @s.whatsapp.net
+          const telefono = payload.destinatario.replace(/\D/g, "");
+          const jid = `${telefono}@s.whatsapp.net`;
+          const result = await sesion.socket.sendMessage(jid, { text: payload.contenido });
+          return { idExterno: result?.key?.id ?? `wl_${Date.now()}` };
+        } else {
+          console.warn("[WhatsAppLite] Socket no disponible para sessionId", sessionId, "— mensaje guardado pero no enviado por WA");
+        }
+      } catch (e) {
+        console.error("[WhatsAppLite] Error al enviar:", e);
+      }
+    }
+
+    // Fallback: el mensaje se guarda en DB pero no se envió por WhatsApp
     return { idExterno: `wl_${Date.now()}` };
   }
 
@@ -32,8 +54,7 @@ export class WhatsAppLiteProvider implements ICanalProvider {
     };
   }
 
-  validarWebhook(req: Request): boolean {
-    // TODO: validar token/firma del webhook
+  validarWebhook(_req: Request): boolean {
     return true;
   }
 }

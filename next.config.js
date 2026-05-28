@@ -7,6 +7,8 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Baileys y dependencias nativas deben correr en Node.js, no en el bundler de webpack
+  serverExternalPackages: ["@whiskeysockets/baileys", "pino", "pino-pretty"],
 };
 
 module.exports = nextConfig;

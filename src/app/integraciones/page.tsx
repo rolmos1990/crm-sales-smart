@@ -7,10 +7,11 @@ export default async function IntegracionesPage() {
   // Intentar cargar integraciones instaladas — puede no haber DB configurada aún
   let instaladas: { id: string; clave: string; estado: string }[] = [];
   try {
-    const { obtenerIntegracionesInstaladas } = await import("@/integraciones/queries");
-    instaladas = await obtenerIntegracionesInstaladas("default") as typeof instaladas;
+    const { obtenerInstanciaActiva, obtenerIntegracionesInstaladas } = await import("@/integraciones/queries");
+    const instanciaId = await obtenerInstanciaActiva();
+    instaladas = await obtenerIntegracionesInstaladas(instanciaId) as typeof instaladas;
   } catch {
-    // DB no disponible — se muestra el catálogo vacío igualmente
+    // DB no disponible o sin instancia activa — se muestra el catálogo vacío igualmente
   }
 
   const integraciones: IntegracionConEstado[] = CATALOGO_INTEGRACIONES.map((item) => {

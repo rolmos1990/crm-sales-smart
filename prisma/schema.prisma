@@ -195,6 +195,7 @@ model Instancia {
   cuentasCanal         CuentaCanal[]
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
+  jobsMensaje          JobMensaje[]
 
   @@index([slug])
   @@index([estado])
@@ -1114,4 +1115,39 @@ model OportunidadConversacion {
   @@unique([oportunidadId, conversacionId])
   @@index([oportunidadId])
   @@index([conversacionId])
+}
+
+// =====================
+// JOB QUEUE - MENSAJES
+// =====================
+
+enum TipoJobMensaje {
+  ENVIAR_MENSAJE
+  PROCESAR_ENTRANTE
+}
+
+enum EstadoJobMensaje {
+  PENDIENTE
+  PROCESANDO
+  COMPLETADO
+  FALLIDO
+}
+
+// Cola de jobs para envío/recepción asíncrona de mensajes por cualquier canal
+model JobMensaje {
+  id          String           @id @default(cuid())
+  tipo        TipoJobMensaje
+  estado      EstadoJobMensaje @default(PENDIENTE)
+  payload     Json
+  intentos    Int              @default(0)
+  maxIntentos Int              @default(3)
+  error       String?
+  creadoEn    DateTime         @default(now())
+  procesadoEn DateTime?
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id])
+
+  @@index([estado, creadoEn])
+  @@index([instanciaId])
 }

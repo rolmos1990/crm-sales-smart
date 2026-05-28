@@ -107,6 +107,7 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
           instanciaId={instanciaId}
           contactoId={id}
           nombreContacto={nombreCompleto}
+          telefonoContacto={contacto.telefonoPrincipal}
           cuentas={cuentasCanal}
           conversacionesIniciales={conversaciones}
         />

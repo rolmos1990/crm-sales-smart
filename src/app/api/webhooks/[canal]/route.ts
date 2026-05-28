@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
-import { procesarMensajeEntrante } from "@/conversaciones/actions";
 import { prisma } from "@/shared/db/prisma";
 
 export async function POST(
@@ -27,7 +26,6 @@ export async function POST(
 
   const normalizado = provider.mapearEntrante(raw);
 
-  // Resolver instanciaId desde cuentaCanalId
   const cuentaCanal = await prisma.cuentaCanal.findUnique({
     where: { id: normalizado.cuentaCanalId },
     select: { instanciaId: true },
@@ -37,7 +35,14 @@ export async function POST(
     return NextResponse.json({ error: "Cuenta de canal no encontrada" }, { status: 404 });
   }
 
-  await procesarMensajeEntrante({ ...normalizado, instanciaId: cuentaCanal.instanciaId });
+  // Encolar job — el worker procesa de forma asíncrona, el webhook responde de inmediato
+  await prisma.jobMensaje.create({
+    data: {
+      tipo: "PROCESAR_ENTRANTE",
+      instanciaId: cuentaCanal.instanciaId,
+      payload: { ...normalizado, instanciaId: cuentaCanal.instanciaId },
+    },
+  });
 
   return NextResponse.json({ ok: true });
 }

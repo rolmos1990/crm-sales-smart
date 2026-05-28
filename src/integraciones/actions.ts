@@ -2,13 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { obtenerInstanciaActiva } from "./queries";
 
-// instanciaId fijo por ahora — cuando se implemente auth multi-tenant,
-// se obtiene del contexto de sesión.
-const INSTANCIA_ID_DEFAULT = "default";
-
-export async function instalarIntegracion(clave: string, instanciaId = INSTANCIA_ID_DEFAULT) {
+export async function instalarIntegracion(clave: string) {
   try {
+    const instanciaId = await obtenerInstanciaActiva();
     await prisma.integracionInstancia.upsert({
       where:  { instanciaId_clave: { instanciaId, clave } },
       update: { estado: "INSTALADA" },
@@ -16,8 +14,9 @@ export async function instalarIntegracion(clave: string, instanciaId = INSTANCIA
     });
     revalidatePath("/integraciones");
     return { exito: true as const };
-  } catch {
-    return { exito: false as const, error: "Error al instalar la integración" };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al instalar la integración";
+    return { exito: false as const, error: msg };
   }
 }
 

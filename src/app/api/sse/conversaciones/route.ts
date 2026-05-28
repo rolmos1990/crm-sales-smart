@@ -3,12 +3,20 @@ import { busEventos } from "@/shared/eventos/bus";
 import { TIPOS_EVENTO } from "@/shared/eventos/registro";
 import type { MensajeRecibidoPayload, MensajeEnviadoPayload } from "@/shared/eventos/registro";
 import type { EventoDominio } from "@/shared/eventos/types";
+import { workerMensajes } from "@/shared/workers/worker-mensajes";
+import { reconectarSesionesWA } from "@/integraciones/whatsapp-lite/reconectar";
+
+export const runtime = "nodejs";
 
 // Conecta el bus de eventos al manejador SSE una sola vez por proceso
 let puenteInicializado = false;
 function inicializarPuente() {
   if (puenteInicializado) return;
   puenteInicializado = true;
+
+  // Arrancar worker de jobs y reconexión WA (idempotente — solo se ejecutan una vez)
+  workerMensajes.iniciar();
+  reconectarSesionesWA();
 
   busEventos.suscribir<MensajeRecibidoPayload>(TIPOS_EVENTO.MENSAJE_RECIBIDO, (evento: EventoDominio<MensajeRecibidoPayload>) => {
     manejadorSSE.emitir(evento.payload.instanciaId, TIPOS_EVENTO.MENSAJE_RECIBIDO, evento.payload);

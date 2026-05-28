@@ -13,7 +13,13 @@
       "Bash(Get-ChildItem -Recurse \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\crm\" -Directory)",
       "Bash(Select-Object FullName)",
       "Bash(mkdir -p \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\app\\\\api\\\\sse\\\\conversaciones\" 2>&1; mkdir -p \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\app\\\\api\\\\webhooks\\\\[canal]\" 2>&1; echo \"dirs created\")",
-      "Bash(mkdir -p \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\app\\\\api\\\\conversaciones\\\\[id]\\\\mensajes\" && mkdir -p \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\app\\\\api\\\\conversaciones\\\\historial\" && echo \"done\")"
+      "Bash(mkdir -p \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\app\\\\api\\\\conversaciones\\\\[id]\\\\mensajes\" && mkdir -p \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\app\\\\api\\\\conversaciones\\\\historial\" && echo \"done\")",
+      "PowerShell($env:PGPASSWORD = \"kW8!Ty.om0n3\"; & psql -h localhost -U crm_sales_smart_user -d crm_sales_smart_dev -c 'SELECT id, nombre, estado FROM \"Instancia\" LIMIT 10;')",
+      "Bash(node check-instancia.mjs)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\check-instancia.mjs\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"done\")",
+      "Bash(node --input-type=module)",
+      "Bash(node -e ' *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\RamonOlmos\\source\\repos\\crm-sales-smart\\crm-sales-smart\\src\\app\\api\\webhooks",
