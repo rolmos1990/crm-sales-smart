@@ -28,6 +28,7 @@ import {
   actualizarOportunidad,
   actualizarMetadataOportunidad,
   eliminarOportunidad,
+  marcarMensajeLeido,
 } from "../actions";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { obtenerTagsAction } from "@/crm/tags/actions";
@@ -175,6 +176,8 @@ export function WorkspaceOportunidad({
       });
       setResetKey((k) => k + 1);
       setCargando(false);
+      // Marcar mensajes como leídos cuando el agente abre el workspace
+      marcarMensajeLeido(oportunidadId);
     });
   }, [oportunidadId]);
 

@@ -140,6 +140,12 @@ function TarjetaOportunidad({
               }}
             />
           </div>
+          {oportunidad.nuevoMensaje && (
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime-500" />
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -314,6 +320,7 @@ export function PipelineKanbanDinamico({
           stageId: nuevoStageId,
           pipelineId: pipeline.id,
           probabilidad: nuevoStage?.probabilidad ?? oportunidad.probabilidad,
+          nuevoMensaje: oportunidad.nuevoMensaje,
         },
         ...(next.get(nuevoStageId) ?? []),
       ]);
@@ -353,6 +360,7 @@ export function PipelineKanbanDinamico({
           fechaCierre: updated.fechaCierre,
           stageId: updated.stageId ?? null,
           pipelineId: updated.pipelineId ?? pipeline.id,
+          nuevoMensaje: false,
           empresa: updated.empresa,
           tags: updated.tags ?? tagsExistentes,
         },

@@ -59,6 +59,7 @@ export interface OportunidadEnStage {
   fechaCierre: Date | null;
   stageId: string | null;
   pipelineId: string | null;
+  nuevoMensaje: boolean;
   empresa: { id: string; nombre: string } | null;
   tags: Array<{ tagId: string; tag: { id: string; nombre: string; color: string | null } }>;
 }

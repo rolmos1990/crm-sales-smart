@@ -72,6 +72,7 @@ export function PanelConversacion({
       const result = await iniciarConversacion({
         contactoId,
         cuentaCanalId: cuentaSeleccionadaId ?? null,
+        oportunidadId,
       });
       if (!result.ok) {
         toast.error(result.error);

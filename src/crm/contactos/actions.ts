@@ -3,8 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
+import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { CrearContactoSchema, ActualizarContactoSchema } from "./schema";
 import type { ResultadoAccion, Contacto } from "./types";
+
+const telNorm = (tel: string | undefined | null): string | null => {
+  if (!tel) return null;
+  const conPlus = tel.trimStart().startsWith("+");
+  const digits = normalizarTelefono(tel);
+  return digits ? (conPlus ? `+${digits}` : digits) : null;
+};
 
 export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Contacto>> {
   const validado = CrearContactoSchema.safeParse(datos);
@@ -18,8 +26,8 @@ export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Con
       data: {
         ...resto,
         email: email || null,
-        telefonoPrincipal: telefonoPrincipal || null,
-        telefonoSecundario: telefonoSecundario || null,
+        telefonoPrincipal: telNorm(telefonoPrincipal),
+        telefonoSecundario: telNorm(telefonoSecundario),
         cargo: cargo || null,
         notas: notas || null,
         empresaId: empresaId || null,
@@ -58,8 +66,8 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
       data: {
         ...resto,
         ...(email !== undefined && { email: email || null }),
-        ...(telefonoPrincipal !== undefined && { telefonoPrincipal: telefonoPrincipal || null }),
-        ...(telefonoSecundario !== undefined && { telefonoSecundario: telefonoSecundario || null }),
+        ...(telefonoPrincipal !== undefined && { telefonoPrincipal: telNorm(telefonoPrincipal) }),
+        ...(telefonoSecundario !== undefined && { telefonoSecundario: telNorm(telefonoSecundario) }),
         ...(cargo !== undefined && { cargo: cargo || null }),
         ...(notas !== undefined && { notas: notas || null }),
         ...(empresaId !== undefined && { empresaId: empresaId || null }),
@@ -87,6 +95,12 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
   } catch {
     return { exito: false, error: "Error al actualizar el contacto" };
   }
+}
+
+export async function buscarContactosAction(query: string) {
+  if (!query.trim()) return [];
+  const { buscarContactos } = await import("./queries");
+  return buscarContactos(query);
 }
 
 export async function obtenerContactoAction(id: string) {

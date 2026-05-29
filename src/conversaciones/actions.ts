@@ -5,6 +5,7 @@ import { prisma } from "@/shared/db/prisma";
 import { busEventos } from "@/shared/eventos/bus";
 import { TIPOS_EVENTO } from "@/shared/eventos/registro";
 import { EnviarMensajeSchema } from "./schema";
+import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import type { MensajeEntranteNormalizado } from "./types";
 
 // ── Procesar mensaje entrante desde webhook ─────────────────────────────────
@@ -12,7 +13,7 @@ import type { MensajeEntranteNormalizado } from "./types";
 export async function procesarMensajeEntrante(
   payload: MensajeEntranteNormalizado & { instanciaId: string }
 ) {
-  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno } = payload;
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName } = payload;
 
   // 1. Buscar contacto por identificador de canal
   let identificador = await prisma.contactoIdentificadorCanal.findUnique({
@@ -20,32 +21,74 @@ export async function procesarMensajeEntrante(
     include: { contacto: true },
   });
 
-  // 2. Si no existe, crear contacto y registrar identificador
+  // 2. Si no existe el mapping, buscar contacto por teléfono antes de crear uno nuevo
   if (!identificador) {
-    const contacto = await prisma.contacto.create({
-      data: {
-        nombre: identificadorContacto,
-        apellido: "",
-        instanciaId,
-        estado: "LEAD",
-        ...(canal !== "email" ? { telefonoPrincipal: identificadorContacto } : {}),
-      },
-    });
-    identificador = await prisma.contactoIdentificadorCanal.create({
-      data: { canal, identificador: identificadorContacto, contactoId: contacto.id, instanciaId },
-      include: { contacto: true },
+    const soloNumeros = normalizarTelefono(identificadorContacto);
+
+    const contactoExistente = soloNumeros
+      ? await prisma.contacto.findFirst({
+          where: {
+            instanciaId,
+            OR: [
+              { telefonoPrincipal: identificadorContacto },
+              { telefonoPrincipal: soloNumeros },
+              { telefonoPrincipal: `+${soloNumeros}` },
+              { telefonoSecundario: identificadorContacto },
+              { telefonoSecundario: soloNumeros },
+              { telefonoSecundario: `+${soloNumeros}` },
+            ],
+          },
+        })
+      : null;
+
+    if (contactoExistente) {
+      // Crear el mapping para que futuras búsquedas sean O(1)
+      identificador = await prisma.contactoIdentificadorCanal.create({
+        data: { canal, identificador: identificadorContacto, contactoId: contactoExistente.id, instanciaId },
+        include: { contacto: true },
+      });
+    } else {
+      // Si no hay pushName, crear contacto placeholder sin nombre para que el agente lo identifique
+      const nombreInicial = pushName ?? "";
+      const telefonoGuardar = canal !== "email"
+        ? (soloNumeros ? `+${soloNumeros}` : identificadorContacto)
+        : null;
+
+      const contacto = await prisma.contacto.create({
+        data: {
+          nombre: nombreInicial,
+          apellido: "",
+          instanciaId,
+          estado: "LEAD",
+          ...(telefonoGuardar ? { telefonoPrincipal: telefonoGuardar } : {}),
+        },
+      });
+      identificador = await prisma.contactoIdentificadorCanal.create({
+        data: { canal, identificador: identificadorContacto, contactoId: contacto.id, instanciaId },
+        include: { contacto: true },
+      });
+    }
+  }
+
+  // Auto-actualizar nombre si el contacto es placeholder y tenemos pushName
+  if (pushName && identificador.contacto.nombre === "") {
+    await prisma.contacto.update({
+      where: { id: identificador.contacto.id },
+      data: { nombre: pushName },
     });
   }
 
   const contactoId = identificador.contacto.id;
 
   // 3. Buscar conversación abierta para contacto + cuenta canal
+  let conversacionEsNueva = false;
   let conversacion = await prisma.conversacion.findFirst({
     where: { contactoId, cuentaCanalId, estado: "ABIERTA" },
   });
 
   // 4. Si no existe, crear conversación nueva
   if (!conversacion) {
+    conversacionEsNueva = true;
     conversacion = await prisma.conversacion.create({
       data: { contactoId, cuentaCanalId, instanciaId, estado: "ABIERTA" },
     });
@@ -57,32 +100,98 @@ export async function procesarMensajeEntrante(
     });
   }
 
-  // 5. Buscar oportunidad activa del contacto en esta instancia
-  let oportunidadActiva = await prisma.oportunidad.findFirst({
-    where: {
-      instanciaId,
-      etapa: { notIn: ["GANADO", "PERDIDO"] },
-      contactos: { some: { contactoId } },
-    },
-    orderBy: { actualizadoEn: "desc" },
-  });
+  // 5. Buscar oportunidad activa:
+  //    Primero a través de la conversación existente (soporta ops sin contacto vinculado),
+  //    luego por contacto como fallback para compatibilidad.
+  let oportunidadActiva = null;
+
+  if (!conversacionEsNueva) {
+    const opConv = await prisma.oportunidadConversacion.findFirst({
+      where: {
+        conversacionId: conversacion.id,
+        oportunidad: { etapa: { notIn: ["GANADO", "PERDIDO"] } },
+      },
+      include: { oportunidad: true },
+      orderBy: { creadoEn: "desc" },
+    });
+    oportunidadActiva = opConv?.oportunidad ?? null;
+
+    // Verificar stage dinámico
+    if (oportunidadActiva?.stageId) {
+      const stage = await prisma.pipelineStage.findUnique({
+        where: { id: oportunidadActiva.stageId },
+        select: { esGanado: true, esPerdido: true },
+      });
+      if (stage?.esGanado || stage?.esPerdido) oportunidadActiva = null;
+    }
+  }
+
+  // Fallback por contacto (oportunidades creadas con el flujo anterior)
+  if (!oportunidadActiva) {
+    oportunidadActiva = await prisma.oportunidad.findFirst({
+      where: {
+        instanciaId,
+        etapa: { notIn: ["GANADO", "PERDIDO"] },
+        contactos: { some: { contactoId } },
+      },
+      orderBy: { actualizadoEn: "desc" },
+    });
+    if (oportunidadActiva?.stageId) {
+      const stage = await prisma.pipelineStage.findUnique({
+        where: { id: oportunidadActiva.stageId },
+        select: { esGanado: true, esPerdido: true },
+      });
+      if (stage?.esGanado || stage?.esPerdido) oportunidadActiva = null;
+    }
+  }
 
   // 6. Asociar conversación ↔ oportunidad, o crear una nueva si no existe ninguna activa
   if (oportunidadActiva) {
-    await prisma.oportunidadConversacion.upsert({
-      where: { oportunidadId_conversacionId: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id } },
-      create: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id, esActiva: true },
-      update: { esActiva: true },
-    });
+    await Promise.all([
+      prisma.oportunidadConversacion.upsert({
+        where: { oportunidadId_conversacionId: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id } },
+        create: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id, esActiva: true },
+        update: { esActiva: true },
+      }),
+      // Marcar indicador de nuevo mensaje para el agente
+      prisma.oportunidad.update({
+        where: { id: oportunidadActiva.id },
+        data: { nuevoMensaje: true, ultimaInteraccionEn: new Date() },
+      }),
+    ]);
   } else {
+    // Resolver pipeline: intentar con instanciaId, luego sin filtro, luego el primero disponible
+    const pipelineDefault =
+      await prisma.pipeline.findFirst({
+        where: { instanciaId, esDefault: true, activo: true },
+        include: { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" }, take: 1 } },
+      }) ??
+      await prisma.pipeline.findFirst({
+        where: { esDefault: true, activo: true },
+        include: { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" }, take: 1 } },
+      }) ??
+      await prisma.pipeline.findFirst({
+        where: { activo: true },
+        orderBy: [{ esDefault: "desc" }, { creadoEn: "asc" }],
+        include: { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" }, take: 1 } },
+      });
+    const stageInicial = pipelineDefault?.stages[0] ?? null;
+
     const count = await prisma.oportunidad.count({ where: { instanciaId } });
+
+    // Si el contacto no está identificado (no hay pushName), no vincular a la oportunidad todavía
+    const esIdentificado = !!pushName;
+
     oportunidadActiva = await prisma.oportunidad.create({
       data: {
-        titulo: `Oportunidad #${count + 1}`,
+        titulo: `Oportunidad ${count + 1}`,
         etapa: "PROSPECTO",
         valor: 0,
         instanciaId,
-        contactos: { create: { contactoId, principal: true } },
+        pipelineId: pipelineDefault?.id ?? null,
+        stageId: stageInicial?.id ?? null,
+        probabilidad: stageInicial?.probabilidad ?? 20,
+        ...(esIdentificado && { contactos: { create: { contactoId, principal: true } } }),
         conversaciones: { create: { conversacionId: conversacion.id, esActiva: true } },
       },
     });
@@ -141,6 +250,7 @@ export async function procesarMensajeEntrante(
 export async function iniciarConversacion(input: {
   contactoId: string;
   cuentaCanalId?: string | null;
+  oportunidadId?: string | null;
 }): Promise<{ ok: true; conversacionId: string } | { ok: false; error: string }> {
   try {
     // Resolver instanciaId desde el canal seleccionado (si aplica)
@@ -189,6 +299,15 @@ export async function iniciarConversacion(input: {
           });
         }
       }
+    }
+
+    // Vincular la conversación a la oportunidad si se proporcionó
+    if (input.oportunidadId) {
+      await prisma.oportunidadConversacion.upsert({
+        where: { oportunidadId_conversacionId: { oportunidadId: input.oportunidadId, conversacionId: conversacion.id } },
+        create: { oportunidadId: input.oportunidadId, conversacionId: conversacion.id, esActiva: true },
+        update: { esActiva: true },
+      });
     }
 
     if (!existente) {
@@ -294,6 +413,63 @@ export async function obtenerCuentasCanalAction() {
     return obtenerTodasLasCuentasCanal();
   } catch {
     return [];
+  }
+}
+
+// ── Vincular conversación a otro contacto ─────────────────────────────────────
+
+export async function vincularConversacionAContacto(
+  conversacionId: string,
+  nuevoContactoId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const conv = await prisma.conversacion.findUnique({
+      where: { id: conversacionId },
+      select: {
+        contactoId: true,
+        instanciaId: true,
+        oportunidades: { select: { oportunidadId: true } },
+      },
+    });
+    if (!conv) return { ok: false, error: "Conversación no encontrada" };
+
+    const viejoContactoId = conv.contactoId;
+
+    // Transferir los identificadores de canal del contacto anterior al nuevo
+    if (conv.instanciaId) {
+      await prisma.contactoIdentificadorCanal.updateMany({
+        where: { contactoId: viejoContactoId, instanciaId: conv.instanciaId },
+        data: { contactoId: nuevoContactoId },
+      });
+    }
+
+    // Actualizar conversación
+    await prisma.conversacion.update({
+      where: { id: conversacionId },
+      data: { contactoId: nuevoContactoId },
+    });
+
+    // Vincular el nuevo contacto a las oportunidades asociadas a esta conversación
+    for (const { oportunidadId } of conv.oportunidades) {
+      await prisma.$transaction([
+        // Quitar el contacto placeholder anterior si existe en esta oportunidad
+        prisma.oportunidadContacto.deleteMany({
+          where: { oportunidadId, contactoId: viejoContactoId },
+        }),
+        // Agregar el nuevo contacto (upsert para evitar duplicados)
+        prisma.oportunidadContacto.upsert({
+          where: { oportunidadId_contactoId: { oportunidadId, contactoId: nuevoContactoId } },
+          create: { oportunidadId, contactoId: nuevoContactoId, principal: true },
+          update: {},
+        }),
+      ]);
+    }
+
+    revalidatePath("/crm/inbox");
+    revalidatePath("/crm/pipeline");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al vincular contacto" };
   }
 }
 

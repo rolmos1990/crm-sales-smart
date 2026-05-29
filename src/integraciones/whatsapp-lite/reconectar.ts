@@ -152,6 +152,8 @@ async function encolarMensajeEntrante(
     msg.message?.extendedTextMessage?.text ??
     undefined;
 
+  const pushName = (msg.pushName && msg.pushName !== "") ? msg.pushName : undefined;
+
   await prisma.jobMensaje.create({
     data: {
       tipo: "PROCESAR_ENTRANTE",
@@ -164,6 +166,7 @@ async function encolarMensajeEntrante(
         contenido,
         tipo: "TEXTO",
         idExterno,
+        pushName,
       },
     },
   });

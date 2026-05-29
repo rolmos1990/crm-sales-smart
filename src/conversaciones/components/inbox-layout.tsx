@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, ChevronUp, Loader2, XCircle } from "lucide-react";
+import { MessageSquare, ChevronUp, Loader2, XCircle, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { BurbujaMensaje } from "./burbuja-mensaje";
 import { InputMensaje } from "./input-mensaje";
+import { PanelContactoInbox } from "./panel-contacto-inbox";
 import { cerrarConversacion, enviarMensaje } from "../actions";
 import type { ConversacionResumen, MensajeConMeta, CuentaCanalResumen } from "../types";
 
@@ -58,6 +59,8 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
   const [cerrando, startCerrando] = useTransition();
   const [enviando, startEnviando] = useTransition();
   const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState<string | null>(null);
+
+  const [panelContactoAbierto, setPanelContactoAbierto] = useState(true);
 
   const [mensajesAnteriores, setMensajesAnteriores] = useState<MensajeConMeta[]>([]);
   const [cargandoAnteriores, setCargandoAnteriores] = useState(false);
@@ -181,20 +184,31 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
     });
   };
 
+  const handleContactoActualizado = (
+    conversacionId: string,
+    nuevoContacto: ConversacionResumen["contacto"]
+  ) => {
+    setConversaciones((prev) =>
+      prev.map((c) =>
+        c.id === conversacionId ? { ...c, contacto: nuevoContacto } : c
+      )
+    );
+  };
+
   const todosLosMensajes = [...mensajesAnteriores, ...mensajesRecientes];
   const grupos = agruparPorFecha(todosLosMensajes);
 
-  const convNombre = convActiva
-    ? `${convActiva.contacto.nombre} ${convActiva.contacto.apellido}`.trim() ||
-      convActiva.contacto.telefonoPrincipal ||
-      "Sin nombre"
+  const convNombreBase = convActiva
+    ? `${convActiva.contacto.nombre} ${convActiva.contacto.apellido}`.trim()
     : "";
+  const convNombre = convNombreBase || convActiva?.contacto.telefonoPrincipal || "Sin nombre";
+  const convSinIdentificar = convActiva ? !convNombreBase : false;
 
   return (
     <div className="flex h-full overflow-hidden">
 
       {/* ── Left panel: conversation list ── */}
-      <aside className="w-72 lg:w-80 shrink-0 border-r border-white/10 flex flex-col bg-stone-950/70 backdrop-blur-xl">
+      <aside className="w-64 lg:w-72 shrink-0 border-r border-white/10 flex flex-col bg-stone-950/70 backdrop-blur-xl">
         <div className="px-4 py-3.5 border-b border-white/8 shrink-0">
           <p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">Conversaciones</p>
           <p className="text-[11px] text-stone-600 mt-0.5">
@@ -211,12 +225,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
           ) : (
             conversaciones.map((conv) => {
               const esActiva = seleccionada === conv.id;
-              const nombre =
-                `${conv.contacto.nombre} ${conv.contacto.apellido}`.trim() ||
-                conv.contacto.telefonoPrincipal ||
-                "Sin nombre";
-              const iniciales =
-                `${conv.contacto.nombre[0] ?? ""}${conv.contacto.apellido[0] ?? ""}`.toUpperCase() || "?";
+              const nombreContacto = `${conv.contacto.nombre} ${conv.contacto.apellido}`.trim();
+              const sinIdentificar = !nombreContacto;
+              const nombre = nombreContacto || conv.contacto.telefonoPrincipal || "Sin nombre";
+              const iniciales = nombreContacto
+                ? `${conv.contacto.nombre[0] ?? ""}${conv.contacto.apellido[0] ?? ""}`.toUpperCase()
+                : "?";
 
               return (
                 <li key={conv.id} onContextMenu={(e) => handleContextMenu(e, conv.id)}>
@@ -233,14 +247,26 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
                         : "border-l-transparent hover:bg-white/4"
                     )}
                   >
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-lime-500/30 to-emerald-500/20 border border-lime-500/20 flex items-center justify-center text-xs font-semibold text-lime-300 shrink-0">
+                    <div className={cn(
+                      "h-9 w-9 rounded-full border flex items-center justify-center text-xs font-semibold shrink-0",
+                      sinIdentificar
+                        ? "bg-stone-800/60 border-stone-700 text-stone-500"
+                        : "bg-gradient-to-br from-lime-500/30 to-emerald-500/20 border-lime-500/20 text-lime-300"
+                    )}>
                       {iniciales}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <p className={cn("text-xs font-semibold truncate", esActiva ? "text-stone-50" : "text-stone-200")}>
-                          {nombre}
-                        </p>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className={cn("text-xs font-semibold truncate", esActiva ? "text-stone-50" : "text-stone-200")}>
+                            {nombre}
+                          </p>
+                          {sinIdentificar && (
+                            <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                              ?
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[9px] text-stone-600 shrink-0 whitespace-nowrap">
                           {formatDistanceToNow(new Date(conv.actualizadoEn), { addSuffix: false, locale: es })}
                         </span>
@@ -287,7 +313,14 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
                   : "?"}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-stone-100 truncate">{convNombre}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-stone-100 truncate">{convNombre}</p>
+                  {convSinIdentificar && (
+                    <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                      Sin identificar
+                    </span>
+                  )}
+                </div>
                 {convActiva?.cuentaCanal && (
                   <p className="text-[10px] text-stone-500">{convActiva.cuentaCanal.nombre}</p>
                 )}
@@ -295,6 +328,19 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
               {isFetching && (
                 <Loader2 className="h-3.5 w-3.5 text-stone-600 animate-spin shrink-0" />
               )}
+              <button
+                type="button"
+                onClick={() => setPanelContactoAbierto((v) => !v)}
+                title={panelContactoAbierto ? "Ocultar info de contacto" : "Ver info de contacto"}
+                className={cn(
+                  "h-7 w-7 rounded-lg flex items-center justify-center transition-colors shrink-0",
+                  panelContactoAbierto
+                    ? "bg-lime-500/15 text-lime-400"
+                    : "text-stone-500 hover:bg-white/5 hover:text-stone-300"
+                )}
+              >
+                <UserCircle2 className="h-4 w-4" />
+              </button>
             </div>
 
             {/* Messages area */}
@@ -355,6 +401,16 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
           </>
         )}
       </div>
+
+      {/* ── Right panel: contact info ── */}
+      {seleccionada && convActiva && panelContactoAbierto && (
+        <div className="w-64 shrink-0">
+          <PanelContactoInbox
+            conversacion={convActiva}
+            onContactoActualizado={handleContactoActualizado}
+          />
+        </div>
+      )}
 
       {/* Context menu (right-click) */}
       {contextMenu && (

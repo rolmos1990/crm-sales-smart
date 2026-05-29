@@ -396,10 +396,12 @@ model Oportunidad {
   fechaGanada   DateTime?
   fechaPerdida  DateTime?
   notas         String?
-  motivoPerdida String?
-  metadata      Json?
-  creadoEn      DateTime  @default(now())
-  actualizadoEn DateTime  @updatedAt
+  motivoPerdida       String?
+  metadata            Json?
+  nuevoMensaje        Boolean   @default(false)
+  ultimaInteraccionEn DateTime?
+  creadoEn            DateTime  @default(now())
+  actualizadoEn       DateTime  @updatedAt
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])

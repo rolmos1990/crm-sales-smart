@@ -28,9 +28,18 @@ export async function buscarContactos(query: string) {
         { nombre: { contains: query, mode: "insensitive" } },
         { apellido: { contains: query, mode: "insensitive" } },
         { email: { contains: query, mode: "insensitive" } },
+        { telefonoPrincipal: { contains: query, mode: "insensitive" } },
+        { telefonoSecundario: { contains: query, mode: "insensitive" } },
       ],
     },
-    include: { empresa: { select: { id: true, nombre: true } } },
+    select: {
+      id: true,
+      nombre: true,
+      apellido: true,
+      email: true,
+      telefonoPrincipal: true,
+      empresa: { select: { id: true, nombre: true } },
+    },
     take: 10,
   });
 }

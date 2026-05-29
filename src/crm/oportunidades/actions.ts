@@ -282,3 +282,13 @@ export async function eliminarOportunidad(id: string): Promise<ResultadoAccion> 
     return { exito: false, error: "Error al eliminar la oportunidad" };
   }
 }
+
+export async function marcarMensajeLeido(id: string): Promise<void> {
+  try {
+    await prisma.oportunidad.update({
+      where: { id },
+      data: { nuevoMensaje: false },
+    });
+    revalidatePath("/crm/pipeline");
+  } catch { /* ignorar — no crítico */ }
+}

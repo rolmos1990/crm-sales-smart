@@ -39,6 +39,7 @@ export async function obtenerOportunidadesPorPipeline(pipelineId: string) {
       fechaCierre: true,
       stageId: true,
       pipelineId: true,
+      nuevoMensaje: true,
       empresa: { select: { id: true, nombre: true } },
       tags: { select: { tagId: true, tag: { select: { id: true, nombre: true, color: true } } } },
     },

@@ -65,4 +65,5 @@ export interface MensajeEntranteNormalizado {
   mediaMimeType?: string;
   mediaNombre?: string;
   mediaBytes?: number;
+  pushName?: string;
 }
