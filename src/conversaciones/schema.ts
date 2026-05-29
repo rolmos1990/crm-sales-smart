@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const EnviarMensajeSchema = z.object({
-  conversacionId: z.string().cuid(),
+  conversacionId: z.string().cuid2(),
   contenido: z.string().min(1).max(4096).optional(),
   tipo: z.enum(["TEXTO", "IMAGEN", "VIDEO", "AUDIO", "NOTA_VOZ", "DOCUMENTO", "PLANTILLA", "BOTON"]).default("TEXTO"),
   esNotaInterna: z.boolean().default(false),
@@ -9,11 +9,11 @@ export const EnviarMensajeSchema = z.object({
 });
 
 export const CrearConversacionSchema = z.object({
-  contactoId: z.string().cuid(),
-  cuentaCanalId: z.string().cuid(),
-  instanciaId: z.string().cuid(),
+  contactoId: z.string().cuid2(),
+  cuentaCanalId: z.string().cuid2(),
+  instanciaId: z.string().cuid2(),
   asunto: z.string().max(255).optional(),
-  oportunidadId: z.string().cuid().optional(),
+  oportunidadId: z.string().cuid2().optional(),
 });
 
 export type EnviarMensajeInput = z.infer<typeof EnviarMensajeSchema>;

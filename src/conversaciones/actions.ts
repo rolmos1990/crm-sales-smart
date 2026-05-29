@@ -201,64 +201,68 @@ export async function enviarMensaje(input: {
   tipo?: string;
   esNotaInterna?: boolean;
   usuarioId?: string;
-}) {
-  const validado = EnviarMensajeSchema.parse(input);
+}): Promise<{ ok: true; mensaje: { id: string } } | { ok: false; error: string }> {
+  try {
+    const validado = EnviarMensajeSchema.parse(input);
 
-  const conversacion = await prisma.conversacion.findUniqueOrThrow({
-    where: { id: validado.conversacionId },
-    include: { cuentaCanal: true, contacto: true },
-  });
-
-  // Crear mensaje en BD de inmediato (optimistic — el agente lo ve al instante)
-  const mensaje = await prisma.mensajeConversacion.create({
-    data: {
-      conversacionId: validado.conversacionId,
-      contenido: validado.contenido ?? null,
-      tipo: validado.tipo,
-      remitente: validado.esNotaInterna ? "SISTEMA" : "AGENTE",
-      estado: "ENVIADO",
-      esNotaInterna: validado.esNotaInterna,
-      usuarioId: input.usuarioId ?? null,
-      enviadoEn: new Date(),
-    },
-  });
-
-  await prisma.conversacion.update({
-    where: { id: validado.conversacionId },
-    data: { actualizadoEn: new Date() },
-  });
-
-  // Notificar SSE de inmediato para que el panel lo muestre sin esperar al worker
-  if (conversacion.instanciaId) {
-    busEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, {
-      mensajeId: mensaje.id,
-      conversacionId: validado.conversacionId,
-      instanciaId: conversacion.instanciaId,
+    const conversacion = await prisma.conversacion.findUniqueOrThrow({
+      where: { id: validado.conversacionId },
+      include: { cuentaCanal: true, contacto: true },
     });
-  }
 
-  // Encolar job asíncrono para la entrega real solo si hay canal configurado
-  if (!validado.esNotaInterna && conversacion.cuentaCanalId && conversacion.instanciaId && conversacion.cuentaCanal) {
-    await prisma.jobMensaje.create({
+    // Crear mensaje en BD de inmediato (optimistic — el agente lo ve al instante)
+    const mensaje = await prisma.mensajeConversacion.create({
       data: {
-        tipo: "ENVIAR_MENSAJE",
-        instanciaId: conversacion.instanciaId,
-        payload: {
-          mensajeId: mensaje.id,
-          conversacionId: validado.conversacionId,
-          contenido: validado.contenido,
-          tipo: validado.tipo,
-          destinatario: conversacion.contacto.telefonoPrincipal ?? conversacion.contacto.email ?? "",
-          canal: conversacion.cuentaCanal.canal,
-          cuentaCanalId: conversacion.cuentaCanalId,
-          instanciaId: conversacion.instanciaId,
-        },
+        conversacionId: validado.conversacionId,
+        contenido: validado.contenido ?? null,
+        tipo: validado.tipo,
+        remitente: validado.esNotaInterna ? "SISTEMA" : "AGENTE",
+        estado: "ENVIADO",
+        esNotaInterna: validado.esNotaInterna,
+        usuarioId: input.usuarioId ?? null,
+        enviadoEn: new Date(),
       },
     });
-  }
 
-  revalidatePath(`/crm/oportunidades`);
-  return { ok: true, mensaje };
+    await prisma.conversacion.update({
+      where: { id: validado.conversacionId },
+      data: { actualizadoEn: new Date() },
+    });
+
+    // Notificar SSE de inmediato para que el panel lo muestre sin esperar al worker
+    if (conversacion.instanciaId) {
+      busEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, {
+        mensajeId: mensaje.id,
+        conversacionId: validado.conversacionId,
+        instanciaId: conversacion.instanciaId,
+      });
+    }
+
+    // Encolar job asíncrono para la entrega real solo si hay canal configurado
+    if (!validado.esNotaInterna && conversacion.cuentaCanalId && conversacion.instanciaId && conversacion.cuentaCanal) {
+      await prisma.jobMensaje.create({
+        data: {
+          tipo: "ENVIAR_MENSAJE",
+          instanciaId: conversacion.instanciaId,
+          payload: {
+            mensajeId: mensaje.id,
+            conversacionId: validado.conversacionId,
+            contenido: validado.contenido,
+            tipo: validado.tipo,
+            destinatario: conversacion.contacto.telefonoPrincipal ?? conversacion.contacto.email ?? "",
+            canal: conversacion.cuentaCanal.canal,
+            cuentaCanalId: conversacion.cuentaCanalId,
+            instanciaId: conversacion.instanciaId,
+          },
+        },
+      });
+    }
+
+    revalidatePath(`/crm/oportunidades`);
+    return { ok: true, mensaje: { id: mensaje.id } };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al enviar mensaje" };
+  }
 }
 
 // ── Cerrar conversación ─────────────────────────────────────────────────────
