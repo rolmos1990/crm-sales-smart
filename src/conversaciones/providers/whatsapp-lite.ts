@@ -18,28 +18,34 @@ export class WhatsAppLiteProvider implements ICanalProvider {
     const configuracion = payload.configuracion as { sessionId?: string } | null;
     const sessionId = configuracion?.sessionId;
 
-    if (sessionId) {
-      try {
-        // El sesionManagerWA vive en el proceso Node.js — import directo (no se bundlea con webpack)
-        const { sesionManagerWA } = await import("@/integraciones/whatsapp-lite/sesion-manager");
-        const sesion = sesionManagerWA.obtener(sessionId);
-
-        if (sesion?.socket && sesion.estado === "conectado") {
-          // WhatsApp JID: dígitos sin '+' + @s.whatsapp.net
-          const telefono = payload.destinatario.replace(/\D/g, "");
-          const jid = `${telefono}@s.whatsapp.net`;
-          const result = await sesion.socket.sendMessage(jid, { text: payload.contenido });
-          return { idExterno: result?.key?.id ?? `wl_${Date.now()}` };
-        } else {
-          console.warn("[WhatsAppLite] Socket no disponible para sessionId", sessionId, "— mensaje guardado pero no enviado por WA");
-        }
-      } catch (e) {
-        console.error("[WhatsAppLite] Error al enviar:", e);
-      }
+    if (!sessionId) {
+      throw new Error("[WhatsAppLite] sessionId no configurado en la cuenta canal");
     }
 
-    // Fallback: el mensaje se guarda en DB pero no se envió por WhatsApp
-    return { idExterno: `wl_${Date.now()}` };
+    const { sesionManagerWA } = await import("@/integraciones/whatsapp-lite/sesion-manager");
+    const sesion = sesionManagerWA.obtener(sessionId);
+
+    if (!sesion?.socket || sesion.estado !== "conectado") {
+      throw new Error(`[WhatsAppLite] Sesión no conectada (sessionId: ${sessionId}, estado: ${sesion?.estado ?? "sin sesión"})`);
+    }
+
+    // WhatsApp JID: solo dígitos del destinatario + @s.whatsapp.net
+    const telefono = payload.destinatario.replace(/\D/g, "");
+    if (!telefono) throw new Error(`[WhatsAppLite] Destinatario inválido: "${payload.destinatario}"`);
+
+    const jid = `${telefono}@s.whatsapp.net`;
+    console.log(`[WhatsAppLite] sendMessage → jid: ${jid} | contenido: "${payload.contenido}"`);
+
+    const result = await sesion.socket.sendMessage(jid, { text: payload.contenido ?? "" });
+    const idExterno = result?.key?.id;
+
+    if (!idExterno) {
+      console.warn(`[WhatsAppLite] sendMessage no devolvió key.id para jid ${jid} — posible fallo silencioso`);
+    } else {
+      console.log(`[WhatsAppLite] Entregado → key.id: ${idExterno}`);
+    }
+
+    return { idExterno: idExterno ?? `wl_${Date.now()}` };
   }
 
   mapearEntrante(raw: unknown): MensajeEntranteNormalizado {

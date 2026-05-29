@@ -26,6 +26,24 @@ export async function POST(
 
   const normalizado = provider.mapearEntrante(raw);
 
+  // Idempotencia: si ya procesamos este mensaje, responder OK sin crear job duplicado
+  if (normalizado.idExterno) {
+    const yaExiste = await prisma.mensajeConversacion.findFirst({
+      where: { idExterno: normalizado.idExterno },
+      select: { id: true },
+    });
+    if (yaExiste) return NextResponse.json({ ok: true });
+
+    const yaEncolado = await prisma.jobMensaje.findFirst({
+      where: {
+        tipo: "PROCESAR_ENTRANTE",
+        payload: { path: ["idExterno"], equals: normalizado.idExterno },
+      },
+      select: { id: true },
+    });
+    if (yaEncolado) return NextResponse.json({ ok: true });
+  }
+
   const cuentaCanal = await prisma.cuentaCanal.findUnique({
     where: { id: normalizado.cuentaCanalId },
     select: { instanciaId: true },
@@ -35,7 +53,6 @@ export async function POST(
     return NextResponse.json({ error: "Cuenta de canal no encontrada" }, { status: 404 });
   }
 
-  // Encolar job — el worker procesa de forma asíncrona, el webhook responde de inmediato
   await prisma.jobMensaje.create({
     data: {
       tipo: "PROCESAR_ENTRANTE",

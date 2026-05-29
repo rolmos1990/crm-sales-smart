@@ -30,18 +30,23 @@ class WorkerMensajes {
   }
 
   private async procesarLote() {
-    // Claim: leer PENDIENTE y marcar como PROCESANDO
-    const pendientes = await prisma.jobMensaje.findMany({
-      where: { estado: "PENDIENTE" },
-      orderBy: { creadoEn: "asc" },
-      take: LOTE,
+    // Claim atómico: SELECT ... FOR UPDATE SKIP LOCKED evita que dos workers tomen el mismo job
+    type JobRow = { id: string; tipo: string; estado: string; payload: unknown; intentos: number; maxIntentos: number; instanciaId: string | null };
+    const jobs = await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<JobRow[]>`
+        UPDATE "JobMensaje"
+        SET estado = 'PROCESANDO'::"EstadoJobMensaje", intentos = intentos + 1
+        WHERE id IN (
+          SELECT id FROM "JobMensaje"
+          WHERE estado = 'PENDIENTE'::"EstadoJobMensaje"
+          ORDER BY "creadoEn" ASC
+          LIMIT ${LOTE}
+          FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id, tipo, estado, payload, intentos, "maxIntentos", "instanciaId"
+      `;
+      return rows;
     });
-    if (pendientes.length === 0) return;
-    await prisma.jobMensaje.updateMany({
-      where: { id: { in: pendientes.map((j) => j.id) } },
-      data: { estado: "PROCESANDO", intentos: { increment: 1 } },
-    });
-    const jobs = pendientes;
 
     for (const job of jobs) {
       await this.ejecutarJob(job);
@@ -77,31 +82,34 @@ class WorkerMensajes {
   }
 
   private async procesarEnvio(instanciaId: string, p: Record<string, unknown>) {
-    const mensajeId   = p.mensajeId   as string;
+    const mensajeId      = p.mensajeId      as string;
     const conversacionId = p.conversacionId as string;
     const cuentaCanalId  = p.cuentaCanalId  as string;
-    const contenido   = p.contenido   as string | undefined;
-    const tipo        = p.tipo        as string;
-    const destinatario = p.destinatario as string;
+    const contenido      = p.contenido      as string | undefined;
+    const tipo           = p.tipo           as string;
+    const destinatario   = p.destinatario   as string;
 
     const cuentaCanal = await prisma.cuentaCanal.findUniqueOrThrow({ where: { id: cuentaCanalId } });
     const provider = obtenerProvider(cuentaCanal.canal);
 
-    if (provider) {
-      const result = await provider.enviarMensaje({
-        destinatario,
-        contenido: contenido ?? "",
-        tipo: tipo as Parameters<typeof provider.enviarMensaje>[0]["tipo"],
-        configuracion: cuentaCanal.configuracion as Record<string, unknown>,
-      });
-      // Actualizar mensaje con ID externo del canal y marcar entregado
-      await prisma.mensajeConversacion.update({
-        where: { id: mensajeId },
-        data: { estado: "ENTREGADO", idExterno: result.idExterno, enviadoEn: new Date() },
-      });
+    if (!provider) {
+      throw new Error(`[Worker] No hay provider para canal "${cuentaCanal.canal}"`);
     }
 
-    // Notificar SSE para que otros agentes conectados vean el mensaje
+    console.log(`[Worker] Enviando por ${cuentaCanal.canal} → destinatario: ${destinatario}`);
+    const result = await provider.enviarMensaje({
+      destinatario,
+      contenido: contenido ?? "",
+      tipo: tipo as Parameters<typeof provider.enviarMensaje>[0]["tipo"],
+      configuracion: cuentaCanal.configuracion as Record<string, unknown>,
+    });
+    console.log(`[Worker] Enviado OK → idExterno: ${result.idExterno}`);
+
+    await prisma.mensajeConversacion.update({
+      where: { id: mensajeId },
+      data: { estado: "ENTREGADO", idExterno: result.idExterno, enviadoEn: new Date() },
+    });
+
     busEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, {
       mensajeId,
       conversacionId,

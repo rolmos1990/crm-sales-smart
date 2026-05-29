@@ -86,11 +86,20 @@ export async function procesarMensajeEntrante(
         conversaciones: { create: { conversacionId: conversacion.id, esActiva: true } },
       },
     });
-    revalidatePath("/crm/oportunidades");
-    revalidatePath("/crm/pipeline");
+    try {
+      revalidatePath("/crm/oportunidades");
+      revalidatePath("/crm/pipeline");
+    } catch { /* fuera de request context */ }
   }
 
-  // 7. Guardar mensaje
+  // 7. Guardar mensaje — deduplicar por idExterno para evitar duplicados en reintentos del worker
+  if (idExterno) {
+    const existente = await prisma.mensajeConversacion.findFirst({
+      where: { conversacionId: conversacion.id, idExterno },
+    });
+    if (existente) return { mensaje: existente, conversacion };
+  }
+
   const mensaje = await prisma.mensajeConversacion.create({
     data: {
       conversacionId: conversacion.id,
@@ -117,9 +126,12 @@ export async function procesarMensajeEntrante(
     oportunidadId: oportunidadActiva?.id ?? null,
   });
 
-  if (oportunidadActiva) {
-    revalidatePath(`/crm/oportunidades/${oportunidadActiva.id}`);
-  }
+  // revalidatePath no funciona fuera de un request de Next.js (ej: worker); ignorar en ese contexto
+  try {
+    if (oportunidadActiva) {
+      revalidatePath(`/crm/oportunidades/${oportunidadActiva.id}`);
+    }
+  } catch { /* fuera de request context */ }
 
   return { mensaje, conversacion };
 }

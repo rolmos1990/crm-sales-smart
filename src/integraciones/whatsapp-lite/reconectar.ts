@@ -125,8 +125,28 @@ async function encolarMensajeEntrante(
   instanciaId: string
 ): Promise<void> {
   const { prisma } = await import("@/shared/db/prisma");
+  const idExterno = msg.key.id as string | undefined;
+
+  // Idempotencia: no encolar si ya existe el mensaje o ya hay un job pendiente/procesado
+  if (idExterno) {
+    const [yaExiste, yaEncolado] = await Promise.all([
+      prisma.mensajeConversacion.findFirst({ where: { idExterno }, select: { id: true } }),
+      prisma.jobMensaje.findFirst({
+        where: {
+          tipo: "PROCESAR_ENTRANTE",
+          payload: { path: ["idExterno"], equals: idExterno },
+        },
+        select: { id: true },
+      }),
+    ]);
+    if (yaExiste || yaEncolado) return;
+  }
+
+  // Extraer solo la parte numérica del JID individual (@s.whatsapp.net)
   const jid = msg.key.remoteJid ?? "";
-  const telefono = `+${jid.replace("@s.whatsapp.net", "").replace(/\D/g, "")}`;
+  const soloNumeros = jid.replace(/@s\.whatsapp\.net$/, "").replace(/:\d+$/, "").replace(/\D/g, "");
+  const telefono = soloNumeros ? `+${soloNumeros}` : jid;
+
   const contenido =
     msg.message?.conversation ??
     msg.message?.extendedTextMessage?.text ??
@@ -137,13 +157,13 @@ async function encolarMensajeEntrante(
       tipo: "PROCESAR_ENTRANTE",
       instanciaId,
       payload: {
-        canal: "whatsapp",
+        canal: "whatsapp_lite",
         identificadorContacto: telefono,
         cuentaCanalId,
         instanciaId,
         contenido,
         tipo: "TEXTO",
-        idExterno: msg.key.id ?? undefined,
+        idExterno,
       },
     },
   });
