@@ -24,7 +24,7 @@ import { moverAStage } from "../actions";
 import { cn } from "@/lib/utils";
 import type { PipelineConStages, PipelineStage, OportunidadEnStage } from "../types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
-import { PanelOportunidadDinamico } from "@/crm/oportunidades/components/panel-oportunidad-dinamico";
+import { WorkspaceOportunidad } from "@/crm/oportunidades/components/workspace-oportunidad";
 import type { Oportunidad } from "@/crm/oportunidades/types";
 import { KanbanScrollContainer } from "./kanban-scroll-container";
 
@@ -395,7 +395,7 @@ export function PipelineKanbanDinamico({
         </DragOverlay>
       </DndContext>
 
-      <PanelOportunidadDinamico
+      <WorkspaceOportunidad
         oportunidadId={selected?.id ?? null}
         initialStageId={selected?.stageId ?? null}
         pipeline={pipeline}

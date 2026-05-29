@@ -23,7 +23,11 @@
       "Bash(git commit -m ' *)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\" -Recurse -Filter \"*.ts\" -File)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "PowerShell(cd \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"whatsapp-lite|mock-prisma\" })"
+      "PowerShell(cd \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"whatsapp-lite|mock-prisma\" })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\" -Recurse -Directory | Where-Object { $_.Name -match \"pipeline|oportunidades|conversaciones\" })",
+      "PowerShell(cd \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"workspace-oportunidad|pipeline-kanban-dinamico|conversaciones/actions\" })",
+      "PowerShell(cd \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"mock-prisma\" })",
+      "PowerShell(cd \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"mock-prisma\" -and $_ -notmatch \"Partial<T>\" -and $_ -notmatch \"AnyRecord\" })"
     ],
     "additionalDirectories": [
       "c:\\Users\\RamonOlmos\\source\\repos\\crm-sales-smart\\crm-sales-smart\\src\\app\\api\\webhooks",

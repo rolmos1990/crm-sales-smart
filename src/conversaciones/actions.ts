@@ -277,6 +277,26 @@ export async function enviarMensaje(input: {
   }
 }
 
+// ── Obtener datos para workspace (pipeline panel) ──────────────────────────
+
+export async function obtenerConversacionesPorOportunidadAction(oportunidadId: string) {
+  try {
+    const { obtenerConversacionesPorOportunidad } = await import("./queries");
+    return obtenerConversacionesPorOportunidad(oportunidadId);
+  } catch {
+    return [];
+  }
+}
+
+export async function obtenerCuentasCanalAction() {
+  try {
+    const { obtenerTodasLasCuentasCanal } = await import("./queries");
+    return obtenerTodasLasCuentasCanal();
+  } catch {
+    return [];
+  }
+}
+
 // ── Cerrar conversación ─────────────────────────────────────────────────────
 
 export async function cerrarConversacion(
