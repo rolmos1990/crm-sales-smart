@@ -4,43 +4,39 @@ import type { ConversacionResumen, MensajeConMeta } from "./types";
 export async function obtenerConversacionesPorOportunidad(
   oportunidadId: string
 ): Promise<ConversacionResumen[]> {
-  const rels = await prisma.oportunidadConversacion.findMany({
-    where: { oportunidadId },
+  const relPrincipal = await prisma.oportunidadContacto.findFirst({
+    where: { oportunidadId, principal: true },
+    select: { contactoId: true },
+  });
+  if (!relPrincipal) return [];
+
+  const convs = await prisma.conversacion.findMany({
+    where: { contactoId: relPrincipal.contactoId },
     include: {
-      conversacion: {
-        include: {
-          contacto: { select: { id: true, nombre: true, apellido: true, telefonoPrincipal: true, email: true } },
-          cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
-          oportunidades: true,
-          mensajes: {
-            orderBy: { creadoEn: "desc" as const },
-            take: 1,
-          },
-          _count: { select: { mensajes: true } },
-        },
-      },
+      contacto: { select: { id: true, nombre: true, apellido: true, telefonoPrincipal: true, email: true } },
+      cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
+      oportunidades: true,
+      mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
+      _count: { select: { mensajes: true } },
     },
-    orderBy: { creadoEn: "desc" as const },
+    orderBy: { actualizadoEn: "desc" as const },
   });
 
-  return rels.map((r) => {
-    const conv = r.conversacion;
-    return {
-      id: conv.id,
-      instanciaId: conv.instanciaId,
-      contactoId: conv.contactoId,
-      cuentaCanalId: conv.cuentaCanalId,
-      asunto: conv.asunto,
-      estado: conv.estado,
-      creadoEn: conv.creadoEn,
-      actualizadoEn: conv.actualizadoEn,
-      contacto: conv.contacto,
-      cuentaCanal: conv.cuentaCanal,
-      oportunidades: conv.oportunidades,
-      _count: conv._count,
-      ultimoMensaje: conv.mensajes[0] as MensajeConMeta | null ?? null,
-    };
-  });
+  return convs.map((conv) => ({
+    id: conv.id,
+    instanciaId: conv.instanciaId,
+    contactoId: conv.contactoId,
+    cuentaCanalId: conv.cuentaCanalId,
+    asunto: conv.asunto,
+    estado: conv.estado,
+    creadoEn: conv.creadoEn,
+    actualizadoEn: conv.actualizadoEn,
+    contacto: conv.contacto,
+    cuentaCanal: conv.cuentaCanal,
+    oportunidades: conv.oportunidades,
+    _count: conv._count,
+    ultimoMensaje: conv.mensajes[0] as MensajeConMeta | null ?? null,
+  }));
 }
 
 export async function obtenerMensajesConversacion(

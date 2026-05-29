@@ -17,7 +17,8 @@ export async function GET(
   }
 
   if (antes) {
-    const mensajes = await obtenerMensajesAnteriores(id, antes);
+    const limite = Math.min(parseInt(url.searchParams.get("limite") || "50") || 50, 200);
+    const mensajes = await obtenerMensajesAnteriores(id, antes, limite);
     return NextResponse.json(mensajes);
   }
 

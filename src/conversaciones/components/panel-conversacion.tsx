@@ -1,15 +1,19 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageSquare, Loader2, Plus, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { ListaMensajes } from "./lista-mensajes";
 import { InputMensaje } from "./input-mensaje";
-import { HistorialCompleto } from "./historial-completo";
 import { SelectorCuentaCanal } from "./selector-cuenta-canal";
 import { enviarMensaje, iniciarConversacion } from "../actions";
 import type { ConversacionResumen, MensajeConMeta, CuentaCanalResumen } from "../types";
+
+const PAGE_SIZE = Math.min(
+  parseInt(process.env.NEXT_PUBLIC_MENSAJES_POR_PAGINA ?? "") || 50,
+  200
+);
 
 interface PanelConversacionProps {
   oportunidadId: string;
@@ -20,9 +24,20 @@ interface PanelConversacionProps {
   conversacionesIniciales: ConversacionResumen[];
 }
 
-async function fetchMensajes(conversacionId: string): Promise<MensajeConMeta[]> {
-  const res = await fetch(`/api/conversaciones/${conversacionId}/mensajes`);
+async function fetchMensajesRecientes(conversacionId: string): Promise<MensajeConMeta[]> {
+  const res = await fetch(`/api/conversaciones/${conversacionId}/mensajes?recientes=${PAGE_SIZE}`);
   if (!res.ok) throw new Error("Error al cargar mensajes");
+  return res.json();
+}
+
+async function fetchMensajesAnteriores(
+  conversacionId: string,
+  antesDeId: string
+): Promise<MensajeConMeta[]> {
+  const res = await fetch(
+    `/api/conversaciones/${conversacionId}/mensajes?antes=${antesDeId}&limite=${PAGE_SIZE}`
+  );
+  if (!res.ok) throw new Error("Error al cargar mensajes anteriores");
   return res.json();
 }
 
@@ -45,13 +60,67 @@ export function PanelConversacion({
   const [iniciando, startIniciando] = useTransition();
   const [enviando, startEnviando] = useTransition();
 
-  // Mensajes de la conversación activa via React Query
-  const { data: mensajes = [], isFetching } = useQuery<MensajeConMeta[]>({
+  // Mensajes anteriores (paginación hacia atrás)
+  const [anteriores, setAnteriores] = useState<MensajeConMeta[]>([]);
+  const [hayMasAnteriores, setHayMasAnteriores] = useState(false);
+  const [cargandoAnteriores, setCargandoAnteriores] = useState(false);
+  const initialHayMasCheckedRef = useRef(false);
+
+  // Mensajes recientes de la conversación activa via React Query
+  const { data: recientes = [], isFetching } = useQuery<MensajeConMeta[]>({
     queryKey: ["mensajes", conversacionActiva],
-    queryFn: () => fetchMensajes(conversacionActiva!),
+    queryFn: () => fetchMensajesRecientes(conversacionActiva!),
     enabled: !!conversacionActiva,
     staleTime: 0,
   });
+
+  // Determinar si hay mensajes anteriores tras la carga inicial
+  useEffect(() => {
+    if (!isFetching && !initialHayMasCheckedRef.current && recientes.length > 0) {
+      setHayMasAnteriores(recientes.length >= PAGE_SIZE);
+      initialHayMasCheckedRef.current = true;
+    }
+  }, [isFetching, recientes.length]);
+
+  // Resetear paginación al cambiar de conversación
+  useEffect(() => {
+    setAnteriores([]);
+    setHayMasAnteriores(false);
+    initialHayMasCheckedRef.current = false;
+  }, [conversacionActiva]);
+
+  // Lista combinada y deduplicada (anteriores primero, recientes al final)
+  const mensajes = useMemo<MensajeConMeta[]>(() => {
+    const seen = new Set<string>();
+    const combined: MensajeConMeta[] = [];
+    for (const m of [...anteriores, ...recientes]) {
+      if (!seen.has(m.id)) {
+        seen.add(m.id);
+        combined.push(m);
+      }
+    }
+    return combined;
+  }, [anteriores, recientes]);
+
+  // Cargar página anterior
+  const cargarAnteriores = async () => {
+    if (cargandoAnteriores || !conversacionActiva) return;
+    const oldest = anteriores[0] ?? recientes[0];
+    if (!oldest) return;
+
+    setCargandoAnteriores(true);
+    try {
+      const nuevos = await fetchMensajesAnteriores(conversacionActiva, oldest.id);
+      if (nuevos.length > 0) {
+        setAnteriores((prev) => [...nuevos, ...prev]);
+      }
+      setHayMasAnteriores(nuevos.length >= PAGE_SIZE);
+    } catch {
+      toast.error("Error al cargar mensajes anteriores");
+    } finally {
+      setCargandoAnteriores(false);
+    }
+  };
 
   // SSE: escucha mensajes nuevos usando instanciaId de la conversación activa
   const instanciaIdActivo = conversaciones.find((c) => c.id === conversacionActiva)?.instanciaId ?? null;
@@ -88,7 +157,13 @@ export function PanelConversacion({
         estado: "ABIERTA",
         creadoEn: new Date(),
         actualizadoEn: new Date(),
-        contacto: { id: contactoId, nombre: nombreContacto.split(" ")[0] ?? "", apellido: nombreContacto.split(" ").slice(1).join(" "), telefonoPrincipal: telefonoContacto ?? null, email: null },
+        contacto: {
+          id: contactoId,
+          nombre: nombreContacto.split(" ")[0] ?? "",
+          apellido: nombreContacto.split(" ").slice(1).join(" "),
+          telefonoPrincipal: telefonoContacto ?? null,
+          email: null,
+        },
         cuentaCanal: cuentaSeleccionada,
         oportunidades: [],
         _count: { mensajes: 0 },
@@ -163,7 +238,7 @@ export function PanelConversacion({
         </div>
       )}
 
-      {/* ── Estado vacío: iniciar conversación ── */}
+      {/* Estado vacío: iniciar conversación */}
       {sinConversacion && (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-5">
           <div className="flex flex-col items-center gap-2 text-center">
@@ -216,17 +291,17 @@ export function PanelConversacion({
         </div>
       )}
 
-      {/* Lista de mensajes */}
-      {!sinConversacion && <ListaMensajes mensajes={mensajes} />}
-
-      {/* Historial completo */}
+      {/* Lista de mensajes con paginación */}
       {!sinConversacion && (
-        <div className="px-2 py-1 border-t border-white/5 shrink-0">
-          <HistorialCompleto contactoId={contactoId} nombreContacto={nombreContacto} />
-        </div>
+        <ListaMensajes
+          mensajes={mensajes}
+          hayMasAnteriores={hayMasAnteriores}
+          cargandoAnteriores={cargandoAnteriores}
+          onCargarAnteriores={cargarAnteriores}
+        />
       )}
 
-      {/* Input de mensaje — solo cuando hay conversación activa */}
+      {/* Input de mensaje */}
       {!sinConversacion && (
         <InputMensaje
           conversacionId={conversacionActiva ?? ""}
