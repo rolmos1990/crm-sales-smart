@@ -41,3 +41,13 @@ export async function eliminarCuenta(id: string) {
   await prisma.cuentaCanal.delete({ where: { id } });
   revalidatePath("/integraciones/whatsapp-lite");
 }
+
+export async function configurarPipelineCuenta(id: string, pipelineId: string | null) {
+  await prisma.cuentaCanal.update({ where: { id }, data: { pipelineId, stageId: null } });
+  revalidatePath("/integraciones/whatsapp-lite");
+}
+
+export async function configurarStageCuenta(id: string, stageId: string | null) {
+  await prisma.cuentaCanal.update({ where: { id }, data: { stageId } });
+  revalidatePath("/integraciones/whatsapp-lite");
+}

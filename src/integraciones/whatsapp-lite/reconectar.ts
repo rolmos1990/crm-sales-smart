@@ -1,4 +1,3 @@
-import path from "path";
 import fs from "fs";
 
 // Reconecta todas las sesiones de WhatsApp Lite que tienen auth guardado en disco.
@@ -47,7 +46,7 @@ async function reconectarSocket(
   // Crear (o reutilizar) entrada en el manager
   if (!existente) sesionManagerWA.crear(sessionId);
 
-  const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } =
+  const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } =
     await import("@whiskeysockets/baileys");
   const { default: pino } = await import("pino");
 
@@ -63,7 +62,7 @@ async function reconectarSocket(
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: "silent" }),
-      browser: Browsers.ubuntu("Chrome"),
+      browser: ["CRMSmart", "Chrome", "22.04.4"] as [string, string, string],
       syncFullHistory: false,
     });
 
@@ -106,7 +105,9 @@ async function reconectarSocket(
     socket.ev.on("messages.upsert", async ({ messages, type }) => {
       if (type !== "notify") return;
       for (const msg of messages) {
-        if (msg.key.fromMe) continue; // ignorar mensajes propios
+        if (msg.key.fromMe) continue;
+        if (msg.key.remoteJid === "status@broadcast") continue;
+        if (msg.key.remoteJid?.endsWith("@g.us")) continue; // ignorar mensajes de grupos
         try {
           await encolarMensajeEntrante(msg, cuentaCanalId, instanciaId);
         } catch (e) {
@@ -119,55 +120,7 @@ async function reconectarSocket(
   await conectar();
 }
 
-async function encolarMensajeEntrante(
-  msg: any,
-  cuentaCanalId: string,
-  instanciaId: string
-): Promise<void> {
-  const { prisma } = await import("@/shared/db/prisma");
-  const idExterno = msg.key.id as string | undefined;
-
-  // Idempotencia: no encolar si ya existe el mensaje o ya hay un job pendiente/procesado
-  if (idExterno) {
-    const [yaExiste, yaEncolado] = await Promise.all([
-      prisma.mensajeConversacion.findFirst({ where: { idExterno }, select: { id: true } }),
-      prisma.jobMensaje.findFirst({
-        where: {
-          tipo: "PROCESAR_ENTRANTE",
-          payload: { path: ["idExterno"], equals: idExterno },
-        },
-        select: { id: true },
-      }),
-    ]);
-    if (yaExiste || yaEncolado) return;
-  }
-
-  // Extraer solo la parte numérica del JID individual (@s.whatsapp.net)
-  const jid = msg.key.remoteJid ?? "";
-  const soloNumeros = jid.replace(/@s\.whatsapp\.net$/, "").replace(/:\d+$/, "").replace(/\D/g, "");
-  const telefono = soloNumeros ? `+${soloNumeros}` : jid;
-
-  const contenido =
-    msg.message?.conversation ??
-    msg.message?.extendedTextMessage?.text ??
-    undefined;
-
-  const pushName = (msg.pushName && msg.pushName !== "") ? msg.pushName : undefined;
-
-  await prisma.jobMensaje.create({
-    data: {
-      tipo: "PROCESAR_ENTRANTE",
-      instanciaId,
-      payload: {
-        canal: "whatsapp_lite",
-        identificadorContacto: telefono,
-        cuentaCanalId,
-        instanciaId,
-        contenido,
-        tipo: "TEXTO",
-        idExterno,
-        pushName,
-      },
-    },
-  });
+async function encolarMensajeEntrante(msg: any, cuentaCanalId: string, instanciaId: string): Promise<void> {
+  const { encolarMensajeEntrante: encolar } = await import("./encolar-mensaje");
+  await encolar(msg, cuentaCanalId, instanciaId);
 }

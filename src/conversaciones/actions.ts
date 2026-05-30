@@ -130,22 +130,26 @@ export async function procesarMensajeEntrante(
       data: { nuevoMensaje: true, ultimaInteraccionEn: new Date() },
     });
   } else {
-    // Resolver pipeline: intentar con instanciaId, luego sin filtro, luego el primero disponible
+    // Resolver pipeline: 1) pipeline configurado en la cuenta canal, 2) default de la instancia, 3) cualquier activo
+    const stagesInclude = { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" } as const, take: 1 } };
+
+    const cuentaCanalCfg = cuentaCanalId
+      ? await prisma.cuentaCanal.findUnique({ where: { id: cuentaCanalId }, select: { pipelineId: true, stageId: true } })
+      : null;
+
     const pipelineDefault =
-      await prisma.pipeline.findFirst({
-        where: { instanciaId, esDefault: true, activo: true },
-        include: { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" }, take: 1 } },
-      }) ??
-      await prisma.pipeline.findFirst({
-        where: { esDefault: true, activo: true },
-        include: { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" }, take: 1 } },
-      }) ??
-      await prisma.pipeline.findFirst({
-        where: { activo: true },
-        orderBy: [{ esDefault: "desc" }, { creadoEn: "asc" }],
-        include: { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" }, take: 1 } },
-      });
-    const stageInicial = pipelineDefault?.stages[0] ?? null;
+      (cuentaCanalCfg?.pipelineId
+        ? await prisma.pipeline.findUnique({ where: { id: cuentaCanalCfg.pipelineId, activo: true }, include: stagesInclude }) ?? null
+        : null) ??
+      await prisma.pipeline.findFirst({ where: { instanciaId, esDefault: true, activo: true }, include: stagesInclude }) ??
+      await prisma.pipeline.findFirst({ where: { esDefault: true, activo: true }, include: stagesInclude }) ??
+      await prisma.pipeline.findFirst({ where: { activo: true }, orderBy: [{ esDefault: "desc" }, { creadoEn: "asc" }], include: stagesInclude });
+
+    // Usar etapa configurada en la cuenta canal; si no, la etapa inicial del pipeline
+    const stageConfigurado = cuentaCanalCfg?.stageId
+      ? await prisma.pipelineStage.findUnique({ where: { id: cuentaCanalCfg.stageId, activo: true }, select: { id: true, probabilidad: true } })
+      : null;
+    const stageInicial = stageConfigurado ?? pipelineDefault?.stages[0] ?? null;
 
     const count = await prisma.oportunidad.count({ where: { instanciaId } });
 

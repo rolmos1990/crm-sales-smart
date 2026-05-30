@@ -7,7 +7,24 @@ async function obtenerCuentasWALite(instanciaId: string) {
   return prisma.cuentaCanal.findMany({
     where: { instanciaId, canal: "whatsapp_lite" },
     orderBy: { creadoEn: "asc" },
-    select: { id: true, nombre: true, identificador: true, activa: true },
+    select: { id: true, nombre: true, identificador: true, activa: true, pipelineId: true, stageId: true },
+  });
+}
+
+async function obtenerPipelines(instanciaId: string) {
+  return prisma.pipeline.findMany({
+    where: { activo: true, OR: [{ instanciaId }, { instanciaId: null }] },
+    orderBy: [{ esDefault: "desc" }, { nombre: "asc" }],
+    select: {
+      id: true,
+      nombre: true,
+      esDefault: true,
+      stages: {
+        where: { activo: true },
+        orderBy: { orden: "asc" as const },
+        select: { id: true, nombre: true, esInicial: true },
+      },
+    },
   });
 }
 
@@ -17,12 +34,18 @@ async function obtenerInstanciaId(): Promise<string> {
 }
 
 export default async function WhatsAppLitePage() {
-  let cuentas: { id: string; nombre: string; identificador: string; activa: boolean }[] = [];
+  let cuentas: { id: string; nombre: string; identificador: string; activa: boolean; pipelineId: string | null; stageId: string | null }[] = [];
+  let pipelines: { id: string; nombre: string; esDefault: boolean; stages: { id: string; nombre: string; esInicial: boolean }[] }[] = [];
   let instanciaId = "";
 
   try {
     instanciaId = await obtenerInstanciaId();
-    if (instanciaId) cuentas = await obtenerCuentasWALite(instanciaId);
+    if (instanciaId) {
+      [cuentas, pipelines] = await Promise.all([
+        obtenerCuentasWALite(instanciaId),
+        obtenerPipelines(instanciaId),
+      ]);
+    }
   } catch {
     // DB no configurada
   }
@@ -77,7 +100,7 @@ export default async function WhatsAppLitePage() {
 
       {/* Panel de números */}
       <div className="rounded-2xl border border-white/10 bg-white/3 backdrop-blur-xl p-6">
-        <PanelNumerosWhatsApp instanciaId={instanciaId} cuentas={cuentas} />
+        <PanelNumerosWhatsApp instanciaId={instanciaId} cuentas={cuentas} pipelines={pipelines} />
       </div>
 
       {/* Instrucciones */}

@@ -128,6 +128,25 @@ async function iniciarSesionBaileys(sessionId: string, instanciaId: string, nomb
         }
       }
     });
+
+    // Escuchar mensajes entrantes usando el cuentaCanalId que se asigna al conectar
+    socket.ev.on("messages.upsert", async ({ messages, type }) => {
+      if (type !== "notify") return;
+      const sesionActual = sesionManagerWA.obtener(sessionId);
+      const cuentaCanalId = sesionActual?.cuentaCanalId;
+      if (!cuentaCanalId) return; // aún no se ha guardado la cuenta (antes del "open")
+      for (const msg of messages) {
+        if (msg.key.fromMe) continue;
+        if (msg.key.remoteJid === "status@broadcast") continue;
+        if (msg.key.remoteJid?.endsWith("@g.us")) continue; // ignorar mensajes de grupos
+        try {
+          const { encolarMensajeEntrante } = await import("@/integraciones/whatsapp-lite/encolar-mensaje");
+          await encolarMensajeEntrante(msg, cuentaCanalId, instanciaId);
+        } catch (e) {
+          console.error("[WA Sesión] Error encolando mensaje entrante:", e);
+        }
+      }
+    });
   }
 
   await conectar();

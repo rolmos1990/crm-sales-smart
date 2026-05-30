@@ -12,10 +12,18 @@ interface PanelNumerosWhatsAppProps {
     nombre: string;
     identificador: string;
     activa: boolean;
+    pipelineId: string | null;
+    stageId: string | null;
+  }[];
+  pipelines: {
+    id: string;
+    nombre: string;
+    esDefault: boolean;
+    stages: { id: string; nombre: string; esInicial: boolean }[];
   }[];
 }
 
-export function PanelNumerosWhatsApp({ instanciaId, cuentas }: PanelNumerosWhatsAppProps) {
+export function PanelNumerosWhatsApp({ instanciaId, cuentas, pipelines }: PanelNumerosWhatsAppProps) {
   const [mostrarModal, setMostrarModal] = useState(false);
   const [ultimoConectado, setUltimoConectado] = useState<string | null>(null);
 
@@ -72,7 +80,7 @@ export function PanelNumerosWhatsApp({ instanciaId, cuentas }: PanelNumerosWhats
       ) : (
         <div className="space-y-2.5">
           {cuentas.map((cuenta) => (
-            <TarjetaNumero key={cuenta.id} cuenta={cuenta} />
+            <TarjetaNumero key={cuenta.id} cuenta={cuenta} pipelines={pipelines} />
           ))}
         </div>
       )}
