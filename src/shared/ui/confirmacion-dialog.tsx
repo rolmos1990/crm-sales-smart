@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,9 +13,13 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface ConfirmacionDialogProps {
-  trigger: ReactNode;
+  // Modo no-controlado: el diálogo maneja su propio estado via trigger
+  trigger?: ReactNode;
+  // Modo controlado: para usar dentro de dropdowns u otros floating elements
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   titulo: string;
-  descripcion: string;
+  descripcion: ReactNode;
   onConfirmar: () => void | Promise<void>;
   variante?: "destructive" | "default";
   textoCancelar?: string;
@@ -24,6 +28,8 @@ interface ConfirmacionDialogProps {
 
 export function ConfirmacionDialog({
   trigger,
+  open: openProp,
+  onOpenChange,
   titulo,
   descripcion,
   onConfirmar,
@@ -31,7 +37,11 @@ export function ConfirmacionDialog({
   textoCancelar = "Cancelar",
   textoConfirmar = "Confirmar",
 }: ConfirmacionDialogProps) {
-  const [abierto, setAbierto] = useState(false);
+  const [internoAbierto, setInternoAbierto] = useState(false);
+  const isControlled = openProp !== undefined;
+  const abierto = isControlled ? openProp! : internoAbierto;
+  const setAbierto = isControlled ? onOpenChange! : setInternoAbierto;
+
   const [cargando, setCargando] = useState(false);
 
   const handleConfirmar = async () => {
@@ -46,14 +56,18 @@ export function ConfirmacionDialog({
 
   return (
     <>
-      <span onClick={() => setAbierto(true)} className="contents">
-        {trigger}
-      </span>
+      {trigger && (
+        <span onClick={() => setAbierto(true)} className="contents">
+          {trigger}
+        </span>
+      )}
       <AlertDialog open={abierto} onOpenChange={setAbierto}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{titulo}</AlertDialogTitle>
-            <AlertDialogDescription>{descripcion}</AlertDialogDescription>
+            <AlertDialogDescription render={<div />}>
+              {descripcion}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={cargando}>{textoCancelar}</AlertDialogCancel>

@@ -91,6 +91,10 @@ class SesionManagerWA {
     return ruta;
   }
 
+  obtenerPorCuenta(cuentaCanalId: string): SesionWA | undefined {
+    return Array.from(this.sesiones.values()).find((s) => s.cuentaCanalId === cuentaCanalId);
+  }
+
   listar(): SesionWA[] {
     return Array.from(this.sesiones.values());
   }

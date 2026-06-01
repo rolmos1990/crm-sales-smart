@@ -13,7 +13,7 @@ import type { MensajeEntranteNormalizado } from "./types";
 export async function procesarMensajeEntrante(
   payload: MensajeEntranteNormalizado & { instanciaId: string }
 ) {
-  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName } = payload;
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl } = payload;
 
   // 1. Buscar contacto por identificador de canal
   let identificador = await prisma.contactoIdentificadorCanal.findUnique({
@@ -64,6 +64,7 @@ export async function procesarMensajeEntrante(
           instanciaId,
           estado: "LEAD",
           ...(telefonoGuardar ? { telefonoPrincipal: telefonoGuardar } : {}),
+          ...(avatarUrl ? { avatarUrl } : {}),
         },
       });
       identificador = await prisma.contactoIdentificadorCanal.create({
@@ -73,11 +74,14 @@ export async function procesarMensajeEntrante(
     }
   }
 
-  // Auto-actualizar nombre si el contacto es placeholder y tenemos pushName
-  if (pushName && identificador.contacto.nombre === "") {
+  // Auto-actualizar nombre/avatar si el contacto es placeholder o no tiene foto aún
+  const actualizarContacto: Record<string, string> = {};
+  if (pushName && identificador.contacto.nombre === "") actualizarContacto.nombre = pushName;
+  if (avatarUrl && !identificador.contacto.avatarUrl) actualizarContacto.avatarUrl = avatarUrl;
+  if (Object.keys(actualizarContacto).length > 0) {
     await prisma.contacto.update({
       where: { id: identificador.contacto.id },
-      data: { nombre: pushName },
+      data: actualizarContacto,
     });
   }
 

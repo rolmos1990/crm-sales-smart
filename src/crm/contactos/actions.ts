@@ -122,11 +122,19 @@ export async function obtenerContactoAction(id: string) {
 
 export async function eliminarContacto(id: string): Promise<ResultadoAccion> {
   try {
-    await prisma.contacto.delete({ where: { id } });
+    // Actividad, Cotizacion y Pedido no tienen onDelete definido en el schema
+    // → hay que nullificar el FK antes de borrar para que PostgreSQL no bloquee
+    await prisma.$transaction([
+      prisma.actividad.updateMany({ where: { contactoId: id }, data: { contactoId: null } }),
+      prisma.cotizacion.updateMany({ where: { contactoId: id }, data: { contactoId: null } }),
+      prisma.pedido.updateMany({ where: { contactoId: id }, data: { contactoId: null } }),
+      prisma.contacto.delete({ where: { id } }),
+    ]);
     busEventos.publicar(TIPOS_EVENTO.CONTACTO_ELIMINADO, { contactoId: id });
     revalidatePath("/crm/contactos");
     return { exito: true, datos: undefined };
-  } catch {
+  } catch (e) {
+    console.error("[eliminarContacto]", e);
     return { exito: false, error: "Error al eliminar el contacto" };
   }
 }

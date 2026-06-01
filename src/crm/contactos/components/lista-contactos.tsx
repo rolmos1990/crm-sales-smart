@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
@@ -15,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarContacto } from "./avatar-contacto";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { eliminarContacto } from "../actions";
 import type { Contacto, EstadoContacto } from "../types";
@@ -28,6 +29,7 @@ const ESTADO_CONFIG: Record<EstadoContacto, { etiqueta: string; variante: "defau
 
 function AccionesContacto({ contacto }: { contacto: Contacto }) {
   const router = useRouter();
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
 
   const handleEliminar = async () => {
     const resultado = await eliminarContacto(contacto.id);
@@ -39,36 +41,58 @@ function AccionesContacto({ contacto }: { contacto: Contacto }) {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
-        <MoreHorizontal className="h-4 w-4" />
-        <span className="sr-only">Acciones</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => router.push(`/crm/contactos/${contacto.id}`)}>
-          Ver detalle
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push(`/crm/contactos/${contacto.id}/editar`)}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Editar
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <ConfirmacionDialog
-          trigger={
-            <DropdownMenuItem
-              onSelect={(e) => e.preventDefault()}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Eliminar
-            </DropdownMenuItem>
-          }
-          titulo="¿Eliminar contacto?"
-          descripcion={`Esta acción eliminará permanentemente a ${contacto.nombre} ${contacto.apellido} y no se puede deshacer.`}
-          onConfirmar={handleEliminar}
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
+          <MoreHorizontal className="h-4 w-4" />
+          <span className="sr-only">Acciones</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => router.push(`/crm/contactos/${contacto.id}`)}>
+            Ver detalle
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push(`/crm/contactos/${contacto.id}/editar`)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Editar
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setConfirmarEliminar(true)}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Eliminar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ConfirmacionDialog
+        open={confirmarEliminar}
+        onOpenChange={setConfirmarEliminar}
+        titulo={`¿Eliminar a ${contacto.nombre}${contacto.apellido ? ` ${contacto.apellido}` : ""}?`}
+        descripcion={
+          <div className="space-y-3 text-sm">
+            <p>Esta acción es permanente y no se puede deshacer.</p>
+            <div>
+              <p className="font-medium text-foreground mb-1">Se eliminará:</p>
+              <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                <li>Todas sus conversaciones y mensajes</li>
+                <li>Sus identificadores de canal (teléfono, email, etc.)</li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium text-foreground mb-1">Se conserva:</p>
+              <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
+                <li>Las oportunidades quedan sin contacto asignado</li>
+                <li>Actividades, cotizaciones y pedidos quedan sin contacto</li>
+              </ul>
+            </div>
+          </div>
+        }
+        textoConfirmar="Sí, eliminar contacto"
+        onConfirmar={handleEliminar}
+      />
+    </>
   );
 }
 
@@ -82,14 +106,12 @@ const columnas: ColumnDef<Contacto>[] = [
       </Button>
     ),
     cell: ({ row }) => {
-      const { nombre, apellido, id } = row.original;
-      const iniciales = `${nombre[0]}${apellido[0]}`.toUpperCase();
+      const { nombre, apellido, avatarUrl, id } = row.original;
+      const nombreCompleto = [nombre, apellido].filter(Boolean).join(" ") || "Sin nombre";
       return (
-        <Link href={`/crm/contactos/${id}`} className="flex items-center gap-3 hover:underline">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs bg-primary/10 text-primary">{iniciales}</AvatarFallback>
-          </Avatar>
-          <span className="font-medium">{nombre} {apellido}</span>
+        <Link href={`/crm/contactos/${id}`} className="flex items-center gap-3 hover:underline min-w-0">
+          <AvatarContacto nombre={nombre} apellido={apellido} avatarUrl={avatarUrl} size="sm" />
+          <span className="font-medium truncate">{nombreCompleto}</span>
         </Link>
       );
     },

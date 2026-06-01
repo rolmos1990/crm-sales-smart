@@ -299,6 +299,7 @@ model Contacto {
   notas         String?
   estado        EstadoContacto @default(LEAD)
   activo        Boolean        @default(true)
+  avatarUrl     String?
   metadata      Json?
   creadoEn      DateTime       @default(now())
   actualizadoEn DateTime       @updatedAt

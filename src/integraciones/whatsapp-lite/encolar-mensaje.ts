@@ -1,4 +1,5 @@
 import { prisma } from "@/shared/db/prisma";
+import { sesionManagerWA } from "./sesion-manager";
 
 export async function encolarMensajeEntrante(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +46,15 @@ export async function encolarMensajeEntrante(
 
   const pushName = (msg.pushName && msg.pushName !== "") ? msg.pushName : undefined;
 
+  // Intentar obtener foto de perfil de WhatsApp (best-effort, no bloquea el flujo)
+  let avatarUrl: string | undefined;
+  const sesion = sesionManagerWA.obtenerPorCuenta(cuentaCanalId);
+  if (sesion?.socket && jid.endsWith("@s.whatsapp.net")) {
+    try {
+      avatarUrl = await sesion.socket.profilePictureUrl(jid, "image");
+    } catch { /* contacto sin foto o privacidad activada */ }
+  }
+
   await prisma.jobMensaje.create({
     data: {
       tipo: "PROCESAR_ENTRANTE",
@@ -58,6 +68,7 @@ export async function encolarMensajeEntrante(
         tipo: "TEXTO",
         idExterno,
         pushName,
+        ...(avatarUrl ? { avatarUrl } : {}),
       },
     },
   });

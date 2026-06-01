@@ -12,6 +12,7 @@ export interface Contacto {
   cargo: string | null;
   notas: string | null;
   estado: EstadoContacto;
+  avatarUrl: string | null;
   creadoEn: Date;
   actualizadoEn: Date;
   empresaId: string | null;
