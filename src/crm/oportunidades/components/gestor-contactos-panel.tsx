@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   Star, Phone, Mail, UserPlus, MoreHorizontal,
   ExternalLink, Trash2, ArrowLeft, Plus, Loader2,
+  Pencil, Check, X, MessageCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,7 +33,7 @@ import {
   removerContactoDeOportunidad,
   marcarContactoPrincipal,
 } from "../actions";
-import { crearContacto } from "@/crm/contactos/actions";
+import { crearContacto, actualizarContacto } from "@/crm/contactos/actions";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -76,6 +77,123 @@ function avatarPalette(nombre: string) {
   let hash = 0;
   for (let i = 0; i < nombre.length; i++) hash = (hash + nombre.charCodeAt(i)) % AVATAR_PALETTES.length;
   return AVATAR_PALETTES[hash];
+}
+
+// ── Campo editable inline ─────────────────────────────────────────
+
+function CampoContacto({
+  label,
+  valor,
+  placeholder,
+  tipo,
+  onGuardar,
+}: {
+  label: string;
+  valor: string | null | undefined;
+  placeholder: string;
+  tipo: "tel" | "email";
+  onGuardar: (v: string) => Promise<void>;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [val, setVal] = useState(valor ?? "");
+  const [guardando, startGuardando] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setVal(valor ?? ""); }, [valor]);
+
+  const guardar = () => {
+    if (val === (valor ?? "")) { setEditando(false); return; }
+    startGuardando(async () => {
+      await onGuardar(val);
+      setEditando(false);
+    });
+  };
+
+  if (editando) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-lg bg-stone-50 dark:bg-white/6 border border-lime-400/40 px-2.5 py-1.5">
+        <input
+          ref={inputRef}
+          autoFocus
+          type={tipo}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={guardar}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") guardar();
+            if (e.key === "Escape") { setVal(valor ?? ""); setEditando(false); }
+          }}
+          placeholder={placeholder}
+          className="flex-1 min-w-0 bg-transparent text-xs text-stone-900 dark:text-stone-100 outline-none placeholder:text-stone-400"
+        />
+        {guardando ? (
+          <Loader2 className="h-3 w-3 animate-spin text-lime-500 shrink-0" />
+        ) : (
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); guardar(); }}
+            className="text-lime-500 hover:text-lime-600 shrink-0"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); setVal(valor ?? ""); setEditando(false); }}
+          className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 shrink-0"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  const waHref = tipo === "tel" && valor ? `https://wa.me/${valor.replace(/\D/g, "")}` : null;
+  const actionHref = valor ? (tipo === "tel" ? `tel:${valor}` : `mailto:${valor}`) : null;
+
+  return (
+    <div className="flex items-center gap-0.5 group min-w-0 rounded-lg px-1 py-1 hover:bg-stone-50 dark:hover:bg-white/4 transition-colors">
+      {/* Botones de acción — siempre visibles */}
+      {waHref && (
+        <a
+          href={waHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Abrir en WhatsApp"
+          onClick={(e) => e.stopPropagation()}
+          className="h-6 w-6 flex items-center justify-center rounded-md text-stone-400 hover:text-green-500 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-400/10 transition-colors shrink-0"
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
+        </a>
+      )}
+      {actionHref && (
+        <a
+          href={actionHref}
+          title={tipo === "tel" ? "Llamar" : "Enviar email"}
+          onClick={(e) => e.stopPropagation()}
+          className="h-6 w-6 flex items-center justify-center rounded-md text-stone-400 hover:text-lime-600 dark:hover:text-lime-400 hover:bg-lime-50 dark:hover:bg-lime-400/10 transition-colors shrink-0"
+        >
+          {tipo === "tel" ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+        </a>
+      )}
+      {/* Valor o placeholder */}
+      <span className={cn(
+        "flex-1 text-xs truncate mx-0.5",
+        valor ? "text-stone-700 dark:text-stone-300" : "text-stone-400 dark:text-stone-600 italic"
+      )}>
+        {valor || placeholder}
+      </span>
+      {/* Botón editar — aparece al hover */}
+      <button
+        type="button"
+        title={`Editar ${label}`}
+        onClick={() => { setEditando(true); }}
+        className="h-6 w-6 flex items-center justify-center rounded-md text-stone-400 opacity-0 group-hover:opacity-100 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/10 transition-all shrink-0"
+      >
+        <Pencil className="h-3 w-3" />
+      </button>
+    </div>
+  );
 }
 
 // ── Create-new schema ─────────────────────────────────────────────
@@ -217,6 +335,25 @@ export function GestorContactosPanel({
     setModoCrear(false);
     form.reset(DEFAULTS_NUEVO);
     toast.success("Contacto creado y asignado");
+  };
+
+  // Actualización parcial de un campo del contacto
+  const handleActualizarCampo = async (
+    contactoId: string,
+    campo: "telefonoPrincipal" | "email",
+    valor: string
+  ) => {
+    const r = await actualizarContacto(contactoId, { [campo]: valor || undefined });
+    if (!r.exito) { toast.error(r.error); throw new Error(r.error); }
+
+    setContactos((prev) =>
+      prev.map((rel) =>
+        rel.contactoId === contactoId
+          ? { ...rel, contacto: { ...rel.contacto, [campo]: valor || null } }
+          : rel
+      )
+    );
+    toast.success("Guardado");
   };
 
   // ── Modo crear nuevo contacto ──────────────────────────────────
@@ -424,38 +561,28 @@ export function GestorContactosPanel({
                   <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{c.cargo}</p>
                 )}
 
-                {(c.telefonoPrincipal || c.telefonoSecundario || c.email) && (
-                  <div className="flex flex-col gap-1 mt-2.5">
-                    {c.telefonoPrincipal && (
-                      <a
-                        href={`tel:${c.telefonoPrincipal}`}
-                        className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300 hover:text-lime-600 dark:hover:text-lime-400 transition-colors w-fit"
-                      >
-                        <Phone className="h-3 w-3 text-stone-400 dark:text-stone-500 shrink-0" />
-                        <span>{c.telefonoPrincipal}</span>
-                      </a>
-                    )}
-                    {c.telefonoSecundario && (
-                      <a
-                        href={`tel:${c.telefonoSecundario}`}
-                        className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 hover:text-lime-600 dark:hover:text-lime-400 transition-colors w-fit"
-                      >
-                        <Phone className="h-3 w-3 text-stone-400 dark:text-stone-600 shrink-0 opacity-60" />
-                        <span>{c.telefonoSecundario}</span>
-                        <span className="text-[10px] text-stone-400 dark:text-stone-600">(alt)</span>
-                      </a>
-                    )}
-                    {c.email && (
-                      <a
-                        href={`mailto:${c.email}`}
-                        className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300 hover:text-lime-600 dark:hover:text-lime-400 transition-colors w-fit max-w-full"
-                      >
-                        <Mail className="h-3 w-3 text-stone-400 dark:text-stone-500 shrink-0" />
-                        <span className="truncate">{c.email}</span>
-                      </a>
-                    )}
-                  </div>
-                )}
+                {/* Edición rápida de contacto */}
+                <div className="mt-2.5 space-y-0.5 border-t border-stone-100 dark:border-white/8 pt-2.5">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 px-1 mb-1">
+                    Editar rápido
+                  </p>
+
+                  <CampoContacto
+                    label="Teléfono principal"
+                    valor={c.telefonoPrincipal}
+                    placeholder="Agregar teléfono"
+                    tipo="tel"
+                    onGuardar={(v) => handleActualizarCampo(rel.contactoId, "telefonoPrincipal", v)}
+                  />
+
+                  <CampoContacto
+                    label="Correo electrónico"
+                    valor={c.email}
+                    placeholder="Agregar correo"
+                    tipo="email"
+                    onGuardar={(v) => handleActualizarCampo(rel.contactoId, "email", v)}
+                  />
+                </div>
               </div>
 
               {/* Menu */}
