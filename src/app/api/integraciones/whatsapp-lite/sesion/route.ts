@@ -6,7 +6,12 @@ import { prisma } from "@/shared/db/prisma";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const { instanciaId, nombre } = await req.json() as { instanciaId: string; nombre: string };
+  const { instanciaId, nombre, pipelineId, stageId } = await req.json() as {
+    instanciaId: string;
+    nombre: string;
+    pipelineId?: string;
+    stageId?: string;
+  };
   if (!instanciaId || !nombre?.trim()) {
     return NextResponse.json({ error: "instanciaId y nombre son requeridos" }, { status: 400 });
   }
@@ -15,7 +20,7 @@ export async function POST(req: NextRequest) {
   sesionManagerWA.crear(sessionId);
 
   // Iniciar Baileys en background — propaga errores al session manager para que el SSE los reciba
-  iniciarSesionBaileys(sessionId, instanciaId, nombre.trim()).catch((e: unknown) => {
+  iniciarSesionBaileys(sessionId, instanciaId, nombre.trim(), pipelineId, stageId).catch((e: unknown) => {
     const msg = e instanceof Error ? e.message : "Error iniciando sesión";
     console.error("[WA Sesión] Error:", msg, e);
     sesionManagerWA.emitirError(sessionId, msg);
@@ -40,7 +45,13 @@ export async function DELETE(req: NextRequest) {
 
 // ── Baileys session bootstrap ───────────────────────────────────────────────
 
-async function iniciarSesionBaileys(sessionId: string, instanciaId: string, nombre: string) {
+async function iniciarSesionBaileys(
+  sessionId: string,
+  instanciaId: string,
+  nombre: string,
+  pipelineId?: string,
+  stageId?: string,
+) {
   // Dynamic imports to keep Baileys out of the webpack bundle
   const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } =
     await import("@whiskeysockets/baileys");
@@ -83,6 +94,10 @@ async function iniciarSesionBaileys(sessionId: string, instanciaId: string, nomb
       }
 
       if (connection === "open") {
+        // Guardia contra el doble "open" que Baileys dispara tras el ciclo close(515)+reconexión
+        const sesionActual = sesionManagerWA.obtener(sessionId);
+        if (sesionActual?.cuentaCanalId) return;
+
         const jid = socket.user?.id ?? "";
         const telefono = jid.split(":")[0].split("@")[0];
         const telefonoFormateado = `+${telefono}`;
@@ -96,15 +111,18 @@ async function iniciarSesionBaileys(sessionId: string, instanciaId: string, nomb
               identificador: telefonoFormateado,
               configuracion: { sessionId, authPath },
               activa: true,
+              ...(pipelineId ? { pipelineId } : {}),
+              ...(stageId ? { stageId } : {}),
             },
           });
           const s = sesionManagerWA.obtener(sessionId);
           if (s) s.cuentaCanalId = cuenta.id;
+          sesionManagerWA.emitirConectado(sessionId, telefonoFormateado);
         } catch (e) {
           console.error("[WA] Error guardando CuentaCanal:", e);
+          const msg = e instanceof Error ? e.message : "Error guardando número en base de datos";
+          sesionManagerWA.emitirError(sessionId, msg);
         }
-
-        sesionManagerWA.emitirConectado(sessionId, telefonoFormateado);
       }
 
       if (connection === "close") {

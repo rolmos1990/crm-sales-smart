@@ -51,3 +51,8 @@ export async function configurarStageCuenta(id: string, stageId: string | null) 
   await prisma.cuentaCanal.update({ where: { id }, data: { stageId } });
   revalidatePath("/integraciones/whatsapp-lite");
 }
+
+export async function configurarEtapaCuenta(id: string, pipelineId: string, stageId: string) {
+  await prisma.cuentaCanal.update({ where: { id }, data: { pipelineId, stageId } });
+  revalidatePath("/integraciones/whatsapp-lite");
+}

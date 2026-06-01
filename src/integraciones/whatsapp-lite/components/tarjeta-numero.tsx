@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Phone, Pencil, Trash2, Power, Check, X, GitBranch, Layers } from "lucide-react";
+import { Phone, Pencil, Trash2, Power, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { actualizarNombreCuenta, activarCuenta, desactivarCuenta, eliminarCuenta, configurarPipelineCuenta, configurarStageCuenta } from "../actions";
+import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
+import { actualizarNombreCuenta, activarCuenta, desactivarCuenta, eliminarCuenta, configurarEtapaCuenta } from "../actions";
 
 interface TarjetaNumeroProps {
   cuenta: {
@@ -13,23 +14,18 @@ interface TarjetaNumeroProps {
     activa: boolean;
     pipelineId: string | null;
     stageId: string | null;
+    stage: { nombre: string; color: string | null } | null;
   };
-  pipelines: {
-    id: string;
-    nombre: string;
-    esDefault: boolean;
-    stages: { id: string; nombre: string; esInicial: boolean }[];
-  }[];
 }
 
-export function TarjetaNumero({ cuenta, pipelines }: TarjetaNumeroProps) {
+export function TarjetaNumero({ cuenta }: TarjetaNumeroProps) {
   const [editando, setEditando] = useState(false);
   const [nombreEdit, setNombreEdit] = useState(cuenta.nombre);
-  const [selectedPipelineId, setSelectedPipelineId] = useState(cuenta.pipelineId ?? "");
-  const [selectedStageId, setSelectedStageId] = useState(cuenta.stageId ?? "");
+  const [localPipelineId, setLocalPipelineId] = useState(cuenta.pipelineId);
+  const [localStageId, setLocalStageId] = useState(cuenta.stageId);
+  const [localStageNombre, setLocalStageNombre] = useState(cuenta.stage?.nombre ?? null);
+  const [localStageColor, setLocalStageColor] = useState(cuenta.stage?.color ?? null);
   const [isPending, startTransition] = useTransition();
-
-  const stagesDelPipeline = pipelines.find((p) => p.id === selectedPipelineId)?.stages ?? [];
 
   const guardarNombre = () => {
     if (!nombreEdit.trim() || nombreEdit === cuenta.nombre) { setEditando(false); return; }
@@ -46,18 +42,13 @@ export function TarjetaNumero({ cuenta, pipelines }: TarjetaNumeroProps) {
     });
   };
 
-  const handlePipeline = (pipelineId: string) => {
-    setSelectedPipelineId(pipelineId);
-    setSelectedStageId("");
+  const handleEtapaSelect = (stageId: string, pipelineId: string, nombre: string, color: string | null) => {
+    setLocalPipelineId(pipelineId);
+    setLocalStageId(stageId);
+    setLocalStageNombre(nombre);
+    setLocalStageColor(color);
     startTransition(async () => {
-      await configurarPipelineCuenta(cuenta.id, pipelineId || null);
-    });
-  };
-
-  const handleStage = (stageId: string) => {
-    setSelectedStageId(stageId);
-    startTransition(async () => {
-      await configurarStageCuenta(cuenta.id, stageId || null);
+      await configurarEtapaCuenta(cuenta.id, pipelineId, stageId);
     });
   };
 
@@ -157,50 +148,18 @@ export function TarjetaNumero({ cuenta, pipelines }: TarjetaNumeroProps) {
         </div>
       </div>
 
-      {/* Selectores de pipeline y etapa */}
-      {pipelines.length > 0 && (
-        <div className="px-4 pb-4 space-y-2.5 border-t border-white/5 pt-3">
-          {/* Pipeline */}
-          <div className="flex items-center gap-2">
-            <GitBranch className="h-3.5 w-3.5 text-stone-500 shrink-0" />
-            <span className="text-[11px] text-stone-500 shrink-0 w-28">Pipeline de entrada:</span>
-            <select
-              value={selectedPipelineId}
-              onChange={(e) => handlePipeline(e.target.value)}
-              disabled={isPending}
-              className="flex-1 text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-stone-200 outline-none focus:border-lime-500/30 transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              <option value="">— Automático (default) —</option>
-              {pipelines.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}{p.esDefault ? " (default)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Etapa — solo cuando hay pipeline seleccionado */}
-          {selectedPipelineId && (
-            <div className="flex items-center gap-2">
-              <Layers className="h-3.5 w-3.5 text-stone-500 shrink-0" />
-              <span className="text-[11px] text-stone-500 shrink-0 w-28">Etapa de entrada:</span>
-              <select
-                value={selectedStageId}
-                onChange={(e) => handleStage(e.target.value)}
-                disabled={isPending}
-                className="flex-1 text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-stone-200 outline-none focus:border-lime-500/30 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                <option value="">— Etapa inicial del pipeline —</option>
-                {stagesDelPipeline.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre}{s.esInicial ? " (inicial)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Selector de etapa */}
+      <div className="px-4 pb-4 border-t border-white/5 pt-3 flex items-center gap-2">
+        <span className="text-[11px] text-stone-500 shrink-0">Etapa de entrada:</span>
+        <SelectorPipelineStage
+          pipelineId={localPipelineId}
+          stageId={localStageId}
+          stageNombre={localStageNombre}
+          stageColor={localStageColor}
+          onSelect={handleEtapaSelect}
+          cargando={isPending}
+        />
+      </div>
     </div>
   );
 }

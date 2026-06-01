@@ -5,6 +5,7 @@ import { MessageSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { formatearIdentificadorWA } from "@/lib/whatsapp-utils";
 import type { ConversacionResumen } from "../types";
 
 const ESTADO_CONFIG: Record<string, { etiqueta: string; clase: string }> = {
@@ -66,7 +67,7 @@ export function ListaConversaciones({ conversaciones }: ListaConversacionesProps
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <p className="text-sm font-semibold text-stone-100 truncate">
-                    {nombreCompleto || conv.contacto.telefonoPrincipal || "Sin nombre"}
+                    {nombreCompleto || conv.contacto.telefonoPrincipal || formatearIdentificadorWA(conv.identificadorCanal) || "Sin nombre"}
                   </p>
                   {conv.cuentaCanal && (
                     <span className="text-[10px] font-medium text-stone-500 uppercase tracking-wide shrink-0">

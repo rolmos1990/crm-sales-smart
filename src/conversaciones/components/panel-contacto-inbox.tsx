@@ -2,8 +2,9 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X } from "lucide-react";
+import { User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { esLid, formatearIdentificadorWA } from "@/lib/whatsapp-utils";
 import { actualizarContacto, buscarContactosAction } from "@/crm/contactos/actions";
 import { vincularConversacionAContacto } from "../actions";
 import type { ConversacionResumen } from "../types";
@@ -213,14 +214,37 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado }: Pane
           onGuardar={guardarNombre}
         />
 
-        {/* Teléfono */}
-        <CampoEditable
-          label="Teléfono"
-          valor={contacto.telefonoPrincipal}
-          placeholder="Agregar teléfono"
-          icono={<Phone className="h-3.5 w-3.5" />}
-          onGuardar={(v) => actualizarCampo("telefonoPrincipal", v)}
-        />
+        {/* Teléfono / WhatsApp ID */}
+        {esLid(conversacion.identificadorCanal) ? (
+          <>
+            {/* Mostrar el WA ID como referencia no editable */}
+            <div className="flex items-center gap-2 py-2 px-3 rounded-xl">
+              <Smartphone className="h-3.5 w-3.5 text-stone-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-stone-500 truncate font-mono">
+                  {formatearIdentificadorWA(conversacion.identificadorCanal)}
+                </p>
+                <p className="text-[9px] text-stone-600">Número privado — no disponible</p>
+              </div>
+            </div>
+            {/* Campo para ingresar el número real cuando el agente lo consiga */}
+            <CampoEditable
+              label="Teléfono real"
+              valor={contacto.telefonoPrincipal}
+              placeholder="Agregar cuando lo consigas"
+              icono={<Phone className="h-3.5 w-3.5" />}
+              onGuardar={(v) => actualizarCampo("telefonoPrincipal", v)}
+            />
+          </>
+        ) : (
+          <CampoEditable
+            label="Teléfono"
+            valor={contacto.telefonoPrincipal}
+            placeholder="Agregar teléfono"
+            icono={<Phone className="h-3.5 w-3.5" />}
+            onGuardar={(v) => actualizarCampo("telefonoPrincipal", v)}
+          />
+        )}
 
         {/* Email */}
         <CampoEditable

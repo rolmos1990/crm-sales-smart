@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Loader2, CheckCircle, AlertCircle, Smartphone, RefreshCw } from "lucide-react";
 import Image from "next/image";
+import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
 
 interface ModalQRProps {
   instanciaId: string;
-  onConectado: (telefono: string) => void;
+  onConectado: () => void;
   onCerrar: () => void;
 }
 
@@ -15,6 +16,10 @@ type Estado = "formulario" | "iniciando" | "qr" | "conectado" | "error";
 export function ModalQR({ instanciaId, onConectado, onCerrar }: ModalQRProps) {
   const [estado, setEstado] = useState<Estado>("formulario");
   const [nombre, setNombre] = useState("");
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const [selectedStageNombre, setSelectedStageNombre] = useState<string | null>(null);
+  const [selectedStageColor, setSelectedStageColor] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [telefono, setTelefono] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,14 +44,18 @@ export function ModalQR({ instanciaId, onConectado, onCerrar }: ModalQRProps) {
       const res = await fetch("/api/integraciones/whatsapp-lite/sesion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instanciaId, nombre: nombre.trim() }),
+        body: JSON.stringify({
+          instanciaId,
+          nombre: nombre.trim(),
+          ...(selectedPipelineId ? { pipelineId: selectedPipelineId } : {}),
+          ...(selectedStageId ? { stageId: selectedStageId } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error iniciando sesión");
 
       setSessionId(data.sessionId);
 
-      // Timeout de seguridad — si en 35s no llega QR, mostrar error
       timeoutRef.current = setTimeout(() => {
         if (timeoutRef.current) {
           setError("Tiempo de espera agotado. Verifica tu conexión e inténtalo de nuevo.");
@@ -55,7 +64,6 @@ export function ModalQR({ instanciaId, onConectado, onCerrar }: ModalQRProps) {
         }
       }, 35_000);
 
-      // Conectar SSE para recibir el QR
       const es = new EventSource(`/api/integraciones/whatsapp-lite/qr?sessionId=${data.sessionId}`);
       eventSourceRef.current = es;
 
@@ -71,7 +79,7 @@ export function ModalQR({ instanciaId, onConectado, onCerrar }: ModalQRProps) {
         setTelefono(tel);
         setEstado("conectado");
         limpiarEventSource();
-        setTimeout(() => { onConectado(tel); }, 1500);
+        setTimeout(() => { onConectado(); }, 1500);
       });
 
       es.addEventListener("error", (e) => {
@@ -123,7 +131,7 @@ export function ModalQR({ instanciaId, onConectado, onCerrar }: ModalQRProps) {
         </div>
 
         <div className="p-5">
-          {/* ── Formulario: nombre/alias ───────────────── */}
+          {/* ── Formulario: nombre + etapa ─────────────── */}
           {estado === "formulario" && (
             <div className="space-y-4">
               <p className="text-sm text-stone-400">
@@ -143,6 +151,25 @@ export function ModalQR({ instanciaId, onConectado, onCerrar }: ModalQRProps) {
                   autoFocus
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-400 mb-1.5">
+                  Etapa de entrada <span className="text-stone-600">(opcional)</span>
+                </label>
+                <SelectorPipelineStage
+                  pipelineId={selectedPipelineId}
+                  stageId={selectedStageId}
+                  stageNombre={selectedStageNombre}
+                  stageColor={selectedStageColor}
+                  onSelect={(stageId, pipelineId, nombre, color) => {
+                    setSelectedPipelineId(pipelineId);
+                    setSelectedStageId(stageId);
+                    setSelectedStageNombre(nombre);
+                    setSelectedStageColor(color);
+                  }}
+                />
+              </div>
+
               <button
                 type="button"
                 onClick={iniciar}

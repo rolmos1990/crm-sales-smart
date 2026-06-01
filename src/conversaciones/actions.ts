@@ -23,7 +23,9 @@ export async function procesarMensajeEntrante(
 
   // 2. Si no existe el mapping, buscar contacto por teléfono antes de crear uno nuevo
   if (!identificador) {
-    const soloNumeros = normalizarTelefono(identificadorContacto);
+    // Los JIDs @lid son IDs internos de WhatsApp (privacidad activada), no son teléfonos
+    const esLid = identificadorContacto.endsWith("@lid");
+    const soloNumeros = esLid ? null : normalizarTelefono(identificadorContacto);
 
     const contactoExistente = soloNumeros
       ? await prisma.contacto.findFirst({
@@ -50,7 +52,8 @@ export async function procesarMensajeEntrante(
     } else {
       // Si no hay pushName, crear contacto placeholder sin nombre para que el agente lo identifique
       const nombreInicial = pushName ?? "";
-      const telefonoGuardar = canal !== "email"
+      // Si es @lid no guardamos el identificador como teléfono (no es un número real)
+      const telefonoGuardar = canal !== "email" && !esLid
         ? (soloNumeros ? `+${soloNumeros}` : identificadorContacto)
         : null;
 

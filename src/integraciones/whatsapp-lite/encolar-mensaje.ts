@@ -24,8 +24,18 @@ export async function encolarMensajeEntrante(
   }
 
   const jid = msg.key.remoteJid ?? "";
-  const soloNumeros = jid.replace(/@s\.whatsapp\.net$/, "").replace(/:\d+$/, "").replace(/\D/g, "");
-  const telefono = soloNumeros ? `+${soloNumeros}` : jid;
+  let identificadorContacto: string;
+  if (jid.endsWith("@s.whatsapp.net")) {
+    // Número real: extraer dígitos y construir E.164
+    const soloNumeros = jid.replace(/@s\.whatsapp\.net$/, "").replace(/:\d+$/, "").replace(/\D/g, "");
+    identificadorContacto = soloNumeros ? `+${soloNumeros}` : jid;
+  } else if (jid.endsWith("@lid")) {
+    // Número privado (LID): guardar tal cual, no es un teléfono
+    identificadorContacto = jid;
+  } else {
+    // Grupos u otros formatos: guardar el JID completo
+    identificadorContacto = jid;
+  }
 
   const message = msg.message as Record<string, unknown> | null | undefined;
   const contenido =
@@ -41,7 +51,7 @@ export async function encolarMensajeEntrante(
       instanciaId,
       payload: {
         canal: "whatsapp_lite",
-        identificadorContacto: telefono,
+        identificadorContacto,
         cuentaCanalId,
         instanciaId,
         contenido,

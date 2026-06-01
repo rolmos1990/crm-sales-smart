@@ -12,7 +12,7 @@ interface SelectorPipelineStageProps {
   stageId: string | null;
   stageNombre?: string | null;
   stageColor?: string | null;
-  onSelect: (stageId: string, pipelineId: string) => void;
+  onSelect: (stageId: string, pipelineId: string, stageNombre: string, stageColor: string | null) => void;
   disabled?: boolean;
   cargando?: boolean;
 }
@@ -122,7 +122,7 @@ export function SelectorPipelineStage({
                           key={stage.id}
                           onClick={() => {
                             if (!esCurrent) {
-                              onSelect(stage.id, pipeline.id);
+                              onSelect(stage.id, pipeline.id, stage.nombre, stage.color ?? null);
                               setOpen(false);
                             }
                           }}

@@ -1,6 +1,69 @@
 import { prisma } from "@/shared/db/prisma";
 import type { ConversacionResumen, MensajeConMeta } from "./types";
 
+// Selección de contacto con identificadores de canal incluidos
+const contactoSelect = {
+  id: true,
+  nombre: true,
+  apellido: true,
+  telefonoPrincipal: true,
+  email: true,
+  identificadoresCanal: {
+    select: { identificador: true, canal: true },
+  },
+} as const;
+
+// Mapea una conversación Prisma a ConversacionResumen incluyendo el identificador de canal
+function mapearConversacion(conv: {
+  id: string;
+  instanciaId: string | null;
+  contactoId: string;
+  cuentaCanalId: string | null;
+  asunto: string | null;
+  estado: ConversacionResumen["estado"];
+  creadoEn: Date;
+  actualizadoEn: Date;
+  contacto: {
+    id: string;
+    nombre: string;
+    apellido: string;
+    telefonoPrincipal: string | null;
+    email: string | null;
+    identificadoresCanal: { identificador: string; canal: string }[];
+  };
+  cuentaCanal: ConversacionResumen["cuentaCanal"];
+  oportunidades: ConversacionResumen["oportunidades"];
+  mensajes: ConversacionResumen["ultimoMensaje"][];
+  _count?: { mensajes: number };
+}): ConversacionResumen {
+  const canal = conv.cuentaCanal?.canal ?? "";
+  const identificadorCanal =
+    conv.contacto.identificadoresCanal.find((id) => id.canal === canal)?.identificador ?? null;
+
+  return {
+    id: conv.id,
+    instanciaId: conv.instanciaId,
+    contactoId: conv.contactoId,
+    cuentaCanalId: conv.cuentaCanalId,
+    asunto: conv.asunto,
+    estado: conv.estado,
+    creadoEn: conv.creadoEn,
+    actualizadoEn: conv.actualizadoEn,
+    contacto: {
+      id: conv.contacto.id,
+      nombre: conv.contacto.nombre,
+      apellido: conv.contacto.apellido,
+      telefonoPrincipal: conv.contacto.telefonoPrincipal,
+      email: conv.contacto.email,
+    },
+    cuentaCanal: conv.cuentaCanal,
+    oportunidades: conv.oportunidades,
+    _count: conv._count,
+    ultimoMensaje: (conv.mensajes[0] as MensajeConMeta | null) ?? null,
+    identificadorCanal,
+  };
+}
+
 export async function obtenerConversacionesPorOportunidad(
   oportunidadId: string
 ): Promise<ConversacionResumen[]> {
@@ -13,7 +76,7 @@ export async function obtenerConversacionesPorOportunidad(
   const convs = await prisma.conversacion.findMany({
     where: { contactoId: relPrincipal.contactoId },
     include: {
-      contacto: { select: { id: true, nombre: true, apellido: true, telefonoPrincipal: true, email: true } },
+      contacto: { select: contactoSelect },
       cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
       oportunidades: true,
       mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
@@ -22,21 +85,7 @@ export async function obtenerConversacionesPorOportunidad(
     orderBy: { actualizadoEn: "desc" as const },
   });
 
-  return convs.map((conv) => ({
-    id: conv.id,
-    instanciaId: conv.instanciaId,
-    contactoId: conv.contactoId,
-    cuentaCanalId: conv.cuentaCanalId,
-    asunto: conv.asunto,
-    estado: conv.estado,
-    creadoEn: conv.creadoEn,
-    actualizadoEn: conv.actualizadoEn,
-    contacto: conv.contacto,
-    cuentaCanal: conv.cuentaCanal,
-    oportunidades: conv.oportunidades,
-    _count: conv._count,
-    ultimoMensaje: conv.mensajes[0] as MensajeConMeta | null ?? null,
-  }));
+  return convs.map(mapearConversacion);
 }
 
 export async function obtenerMensajesConversacion(
@@ -90,33 +139,16 @@ export async function obtenerConversacionesResumenPorContacto(
   const convs = await prisma.conversacion.findMany({
     where: { contactoId },
     include: {
-      contacto: { select: { id: true, nombre: true, apellido: true, telefonoPrincipal: true, email: true } },
+      contacto: { select: contactoSelect },
       cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
       oportunidades: true,
-      mensajes: {
-        orderBy: { creadoEn: "desc" as const },
-        take: 1,
-      },
+      mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
       _count: { select: { mensajes: true } },
     },
     orderBy: { actualizadoEn: "desc" as const },
   });
 
-  return convs.map((conv) => ({
-    id: conv.id,
-    instanciaId: conv.instanciaId,
-    contactoId: conv.contactoId,
-    cuentaCanalId: conv.cuentaCanalId,
-    asunto: conv.asunto,
-    estado: conv.estado,
-    creadoEn: conv.creadoEn,
-    actualizadoEn: conv.actualizadoEn,
-    contacto: conv.contacto,
-    cuentaCanal: conv.cuentaCanal,
-    oportunidades: conv.oportunidades,
-    _count: conv._count,
-    ultimoMensaje: conv.mensajes[0] as MensajeConMeta | null ?? null,
-  }));
+  return convs.map(mapearConversacion);
 }
 
 export async function buscarIdentificadorCanal(canal: string, identificador: string, instanciaId: string) {
@@ -130,33 +162,16 @@ export async function obtenerConversacionesAbiertas(): Promise<ConversacionResum
   const convs = await prisma.conversacion.findMany({
     where: { estado: { in: ["ABIERTA", "EN_ESPERA"] } },
     include: {
-      contacto: { select: { id: true, nombre: true, apellido: true, telefonoPrincipal: true, email: true } },
+      contacto: { select: contactoSelect },
       cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
       oportunidades: true,
-      mensajes: {
-        orderBy: { creadoEn: "desc" as const },
-        take: 1,
-      },
+      mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
       _count: { select: { mensajes: true } },
     },
     orderBy: { actualizadoEn: "desc" as const },
   });
 
-  return convs.map((conv) => ({
-    id: conv.id,
-    instanciaId: conv.instanciaId,
-    contactoId: conv.contactoId,
-    cuentaCanalId: conv.cuentaCanalId,
-    asunto: conv.asunto,
-    estado: conv.estado,
-    creadoEn: conv.creadoEn,
-    actualizadoEn: conv.actualizadoEn,
-    contacto: conv.contacto,
-    cuentaCanal: conv.cuentaCanal,
-    oportunidades: conv.oportunidades,
-    _count: conv._count,
-    ultimoMensaje: conv.mensajes[0] as MensajeConMeta | null ?? null,
-  }));
+  return convs.map(mapearConversacion);
 }
 
 export async function obtenerUltimosMensajes(conversacionId: string, limite = 50): Promise<MensajeConMeta[]> {
@@ -186,31 +201,14 @@ export async function obtenerMensajesAnteriores(
 export async function obtenerTodasLasConversaciones(): Promise<ConversacionResumen[]> {
   const convs = await prisma.conversacion.findMany({
     include: {
-      contacto: { select: { id: true, nombre: true, apellido: true, telefonoPrincipal: true, email: true } },
+      contacto: { select: contactoSelect },
       cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
       oportunidades: true,
-      mensajes: {
-        orderBy: { creadoEn: "desc" as const },
-        take: 1,
-      },
+      mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
       _count: { select: { mensajes: true } },
     },
     orderBy: { actualizadoEn: "desc" as const },
   });
 
-  return convs.map((conv) => ({
-    id: conv.id,
-    instanciaId: conv.instanciaId,
-    contactoId: conv.contactoId,
-    cuentaCanalId: conv.cuentaCanalId,
-    asunto: conv.asunto,
-    estado: conv.estado,
-    creadoEn: conv.creadoEn,
-    actualizadoEn: conv.actualizadoEn,
-    contacto: conv.contacto,
-    cuentaCanal: conv.cuentaCanal,
-    oportunidades: conv.oportunidades,
-    _count: conv._count,
-    ultimoMensaje: conv.mensajes[0] as MensajeConMeta | null ?? null,
-  }));
+  return convs.map(mapearConversacion);
 }

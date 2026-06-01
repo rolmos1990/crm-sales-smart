@@ -1,5 +1,6 @@
 import { ArrowLeft, Smartphone, ShieldCheck, Zap } from "lucide-react";
 import Link from "next/link";
+import { resolverInstanciaId } from "@/shared/db/instancia";
 import { prisma } from "@/shared/db/prisma";
 import { PanelNumerosWhatsApp } from "@/integraciones/whatsapp-lite/components/panel-numeros-whatsapp";
 
@@ -7,47 +8,45 @@ async function obtenerCuentasWALite(instanciaId: string) {
   return prisma.cuentaCanal.findMany({
     where: { instanciaId, canal: "whatsapp_lite" },
     orderBy: { creadoEn: "asc" },
-    select: { id: true, nombre: true, identificador: true, activa: true, pipelineId: true, stageId: true },
-  });
-}
-
-async function obtenerPipelines(instanciaId: string) {
-  return prisma.pipeline.findMany({
-    where: { activo: true, OR: [{ instanciaId }, { instanciaId: null }] },
-    orderBy: [{ esDefault: "desc" }, { nombre: "asc" }],
     select: {
       id: true,
       nombre: true,
-      esDefault: true,
-      stages: {
-        where: { activo: true },
-        orderBy: { orden: "asc" as const },
-        select: { id: true, nombre: true, esInicial: true },
-      },
+      identificador: true,
+      activa: true,
+      pipelineId: true,
+      stageId: true,
+      stage: { select: { nombre: true, color: true } },
     },
   });
 }
 
 async function obtenerInstanciaId(): Promise<string> {
-  const instancia = await prisma.instancia.findFirst({ where: { estado: "ACTIVA" }, select: { id: true } });
-  return instancia?.id ?? "";
+  try {
+    return await resolverInstanciaId();
+  } catch {
+    return "";
+  }
 }
 
 export default async function WhatsAppLitePage() {
-  let cuentas: { id: string; nombre: string; identificador: string; activa: boolean; pipelineId: string | null; stageId: string | null }[] = [];
-  let pipelines: { id: string; nombre: string; esDefault: boolean; stages: { id: string; nombre: string; esInicial: boolean }[] }[] = [];
+  let cuentas: {
+    id: string;
+    nombre: string;
+    identificador: string;
+    activa: boolean;
+    pipelineId: string | null;
+    stageId: string | null;
+    stage: { nombre: string; color: string | null } | null;
+  }[] = [];
   let instanciaId = "";
 
   try {
     instanciaId = await obtenerInstanciaId();
     if (instanciaId) {
-      [cuentas, pipelines] = await Promise.all([
-        obtenerCuentasWALite(instanciaId),
-        obtenerPipelines(instanciaId),
-      ]);
+      cuentas = await obtenerCuentasWALite(instanciaId);
     }
-  } catch {
-    // DB no configurada
+  } catch (e) {
+    console.error("[WhatsApp Lite page] Error cargando datos:", e);
   }
 
   return (
@@ -100,7 +99,7 @@ export default async function WhatsAppLitePage() {
 
       {/* Panel de números */}
       <div className="rounded-2xl border border-white/10 bg-white/3 backdrop-blur-xl p-6">
-        <PanelNumerosWhatsApp instanciaId={instanciaId} cuentas={cuentas} pipelines={pipelines} />
+        <PanelNumerosWhatsApp instanciaId={instanciaId} cuentas={cuentas} />
       </div>
 
       {/* Instrucciones */}
