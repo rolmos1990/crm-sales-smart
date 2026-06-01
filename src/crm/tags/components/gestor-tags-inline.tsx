@@ -1,9 +1,10 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { SelectorTags } from "./selector-tags";
 import { asignarTagsContacto, asignarTagsOportunidad } from "../actions";
+import { queryKeys } from "@/shared/query-keys";
 import type { Tag } from "../types";
 
 interface GestorTagsInlineProps {
@@ -14,18 +15,37 @@ interface GestorTagsInlineProps {
 }
 
 export function GestorTagsInline({ entidadId, tipo, tagIdsActuales, todosLosTags }: GestorTagsInlineProps) {
-  const [, startTransition] = useTransition();
-  const [tagIds, setTagIds] = useOptimistic(tagIdsActuales);
+  const queryClient = useQueryClient();
+  const queryKey = tipo === "contacto"
+    ? queryKeys.contactos.detail(entidadId)
+    : queryKeys.oportunidades.detail(entidadId);
+
+  const mutation = useMutation({
+    mutationFn: (nuevosTagIds: string[]) => {
+      const accion = tipo === "contacto" ? asignarTagsContacto : asignarTagsOportunidad;
+      return accion(entidadId, nuevosTagIds).then((r) => {
+        if (!r.exito) throw new Error(r.error ?? "Error al guardar las etiquetas");
+        return nuevosTagIds;
+      });
+    },
+    onMutate: async (nuevosTagIds) => {
+      await queryClient.cancelQueries({ queryKey });
+      const anterior = queryClient.getQueryData(queryKey);
+      return { anterior, tagIdsAnteriores: tagIdsActuales, nuevoTagIds: nuevosTagIds };
+    },
+    onError: (_err, _nuevos, context) => {
+      if (context?.anterior) {
+        queryClient.setQueryData(queryKey, context.anterior);
+      }
+      toast.error("Error al guardar las etiquetas");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
 
   const handleChange = (nuevosTagIds: string[]) => {
-    startTransition(async () => {
-      setTagIds(nuevosTagIds);
-      const accion = tipo === "contacto" ? asignarTagsContacto : asignarTagsOportunidad;
-      const resultado = await accion(entidadId, nuevosTagIds);
-      if (!resultado.exito) {
-        toast.error(resultado.error ?? "Error al guardar las etiquetas");
-      }
-    });
+    mutation.mutate(nuevosTagIds);
   };
 
   if (todosLosTags.length === 0) {
@@ -40,10 +60,14 @@ export function GestorTagsInline({ entidadId, tipo, tagIdsActuales, todosLosTags
     );
   }
 
+  const tagIdsActualesLocales = mutation.isPending && mutation.variables !== undefined
+    ? mutation.variables
+    : tagIdsActuales;
+
   return (
     <SelectorTags
       tags={todosLosTags}
-      seleccionados={tagIds}
+      seleccionados={tagIdsActualesLocales}
       onChange={handleChange}
     />
   );

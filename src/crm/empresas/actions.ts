@@ -61,6 +61,24 @@ export async function actualizarEmpresa(id: string, datos: unknown): Promise<Res
   }
 }
 
+export async function obtenerEmpresaAction(id: string) {
+  return prisma.empresa.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      nombre: true,
+      ruc: true,
+      industria: true,
+      tamano: true,
+      sitioWeb: true,
+      telefono: true,
+      email: true,
+      notas: true,
+      activo: true,
+    },
+  });
+}
+
 export async function eliminarEmpresa(id: string): Promise<ResultadoAccion> {
   try {
     await prisma.empresa.update({ where: { id }, data: { activo: false } });

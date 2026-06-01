@@ -3,7 +3,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -25,8 +24,8 @@ import {
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
-import { crearContacto, actualizarContacto } from "../actions";
 import { CrearContactoSchema, type CrearContactoInput } from "../schema";
+import { useCrearContactoMutation, useActualizarContactoMutation } from "../hooks";
 import type { Contacto } from "../types";
 import type { Tag } from "@/crm/tags/types";
 
@@ -48,6 +47,9 @@ export function FormContacto({
   defaultCountryCode = "PA",
 }: FormContactoProps) {
   const router = useRouter();
+  const crearMutation = useCrearContactoMutation();
+  const actualizarMutation = useActualizarContactoMutation(inicial?.id ?? "");
+  const mutation = modo === "crear" ? crearMutation : actualizarMutation;
 
   const form = useForm<CrearContactoInput>({
     resolver: zodResolver(CrearContactoSchema),
@@ -65,17 +67,10 @@ export function FormContacto({
     },
   });
 
-  const onSubmit = async (datos: CrearContactoInput) => {
-    const resultado = modo === "crear"
-      ? await crearContacto(datos)
-      : await actualizarContacto(inicial!.id!, datos);
-
-    if (resultado.exito) {
-      toast.success(modo === "crear" ? "Contacto creado" : "Contacto actualizado");
-      router.push("/crm/contactos");
-    } else {
-      toast.error(resultado.error);
-    }
+  const onSubmit = (datos: CrearContactoInput) => {
+    mutation.mutate(datos, {
+      onSuccess: () => router.push("/crm/contactos"),
+    });
   };
 
   return (
@@ -258,8 +253,8 @@ export function FormContacto({
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending
               ? "Guardando..."
               : modo === "crear"
               ? "Crear contacto"

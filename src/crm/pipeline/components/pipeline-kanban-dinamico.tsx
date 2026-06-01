@@ -13,14 +13,14 @@ import {
   useDraggable,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarDays, Building2, Plus, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { moverAStage } from "../actions";
+import { toast } from "sonner";
+import { useMoverAStageMutation } from "@/crm/oportunidades/hooks";
 import { cn } from "@/lib/utils";
 import type { PipelineConStages, PipelineStage, OportunidadEnStage } from "../types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
@@ -291,6 +291,7 @@ export function PipelineKanbanDinamico({
   const [localOps, setLocalOps] = useState(oportunidadesPorStage);
   const [activeCard, setActiveCard] = useState<OportunidadEnStage | null>(null);
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
+  const moverMutation = useMoverAStageMutation();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -300,7 +301,7 @@ export function PipelineKanbanDinamico({
     setActiveCard(active.data.current as OportunidadEnStage);
   };
 
-  const handleDragEnd = async ({ over, active }: DragEndEvent) => {
+  const handleDragEnd = ({ over, active }: DragEndEvent) => {
     setActiveCard(null);
     if (!over) return;
 
@@ -327,14 +328,19 @@ export function PipelineKanbanDinamico({
       return next;
     });
 
-    const resultado = await moverAStage(oportunidad.id, nuevoStageId, pipeline.id);
-    if (!resultado.exito) {
-      toast.error(resultado.error);
-      setLocalOps(oportunidadesPorStage);
-    } else {
-      const stage = pipeline.stages.find((s) => s.id === nuevoStageId);
-      toast.success(`Movido a "${stage?.nombre ?? nuevoStageId}"`);
-    }
+    moverMutation.mutate(
+      { oportunidadId: oportunidad.id, nuevoStageId, pipelineId: pipeline.id },
+      {
+        onError: (err) => {
+          toast.error(err.message ?? "Error al mover la oportunidad");
+          setLocalOps(oportunidadesPorStage);
+        },
+        onSuccess: () => {
+          const stage = pipeline.stages.find((s) => s.id === nuevoStageId);
+          toast.success(`Movido a "${stage?.nombre ?? nuevoStageId}"`);
+        },
+      },
+    );
   };
 
   const handleUpdate = (updated: Oportunidad & { stageId?: string | null }) => {

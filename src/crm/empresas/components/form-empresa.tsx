@@ -3,7 +3,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -22,8 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { crearEmpresa, actualizarEmpresa } from "../actions";
 import { CrearEmpresaSchema, type CrearEmpresaInput } from "../schema";
+import { useCrearEmpresaMutation, useActualizarEmpresaMutation } from "../hooks";
 import type { Empresa } from "../types";
 
 interface FormEmpresaProps {
@@ -33,6 +32,10 @@ interface FormEmpresaProps {
 
 export function FormEmpresa({ inicial, modo = "crear" }: FormEmpresaProps) {
   const router = useRouter();
+  const crearMutation = useCrearEmpresaMutation();
+  const actualizarMutation = useActualizarEmpresaMutation(inicial?.id ?? "");
+  const mutation = modo === "crear" ? crearMutation : actualizarMutation;
+
   const form = useForm<CrearEmpresaInput>({
     resolver: zodResolver(CrearEmpresaSchema),
     defaultValues: {
@@ -47,17 +50,10 @@ export function FormEmpresa({ inicial, modo = "crear" }: FormEmpresaProps) {
     },
   });
 
-  const onSubmit = async (datos: CrearEmpresaInput) => {
-    const resultado = modo === "crear"
-      ? await crearEmpresa(datos)
-      : await actualizarEmpresa(inicial!.id!, datos);
-
-    if (resultado.exito) {
-      toast.success(modo === "crear" ? "Empresa creada" : "Empresa actualizada");
-      router.push("/crm/empresas");
-    } else {
-      toast.error(resultado.error);
-    }
+  const onSubmit = (datos: CrearEmpresaInput) => {
+    mutation.mutate(datos, {
+      onSuccess: () => router.push("/crm/empresas"),
+    });
   };
 
   return (
@@ -144,8 +140,8 @@ export function FormEmpresa({ inicial, modo = "crear" }: FormEmpresaProps) {
         )} />
         <div className="flex gap-3 justify-end pt-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
-          <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Guardando..." : modo === "crear" ? "Crear empresa" : "Guardar cambios"}
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Guardando..." : modo === "crear" ? "Crear empresa" : "Guardar cambios"}
           </Button>
         </div>
       </form>

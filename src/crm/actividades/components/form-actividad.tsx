@@ -3,7 +3,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -14,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
-import { crearActividad } from "../actions";
+import { useCrearActividadMutation } from "../hooks";
 import { CrearActividadSchema, type CrearActividadInput } from "../schema";
 
 interface FormActividadProps {
@@ -30,6 +29,7 @@ interface FormActividadProps {
 
 export function FormActividad({ contactos, empresas, oportunidades, preseleccion }: FormActividadProps) {
   const router = useRouter();
+  const mutation = useCrearActividadMutation();
   const ahora = new Date();
   ahora.setMinutes(0, 0, 0);
 
@@ -46,14 +46,10 @@ export function FormActividad({ contactos, empresas, oportunidades, preseleccion
     },
   });
 
-  const onSubmit = async (datos: CrearActividadInput) => {
-    const resultado = await crearActividad(datos);
-    if (resultado.exito) {
-      toast.success("Actividad creada");
-      router.back();
-    } else {
-      toast.error(resultado.error);
-    }
+  const onSubmit = (datos: CrearActividadInput) => {
+    mutation.mutate(datos, {
+      onSuccess: () => router.back(),
+    });
   };
 
   return (
@@ -141,8 +137,8 @@ export function FormActividad({ contactos, empresas, oportunidades, preseleccion
 
         <div className="flex gap-3 justify-end pt-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
-          <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Guardando..." : "Crear actividad"}
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Guardando..." : "Crear actividad"}
           </Button>
         </div>
       </form>

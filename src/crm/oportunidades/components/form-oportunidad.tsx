@@ -3,7 +3,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -15,8 +14,8 @@ import {
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
-import { crearOportunidad, actualizarOportunidad } from "../actions";
 import { CrearOportunidadSchema, type CrearOportunidadInput } from "../schema";
+import { useCrearOportunidadMutation, useActualizarOportunidadMutation } from "../hooks";
 import type { Oportunidad } from "../types";
 import type { PipelineConStages } from "@/crm/pipeline/types";
 import type { Tag } from "@/crm/tags/types";
@@ -47,6 +46,9 @@ export function FormOportunidad({
 }: FormOportunidadProps) {
   const router = useRouter();
   const enModoPipeline = !!pipeline && !!pipelineId;
+  const crearMutation = useCrearOportunidadMutation();
+  const actualizarMutation = useActualizarOportunidadMutation(inicial?.id ?? "");
+  const mutation = modo === "crear" ? crearMutation : actualizarMutation;
 
   const form = useForm<CrearOportunidadInput>({
     resolver: zodResolver(CrearOportunidadSchema),
@@ -65,21 +67,16 @@ export function FormOportunidad({
     },
   });
 
-  const onSubmit = async (datos: CrearOportunidadInput) => {
-    const resultado = modo === "crear"
-      ? await crearOportunidad(datos)
-      : await actualizarOportunidad(inicial!.id!, datos);
-
-    if (resultado.exito) {
-      toast.success(modo === "crear" ? "Oportunidad creada" : "Oportunidad actualizada");
-      if (enModoPipeline) {
-        router.push(`/crm/pipeline?p=${pipelineId}`);
-      } else {
-        router.push("/crm/oportunidades");
-      }
-    } else {
-      toast.error(resultado.error);
-    }
+  const onSubmit = (datos: CrearOportunidadInput) => {
+    mutation.mutate(datos, {
+      onSuccess: () => {
+        if (enModoPipeline) {
+          router.push(`/crm/pipeline?p=${pipelineId}`);
+        } else {
+          router.push("/crm/oportunidades");
+        }
+      },
+    });
   };
 
   return (
@@ -268,8 +265,8 @@ export function FormOportunidad({
 
         <div className="flex gap-3 justify-end pt-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
-          <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Guardando..." : modo === "crear" ? "Crear oportunidad" : "Guardar cambios"}
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Guardando..." : modo === "crear" ? "Crear oportunidad" : "Guardar cambios"}
           </Button>
         </div>
       </form>

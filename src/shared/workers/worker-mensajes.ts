@@ -129,6 +129,7 @@ class WorkerMensajes {
       tipo: (p.tipo ?? "TEXTO") as Parameters<typeof procesarMensajeEntrante>[0]["tipo"],
       idExterno: p.idExterno as string | undefined,
       pushName: p.pushName as string | undefined,
+      avatarUrl: p.avatarUrl as string | undefined,
     });
   }
 }

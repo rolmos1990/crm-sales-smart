@@ -46,14 +46,24 @@ export async function encolarMensajeEntrante(
 
   const pushName = (msg.pushName && msg.pushName !== "") ? msg.pushName : undefined;
 
-  // Intentar obtener foto de perfil de WhatsApp (best-effort, no bloquea el flujo)
+  // Intentar obtener foto de perfil de WhatsApp solo si el contacto no tiene avatar aún (best-effort)
   let avatarUrl: string | undefined;
-  const sesion = sesionManagerWA.obtenerPorCuenta(cuentaCanalId);
-  if (sesion?.socket && jid.endsWith("@s.whatsapp.net")) {
-    try {
-      avatarUrl = await sesion.socket.profilePictureUrl(jid, "image");
-    } catch { /* contacto sin foto o privacidad activada */ }
-  }
+  try {
+    const sesion = sesionManagerWA.obtenerPorCuenta(cuentaCanalId);
+    if (sesion?.socket && jid.endsWith("@s.whatsapp.net")) {
+      const soloNumeros = jid.replace(/@s\.whatsapp\.net$/, "").replace(/:\d+$/, "").replace(/\D/g, "");
+      const telefono = soloNumeros ? `+${soloNumeros}` : null;
+      const yaTieneFoto = telefono
+        ? await prisma.contacto.findFirst({
+            where: { instanciaId, OR: [{ telefonoPrincipal: telefono }, { telefonoPrincipal: soloNumeros }] },
+            select: { avatarUrl: true },
+          }).then((c) => !!c?.avatarUrl)
+        : false;
+      if (!yaTieneFoto) {
+        avatarUrl = await sesion.socket.profilePictureUrl(jid, "image");
+      }
+    }
+  } catch { /* sesión no disponible, sin foto o privacidad activada */ }
 
   await prisma.jobMensaje.create({
     data: {

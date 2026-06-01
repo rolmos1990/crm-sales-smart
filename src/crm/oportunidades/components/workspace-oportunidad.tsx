@@ -25,15 +25,20 @@ import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import {
   obtenerOportunidadAction,
-  actualizarOportunidad,
   actualizarMetadataOportunidad,
   eliminarOportunidad,
   marcarMensajeLeido,
 } from "../actions";
+import {
+  useActualizarOportunidadMutation,
+  useEliminarOportunidadMutation,
+  useMoverAStageMutation,
+} from "../hooks";
+import { SaveIndicator } from "@/shared/components/save-indicator";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { obtenerTagsAction } from "@/crm/tags/actions";
 import type { Tag } from "@/crm/tags/types";
-import { moverAStage, obtenerPipelinesAction } from "@/crm/pipeline/actions";
+import { obtenerPipelinesAction } from "@/crm/pipeline/actions";
 import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
 import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "../schema";
 import type { Oportunidad } from "../types";
@@ -265,6 +270,10 @@ function WorkspaceContenido({
     campos: false,
   });
 
+  const actualizarMutation = useActualizarOportunidadMutation(oportunidad.id);
+  const eliminarMutation = useEliminarOportunidadMutation();
+  const moverMutation = useMoverAStageMutation();
+
   const pipelineActual = todosPipelines.find((p) => p.id === pipelineActualId) ?? todosPipelines[0];
   const stageActual = pipelineActual?.stages.find((s) => s.id === stageActualId);
   const camposActuales: CampoPersonalizadoStage[] = stageActual?.campos ?? [];
@@ -292,64 +301,68 @@ function WorkspaceContenido({
   const toggleSeccion = (key: keyof typeof secciones) =>
     setSecciones((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const handleCambiarStage = async (nuevoStageId: string, nuevoPipelineId: string) => {
+  const handleCambiarStage = (nuevoStageId: string, nuevoPipelineId: string) => {
     if (nuevoStageId === stageActualId && nuevoPipelineId === pipelineActualId) return;
     setGuardandoStage(true);
-    const resultado = await moverAStage(oportunidad.id, nuevoStageId, nuevoPipelineId);
-    setGuardandoStage(false);
-    if (resultado.exito) {
-      const nuevoPipeline = todosPipelines.find((p) => p.id === nuevoPipelineId);
-      const nuevoStage = nuevoPipeline?.stages.find((s) => s.id === nuevoStageId);
-      if (nuevoPipelineId !== pipelineActualId) setMetadata({});
-      toast.success(`Movido a "${nuevoStage?.nombre ?? nuevoStageId}"`);
-      setStageActualId(nuevoStageId);
-      setPipelineActualId(nuevoPipelineId);
-      onUpdate({
-        ...oportunidad,
-        valor: Number(oportunidad.valor),
-        stageId: nuevoStageId,
-        pipelineId: nuevoPipelineId,
-        tags: tagIds.map((tagId) => ({
-          tagId,
-          tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
-        })),
-      } as Oportunidad & { stageId: string });
-    } else {
-      toast.error(resultado.error);
-    }
+    moverMutation.mutate(
+      { oportunidadId: oportunidad.id, nuevoStageId, pipelineId: nuevoPipelineId },
+      {
+        onSuccess: () => {
+          const nuevoPipeline = todosPipelines.find((p) => p.id === nuevoPipelineId);
+          const nuevoStage = nuevoPipeline?.stages.find((s) => s.id === nuevoStageId);
+          if (nuevoPipelineId !== pipelineActualId) setMetadata({});
+          toast.success(`Movido a "${nuevoStage?.nombre ?? nuevoStageId}"`);
+          setStageActualId(nuevoStageId);
+          setPipelineActualId(nuevoPipelineId);
+          onUpdate({
+            ...oportunidad,
+            valor: Number(oportunidad.valor),
+            stageId: nuevoStageId,
+            pipelineId: nuevoPipelineId,
+            tags: tagIds.map((tagId) => ({
+              tagId,
+              tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
+            })),
+          } as Oportunidad & { stageId: string });
+        },
+        onError: (err) => {
+          toast.error(err.message ?? "Error al mover");
+        },
+        onSettled: () => setGuardandoStage(false),
+      },
+    );
   };
 
   const onSubmit = async (datos: ActualizarOportunidadInput) => {
-    const [resultadoCampos, resultadoBase] = await Promise.all([
-      camposActuales.length > 0
-        ? actualizarMetadataOportunidad(oportunidad.id, metadata)
-        : Promise.resolve({ exito: true as const, datos: undefined }),
-      actualizarOportunidad(oportunidad.id, { ...datos, tagIds }),
-    ]);
+    if (camposActuales.length > 0) {
+      const resultadoCampos = await actualizarMetadataOportunidad(oportunidad.id, metadata);
+      if (!resultadoCampos.exito) { toast.error(resultadoCampos.error); return; }
+    }
 
-    if (!resultadoBase.exito) { toast.error(resultadoBase.error); return; }
-    if (!resultadoCampos.exito) { toast.error(resultadoCampos.error); return; }
-
-    toast.success("Oportunidad actualizada");
-    onUpdate({
-      ...resultadoBase.datos,
-      stageId: stageActualId,
-      tags: tagIds.map((tagId) => ({
-        tagId,
-        tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
-      })),
-    });
+    actualizarMutation.mutate(
+      { ...datos, tagIds },
+      {
+        onSuccess: (datos) => {
+          onUpdate({
+            ...datos,
+            stageId: stageActualId,
+            tags: tagIds.map((tagId) => ({
+              tagId,
+              tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
+            })),
+          });
+        },
+      },
+    );
   };
 
-  const handleDelete = async () => {
-    const resultado = await eliminarOportunidad(oportunidad.id);
-    if (resultado.exito) {
-      toast.success("Oportunidad eliminada");
-      onDelete(oportunidad.id);
-      onClose();
-    } else {
-      toast.error(resultado.error);
-    }
+  const handleDelete = () => {
+    eliminarMutation.mutate(oportunidad.id, {
+      onSuccess: () => {
+        onDelete(oportunidad.id);
+        onClose();
+      },
+    });
   };
 
   const nombreContacto = contactoPrincipal
@@ -412,6 +425,15 @@ function WorkspaceContenido({
               <span className="text-xs font-semibold text-lime-400">{valorFormateado}</span>
             </div>
           </div>
+
+          {/* Indicador de guardado */}
+          <SaveIndicator
+            isPending={actualizarMutation.isPending}
+            isSuccess={actualizarMutation.isSuccess}
+            isError={actualizarMutation.isError}
+            error={actualizarMutation.error}
+            className="shrink-0"
+          />
 
           {/* Selector de stage */}
           <div className="shrink-0">
