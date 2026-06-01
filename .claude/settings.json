@@ -44,7 +44,9 @@
       "PowerShell(docker exec crm_sales_smart_db psql -U crm_sales_smart_user -d crm_sales_smart_dev -c '\\\\dt')",
       "PowerShell(docker exec crm_sales_smart_db sh -c 'echo select id, nombre, estado from '\\\\\"Instancia\\\\\"' limit 5 | psql -U crm_sales_smart_user -d crm_sales_smart_dev')",
       "PowerShell(docker exec crm_sales_smart_db psql -U crm_sales_smart_user -d crm_sales_smart_dev -c \"SELECT column_name FROM information_schema.columns WHERE table_name = 'CuentaCanal' ORDER BY ordinal_position;\")",
-      "PowerShell($q = 'SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position;')"
+      "PowerShell($q = 'SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position;')",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\" -Directory)",
+      "Bash(Select-Object Name)"
     ],
     "additionalDirectories": [
       "c:\\Users\\RamonOlmos\\source\\repos\\crm-sales-smart\\crm-sales-smart\\src\\app\\api\\webhooks",

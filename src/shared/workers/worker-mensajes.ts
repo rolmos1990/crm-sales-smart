@@ -2,6 +2,7 @@ import { prisma } from "@/shared/db/prisma";
 import { busEventos } from "@/shared/eventos/bus";
 import { TIPOS_EVENTO } from "@/shared/eventos/registro";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
+import { resolverUrlMedia } from "@/lib/resolve-media-url";
 
 const TICK_MS = 2_000;
 const LOTE = 5;
@@ -88,6 +89,9 @@ class WorkerMensajes {
     const contenido      = p.contenido      as string | undefined;
     const tipo           = p.tipo           as string;
     const destinatario   = p.destinatario   as string;
+    // Resolver URL absoluta para medios: el job guarda la ruta relativa,
+    // aquí la convertimos usando STORAGE_URL del .env
+    const mediaUrl = resolverUrlMedia(p.mediaUrl as string | undefined);
 
     const cuentaCanal = await prisma.cuentaCanal.findUniqueOrThrow({ where: { id: cuentaCanalId } });
     const provider = obtenerProvider(cuentaCanal.canal);
@@ -96,12 +100,13 @@ class WorkerMensajes {
       throw new Error(`[Worker] No hay provider para canal "${cuentaCanal.canal}"`);
     }
 
-    console.log(`[Worker] Enviando por ${cuentaCanal.canal} → destinatario: ${destinatario}`);
+    console.log(`[Worker] Enviando por ${cuentaCanal.canal} → destinatario: ${destinatario}${mediaUrl ? ` | media: ${mediaUrl}` : ""}`);
     const result = await provider.enviarMensaje({
       destinatario,
       contenido: contenido ?? "",
       tipo: tipo as Parameters<typeof provider.enviarMensaje>[0]["tipo"],
       configuracion: cuentaCanal.configuracion as Record<string, unknown>,
+      mediaUrl,
     });
     console.log(`[Worker] Enviado OK → idExterno: ${result.idExterno}`);
 

@@ -64,6 +64,7 @@ async function reconectarSocket(
       logger: pino({ level: "silent" }),
       browser: ["CRMSmart", "Chrome", "22.04.4"] as [string, string, string],
       syncFullHistory: false,
+      getMessage: async (_key) => undefined, // fallback para reenvíos internos de Baileys
     });
 
     sesion.socket = socket;

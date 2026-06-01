@@ -5,7 +5,9 @@ export const EnviarMensajeSchema = z.object({
   contenido: z.string().min(1).max(4096).optional(),
   tipo: z.enum(["TEXTO", "IMAGEN", "VIDEO", "AUDIO", "NOTA_VOZ", "DOCUMENTO", "PLANTILLA", "BOTON"]).default("TEXTO"),
   esNotaInterna: z.boolean().default(false),
-  mediaUrl: z.string().url().optional(),
+  // Acepta tanto URLs absolutas (https://...) como rutas relativas (/uploads/...)
+  // La resolución a URL absoluta ocurre en el worker usando STORAGE_URL del .env
+  mediaUrl: z.string().optional(),
 });
 
 export const CrearConversacionSchema = z.object({

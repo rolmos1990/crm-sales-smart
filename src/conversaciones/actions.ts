@@ -302,6 +302,7 @@ export async function enviarMensaje(input: {
   tipo?: string;
   esNotaInterna?: boolean;
   usuarioId?: string;
+  mediaUrl?: string;
 }): Promise<{ ok: true; mensaje: { id: string } } | { ok: false; error: string }> {
   try {
     const validado = EnviarMensajeSchema.parse(input);
@@ -341,6 +342,23 @@ export async function enviarMensaje(input: {
 
     // Encolar job asíncrono para la entrega real solo si hay canal configurado
     if (!validado.esNotaInterna && conversacion.cuentaCanalId && conversacion.instanciaId && conversacion.cuentaCanal) {
+      // Resolver el identificador real del contacto en este canal.
+      // Para contactos @lid (privacidad activada en WhatsApp) telefonoPrincipal es null,
+      // pero el JID correcto está guardado en ContactoIdentificadorCanal desde el primer mensaje entrante.
+      const idCanal = await prisma.contactoIdentificadorCanal.findFirst({
+        where: {
+          contactoId: conversacion.contactoId,
+          instanciaId: conversacion.instanciaId,
+          canal: conversacion.cuentaCanal.canal,
+        },
+        select: { identificador: true },
+      });
+      const destinatario =
+        idCanal?.identificador ??
+        conversacion.contacto.telefonoPrincipal ??
+        conversacion.contacto.email ??
+        "";
+
       await prisma.jobMensaje.create({
         data: {
           tipo: "ENVIAR_MENSAJE",
@@ -350,7 +368,8 @@ export async function enviarMensaje(input: {
             conversacionId: validado.conversacionId,
             contenido: validado.contenido,
             tipo: validado.tipo,
-            destinatario: conversacion.contacto.telefonoPrincipal ?? conversacion.contacto.email ?? "",
+            mediaUrl: input.mediaUrl ?? null,
+            destinatario,
             canal: conversacion.cuentaCanal.canal,
             cuentaCanalId: conversacion.cuentaCanalId,
             instanciaId: conversacion.instanciaId,

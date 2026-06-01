@@ -29,23 +29,98 @@ export class WhatsAppLiteProvider implements ICanalProvider {
       throw new Error(`[WhatsAppLite] Sesión no conectada (sessionId: ${sessionId}, estado: ${sesion?.estado ?? "sin sesión"})`);
     }
 
-    // WhatsApp JID: solo dígitos del destinatario + @s.whatsapp.net
-    const telefono = payload.destinatario.replace(/\D/g, "");
-    if (!telefono) throw new Error(`[WhatsAppLite] Destinatario inválido: "${payload.destinatario}"`);
-
-    const jid = `${telefono}@s.whatsapp.net`;
-    console.log(`[WhatsAppLite] sendMessage → jid: ${jid} | contenido: "${payload.contenido}"`);
-
-    const result = await sesion.socket.sendMessage(jid, { text: payload.contenido ?? "" });
-    const idExterno = result?.key?.id;
-
-    if (!idExterno) {
-      console.warn(`[WhatsAppLite] sendMessage no devolvió key.id para jid ${jid} — posible fallo silencioso`);
+    // Construir el JID de destino según el formato del identificador:
+    // - Si ya viene con sufijo @lid o @s.whatsapp.net → usarlo directamente (contactos con privacidad activada)
+    // - Si es un número de teléfono → normalizar y añadir @s.whatsapp.net
+    let jid: string;
+    if (
+      payload.destinatario.endsWith("@lid") ||
+      payload.destinatario.endsWith("@s.whatsapp.net")
+    ) {
+      jid = payload.destinatario;
     } else {
-      console.log(`[WhatsAppLite] Entregado → key.id: ${idExterno}`);
+      const telefono = payload.destinatario.replace(/\D/g, "");
+      if (!telefono) throw new Error(`[WhatsAppLite] Destinatario inválido: "${payload.destinatario}"`);
+      jid = `${telefono}@s.whatsapp.net`;
+    }
+    const { mediaUrl, contenido, tipo } = payload;
+
+    console.log(`[WhatsAppLite] sendMessage → jid: ${jid} | tipo: ${tipo}${mediaUrl ? ` | media: ${mediaUrl}` : ""}`);
+
+    // WAMessage de Baileys tiene key.id: string | null | undefined
+    let result: { key?: { id?: string | null } } | undefined;
+
+    if (mediaUrl) {
+      // Mensaje con media — seleccionar tipo Baileys según TipoMensaje
+      switch (tipo) {
+        case "IMAGEN":
+          result = await sesion.socket.sendMessage(jid, {
+            image: { url: mediaUrl },
+            caption: contenido || undefined,
+          });
+          break;
+
+        case "VIDEO":
+          result = await sesion.socket.sendMessage(jid, {
+            video: { url: mediaUrl },
+            caption: contenido || undefined,
+          });
+          break;
+
+        case "AUDIO":
+          result = await sesion.socket.sendMessage(jid, {
+            audio: { url: mediaUrl },
+            mimetype: payload.mediaMimeType ?? "audio/mpeg",
+            ptt: false,
+          });
+          break;
+
+        case "NOTA_VOZ":
+          result = await sesion.socket.sendMessage(jid, {
+            audio: { url: mediaUrl },
+            mimetype: payload.mediaMimeType ?? "audio/ogg; codecs=opus",
+            ptt: true,
+          });
+          break;
+
+        case "DOCUMENTO":
+          result = await sesion.socket.sendMessage(jid, {
+            document: { url: mediaUrl },
+            mimetype: payload.mediaMimeType ?? "application/octet-stream",
+            fileName: "archivo",
+            caption: contenido || undefined,
+          });
+          break;
+
+        default:
+          // Tipo desconocido con media → intentar como imagen
+          result = await sesion.socket.sendMessage(jid, {
+            image: { url: mediaUrl },
+            caption: contenido || undefined,
+          });
+      }
+
+      // Si también hay texto separado (caption ya incluido arriba, pero por si acaso)
+    } else {
+      // Mensaje de solo texto
+      result = await sesion.socket.sendMessage(jid, {
+        text: contenido ?? "",
+      });
     }
 
-    return { idExterno: idExterno ?? `wl_${Date.now()}` };
+    const idExterno = result?.key?.id ?? undefined;
+
+    if (!idExterno) {
+      // Lanzar error real para que el job quede FALLIDO (visible) en lugar de
+      // COMPLETADO con un ID inventado que oculta el problema.
+      throw new Error(
+        `[WhatsAppLite] sendMessage no retornó key.id para ${jid}. ` +
+        `Posible fallo de encriptación, contacto no alcanzable o sesión en estado inválido.`
+      );
+    }
+
+    console.log(`[WhatsAppLite] Entregado → key.id: ${idExterno}`);
+    return { idExterno };
   }
 
   mapearEntrante(raw: unknown): MensajeEntranteNormalizado {

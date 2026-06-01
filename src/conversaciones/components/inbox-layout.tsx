@@ -169,14 +169,15 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
     }
   };
 
-  const handleEnviar = async ({ contenido, esNotaInterna }: { contenido: string; esNotaInterna: boolean }) => {
+  const handleEnviar = async ({ contenido, esNotaInterna, mediaUrl }: { contenido: string; esNotaInterna: boolean; mediaUrl?: string }) => {
     if (!seleccionada) return;
     startEnviando(async () => {
       const result = await enviarMensaje({
         conversacionId: seleccionada,
         contenido,
-        tipo: "TEXTO",
+        tipo: mediaUrl ? "IMAGEN" : "TEXTO",
         esNotaInterna,
+        mediaUrl,
       });
       if (!result.ok) {
         toast.error("Error al enviar mensaje");

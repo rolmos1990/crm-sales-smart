@@ -174,7 +174,7 @@ export function PanelConversacion({
     });
   };
 
-  const handleEnviar = async ({ contenido, esNotaInterna }: { contenido: string; esNotaInterna: boolean }) => {
+  const handleEnviar = async ({ contenido, esNotaInterna, mediaUrl }: { contenido: string; esNotaInterna: boolean; mediaUrl?: string }) => {
     if (!conversacionActiva) {
       toast.error("Sin conversación activa");
       return;
@@ -183,8 +183,9 @@ export function PanelConversacion({
       const result = await enviarMensaje({
         conversacionId: conversacionActiva,
         contenido,
-        tipo: "TEXTO",
+        tipo: mediaUrl ? "IMAGEN" : "TEXTO",
         esNotaInterna,
+        mediaUrl,
       });
       if (result.ok) {
         queryClient.invalidateQueries({ queryKey: ["mensajes", conversacionActiva] });

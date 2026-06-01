@@ -134,7 +134,7 @@ function FilaPlantilla({ plantilla, instanciaId }: { plantilla: Plantilla; insta
 
       {/* Dialog editar */}
       <Dialog open={dialogoEditar} onOpenChange={setDialogoEditar}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar plantilla</DialogTitle>
           </DialogHeader>
@@ -143,6 +143,7 @@ function FilaPlantilla({ plantilla, instanciaId }: { plantilla: Plantilla; insta
             inicial={plantilla}
             modo="editar"
             onExito={() => setDialogoEditar(false)}
+            onCancelar={() => setDialogoEditar(false)}
           />
         </DialogContent>
       </Dialog>
@@ -218,7 +219,7 @@ export function ListaPlantillas({ plantillas, instanciaId }: ListaPlantillasProp
 
       {/* Dialog crear */}
       <Dialog open={dialogoCrear} onOpenChange={setDialogoCrear}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nueva plantilla</DialogTitle>
           </DialogHeader>
@@ -226,6 +227,7 @@ export function ListaPlantillas({ plantillas, instanciaId }: ListaPlantillasProp
             instanciaId={instanciaId}
             modo="crear"
             onExito={() => setDialogoCrear(false)}
+            onCancelar={() => setDialogoCrear(false)}
           />
         </DialogContent>
       </Dialog>

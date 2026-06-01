@@ -74,6 +74,7 @@ async function iniciarSesionBaileys(
       logger: pino({ level: "silent" }),
       browser: Browsers.ubuntu("Chrome"),
       syncFullHistory: false,
+      getMessage: async (_key) => undefined, // fallback para reenvíos internos de Baileys
     });
 
     sesion.socket = socket;
