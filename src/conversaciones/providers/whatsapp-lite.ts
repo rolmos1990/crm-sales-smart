@@ -1,4 +1,4 @@
-import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload } from "./types";
+import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, MensajeLeidoPayload } from "./types";
 import type { MensajeEntranteNormalizado } from "../types";
 
 export class WhatsAppLiteProvider implements ICanalProvider {
@@ -12,6 +12,7 @@ export class WhatsAppLiteProvider implements ICanalProvider {
     documento: true,
     plantillas: false,
     botones: false,
+    marcarLeidoExterno: true,
   };
 
   async enviarMensaje(payload: MensajeSalientePayload): Promise<{ idExterno: string }> {
@@ -137,5 +138,33 @@ export class WhatsAppLiteProvider implements ICanalProvider {
 
   validarWebhook(_req: Request): boolean {
     return true;
+  }
+
+  async marcarLeido(mensajes: MensajeLeidoPayload[], configuracion: Record<string, unknown>): Promise<void> {
+    const sessionId = (configuracion as { sessionId?: string }).sessionId ?? "";
+    const { sesionManagerWA } = await import("@/integraciones/whatsapp-lite/sesion-manager");
+    const sesion = sesionManagerWA.obtener(sessionId);
+
+    if (!sesion?.socket || sesion.estado !== "conectado") {
+      throw new Error(`[WhatsAppLite] Sesión no conectada para marcarLeido (sessionId: ${sessionId})`);
+    }
+
+    const keys = mensajes
+      .filter((m) => !!m.idExterno)
+      .map((m) => {
+        // E.164 (+51987654321) → JID (51987654321@s.whatsapp.net)
+        // @lid y @s.whatsapp.net ya están formateados, usarlos tal cual
+        const remoteJid =
+          m.identificadorContacto.endsWith("@lid") ||
+          m.identificadorContacto.endsWith("@s.whatsapp.net")
+            ? m.identificadorContacto
+            : m.identificadorContacto.replace(/\D/g, "") + "@s.whatsapp.net";
+        return { remoteJid, id: m.idExterno, participant: undefined };
+      });
+
+    if (keys.length > 0) {
+      console.log(`[WhatsAppLite] readMessages → ${keys.length} mensaje(s)`);
+      await sesion.socket.readMessages(keys);
+    }
   }
 }

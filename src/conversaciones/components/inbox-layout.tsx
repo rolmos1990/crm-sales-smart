@@ -16,6 +16,7 @@ import { PanelContactoInbox } from "./panel-contacto-inbox";
 import {
   cerrarConversacion,
   enviarMensaje,
+  marcarMensajesLeidos,
   marcarRespondida,
   reabrirConversacion,
 } from "../actions";
@@ -140,6 +141,8 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
 
   const [enviando, startEnviando] = useTransition();
   const [accionando, startAccion] = useTransition();
+  const [marcandoLeido, startMarcarLeido] = useTransition();
+  const [idsLeidosLocal, setIdsLeidosLocal] = useState<Set<string>>(new Set());
 
   const [mensajesAnteriores, setMensajesAnteriores] = useState<MensajeConMeta[]>([]);
   const [cargandoAnteriores, setCargandoAnteriores] = useState(false);
@@ -192,7 +195,26 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
   useEffect(() => {
     setMensajesAnteriores([]);
     setHayMasAnteriores(false);
+    setIdsLeidosLocal(new Set());
   }, [seleccionada]);
+
+  const handleMarcarLeidos = (ids: string[]) => {
+    if (!seleccionada || !ids.length) return;
+    startMarcarLeido(async () => {
+      setIdsLeidosLocal((prev) => new Set([...prev, ...ids]));
+      const result = await marcarMensajesLeidos(seleccionada, ids);
+      if (!result.ok) {
+        setIdsLeidosLocal((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.delete(id));
+          return next;
+        });
+        toast.error("Error al marcar como leído");
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["inbox-mensajes", seleccionada] });
+      }
+    });
+  };
 
   useEffect(() => {
     if (mensajesRecientes.length > 0) {
@@ -332,6 +354,18 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
 
   const todosLosMensajes = [...mensajesAnteriores, ...mensajesRecientes];
   const grupos = agruparPorFecha(todosLosMensajes);
+
+  const mensajesNoLeidos = useMemo(
+    () =>
+      todosLosMensajes.filter(
+        (m) =>
+          m.remitente === "CONTACTO" &&
+          m.estado !== "LEIDO" &&
+          !idsLeidosLocal.has(m.id)
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [todosLosMensajes, idsLeidosLocal]
+  );
 
   const convNombreBase = convActiva
     ? `${convActiva.contacto.nombre} ${convActiva.contacto.apellido}`.trim()
@@ -525,9 +559,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
             <BarraEstado
               conv={convActiva}
               accionando={accionando}
+              marcandoLeido={marcandoLeido}
+              mensajesNoLeidosCount={mensajesNoLeidos.length}
               onMarcarRespondida={() => handleMarcarRespondida(convActiva.id)}
               onReabrir={() => handleReabrir(convActiva.id, convActiva.estado)}
               onCerrar={() => handleCerrar(convActiva.id)}
+              onMarcarBloque={() => handleMarcarLeidos(mensajesNoLeidos.map((m) => m.id))}
             />
 
             {/* Área de mensajes */}
@@ -565,7 +602,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
                     </div>
                     <div className="space-y-1">
                       {grupo.mensajes.map((m) => (
-                        <BurbujaMensaje key={m.id} mensaje={m} />
+                        <BurbujaMensaje
+                          key={m.id}
+                          mensaje={m}
+                          leidoLocal={idsLeidosLocal.has(m.id)}
+                          onMarcarLeido={m.remitente === "CONTACTO" ? (id) => handleMarcarLeidos([id]) : undefined}
+                        />
                       ))}
                     </div>
                   </div>
@@ -620,15 +662,21 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
 function BarraEstado({
   conv,
   accionando,
+  marcandoLeido,
+  mensajesNoLeidosCount,
   onMarcarRespondida,
   onReabrir,
   onCerrar,
+  onMarcarBloque,
 }: {
   conv: ConversacionResumen;
   accionando: boolean;
+  marcandoLeido: boolean;
+  mensajesNoLeidosCount: number;
   onMarcarRespondida: () => void;
   onReabrir: () => void;
   onCerrar: () => void;
+  onMarcarBloque: () => void;
 }) {
   const cfg = ESTADO_CFG[conv.estado] ?? ESTADO_CFG.CERRADA;
 
@@ -658,6 +706,21 @@ function BarraEstado({
 
       {/* Acciones rápidas según estado */}
       <div className="flex items-center gap-1.5 shrink-0">
+        {mensajesNoLeidosCount > 0 && (
+          <button
+            type="button"
+            disabled={accionando || marcandoLeido}
+            onClick={onMarcarBloque}
+            className="flex items-center gap-1.5 text-[11px] font-medium text-stone-300 bg-white/8 hover:bg-white/12 border border-white/12 rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
+          >
+            <Check className="h-3 w-3" />
+            Marcar bloque como leído
+            <span className="text-[9px] bg-white/10 rounded-full px-1.5 py-0.5 leading-none">
+              {mensajesNoLeidosCount}
+            </span>
+          </button>
+        )}
+
         {conv.estado === "ABIERTA" && (
           <button
             type="button"

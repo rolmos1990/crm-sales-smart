@@ -66,6 +66,8 @@ class WorkerMensajes {
         await this.procesarEnvio(job.instanciaId ?? "", job.payload as Record<string, unknown>);
       } else if (job.tipo === "PROCESAR_ENTRANTE") {
         await this.procesarEntrante(job.payload as Record<string, unknown>);
+      } else if (job.tipo === "MARCAR_LEIDO") {
+        await this.procesarMarcarLeido(job.payload as Record<string, unknown>);
       }
       await prisma.jobMensaje.update({
         where: { id: job.id },
@@ -120,6 +122,41 @@ class WorkerMensajes {
       conversacionId,
       instanciaId,
     });
+  }
+
+  private async procesarMarcarLeido(p: Record<string, unknown>) {
+    const mensajeIds     = p.mensajeIds     as string[];
+    const conversacionId = p.conversacionId as string;
+
+    const mensajes = await prisma.mensajeConversacion.findMany({
+      where: { id: { in: mensajeIds }, conversacionId },
+      include: {
+        conversacion: {
+          include: {
+            cuentaCanal: true,
+            contacto: { include: { identificadoresCanal: true } },
+          },
+        },
+      },
+    });
+
+    const conv = mensajes[0]?.conversacion;
+    if (!conv?.cuentaCanal) return;
+
+    const provider = obtenerProvider(conv.cuentaCanal.canal);
+    if (!provider?.marcarLeido) return;
+
+    const canal = conv.cuentaCanal.canal;
+    const identificadorContacto =
+      conv.contacto.identificadoresCanal.find((i) => i.canal === canal)?.identificador ?? "";
+
+    const payloads = mensajes
+      .filter((m) => !!m.idExterno)
+      .map((m) => ({ idExterno: m.idExterno!, identificadorContacto }));
+
+    if (payloads.length > 0) {
+      await provider.marcarLeido(payloads, conv.cuentaCanal.configuracion as Record<string, unknown>);
+    }
   }
 
   private async procesarEntrante(p: Record<string, unknown>) {

@@ -1136,6 +1136,7 @@ model OportunidadConversacion {
 enum TipoJobMensaje {
   ENVIAR_MENSAJE
   PROCESAR_ENTRANTE
+  MARCAR_LEIDO
 }
 
 enum EstadoJobMensaje {

@@ -6,6 +6,7 @@ import { busEventos } from "@/shared/eventos/bus";
 import { TIPOS_EVENTO } from "@/shared/eventos/registro";
 import { EnviarMensajeSchema } from "./schema";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
+import { obtenerProvider } from "./providers/registry";
 import type { MensajeEntranteNormalizado } from "./types";
 
 // ── Procesar mensaje entrante desde webhook ─────────────────────────────────
@@ -520,5 +521,53 @@ export async function reabrirConversacion(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error al reabrir la conversación" };
+  }
+}
+
+// ── Marcar mensajes como leídos ─────────────────────────────────────────────
+
+export async function marcarMensajesLeidos(
+  conversacionId: string,
+  mensajeIds: string[]
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    if (!mensajeIds.length) return { ok: false, error: "Sin mensajes" };
+
+    // Actualizar en DB de forma inmediata — fuente de verdad local
+    await prisma.mensajeConversacion.updateMany({
+      where: {
+        id: { in: mensajeIds },
+        conversacionId,
+        remitente: "CONTACTO",
+      },
+      data: { estado: "LEIDO", leidoEn: new Date() },
+    });
+
+    // Encolar sincronización externa solo si el canal y la sesión lo soportan
+    const conv = await prisma.conversacion.findUnique({
+      where: { id: conversacionId },
+      select: {
+        instanciaId: true,
+        cuentaCanal: { select: { canal: true } },
+      },
+    });
+
+    if (conv?.instanciaId && conv.cuentaCanal) {
+      const provider = obtenerProvider(conv.cuentaCanal.canal);
+      if (provider?.marcarLeido) {
+        await prisma.jobMensaje.create({
+          data: {
+            tipo: "MARCAR_LEIDO",
+            instanciaId: conv.instanciaId,
+            payload: { mensajeIds, conversacionId },
+          },
+        });
+      }
+    }
+
+    revalidatePath("/conversaciones");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al marcar como leído" };
   }
 }
