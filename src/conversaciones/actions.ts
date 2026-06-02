@@ -7,6 +7,7 @@ import { TIPOS_EVENTO } from "@/shared/eventos/registro";
 import { EnviarMensajeSchema } from "./schema";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { obtenerProvider } from "./providers/registry";
+import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import type { MensajeEntranteNormalizado } from "./types";
 
 // ── Procesar mensaje entrante desde webhook ─────────────────────────────────
@@ -179,7 +180,10 @@ export async function procesarMensajeEntrante(
       : null;
     const stageInicial = stageConfigurado ?? pipelineDefault?.stages[0] ?? null;
 
-    const count = await prisma.oportunidad.count({ where: { instanciaId } });
+    const [count, moneda] = await Promise.all([
+      prisma.oportunidad.count({ where: { instanciaId } }),
+      obtenerMonedaPrincipal(instanciaId),
+    ]);
 
     // Siempre vincular el contacto como principal (incluso si es placeholder)
     // para que obtenerConversacionesPorOportunidad siempre encuentre un contacto principal
@@ -188,6 +192,7 @@ export async function procesarMensajeEntrante(
         titulo: `Oportunidad ${count + 1}`,
         etapa: "PROSPECTO",
         valor: 0,
+        moneda,
         instanciaId,
         pipelineId: pipelineDefault?.id ?? null,
         stageId: stageInicial?.id ?? null,

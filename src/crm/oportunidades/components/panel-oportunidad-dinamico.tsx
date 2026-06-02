@@ -50,6 +50,7 @@ import type { PipelineConStages, CampoPersonalizadoStage } from "@/crm/pipeline/
 import { CamposDinamicos } from "./campos-dinamicos";
 import { cn } from "@/lib/utils";
 import { GestorContactosPanel, type ContactoEnPanel } from "./gestor-contactos-panel";
+import { MONEDAS } from "@/shared/moneda/constants";
 
 // ── Tipos ─────────────────────────────────────────────────────────
 
@@ -376,30 +377,24 @@ function PanelFormulario({
                   <FormField
                     control={form.control}
                     name="moneda"
-                    render={({ field }) => {
-                      const monedaActual = field.value;
-                      return (
+                    render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Moneda</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value ?? ""}>
                             <FormControl>
                               <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9">
-                                {monedaActual ? (
-                                  <span>{monedaActual === "PEN" ? "PEN (S/)" : "USD ($)"}</span>
-                                ) : (
-                                  <SelectValue />
-                                )}
+                                <SelectValue />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="PEN">PEN (S/)</SelectItem>
-                              <SelectItem value="USD">USD ($)</SelectItem>
+                              {MONEDAS.map((m) => (
+                                <SelectItem key={m.valor} value={m.valor}>{m.etiqueta}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
-                      );
-                    }}
+                    )}
                   />
                 </div>
 

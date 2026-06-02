@@ -50,6 +50,7 @@ import {
   obtenerCuentasCanalAction,
 } from "@/conversaciones/actions";
 import type { ConversacionResumen, CuentaCanalResumen } from "@/conversaciones/types";
+import { MONEDAS } from "@/shared/moneda/constants";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -591,8 +592,9 @@ function WorkspaceContenido({
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="PEN">PEN (S/)</SelectItem>
-                                <SelectItem value="USD">USD ($)</SelectItem>
+                                {MONEDAS.map((m) => (
+                                  <SelectItem key={m.valor} value={m.valor}>{m.etiqueta}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <FormMessage />

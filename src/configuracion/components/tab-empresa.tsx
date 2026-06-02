@@ -24,6 +24,7 @@ import { PhoneInput, PHONE_COUNTRIES } from "@/components/ui/phone-input";
 import { ConfiguracionEmpresaSchema, type ConfiguracionEmpresaInput } from "@/configuracion/empresa/schema";
 import { guardarConfiguracionEmpresa } from "@/configuracion/empresa/actions";
 import type { ConfigEmpresa } from "@/configuracion/empresa/types";
+import { MONEDAS } from "@/shared/moneda/constants";
 
 interface TabEmpresaProps {
   instanciaId: string;
@@ -56,16 +57,6 @@ const ZONAS_HORARIAS = [
   { valor: "UTC",                         etiqueta: "UTC (UTC+0)" },
 ];
 
-const MONEDAS = [
-  { valor: "PAB", etiqueta: "PAB — Balboa Panameño" },
-  { valor: "USD", etiqueta: "USD — Dólar Americano" },
-  { valor: "PEN", etiqueta: "PEN — Sol Peruano" },
-  { valor: "COP", etiqueta: "COP — Peso Colombiano" },
-  { valor: "MXN", etiqueta: "MXN — Peso Mexicano" },
-  { valor: "ARS", etiqueta: "ARS — Peso Argentino" },
-  { valor: "CLP", etiqueta: "CLP — Peso Chileno" },
-  { valor: "EUR", etiqueta: "EUR — Euro" },
-];
 
 // Mapa de país (nombre) → código ISO para el PhoneInput
 const PAIS_A_ISO: Record<string, string> = {

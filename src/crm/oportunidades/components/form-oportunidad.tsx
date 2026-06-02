@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
+import { MONEDAS, MONEDA_DEFAULT } from "@/shared/moneda/constants";
 import { CrearOportunidadSchema, type CrearOportunidadInput } from "../schema";
 import { useCrearOportunidadMutation, useActualizarOportunidadMutation } from "../hooks";
 import type { Oportunidad } from "../types";
@@ -31,6 +32,7 @@ interface FormOportunidadProps {
   pipelineId?: string | null;
   stageId?: string | null;
   pipeline?: PipelineConStages | null;
+  monedaDefault?: string;
 }
 
 export function FormOportunidad({
@@ -43,6 +45,7 @@ export function FormOportunidad({
   pipelineId,
   stageId,
   pipeline,
+  monedaDefault = MONEDA_DEFAULT,
 }: FormOportunidadProps) {
   const router = useRouter();
   const enModoPipeline = !!pipeline && !!pipelineId;
@@ -55,7 +58,7 @@ export function FormOportunidad({
     defaultValues: {
       titulo: inicial?.titulo ?? "",
       valor: inicial?.valor ?? 0,
-      moneda: inicial?.moneda ?? "PEN",
+      moneda: inicial?.moneda ?? monedaDefault,
       etapa: inicial?.etapa ?? "PROSPECTO",
       fechaCierre: inicial?.fechaCierre ? new Date(inicial.fechaCierre) : undefined,
       notas: inicial?.notas ?? "",
@@ -107,11 +110,12 @@ export function FormOportunidad({
           <FormField control={form.control} name="moneda" render={({ field }) => (
             <FormItem>
               <FormLabel>Moneda</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value ?? monedaDefault}>
                 <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                 <SelectContent>
-                  <SelectItem value="PEN">PEN (S/)</SelectItem>
-                  <SelectItem value="USD">USD ($)</SelectItem>
+                  {MONEDAS.map((m) => (
+                    <SelectItem key={m.valor} value={m.valor}>{m.etiqueta}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FormMessage />

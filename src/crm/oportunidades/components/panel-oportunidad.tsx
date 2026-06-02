@@ -42,6 +42,7 @@ import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "..
 import type { Oportunidad, Etapa } from "../types";
 import { ETAPAS_PIPELINE } from "../types";
 import { MoverPipelinePopover } from "./mover-pipeline-popover";
+import { MONEDAS } from "@/shared/moneda/constants";
 import { cn } from "@/lib/utils";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { obtenerTagsAction } from "@/crm/tags/actions";
@@ -283,8 +284,9 @@ export function PanelOportunidad({
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="PEN">PEN (S/)</SelectItem>
-                                <SelectItem value="USD">USD ($)</SelectItem>
+                                {MONEDAS.map((m) => (
+                                  <SelectItem key={m.valor} value={m.valor}>{m.etiqueta}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <FormMessage />

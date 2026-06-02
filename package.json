@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:mock": "cross-env USE_MOCK=true next dev",
+    "dev:worker": "tsx src/worker/disparadores.ts",
+    "dev:full": "concurrently \"npm run dev\" \"npm run dev:worker\"",
     "premock": "node scripts/create-mock-stubs.mjs",
     "mock": "cross-env USE_MOCK=true next dev",
     "build": "next build",
@@ -11,7 +14,11 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "worker": "tsx src/worker/disparadores.ts"
+    "worker": "tsx src/worker/disparadores.ts",
+    "script:cleanup": "tsx scripts/cleanup-data.ts",
+    "script:mock-stubs": "node scripts/create-mock-stubs.mjs",
+    "script:limpiar-conversaciones": "tsx scripts/limpiar-conversaciones.ts",
+    "script:reparar-pipeline": "tsx scripts/reparar-oportunidades-pipeline.ts"
   },
   "engines": {
     "node": ">=20.19.0"
@@ -62,6 +69,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.3",
     "cross-env": "^7.0.3",
     "dotenv": "^17.4.2",
     "prisma": "^7.8.0",
