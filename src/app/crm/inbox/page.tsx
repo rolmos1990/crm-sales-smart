@@ -1,5 +1,5 @@
 import { InboxLayout } from "@/conversaciones/components/inbox-layout";
-import { obtenerConversacionesAbiertas, obtenerTodasLasCuentasCanal } from "@/conversaciones/queries";
+import { obtenerConversacionesInbox, obtenerTodasLasCuentasCanal } from "@/conversaciones/queries";
 import type { ConversacionResumen } from "@/conversaciones/types";
 
 type CuentasType = Awaited<ReturnType<typeof obtenerTodasLasCuentasCanal>>;
@@ -9,7 +9,7 @@ export default async function InboxPage() {
   let cuentas: CuentasType = [];
   try {
     [conversaciones, cuentas] = await Promise.all([
-      obtenerConversacionesAbiertas(),
+      obtenerConversacionesInbox(),
       obtenerTodasLasCuentasCanal(),
     ]);
   } catch {

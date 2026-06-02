@@ -87,15 +87,29 @@ export async function procesarMensajeEntrante(
 
   const contactoId = identificador.contacto.id;
 
-  // 3. Buscar conversación abierta para contacto + cuenta canal
-  let conversacionEsNueva = false;
+  // 3. Buscar conversación abierta o en espera para contacto + instancia
+  // Se busca por instanciaId en vez de cuentaCanalId para tolerar re-escaneos de QR
+  // (cada re-escaneo crea un nuevo CuentaCanal; la conversación existente tiene el id anterior)
   let conversacion = await prisma.conversacion.findFirst({
-    where: { contactoId, cuentaCanalId, estado: "ABIERTA" },
+    where: { contactoId, instanciaId, estado: { in: ["ABIERTA", "EN_ESPERA"] } },
+    orderBy: { actualizadoEn: "desc" },
   });
+
+  if (conversacion) {
+    // Actualizar cuenta canal si cambió (re-escaneo de QR) y/o reabrir si estaba en espera
+    const needsUpdate =
+      conversacion.cuentaCanalId !== cuentaCanalId || conversacion.estado === "EN_ESPERA";
+    if (needsUpdate) {
+      const upd: { cuentaCanalId?: string; estado?: "ABIERTA" } = {};
+      if (conversacion.cuentaCanalId !== cuentaCanalId) upd.cuentaCanalId = cuentaCanalId;
+      if (conversacion.estado === "EN_ESPERA") upd.estado = "ABIERTA";
+      await prisma.conversacion.update({ where: { id: conversacion.id }, data: upd });
+      conversacion = { ...conversacion, ...upd };
+    }
+  }
 
   // 4. Si no existe, crear conversación nueva
   if (!conversacion) {
-    conversacionEsNueva = true;
     conversacion = await prisma.conversacion.create({
       data: { contactoId, cuentaCanalId, instanciaId, estado: "ABIERTA" },
     });
@@ -462,7 +476,7 @@ export async function vincularConversacionAContacto(
   }
 }
 
-// ── Cerrar conversación ─────────────────────────────────────────────────────
+// ── Cerrar / marcar respondida / reabrir ────────────────────────────────────
 
 export async function cerrarConversacion(
   conversacionId: string
@@ -476,5 +490,35 @@ export async function cerrarConversacion(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error al cerrar la conversación" };
+  }
+}
+
+export async function marcarRespondida(
+  conversacionId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await prisma.conversacion.update({
+      where: { id: conversacionId },
+      data: { estado: "EN_ESPERA" },
+    });
+    revalidatePath("/crm/inbox");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al marcar respondida" };
+  }
+}
+
+export async function reabrirConversacion(
+  conversacionId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await prisma.conversacion.update({
+      where: { id: conversacionId },
+      data: { estado: "ABIERTA" },
+    });
+    revalidatePath("/crm/inbox");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al reabrir la conversación" };
   }
 }

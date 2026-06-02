@@ -174,6 +174,33 @@ export async function obtenerConversacionesAbiertas(): Promise<ConversacionResum
   return convs.map(mapearConversacion);
 }
 
+// Carga el inbox completo: ABIERTA + EN_ESPERA + últimas 50 CERRADAS
+export async function obtenerConversacionesInbox(): Promise<ConversacionResumen[]> {
+  const include = {
+    contacto: { select: contactoSelect },
+    cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
+    oportunidades: true,
+    mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
+    _count: { select: { mensajes: true } },
+  } as const;
+
+  const [activas, cerradas] = await Promise.all([
+    prisma.conversacion.findMany({
+      where: { estado: { in: ["ABIERTA", "EN_ESPERA"] } },
+      include,
+      orderBy: { actualizadoEn: "desc" as const },
+    }),
+    prisma.conversacion.findMany({
+      where: { estado: "CERRADA" },
+      include,
+      orderBy: { actualizadoEn: "desc" as const },
+      take: 50,
+    }),
+  ]);
+
+  return [...activas, ...cerradas].map(mapearConversacion);
+}
+
 export async function obtenerUltimosMensajes(conversacionId: string, limite = 50): Promise<MensajeConMeta[]> {
   const mensajes = await prisma.mensajeConversacion.findMany({
     where: { conversacionId },
