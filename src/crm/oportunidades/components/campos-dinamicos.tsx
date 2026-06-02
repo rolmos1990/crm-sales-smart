@@ -13,32 +13,61 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import type { CampoPersonalizadoStage } from "@/crm/pipeline/types";
+import type { CampoPersonalizadoPipeline } from "@/crm/pipeline/types";
 import { cn } from "@/lib/utils";
 
 interface CamposDinamicosProps {
-  campos: CampoPersonalizadoStage[];
+  campos: CampoPersonalizadoPipeline[];
+  stageId: string | null;
   valores: Record<string, unknown>;
   onChange: (clave: string, valor: unknown) => void;
   disabled?: boolean;
 }
 
-export function CamposDinamicos({ campos, valores, onChange, disabled }: CamposDinamicosProps) {
-  if (campos.length === 0) return null;
+export function CamposDinamicos({ campos, stageId, valores, onChange, disabled }: CamposDinamicosProps) {
+  const camposVisibles = campos.filter((c) =>
+    c.activo && (stageId === null || c.visibleEn.length === 0 || c.visibleEn.includes(stageId))
+  );
+
+  if (camposVisibles.length === 0) return null;
 
   return (
     <div className="space-y-4">
-      {campos.map((campo) => (
-        <CampoInput
-          key={campo.id}
-          campo={campo}
-          valor={valores[campo.clave]}
-          onChange={(v) => onChange(campo.clave, v)}
-          disabled={disabled || campo.bloqueado}
-        />
-      ))}
+      {camposVisibles.map((campo) => {
+        const esBloqueado = stageId !== null && campo.bloqueadoEn.includes(stageId);
+        const esRequerido = stageId !== null && campo.requeridoEn.includes(stageId);
+        return (
+          <CampoInput
+            key={campo.id}
+            campo={campo}
+            valor={valores[campo.clave]}
+            onChange={(v) => onChange(campo.clave, v)}
+            disabled={disabled || esBloqueado}
+            requerido={esRequerido}
+            bloqueado={esBloqueado}
+          />
+        );
+      })}
     </div>
   );
+}
+
+/** Valida que todos los campos requeridos en el stage actual tengan valor */
+export function validarCamposRequeridos(
+  campos: CampoPersonalizadoPipeline[],
+  stageId: string | null,
+  valores: Record<string, unknown>,
+): string[] {
+  if (!stageId) return [];
+  return campos
+    .filter((c) => c.activo && c.requeridoEn.includes(stageId))
+    .filter((c) => {
+      const v = valores[c.clave];
+      if (v === null || v === undefined || v === "") return true;
+      if (Array.isArray(v) && v.length === 0) return true;
+      return false;
+    })
+    .map((c) => c.nombre);
 }
 
 function CampoInput({
@@ -46,11 +75,15 @@ function CampoInput({
   valor,
   onChange,
   disabled,
+  requerido,
+  bloqueado,
 }: {
-  campo: CampoPersonalizadoStage;
+  campo: CampoPersonalizadoPipeline;
   valor: unknown;
   onChange: (v: unknown) => void;
   disabled?: boolean;
+  requerido?: boolean;
+  bloqueado?: boolean;
 }) {
   const labelClasses = "text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500";
   const inputClasses = "bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9";
@@ -58,8 +91,8 @@ function CampoInput({
   const label = (
     <div className="flex items-center gap-1.5">
       <span className={labelClasses}>{campo.nombre}</span>
-      {campo.requerido && <span className="text-red-400 text-xs">*</span>}
-      {campo.bloqueado && (
+      {requerido && <span className="text-red-400 text-xs">*</span>}
+      {bloqueado && (
         <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-500 dark:text-orange-400">
           <Lock className="h-2.5 w-2.5" />
           Solo lectura

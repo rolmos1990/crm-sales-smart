@@ -11,6 +11,23 @@ export type TipoCampo =
   | "TELEFONO"
   | "URL";
 
+/** Campo personalizado a nivel de Pipeline (nuevo modelo) */
+export interface CampoPersonalizadoPipeline {
+  id: string;
+  nombre: string;
+  clave: string;
+  tipo: TipoCampo;
+  descripcion: string | null;
+  opciones: string[] | null;
+  orden: number;
+  activo: boolean;
+  pipelineId: string | null;
+  visibleEn: string[];    // stageIds donde el campo es visible
+  requeridoEn: string[];  // stageIds donde el campo es obligatorio
+  bloqueadoEn: string[];  // stageIds donde el campo es solo lectura
+}
+
+/** @deprecated Usar CampoPersonalizadoPipeline */
 export interface CampoPersonalizadoStage {
   id: string;
   nombre: string;
@@ -38,7 +55,6 @@ export interface PipelineStage {
   esPerdido: boolean;
   activo: boolean;
   pipelineId: string;
-  campos?: CampoPersonalizadoStage[];
 }
 
 export interface PipelineConStages {
@@ -48,6 +64,7 @@ export interface PipelineConStages {
   esDefault: boolean;
   activo: boolean;
   stages: PipelineStage[];
+  campos: CampoPersonalizadoPipeline[];
 }
 
 export interface OportunidadEnStage {

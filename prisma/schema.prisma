@@ -528,6 +528,9 @@ model CampoPersonalizado {
   opciones      Json?
   validaciones  Json?
   valorDefault  Json?
+  visibleEn     Json?
+  requeridoEn   Json?
+  bloqueadoEn   Json?
   creadoEn      DateTime                  @default(now())
   actualizadoEn DateTime                  @updatedAt
 

@@ -42,7 +42,8 @@ import { obtenerPipelinesAction } from "@/crm/pipeline/actions";
 import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
 import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "../schema";
 import type { Oportunidad } from "../types";
-import type { PipelineConStages, CampoPersonalizadoStage } from "@/crm/pipeline/types";
+import type { PipelineConStages } from "@/crm/pipeline/types";
+import { validarCamposRequeridos } from "./campos-dinamicos";
 import { CamposDinamicos } from "./campos-dinamicos";
 import { GestorContactosPanel, type ContactoEnPanel } from "./gestor-contactos-panel";
 import {
@@ -277,7 +278,7 @@ function WorkspaceContenido({
 
   const pipelineActual = todosPipelines.find((p) => p.id === pipelineActualId) ?? todosPipelines[0];
   const stageActual = pipelineActual?.stages.find((s) => s.id === stageActualId);
-  const camposActuales: CampoPersonalizadoStage[] = stageActual?.campos ?? [];
+  const camposPipeline = pipelineActual?.campos ?? [];
 
   const contactoPrincipal =
     data.contactosIniciales.find((r) => r.principal)?.contacto ??
@@ -304,6 +305,14 @@ function WorkspaceContenido({
 
   const handleCambiarStage = (nuevoStageId: string, nuevoPipelineId: string) => {
     if (nuevoStageId === stageActualId && nuevoPipelineId === pipelineActualId) return;
+
+    const camposDestinoPipeline = todosPipelines.find((p) => p.id === nuevoPipelineId)?.campos ?? [];
+    const camposFaltantes = validarCamposRequeridos(camposDestinoPipeline, nuevoStageId, metadata);
+    if (camposFaltantes.length > 0) {
+      toast.error(`Debes completar los campos obligatorios antes de continuar: ${camposFaltantes.join(", ")}`);
+      return;
+    }
+
     setGuardandoStage(true);
     moverMutation.mutate(
       { oportunidadId: oportunidad.id, nuevoStageId, pipelineId: nuevoPipelineId },
@@ -335,7 +344,13 @@ function WorkspaceContenido({
   };
 
   const onSubmit = async (datos: ActualizarOportunidadInput) => {
-    if (camposActuales.length > 0) {
+    const camposFaltantes = validarCamposRequeridos(camposPipeline, stageActualId, metadata);
+    if (camposFaltantes.length > 0) {
+      toast.error(`Completa los campos obligatorios: ${camposFaltantes.join(", ")}`);
+      return;
+    }
+
+    if (camposPipeline.length > 0) {
       const resultadoCampos = await actualizarMetadataOportunidad(oportunidad.id, metadata);
       if (!resultadoCampos.exito) { toast.error(resultadoCampos.error); return; }
     }
@@ -755,17 +770,18 @@ function WorkspaceContenido({
                   </Seccion>
                 )}
 
-                {/* ── Campos personalizados del stage ───────────────── */}
-                {camposActuales.length > 0 && (
+                {/* ── Campos personalizados del pipeline ───────────── */}
+                {camposPipeline.length > 0 && (
                   <Seccion
-                    titulo={`Campos de ${stageActual?.nombre ?? "etapa"}`}
+                    titulo="Campos"
                     icono={<Layers className="h-3 w-3" />}
                     abierto={secciones.campos}
                     onToggle={() => toggleSeccion("campos")}
                   >
                     <div className="pt-1">
                       <CamposDinamicos
-                        campos={camposActuales}
+                        campos={camposPipeline}
+                        stageId={stageActualId}
                         valores={metadata}
                         onChange={(clave, valor) =>
                           setMetadata((prev) => ({ ...prev, [clave]: valor }))

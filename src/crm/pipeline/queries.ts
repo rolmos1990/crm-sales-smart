@@ -1,30 +1,52 @@
 import { prisma } from "@/shared/db/prisma";
-import type { OportunidadEnStage } from "./types";
+import type { CampoPersonalizadoModel as CampoPersonalizado } from "@/generated/prisma/models/CampoPersonalizado";
+import type { CampoPersonalizadoPipeline, OportunidadEnStage } from "./types";
+
+function normalizarCampo(raw: CampoPersonalizado): CampoPersonalizadoPipeline {
+  return {
+    id: raw.id,
+    nombre: raw.nombre,
+    clave: raw.clave,
+    tipo: raw.tipo as CampoPersonalizadoPipeline["tipo"],
+    descripcion: raw.descripcion,
+    opciones: Array.isArray(raw.opciones) ? (raw.opciones as string[]) : null,
+    orden: raw.orden,
+    activo: raw.activo,
+    pipelineId: raw.pipelineId,
+    visibleEn: Array.isArray(raw.visibleEn) ? (raw.visibleEn as string[]) : [],
+    requeridoEn: Array.isArray(raw.requeridoEn) ? (raw.requeridoEn as string[]) : [],
+    bloqueadoEn: Array.isArray(raw.bloqueadoEn) ? (raw.bloqueadoEn as string[]) : [],
+  };
+}
 
 export async function obtenerPipelines() {
-  return prisma.pipeline.findMany({
+  const pipelines = await prisma.pipeline.findMany({
     where: { activo: true },
     include: {
       stages: {
         where: { activo: true },
         orderBy: { orden: "asc" },
-        include: {
-          campos: {
-            where: { activo: true },
-            orderBy: { orden: "asc" },
-          },
-        },
+      },
+      campos: {
+        where: { activo: true },
+        orderBy: { orden: "asc" },
       },
     },
     orderBy: [{ esDefault: "desc" }, { creadoEn: "asc" }],
   });
+
+  return pipelines.map((p) => ({
+    ...p,
+    campos: p.campos.map(normalizarCampo),
+  }));
 }
 
-export async function obtenerCamposPorStage(stageId: string) {
-  return prisma.campoPersonalizado.findMany({
-    where: { stageId, activo: true },
+export async function obtenerCamposPorPipeline(pipelineId: string): Promise<CampoPersonalizadoPipeline[]> {
+  const campos = await prisma.campoPersonalizado.findMany({
+    where: { pipelineId, activo: true },
     orderBy: { orden: "asc" },
   });
+  return campos.map(normalizarCampo);
 }
 
 export async function obtenerOportunidadesPorPipeline(pipelineId: string) {

@@ -46,8 +46,8 @@ import { moverAStage, obtenerPipelinesAction } from "@/crm/pipeline/actions";
 import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
 import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "../schema";
 import type { Oportunidad } from "../types";
-import type { PipelineConStages, CampoPersonalizadoStage } from "@/crm/pipeline/types";
-import { CamposDinamicos } from "./campos-dinamicos";
+import type { PipelineConStages } from "@/crm/pipeline/types";
+import { CamposDinamicos, validarCamposRequeridos } from "./campos-dinamicos";
 import { cn } from "@/lib/utils";
 import { GestorContactosPanel, type ContactoEnPanel } from "./gestor-contactos-panel";
 import { MONEDAS } from "@/shared/moneda/constants";
@@ -218,10 +218,18 @@ function PanelFormulario({
 
   const pipelineActual = todosPipelines.find((p) => p.id === pipelineActualId) ?? todosPipelines[0];
   const stageActual = pipelineActual?.stages.find((s) => s.id === stageActualId);
-  const camposActuales: CampoPersonalizadoStage[] = stageActual?.campos ?? [];
+  const camposPipeline = pipelineActual?.campos ?? [];
 
   const handleCambiarStage = async (nuevoStageId: string, nuevoPipelineId: string) => {
     if (nuevoStageId === stageActualId && nuevoPipelineId === pipelineActualId) return;
+
+    const camposDestinoPipeline = todosPipelines.find((p) => p.id === nuevoPipelineId)?.campos ?? [];
+    const camposFaltantes = validarCamposRequeridos(camposDestinoPipeline, nuevoStageId, metadata);
+    if (camposFaltantes.length > 0) {
+      toast.error(`Debes completar los campos obligatorios antes de continuar: ${camposFaltantes.join(", ")}`);
+      return;
+    }
+
     setGuardandoStage(true);
     const resultado = await moverAStage(oportunidad.id, nuevoStageId, nuevoPipelineId);
     setGuardandoStage(false);
@@ -248,8 +256,14 @@ function PanelFormulario({
   };
 
   const onSubmit = async (datos: ActualizarOportunidadInput) => {
+    const camposFaltantes = validarCamposRequeridos(camposPipeline, stageActualId, metadata);
+    if (camposFaltantes.length > 0) {
+      toast.error(`Completa los campos obligatorios: ${camposFaltantes.join(", ")}`);
+      return;
+    }
+
     const [resultadoCampos, resultadoBase] = await Promise.all([
-      camposActuales.length > 0
+      camposPipeline.length > 0
         ? actualizarMetadataOportunidad(oportunidad.id, metadata)
         : Promise.resolve({ exito: true as const, datos: undefined }),
       actualizarOportunidad(oportunidad.id, { ...datos, tagIds }),
@@ -472,24 +486,22 @@ function PanelFormulario({
                   </>
                 )}
 
-                {/* Campos dinámicos del stage */}
-                {camposActuales.length > 0 && (
+                {/* Campos dinámicos del pipeline */}
+                {camposPipeline.length > 0 && (
                   <>
                     <div className="h-px bg-stone-100 dark:bg-white/8" />
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
-                        <div
-                          className="flex items-center justify-center h-5 w-5 rounded-md flex-shrink-0"
-                          style={{ backgroundColor: stageActual?.color ? `${stageActual.color}20` : "rgb(132 204 22 / 0.1)" }}
-                        >
-                          <Layers className="h-3 w-3" style={{ color: stageActual?.color ?? "#84cc16" }} />
+                        <div className="flex items-center justify-center h-5 w-5 rounded-md flex-shrink-0 bg-lime-500/10">
+                          <Layers className="h-3 w-3 text-lime-500" />
                         </div>
                         <span className="text-xs font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500">
-                          Campos de {stageActual?.nombre ?? "etapa"}
+                          Campos
                         </span>
                       </div>
                       <CamposDinamicos
-                        campos={camposActuales}
+                        campos={camposPipeline}
+                        stageId={stageActualId}
                         valores={metadata}
                         onChange={(clave, valor) => setMetadata((prev) => ({ ...prev, [clave]: valor }))}
                       />

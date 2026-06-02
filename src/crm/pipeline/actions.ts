@@ -171,15 +171,20 @@ async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
   });
 }
 
-// ── Campos personalizados por stage ──────────────────────────────
+// ── Campos personalizados del Pipeline ──────────────────────────────
 
-export async function crearCampoStage(pipelineId: string, stageId: string, datos: unknown) {
+export async function crearCampoPipeline(pipelineId: string, datos: unknown) {
   const parsed = SchemaCampoPersonalizado.safeParse(datos);
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
+    const existe = await prisma.campoPersonalizado.findFirst({
+      where: { pipelineId, clave: parsed.data.clave, activo: true },
+    });
+    if (existe) return { exito: false as const, error: `Ya existe un campo con la clave "${parsed.data.clave}"` };
+
     const last = await prisma.campoPersonalizado.findFirst({
-      where: { stageId, activo: true },
+      where: { pipelineId, activo: true },
       orderBy: { orden: "desc" },
       select: { orden: true },
     });
@@ -189,14 +194,18 @@ export async function crearCampoStage(pipelineId: string, stageId: string, datos
         clave: parsed.data.clave,
         tipo: parsed.data.tipo as never,
         entidad: "OPORTUNIDAD",
-        requerido: parsed.data.requerido,
-        bloqueado: parsed.data.bloqueado ?? false,
         descripcion: parsed.data.descripcion ?? null,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         opciones: (parsed.data.opciones ?? null) as any,
         orden: (last?.orden ?? -1) + 1,
         pipelineId,
-        stageId,
+        stageId: null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        visibleEn: parsed.data.visibleEn as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        requeridoEn: parsed.data.requeridoEn as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        bloqueadoEn: parsed.data.bloqueadoEn as any,
       },
     });
     revalidatePath("/crm/pipeline");
@@ -206,7 +215,7 @@ export async function crearCampoStage(pipelineId: string, stageId: string, datos
   }
 }
 
-export async function actualizarCampoStage(id: string, datos: unknown) {
+export async function actualizarCampoPipeline(id: string, datos: unknown) {
   const parsed = SchemaCampoPersonalizado.partial().safeParse(datos);
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
@@ -217,11 +226,15 @@ export async function actualizarCampoStage(id: string, datos: unknown) {
         ...(parsed.data.nombre && { nombre: parsed.data.nombre }),
         ...(parsed.data.clave && { clave: parsed.data.clave }),
         ...(parsed.data.tipo && { tipo: parsed.data.tipo as never }),
-        ...(parsed.data.requerido !== undefined && { requerido: parsed.data.requerido }),
-        ...(parsed.data.bloqueado !== undefined && { bloqueado: parsed.data.bloqueado }),
         ...(parsed.data.descripcion !== undefined && { descripcion: parsed.data.descripcion ?? null }),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(parsed.data.opciones !== undefined && { opciones: (parsed.data.opciones ?? null) as any }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(parsed.data.visibleEn !== undefined && { visibleEn: parsed.data.visibleEn as any }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(parsed.data.requeridoEn !== undefined && { requeridoEn: parsed.data.requeridoEn as any }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(parsed.data.bloqueadoEn !== undefined && { bloqueadoEn: parsed.data.bloqueadoEn as any }),
       },
     });
     revalidatePath("/crm/pipeline");
@@ -231,7 +244,7 @@ export async function actualizarCampoStage(id: string, datos: unknown) {
   }
 }
 
-export async function eliminarCampoStage(id: string) {
+export async function eliminarCampo(id: string) {
   try {
     await prisma.campoPersonalizado.update({ where: { id }, data: { activo: false } });
     revalidatePath("/crm/pipeline");
@@ -241,47 +254,17 @@ export async function eliminarCampoStage(id: string) {
   }
 }
 
-export async function duplicarCampoStage(campoId: string, targetStageId: string, targetPipelineId: string) {
+export async function toggleEstadoCampo(id: string, activo: boolean) {
   try {
-    const campo = await prisma.campoPersonalizado.findUnique({ where: { id: campoId } });
-    if (!campo) return { exito: false as const, error: "Campo no encontrado" };
-
-    const existe = await prisma.campoPersonalizado.findFirst({
-      where: { stageId: targetStageId, clave: campo.clave, activo: true },
-    });
-    if (existe) return { exito: false as const, error: `Ya existe un campo con la clave "${campo.clave}" en esa etapa` };
-
-    const last = await prisma.campoPersonalizado.findFirst({
-      where: { stageId: targetStageId, activo: true },
-      orderBy: { orden: "desc" },
-      select: { orden: true },
-    });
-
-    const nuevo = await prisma.campoPersonalizado.create({
-      data: {
-        nombre: campo.nombre,
-        clave: campo.clave,
-        tipo: campo.tipo,
-        entidad: campo.entidad,
-        requerido: campo.requerido,
-        bloqueado: campo.bloqueado,
-        descripcion: campo.descripcion,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        opciones: campo.opciones as any,
-        orden: (last?.orden ?? -1) + 1,
-        pipelineId: targetPipelineId,
-        stageId: targetStageId,
-      },
-    });
-
+    await prisma.campoPersonalizado.update({ where: { id }, data: { activo } });
     revalidatePath("/crm/pipeline");
-    return { exito: true as const, id: nuevo.id };
+    return { exito: true as const };
   } catch {
-    return { exito: false as const, error: "Error al duplicar el campo" };
+    return { exito: false as const, error: "Error al cambiar el estado del campo" };
   }
 }
 
-export async function reordenarCamposStage(stageId: string, campoIds: string[]) {
+export async function reordenarCamposPipeline(pipelineId: string, campoIds: string[]) {
   try {
     await prisma.$transaction(
       campoIds.map((id, index) =>
@@ -293,4 +276,19 @@ export async function reordenarCamposStage(stageId: string, campoIds: string[]) 
   } catch {
     return { exito: false as const, error: "Error al reordenar los campos" };
   }
+}
+
+/** @deprecated Usar crearCampoPipeline */
+export async function crearCampoStage(pipelineId: string, _stageId: string, datos: unknown) {
+  return crearCampoPipeline(pipelineId, datos);
+}
+
+/** @deprecated Usar actualizarCampoPipeline */
+export async function actualizarCampoStage(id: string, datos: unknown) {
+  return actualizarCampoPipeline(id, datos);
+}
+
+/** @deprecated Usar eliminarCampo */
+export async function eliminarCampoStage(id: string) {
+  return eliminarCampo(id);
 }

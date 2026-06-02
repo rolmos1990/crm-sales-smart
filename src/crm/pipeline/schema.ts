@@ -33,8 +33,9 @@ export const SchemaCampoPersonalizado = z.object({
     "TELEFONO",
     "URL",
   ]),
-  requerido: z.boolean().default(false),
-  bloqueado: z.boolean().default(false),
   descripcion: z.string().max(300).nullish(),
   opciones: z.array(z.string()).nullish(),
+  visibleEn: z.array(z.string()).default([]),
+  requeridoEn: z.array(z.string()).default([]),
+  bloqueadoEn: z.array(z.string()).default([]),
 });

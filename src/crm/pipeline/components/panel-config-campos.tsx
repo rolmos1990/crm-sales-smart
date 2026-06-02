@@ -2,40 +2,22 @@
 
 import { useState, useTransition, useEffect } from "react";
 import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDraggable,
-  useDroppable,
-} from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
-import {
   Plus,
   Pencil,
   Trash2,
   Loader2,
   X,
-  ChevronDown,
-  ChevronRight,
-  GripVertical,
-  ToggleLeft,
+  Eye,
+  EyeOff,
   Lock,
+  ToggleLeft,
+  Power,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectTrigger,
@@ -44,12 +26,12 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-  crearCampoStage,
-  actualizarCampoStage,
-  eliminarCampoStage,
-  duplicarCampoStage,
+  crearCampoPipeline,
+  actualizarCampoPipeline,
+  eliminarCampo,
+  toggleEstadoCampo,
 } from "../actions";
-import type { PipelineConStages, CampoPersonalizadoStage, TipoCampo } from "../types";
+import type { PipelineConStages, CampoPersonalizadoPipeline, PipelineStage, TipoCampo } from "../types";
 
 // ── Catálogo de tipos ─────────────────────────────────────────────
 
@@ -81,11 +63,59 @@ function slugificar(texto: string) {
     .slice(0, 60);
 }
 
+// ── Helpers visuales ──────────────────────────────────────────────
+
 function BadgeTipo({ tipo }: { tipo: TipoCampo }) {
   return (
-    <span className="inline-flex items-center rounded-md bg-stone-100 dark:bg-white/8 border border-stone-200 dark:border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-stone-500 dark:text-stone-400 flex-shrink-0">
+    <span className="inline-flex items-center rounded-md bg-stone-100 dark:bg-white/8 border border-stone-200 dark:border-white/10 px-1.5 py-0.5 text-[10px] font-medium text-stone-500 dark:text-stone-400 whitespace-nowrap">
       {TIPO_LABEL[tipo]}
     </span>
+  );
+}
+
+function BadgesEtapas({
+  stageIds,
+  stages,
+  color,
+}: {
+  stageIds: string[];
+  stages: PipelineStage[];
+  color: string;
+}) {
+  if (stageIds.length === 0) return <span className="text-xs text-stone-400 dark:text-stone-600">—</span>;
+
+  const todos = stages.every((s) => stageIds.includes(s.id));
+  if (todos) return (
+    <span className={cn("text-xs font-medium", color)}>Todas</span>
+  );
+
+  const nombres = stages
+    .filter((s) => stageIds.includes(s.id))
+    .map((s) => s.nombre);
+
+  if (nombres.length <= 2) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        {nombres.map((n) => (
+          <span key={n} className="inline-flex items-center rounded-md bg-stone-100 dark:bg-white/6 border border-stone-200 dark:border-white/10 px-1.5 py-0.5 text-[10px] text-stone-600 dark:text-stone-400 whitespace-nowrap">
+            {n}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {nombres.slice(0, 1).map((n) => (
+        <span key={n} className="inline-flex items-center rounded-md bg-stone-100 dark:bg-white/6 border border-stone-200 dark:border-white/10 px-1.5 py-0.5 text-[10px] text-stone-600 dark:text-stone-400 whitespace-nowrap">
+          {n}
+        </span>
+      ))}
+      <span className="inline-flex items-center rounded-md bg-stone-100 dark:bg-white/6 border border-stone-200 dark:border-white/10 px-1.5 py-0.5 text-[10px] text-stone-500 dark:text-stone-500 whitespace-nowrap">
+        +{nombres.length - 1}
+      </span>
+    </div>
   );
 }
 
@@ -137,100 +167,237 @@ function EditorOpciones({ opciones, onChange }: { opciones: string[]; onChange: 
   );
 }
 
-// ── Toggle visual reutilizable ────────────────────────────────────
+// ── Tabla de comportamiento por etapa ─────────────────────────────
 
-function ToggleOpcion({
-  activo,
+interface ReglasPorEtapa {
+  visibleEn: string[];
+  requeridoEn: string[];
+  bloqueadoEn: string[];
+}
+
+function TablaComportamientoEtapa({
+  stages,
+  reglas,
   onChange,
-  icono,
-  etiqueta,
-  colorActivo = "lime",
 }: {
-  activo: boolean;
-  onChange: () => void;
-  icono: React.ReactNode;
-  etiqueta: string;
-  colorActivo?: "lime" | "amber";
+  stages: PipelineStage[];
+  reglas: ReglasPorEtapa;
+  onChange: (r: ReglasPorEtapa) => void;
 }) {
-  const colors = colorActivo === "amber"
-    ? { bg: "bg-amber-500/8 border-amber-500/25 dark:border-amber-400/25", text: "text-amber-700 dark:text-amber-300", icon: "text-amber-600 dark:text-amber-400", track: "bg-amber-500 dark:bg-amber-400" }
-    : { bg: "bg-lime-500/8 border-lime-500/25 dark:border-lime-400/25", text: "text-lime-700 dark:text-lime-300", icon: "text-lime-600 dark:text-lime-400", track: "bg-lime-500 dark:bg-lime-400" };
+  const toggle = (field: keyof ReglasPorEtapa, stageId: string) => {
+    const arr = reglas[field];
+    const next = arr.includes(stageId) ? arr.filter((id) => id !== stageId) : [...arr, stageId];
+    onChange({ ...reglas, [field]: next });
+  };
+
+  const toggleAll = (field: keyof ReglasPorEtapa) => {
+    const all = stages.map((s) => s.id);
+    const current = reglas[field];
+    const isAll = all.every((id) => current.includes(id));
+    onChange({ ...reglas, [field]: isAll ? [] : all });
+  };
+
+  const allVisible = stages.every((s) => reglas.visibleEn.includes(s.id));
+  const allRequerido = stages.every((s) => reglas.requeridoEn.includes(s.id));
+  const allBloqueado = stages.every((s) => reglas.bloqueadoEn.includes(s.id));
+
+  return (
+    <div className="rounded-xl border border-stone-200 dark:border-white/10 overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-stone-50 dark:bg-white/4 border-b border-stone-200 dark:border-white/10">
+            <th className="text-left px-3 py-2 text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">
+              Etapa
+            </th>
+            <th className="px-2 py-2 text-center">
+              <button
+                onClick={() => toggleAll("visibleEn")}
+                title="Visible en todas"
+                className="flex flex-col items-center gap-0.5 mx-auto group"
+              >
+                <Eye className={cn("h-3.5 w-3.5 transition-colors", allVisible ? "text-lime-500" : "text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300")} />
+                <span className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wide">Visible</span>
+              </button>
+            </th>
+            <th className="px-2 py-2 text-center">
+              <button
+                onClick={() => toggleAll("requeridoEn")}
+                title="Requerido en todas"
+                className="flex flex-col items-center gap-0.5 mx-auto group"
+              >
+                <ToggleLeft className={cn("h-3.5 w-3.5 transition-colors", allRequerido ? "text-amber-500" : "text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300")} />
+                <span className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wide">Requerido</span>
+              </button>
+            </th>
+            <th className="px-2 py-2 text-center">
+              <button
+                onClick={() => toggleAll("bloqueadoEn")}
+                title="Bloqueado en todas"
+                className="flex flex-col items-center gap-0.5 mx-auto group"
+              >
+                <Lock className={cn("h-3.5 w-3.5 transition-colors", allBloqueado ? "text-orange-500" : "text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300")} />
+                <span className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wide">Bloqueado</span>
+              </button>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {stages.map((stage, i) => {
+            const visible = reglas.visibleEn.includes(stage.id);
+            const requerido = reglas.requeridoEn.includes(stage.id);
+            const bloqueado = reglas.bloqueadoEn.includes(stage.id);
+            return (
+              <tr
+                key={stage.id}
+                className={cn(
+                  "border-b border-stone-100 dark:border-white/6 last:border-0 transition-colors",
+                  i % 2 === 0 ? "bg-white dark:bg-transparent" : "bg-stone-50/50 dark:bg-white/2"
+                )}
+              >
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color ?? "#818cf8" }} />
+                    <span className="text-xs font-medium text-stone-700 dark:text-stone-300">{stage.nombre}</span>
+                  </div>
+                </td>
+                <td className="px-2 py-2 text-center">
+                  <CheckCell
+                    active={visible}
+                    color="lime"
+                    onClick={() => toggle("visibleEn", stage.id)}
+                    icon={visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                  />
+                </td>
+                <td className="px-2 py-2 text-center">
+                  <CheckCell
+                    active={requerido}
+                    color="amber"
+                    onClick={() => toggle("requeridoEn", stage.id)}
+                    disabled={!visible}
+                    icon={<ToggleLeft className="h-3.5 w-3.5" />}
+                  />
+                </td>
+                <td className="px-2 py-2 text-center">
+                  <CheckCell
+                    active={bloqueado}
+                    color="orange"
+                    onClick={() => toggle("bloqueadoEn", stage.id)}
+                    disabled={!visible}
+                    icon={<Lock className="h-3.5 w-3.5" />}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* Resumen */}
+      <div className="px-3 py-2 bg-stone-50 dark:bg-white/3 border-t border-stone-200 dark:border-white/10">
+        <p className="text-[10px] text-stone-400 dark:text-stone-500 leading-relaxed">
+          {reglas.requeridoEn.length > 0 && (
+            <span>El campo será requerido en {stages.filter(s => reglas.requeridoEn.includes(s.id)).map(s => s.nombre).join(" y ")}. </span>
+          )}
+          {reglas.bloqueadoEn.length > 0 && (
+            <span>El campo estará bloqueado (solo lectura) en {stages.filter(s => reglas.bloqueadoEn.includes(s.id)).map(s => s.nombre).join(" y ")}.</span>
+          )}
+          {reglas.requeridoEn.length === 0 && reglas.bloqueadoEn.length === 0 && (
+            <span>Sin reglas de obligatoriedad o bloqueo configuradas.</span>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function CheckCell({
+  active,
+  color,
+  onClick,
+  disabled,
+  icon,
+}: {
+  active: boolean;
+  color: "lime" | "amber" | "orange";
+  onClick: () => void;
+  disabled?: boolean;
+  icon: React.ReactNode;
+}) {
+  const colors = {
+    lime:   { active: "text-lime-500 dark:text-lime-400",   bg: "bg-lime-500/10" },
+    amber:  { active: "text-amber-500 dark:text-amber-400", bg: "bg-amber-500/10" },
+    orange: { active: "text-orange-500 dark:text-orange-400", bg: "bg-orange-500/10" },
+  }[color];
 
   return (
     <button
-      onClick={onChange}
+      onClick={onClick}
+      disabled={disabled}
       className={cn(
-        "w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all",
-        activo ? colors.bg : "border-stone-200 dark:border-white/10 hover:bg-stone-50 dark:hover:bg-white/5"
+        "h-6 w-6 mx-auto flex items-center justify-center rounded-md transition-all",
+        active && !disabled ? `${colors.active} ${colors.bg}` : "text-stone-300 dark:text-stone-700",
+        disabled && "opacity-30 cursor-not-allowed",
+        !active && !disabled && "hover:text-stone-500 dark:hover:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/8"
       )}
     >
-      <div className="flex items-center gap-2">
-        <span className={cn("h-4 w-4", activo ? colors.icon : "text-stone-400")}>{icono}</span>
-        <span className={cn("text-sm font-medium", activo ? colors.text : "text-stone-600 dark:text-stone-400")}>
-          {etiqueta}
-        </span>
-      </div>
-      <div className={cn("h-5 w-9 rounded-full transition-colors relative", activo ? colors.track : "bg-stone-200 dark:bg-stone-700")}>
-        <div className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform", activo ? "translate-x-4" : "translate-x-0.5")} />
-      </div>
+      {icon}
     </button>
   );
 }
 
-// ── Dialog crear / editar campo ───────────────────────────────────
+// ── Panel de edición lateral ──────────────────────────────────────
 
 interface DatosFormCampo {
   nombre: string;
   clave: string;
   tipo: TipoCampo;
-  requerido: boolean;
-  bloqueado: boolean;
   descripcion: string;
   opciones: string[];
+  visibleEn: string[];
+  requeridoEn: string[];
+  bloqueadoEn: string[];
 }
 
-function DialogCampo({
-  open,
-  onOpenChange,
-  campoInicial,
+function PanelEditarCampo({
+  campo,
+  stages,
   pipelineId,
-  stageId,
   onGuardado,
+  onCerrar,
 }: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  campoInicial: CampoPersonalizadoStage | null;
+  campo: CampoPersonalizadoPipeline | null;
+  stages: PipelineStage[];
   pipelineId: string;
-  stageId: string;
-  onGuardado: (campo: CampoPersonalizadoStage) => void;
+  onGuardado: (campo: CampoPersonalizadoPipeline) => void;
+  onCerrar: () => void;
 }) {
-  const esNuevo = !campoInicial;
-  const [form, setForm] = useState<DatosFormCampo>({
-    nombre:      campoInicial?.nombre      ?? "",
-    clave:       campoInicial?.clave       ?? "",
-    tipo:        campoInicial?.tipo        ?? "TEXTO",
-    requerido:   campoInicial?.requerido   ?? false,
-    bloqueado:   campoInicial?.bloqueado   ?? false,
-    descripcion: campoInicial?.descripcion ?? "",
-    opciones:    campoInicial?.opciones    ?? [],
-  });
+  const esNuevo = campo === null;
+  const [form, setForm] = useState<DatosFormCampo>(() => ({
+    nombre:      campo?.nombre      ?? "",
+    clave:       campo?.clave       ?? "",
+    tipo:        campo?.tipo        ?? "TEXTO",
+    descripcion: campo?.descripcion ?? "",
+    opciones:    campo?.opciones    ?? [],
+    visibleEn:   campo?.visibleEn   ?? stages.map((s) => s.id),
+    requeridoEn: campo?.requeridoEn ?? [],
+    bloqueadoEn: campo?.bloqueadoEn ?? [],
+  }));
   const [claveManual, setClaveManual] = useState(!esNuevo);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (open) {
-      setForm({
-        nombre:      campoInicial?.nombre      ?? "",
-        clave:       campoInicial?.clave       ?? "",
-        tipo:        campoInicial?.tipo        ?? "TEXTO",
-        requerido:   campoInicial?.requerido   ?? false,
-        bloqueado:   campoInicial?.bloqueado   ?? false,
-        descripcion: campoInicial?.descripcion ?? "",
-        opciones:    campoInicial?.opciones    ?? [],
-      });
-      setClaveManual(campoInicial !== null);
-    }
-  }, [open]);
+    setForm({
+      nombre:      campo?.nombre      ?? "",
+      clave:       campo?.clave       ?? "",
+      tipo:        campo?.tipo        ?? "TEXTO",
+      descripcion: campo?.descripcion ?? "",
+      opciones:    campo?.opciones    ?? [],
+      visibleEn:   campo?.visibleEn   ?? stages.map((s) => s.id),
+      requeridoEn: campo?.requeridoEn ?? [],
+      bloqueadoEn: campo?.bloqueadoEn ?? [],
+    });
+    setClaveManual(!esNuevo);
+  }, [campo]);
 
   const setField = <K extends keyof DatosFormCampo>(k: K, v: DatosFormCampo[K]) =>
     setForm((prev) => ({ ...prev, [k]: v }));
@@ -248,14 +415,16 @@ function DialogCampo({
       nombre:      form.nombre.trim(),
       clave:       form.clave,
       tipo:        form.tipo,
-      requerido:   form.requerido,
-      bloqueado:   form.bloqueado,
       descripcion: form.descripcion.trim() || null,
       opciones:    conOpciones && form.opciones.length > 0 ? form.opciones : null,
+      visibleEn:   form.visibleEn,
+      requeridoEn: form.requeridoEn,
+      bloqueadoEn: form.bloqueadoEn,
     };
+
     startTransition(async () => {
       if (esNuevo) {
-        const r = await crearCampoStage(pipelineId, stageId, datos);
+        const r = await crearCampoPipeline(pipelineId, datos);
         if (r.exito) {
           toast.success("Campo creado");
           onGuardado({
@@ -263,25 +432,23 @@ function DialogCampo({
             nombre:      datos.nombre,
             clave:       datos.clave,
             tipo:        datos.tipo,
-            requerido:   datos.requerido,
-            bloqueado:   datos.bloqueado,
             descripcion: datos.descripcion,
             opciones:    datos.opciones,
             orden:       0,
             activo:      true,
-            stageId,
             pipelineId,
+            visibleEn:   datos.visibleEn,
+            requeridoEn: datos.requeridoEn,
+            bloqueadoEn: datos.bloqueadoEn,
           });
-          onOpenChange(false);
         } else {
           toast.error(r.error);
         }
       } else {
-        const r = await actualizarCampoStage(campoInicial!.id, datos);
+        const r = await actualizarCampoPipeline(campo!.id, datos);
         if (r.exito) {
           toast.success("Campo actualizado");
-          onGuardado({ ...campoInicial!, ...datos });
-          onOpenChange(false);
+          onGuardado({ ...campo!, ...datos });
         } else {
           toast.error(r.error);
         }
@@ -290,431 +457,334 @@ function DialogCampo({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10">
-        <DialogHeader>
-          <DialogTitle className="text-stone-900 dark:text-stone-50">
-            {esNuevo ? "Nuevo campo" : "Editar campo"}
-          </DialogTitle>
-        </DialogHeader>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 dark:border-white/10">
+        <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+          {esNuevo ? "Nuevo campo" : "Editar campo"}
+        </h3>
+        <button
+          onClick={onCerrar}
+          className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
-        <div className="space-y-4 py-1">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide block">
-              Nombre del campo
-            </Label>
-            <Input
-              autoFocus
-              value={form.nombre}
-              onChange={(e) => handleNombreChange(e.target.value)}
-              placeholder="ej. Presupuesto aprobado"
-              className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
-            />
-          </div>
+      {/* Formulario con scroll */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+        {/* Información general */}
+        <div>
+          <p className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-3">
+            Información general
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-stone-600 dark:text-stone-400">Nombre del campo</Label>
+              <Input
+                autoFocus
+                value={form.nombre}
+                onChange={(e) => handleNombreChange(e.target.value)}
+                placeholder="ej. Presupuesto estimado"
+                className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9 text-sm"
+              />
+            </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide block">
-              Clave (identificador único)
-            </Label>
-            <Input
-              value={form.clave}
-              onChange={(e) => {
-                setClaveManual(true);
-                setField("clave", e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""));
-              }}
-              placeholder="presupuesto_aprobado"
-              className="font-mono text-sm bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
-            />
-            <p className="text-[10px] text-stone-400 dark:text-stone-500">
-              Solo minúsculas, números y guión bajo.
-            </p>
-          </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-stone-600 dark:text-stone-400">Clave (identificador único)</Label>
+              <Input
+                value={form.clave}
+                onChange={(e) => {
+                  setClaveManual(true);
+                  setField("clave", e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""));
+                }}
+                placeholder="presupuesto_estimado"
+                className="font-mono text-sm bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
+              />
+              <p className="text-[10px] text-stone-400 dark:text-stone-500">
+                Solo minúsculas, números y guiones bajos.
+              </p>
+            </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide block">
-              Tipo de dato
-            </Label>
-            <Select value={form.tipo} onValueChange={(v) => setField("tipo", v as TipoCampo)}>
-              <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl">
-                <span>{TIPO_LABEL[form.tipo]}</span>
-              </SelectTrigger>
-              <SelectContent>
-                {TIPOS.map((t) => (
-                  <SelectItem key={t.valor} value={t.valor}>{t.etiqueta}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-stone-600 dark:text-stone-400">Tipo de dato</Label>
+              <Select value={form.tipo} onValueChange={(v) => setField("tipo", v as TipoCampo)}>
+                <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9 text-sm">
+                  <span>{TIPO_LABEL[form.tipo]}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPOS.map((t) => (
+                    <SelectItem key={t.valor} value={t.valor}>{t.etiqueta}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {conOpciones && (
-            <EditorOpciones opciones={form.opciones} onChange={(v) => setField("opciones", v)} />
-          )}
+            {conOpciones && (
+              <EditorOpciones opciones={form.opciones} onChange={(v) => setField("opciones", v)} />
+            )}
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide block">
-              Descripción (opcional)
-            </Label>
-            <Input
-              value={form.descripcion}
-              onChange={(e) => setField("descripcion", e.target.value)}
-              placeholder="Ayuda al equipo a saber qué ingresar"
-              className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <ToggleOpcion
-              activo={form.requerido}
-              onChange={() => setField("requerido", !form.requerido)}
-              icono={<ToggleLeft className="h-4 w-4" />}
-              etiqueta="Campo requerido"
-            />
-            <ToggleOpcion
-              activo={form.bloqueado}
-              onChange={() => setField("bloqueado", !form.bloqueado)}
-              icono={<Lock className="h-4 w-4" />}
-              etiqueta="Campo bloqueado (solo lectura)"
-              colorActivo="amber"
-            />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-stone-600 dark:text-stone-400">Descripción (opcional)</Label>
+              <Input
+                value={form.descripcion}
+                onChange={(e) => setField("descripcion", e.target.value)}
+                placeholder="Ayuda al equipo a saber qué ingresar"
+                className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9 text-sm"
+              />
+            </div>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl">
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleGuardar}
-            disabled={!form.nombre.trim() || !form.clave.trim() || isPending}
-            className="rounded-xl bg-lime-500 hover:bg-lime-400 text-stone-950"
-          >
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {esNuevo ? "Crear campo" : "Guardar"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        {/* Comportamiento por etapa */}
+        {stages.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <p className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">
+                Comportamiento por etapa
+              </p>
+            </div>
+            <TablaComportamientoEtapa
+              stages={stages}
+              reglas={{ visibleEn: form.visibleEn, requeridoEn: form.requeridoEn, bloqueadoEn: form.bloqueadoEn }}
+              onChange={(r) => setForm((prev) => ({ ...prev, ...r }))}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 border-t border-stone-200 dark:border-white/10 flex items-center justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCerrar} className="rounded-xl">
+          Cancelar
+        </Button>
+        <Button
+          size="sm"
+          onClick={handleGuardar}
+          disabled={!form.nombre.trim() || !form.clave.trim() || isPending}
+          className="rounded-xl bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-sm"
+        >
+          {isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          Guardar cambios
+        </Button>
+      </div>
+    </div>
   );
 }
 
-// ── CampoItem draggable ───────────────────────────────────────────
+// ── Fila de campo en la tabla ─────────────────────────────────────
 
-function CampoItem({
+function FilaCampo({
   campo,
+  stages,
+  activo,
   onEditar,
   onEliminar,
+  onToggleEstado,
 }: {
-  campo: CampoPersonalizadoStage;
-  onEditar: (c: CampoPersonalizadoStage) => void;
-  onEliminar: (id: string) => void;
+  campo: CampoPersonalizadoPipeline;
+  stages: PipelineStage[];
+  activo: boolean;
+  onEditar: () => void;
+  onEliminar: () => void;
+  onToggleEstado: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: campo.id,
-    data: campo,
-  });
-
   return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform) }}
-      className={cn("touch-none", isDragging && "opacity-30")}
-      {...attributes}
-    >
-      <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 group hover:border-stone-300 dark:hover:border-white/20 transition-all">
-        <button
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing touch-none"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="h-3.5 w-3.5 text-stone-300 dark:text-stone-600 flex-shrink-0 hover:text-stone-500" />
-        </button>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
+    <tr className="group border-b border-stone-100 dark:border-white/6 last:border-0 hover:bg-stone-50 dark:hover:bg-white/3 transition-colors">
+      {/* Campo */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <div className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", activo ? "bg-lime-500" : "bg-stone-300 dark:bg-stone-600")} />
+          <div>
+            <p className={cn("text-sm font-medium leading-tight", activo ? "text-stone-800 dark:text-stone-200" : "text-stone-400 dark:text-stone-600")}>
               {campo.nombre}
-            </span>
-            {campo.requerido && (
-              <span className="inline-flex items-center rounded-md bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 flex-shrink-0">
-                Requerido
-              </span>
-            )}
-            {campo.bloqueado && (
-              <span className="inline-flex items-center gap-0.5 rounded-md bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 flex-shrink-0">
-                <Lock className="h-2.5 w-2.5" />
-                Bloqueado
-              </span>
-            )}
-            <BadgeTipo tipo={campo.tipo} />
-          </div>
-          {campo.descripcion && (
-            <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5 truncate">
-              {campo.descripcion}
             </p>
-          )}
+            <p className="text-[11px] text-stone-400 dark:text-stone-600 font-mono">{campo.clave}</p>
+          </div>
         </div>
+      </td>
 
-        <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => { e.stopPropagation(); onEditar(campo); }}
-            className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onEliminar(campo.id); }}
-            className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 dark:text-stone-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/8 transition-colors"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
+      {/* Tipo */}
+      <td className="px-3 py-3">
+        <BadgeTipo tipo={campo.tipo} />
+      </td>
+
+      {/* Visible en */}
+      <td className="px-3 py-3">
+        <BadgesEtapas stageIds={campo.visibleEn} stages={stages} color="text-stone-600 dark:text-stone-400" />
+      </td>
+
+      {/* Requerido en */}
+      <td className="px-3 py-3">
+        <BadgesEtapas stageIds={campo.requeridoEn} stages={stages} color="text-amber-600 dark:text-amber-400" />
+      </td>
+
+      {/* Bloqueado en */}
+      <td className="px-3 py-3">
+        <BadgesEtapas stageIds={campo.bloqueadoEn} stages={stages} color="text-orange-600 dark:text-orange-400" />
+      </td>
+
+      {/* Estado + acciones */}
+      <td className="px-3 py-3">
+        <div className="flex items-center justify-end gap-2">
+          <Switch
+            checked={activo}
+            onCheckedChange={onToggleEstado}
+            className="data-[state=checked]:bg-lime-500"
+          />
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={onEditar}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={onEliminar}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-stone-400 dark:text-stone-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/8 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
-function CampoItemOverlay({ campo }: { campo: CampoPersonalizadoStage }) {
-  return (
-    <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl border-2 border-lime-400/40 bg-white dark:bg-stone-900 shadow-xl rotate-1 opacity-95 w-[260px]">
-      <GripVertical className="h-3.5 w-3.5 text-lime-400 flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">{campo.nombre}</p>
-        <p className="text-[10px] text-stone-400">{TIPO_LABEL[campo.tipo]}</p>
-      </div>
-    </div>
-  );
-}
-
-// ── Zona droppable por stage ──────────────────────────────────────
-
-function ZonaDropStage({
-  stageId,
-  stageColor,
-  children,
-}: {
-  stageId: string;
-  stageColor: string | null;
-  children: React.ReactNode;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id: stageId });
-  const color = stageColor ?? "#818cf8";
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "min-h-[60px] space-y-1.5 rounded-xl transition-all duration-150",
-        isOver && "ring-2 ring-offset-1 dark:ring-offset-stone-950"
-      )}
-      style={isOver ? { "--tw-ring-color": `${color}50` } as React.CSSProperties : undefined}
-    >
-      {isOver && (
-        <div
-          className="rounded-xl border-2 border-dashed py-2.5 text-center text-xs font-semibold transition-all"
-          style={{ borderColor: `${color}60`, color, backgroundColor: `${color}0a` }}
-        >
-          Soltar para duplicar aquí
-        </div>
-      )}
-      {children}
-    </div>
-  );
-}
-
-// ── Sección por stage ─────────────────────────────────────────────
-
-interface SeccionStageProps {
-  stage: { id: string; nombre: string; color: string | null };
-  campos: CampoPersonalizadoStage[];
-  pipelineId: string;
-  onCampoGuardado: (campo: CampoPersonalizadoStage) => void;
-  onCampoEliminado: (id: string) => void;
-}
-
-function SeccionStage({ stage, campos, pipelineId, onCampoGuardado, onCampoEliminado }: SeccionStageProps) {
-  const [abierto, setAbierto] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [campoEditando, setCampoEditando] = useState<CampoPersonalizadoStage | null>(null);
-
-  const handleEliminar = (id: string) => {
-    onCampoEliminado(id);
-    eliminarCampoStage(id).then((r) => {
-      if (r.exito) toast.success("Campo eliminado");
-      else toast.error(r.error);
-    });
-  };
-
-  const abrirNuevo = () => { setCampoEditando(null); setDialogOpen(true); };
-  const abrirEditar = (campo: CampoPersonalizadoStage) => { setCampoEditando(campo); setDialogOpen(true); };
-
-  return (
-    <div className="rounded-xl border border-stone-200 dark:border-white/10 overflow-hidden">
-      <button
-        onClick={() => setAbierto(!abierto)}
-        className="w-full flex items-center gap-2.5 px-3 py-2.5 bg-stone-50 dark:bg-white/4 hover:bg-stone-100 dark:hover:bg-white/6 transition-colors text-left"
-      >
-        <div className="h-2.5 w-2.5 rounded-full flex-shrink-0 ring-1 ring-white/20" style={{ backgroundColor: stage.color ?? "#818cf8" }} />
-        <span className="flex-1 text-sm font-semibold text-stone-700 dark:text-stone-200">{stage.nombre}</span>
-        <span className="text-xs text-stone-400 dark:text-stone-500">
-          {campos.length} {campos.length === 1 ? "campo" : "campos"}
-        </span>
-        {abierto
-          ? <ChevronDown className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
-          : <ChevronRight className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
-        }
-      </button>
-
-      {abierto && (
-        <div className="px-3 py-2.5 bg-white dark:bg-transparent space-y-1.5">
-          <ZonaDropStage stageId={stage.id} stageColor={stage.color}>
-            {campos.length === 0 && (
-              <p className="text-xs text-stone-400 dark:text-stone-500 italic py-1">
-                Sin campos — arrastra uno desde otra etapa o agrega uno nuevo
-              </p>
-            )}
-            {campos.map((campo) => (
-              <CampoItem
-                key={campo.id}
-                campo={campo}
-                onEditar={abrirEditar}
-                onEliminar={handleEliminar}
-              />
-            ))}
-          </ZonaDropStage>
-
-          <button
-            onClick={abrirNuevo}
-            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl border border-dashed border-stone-300 dark:border-white/12 text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:border-stone-400 dark:hover:border-white/20 hover:bg-stone-50 dark:hover:bg-white/3 transition-all text-xs mt-1"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Agregar campo
-          </button>
-        </div>
-      )}
-
-      <DialogCampo
-        key={campoEditando?.id ?? "nuevo"}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        campoInicial={campoEditando}
-        pipelineId={pipelineId}
-        stageId={stage.id}
-        onGuardado={onCampoGuardado}
-      />
-    </div>
-  );
-}
-
-// ── Panel principal con DnD ───────────────────────────────────────
+// ── Panel principal ───────────────────────────────────────────────
 
 interface PanelConfigCamposProps {
   pipeline: PipelineConStages;
 }
 
 export function PanelConfigCampos({ pipeline }: PanelConfigCamposProps) {
-  const [stagesState, setStagesState] = useState<Map<string, CampoPersonalizadoStage[]>>(() => {
-    const map = new Map<string, CampoPersonalizadoStage[]>();
-    for (const stage of pipeline.stages) {
-      map.set(stage.id, (stage.campos ?? []) as CampoPersonalizadoStage[]);
-    }
-    return map;
-  });
-  const [activeCard, setActiveCard] = useState<CampoPersonalizadoStage | null>(null);
+  const [campos, setCampos] = useState<CampoPersonalizadoPipeline[]>(pipeline.campos ?? []);
+  const [campoEditando, setCampoEditando] = useState<CampoPersonalizadoPipeline | null | "nuevo">(null);
+  const [, startTransition] = useTransition();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
+  const panelAbierto = campoEditando !== null;
 
-  const handleCampoGuardado = (stageId: string, campo: CampoPersonalizadoStage) => {
-    setStagesState((prev) => {
-      const next = new Map(prev);
-      const campos = next.get(stageId) ?? [];
-      const idx = campos.findIndex((c) => c.id === campo.id);
-      next.set(stageId, idx >= 0 ? campos.map((c) => (c.id === campo.id ? campo : c)) : [...campos, campo]);
-      return next;
+  const handleCampoGuardado = (campo: CampoPersonalizadoPipeline) => {
+    setCampos((prev) => {
+      const idx = prev.findIndex((c) => c.id === campo.id);
+      return idx >= 0 ? prev.map((c) => (c.id === campo.id ? campo : c)) : [...prev, campo];
+    });
+    setCampoEditando(campo);
+  };
+
+  const handleEliminar = (id: string) => {
+    setCampos((prev) => prev.filter((c) => c.id !== id));
+    if (typeof campoEditando === "object" && campoEditando?.id === id) setCampoEditando(null);
+    startTransition(async () => {
+      const r = await eliminarCampo(id);
+      if (!r.exito) toast.error(r.error);
+      else toast.success("Campo eliminado");
     });
   };
 
-  const handleCampoEliminado = (stageId: string, id: string) => {
-    setStagesState((prev) => {
-      const next = new Map(prev);
-      next.set(stageId, (next.get(stageId) ?? []).filter((c) => c.id !== id));
-      return next;
+  const handleToggleEstado = (campo: CampoPersonalizadoPipeline) => {
+    const nuevoActivo = !campo.activo;
+    setCampos((prev) => prev.map((c) => (c.id === campo.id ? { ...c, activo: nuevoActivo } : c)));
+    startTransition(async () => {
+      const r = await toggleEstadoCampo(campo.id, nuevoActivo);
+      if (!r.exito) {
+        toast.error(r.error);
+        setCampos((prev) => prev.map((c) => (c.id === campo.id ? { ...c, activo: campo.activo } : c)));
+      }
     });
   };
-
-  const handleDragStart = ({ active }: DragStartEvent) => {
-    setActiveCard(active.data.current as CampoPersonalizadoStage);
-  };
-
-  const handleDragEnd = async ({ over, active }: DragEndEvent) => {
-    setActiveCard(null);
-    if (!over) return;
-
-    const campo = active.data.current as CampoPersonalizadoStage;
-    const targetStageId = over.id as string;
-
-    if (campo.stageId === targetStageId) return;
-
-    const targetCampos = stagesState.get(targetStageId) ?? [];
-    if (targetCampos.some((c) => c.clave === campo.clave)) {
-      toast.error(`La clave "${campo.clave}" ya existe en esa etapa`);
-      return;
-    }
-
-    const resultado = await duplicarCampoStage(campo.id, targetStageId, pipeline.id);
-    if (resultado.exito) {
-      const targetStage = pipeline.stages.find((s) => s.id === targetStageId);
-      setStagesState((prev) => {
-        const next = new Map(prev);
-        next.set(targetStageId, [
-          ...(next.get(targetStageId) ?? []),
-          {
-            ...campo,
-            id: resultado.id,
-            stageId: targetStageId,
-            pipelineId: pipeline.id,
-          },
-        ]);
-        return next;
-      });
-      toast.success(`"${campo.nombre}" duplicado en "${targetStage?.nombre ?? targetStageId}"`);
-    } else {
-      toast.error(resultado.error);
-    }
-  };
-
-  if (pipeline.stages.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-sm font-medium text-stone-500 dark:text-stone-400">
-          Primero crea etapas en la pestaña "Etapas"
-        </p>
-      </div>
-    );
-  }
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="space-y-2 max-w-2xl">
-        <p className="text-xs text-stone-400 dark:text-stone-500 mb-3">
-          Arrastra un campo hacia otra etapa para duplicarlo. Los campos bloqueados son de solo lectura al editar una oportunidad.
+    <div className="flex h-full min-h-0 gap-0">
+      {/* Tabla principal */}
+      <div className={cn("flex flex-col flex-1 min-w-0 transition-all", panelAbierto && "mr-0")}>
+        {/* Header de la tabla */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+              Campos personalizados del {pipeline.nombre}
+            </h2>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              Crea y configura campos dinámicos que estarán disponibles en todas las etapas del pipeline.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setCampoEditando("nuevo")}
+            className="rounded-xl bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-sm flex-shrink-0"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Nuevo campo
+          </Button>
+        </div>
+
+        {campos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-stone-200 dark:border-white/10 rounded-xl">
+            <div className="h-10 w-10 rounded-xl bg-stone-100 dark:bg-white/5 flex items-center justify-center mb-3">
+              <Power className="h-5 w-5 text-stone-400 dark:text-stone-600" />
+            </div>
+            <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Sin campos personalizados</p>
+            <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 mb-4">
+              Los campos pertenecen al pipeline y se pueden configurar por etapa
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCampoEditando("nuevo")}
+              className="rounded-xl border-stone-200 dark:border-white/10"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Agregar primer campo
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-stone-200 dark:border-white/10 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-stone-50 dark:bg-white/4 border-b border-stone-200 dark:border-white/10">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">Campo</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">Tipo</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">Visible en</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">Requerido en</th>
+                  <th className="text-left px-3 py-2.5 text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">Bloqueado en</th>
+                  <th className="text-right px-3 py-2.5 text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campos.map((campo) => (
+                  <FilaCampo
+                    key={campo.id}
+                    campo={campo}
+                    stages={pipeline.stages}
+                    activo={campo.activo}
+                    onEditar={() => setCampoEditando(campo)}
+                    onEliminar={() => handleEliminar(campo.id)}
+                    onToggleEstado={() => handleToggleEstado(campo)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <p className="text-xs text-stone-400 dark:text-stone-600 mt-3">
+          Los campos se mostrarán, requerirán o bloquearán según las reglas definidas para cada etapa.
         </p>
-        {pipeline.stages.map((stage) => (
-          <SeccionStage
-            key={stage.id}
-            stage={{ id: stage.id, nombre: stage.nombre, color: stage.color }}
-            campos={stagesState.get(stage.id) ?? []}
-            pipelineId={pipeline.id}
-            onCampoGuardado={(campo) => handleCampoGuardado(stage.id, campo)}
-            onCampoEliminado={(id) => handleCampoEliminado(stage.id, id)}
-          />
-        ))}
       </div>
 
-      <DragOverlay dropAnimation={{ duration: 150 }}>
-        {activeCard && <CampoItemOverlay campo={activeCard} />}
-      </DragOverlay>
-    </DndContext>
+      {/* Panel lateral de edición */}
+      {panelAbierto && (
+        <div className="w-80 flex-shrink-0 border-l border-stone-200 dark:border-white/10 ml-4 -mr-4 flex flex-col overflow-hidden">
+          <PanelEditarCampo
+            campo={campoEditando === "nuevo" ? null : campoEditando}
+            stages={pipeline.stages}
+            pipelineId={pipeline.id}
+            onGuardado={handleCampoGuardado}
+            onCerrar={() => setCampoEditando(null)}
+          />
+        </div>
+      )}
+    </div>
   );
 }

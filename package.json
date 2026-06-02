@@ -20,7 +20,8 @@
     "script:limpiar-conversaciones": "tsx scripts/limpiar-conversaciones.ts",
     "script:reparar-pipeline": "tsx scripts/reparar-oportunidades-pipeline.ts",
     "script:sincronizar-etapas": "tsx scripts/sincronizar-etapa-desde-stage.ts",
-    "script:vincular-conversaciones": "tsx scripts/vincular-conversaciones-oportunidades.ts"
+    "script:vincular-conversaciones": "tsx scripts/vincular-conversaciones-oportunidades.ts",
+    "script:migrar-campos-pipeline": "tsx scripts/migrar-campos-a-pipeline.ts"
   },
   "engines": {
     "node": ">=20.19.0"

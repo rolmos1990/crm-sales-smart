@@ -46,7 +46,14 @@
       "PowerShell(docker exec crm_sales_smart_db psql -U crm_sales_smart_user -d crm_sales_smart_dev -c \"SELECT column_name FROM information_schema.columns WHERE table_name = 'CuentaCanal' ORDER BY ordinal_position;\")",
       "PowerShell($q = 'SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position;')",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(powershell -Command \"Get-ChildItem 'c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\crm\\\\pipeline\\\\' -Recurse\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path 'c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\crm\\\\oportunidades' -Recurse -Filter '*.tsx' -o -Filter '*.ts' | Select-Object FullName\")",
+      "Bash(powershell -Command \"Get-Content 'c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\crm\\\\pipeline\\\\components\\\\panel-config-campos.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines\")",
+      "Bash(npx dotenv *)",
+      "Bash(Get-Content .env)",
+      "Bash(Select-String \"DATABASE_URL\")",
+      "Bash(node -e \"const f=require\\('fs'\\);const p=JSON.parse\\(f.readFileSync\\('package.json','utf8'\\)\\);console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\RamonOlmos\\source\\repos\\crm-sales-smart\\crm-sales-smart\\src\\app\\api\\webhooks",
