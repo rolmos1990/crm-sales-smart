@@ -11,6 +11,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { BurbujaMensaje } from "./burbuja-mensaje";
+import { EventoSistema } from "./evento-sistema";
 import { InputMensaje } from "./input-mensaje";
 import { PanelContactoInbox } from "./panel-contacto-inbox";
 import {
@@ -601,14 +602,18 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
                       <div className="flex-1 h-px bg-white/5" />
                     </div>
                     <div className="space-y-1">
-                      {grupo.mensajes.map((m) => (
-                        <BurbujaMensaje
-                          key={m.id}
-                          mensaje={m}
-                          leidoLocal={idsLeidosLocal.has(m.id)}
-                          onMarcarLeido={m.remitente === "CONTACTO" ? (id) => handleMarcarLeidos([id]) : undefined}
-                        />
-                      ))}
+                      {grupo.mensajes.map((m) =>
+                        m.tipo === "EVENTO_SISTEMA" ? (
+                          <EventoSistema key={m.id} mensaje={m} />
+                        ) : (
+                          <BurbujaMensaje
+                            key={m.id}
+                            mensaje={m}
+                            leidoLocal={idsLeidosLocal.has(m.id)}
+                            onMarcarLeido={m.remitente === "CONTACTO" ? (id) => handleMarcarLeidos([id]) : undefined}
+                          />
+                        )
+                      )}
                     </div>
                   </div>
                 ))

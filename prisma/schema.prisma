@@ -142,6 +142,7 @@ enum TipoMensaje {
   DOCUMENTO
   PLANTILLA
   BOTON
+  EVENTO_SISTEMA
 }
 
 enum RemitenteMsg {

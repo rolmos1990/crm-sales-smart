@@ -92,20 +92,26 @@ export async function procesarMensajeEntrante(
   // Se busca por instanciaId en vez de cuentaCanalId para tolerar re-escaneos de QR
   // (cada re-escaneo crea un nuevo CuentaCanal; la conversación existente tiene el id anterior)
   let conversacion = await prisma.conversacion.findFirst({
-    where: { contactoId, instanciaId, estado: { in: ["ABIERTA", "EN_ESPERA"] } },
+    where: { contactoId, instanciaId, estado: { in: ["ABIERTA", "EN_ESPERA", "CERRADA"] } },
     orderBy: { actualizadoEn: "desc" },
   });
 
   if (conversacion) {
-    // Actualizar cuenta canal si cambió (re-escaneo de QR) y/o reabrir si estaba en espera
+    // Actualizar cuenta canal si cambió (re-escaneo de QR), reabrir si estaba en espera o cerrada
+    const estabasCerrada = conversacion.estado === "CERRADA";
     const needsUpdate =
-      conversacion.cuentaCanalId !== cuentaCanalId || conversacion.estado === "EN_ESPERA";
+      conversacion.cuentaCanalId !== cuentaCanalId ||
+      conversacion.estado === "EN_ESPERA" ||
+      conversacion.estado === "CERRADA";
     if (needsUpdate) {
       const upd: { cuentaCanalId?: string; estado?: "ABIERTA" } = {};
       if (conversacion.cuentaCanalId !== cuentaCanalId) upd.cuentaCanalId = cuentaCanalId;
-      if (conversacion.estado === "EN_ESPERA") upd.estado = "ABIERTA";
+      if (conversacion.estado === "EN_ESPERA" || conversacion.estado === "CERRADA") upd.estado = "ABIERTA";
       await prisma.conversacion.update({ where: { id: conversacion.id }, data: upd });
       conversacion = { ...conversacion, ...upd };
+      if (estabasCerrada) {
+        await registrarEventoConversacion(conversacion.id, "REABIERTA");
+      }
     }
   }
 
@@ -477,6 +483,27 @@ export async function vincularConversacionAContacto(
   }
 }
 
+// ── Eventos de ciclo de vida ────────────────────────────────────────────────
+
+type TipoEvento = "CERRADA" | "REABIERTA" | "RESPONDIDA";
+
+async function registrarEventoConversacion(
+  conversacionId: string,
+  tipo: TipoEvento,
+  usuarioNombre?: string
+) {
+  await prisma.mensajeConversacion.create({
+    data: {
+      conversacionId,
+      tipo: "EVENTO_SISTEMA",
+      remitente: "SISTEMA",
+      estado: "ENVIADO",
+      esNotaInterna: false,
+      contenido: JSON.stringify({ tipo, usuarioNombre: usuarioNombre ?? null }),
+    },
+  });
+}
+
 // ── Cerrar / marcar respondida / reabrir ────────────────────────────────────
 
 export async function cerrarConversacion(
@@ -487,6 +514,7 @@ export async function cerrarConversacion(
       where: { id: conversacionId },
       data: { estado: "CERRADA" },
     });
+    await registrarEventoConversacion(conversacionId, "CERRADA");
     revalidatePath("/crm/inbox");
     return { ok: true };
   } catch (e) {
@@ -502,6 +530,7 @@ export async function marcarRespondida(
       where: { id: conversacionId },
       data: { estado: "EN_ESPERA" },
     });
+    await registrarEventoConversacion(conversacionId, "RESPONDIDA");
     revalidatePath("/crm/inbox");
     return { ok: true };
   } catch (e) {
@@ -517,6 +546,7 @@ export async function reabrirConversacion(
       where: { id: conversacionId },
       data: { estado: "ABIERTA" },
     });
+    await registrarEventoConversacion(conversacionId, "REABIERTA");
     revalidatePath("/crm/inbox");
     return { ok: true };
   } catch (e) {

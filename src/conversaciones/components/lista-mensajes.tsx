@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { ChevronUp, Loader2 } from "lucide-react";
 import { BurbujaMensaje } from "./burbuja-mensaje";
+import { EventoSistema } from "./evento-sistema";
 import type { MensajeConMeta } from "../types";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -108,9 +109,13 @@ export function ListaMensajes({
               <div className="flex-1 h-px bg-white/5" />
             </div>
             <div className="space-y-1">
-              {grupo.mensajes.map((m) => (
-                <BurbujaMensaje key={m.id} mensaje={m} />
-              ))}
+              {grupo.mensajes.map((m) =>
+                m.tipo === "EVENTO_SISTEMA" ? (
+                  <EventoSistema key={m.id} mensaje={m} />
+                ) : (
+                  <BurbujaMensaje key={m.id} mensaje={m} />
+                )
+              )}
             </div>
           </div>
         ))}

@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "TipoMensaje" ADD VALUE 'EVENTO_SISTEMA';
