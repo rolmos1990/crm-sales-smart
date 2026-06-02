@@ -14,7 +14,17 @@ export async function obtenerContactoPorId(id: string) {
       empresa: { select: { id: true, nombre: true } },
       actividades: { orderBy: { fecha: "desc" }, take: 10 },
       oportunidades: {
-        include: { oportunidad: { select: { id: true, titulo: true, etapa: true, valor: true } } },
+        include: {
+          oportunidad: {
+            select: {
+              id: true,
+              titulo: true,
+              etapa: true,
+              valor: true,
+              stage: { select: { esGanado: true, esPerdido: true, nombre: true, color: true } },
+            },
+          },
+        },
       },
       tags: { include: { tag: true } },
     },

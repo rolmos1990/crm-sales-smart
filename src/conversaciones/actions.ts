@@ -8,7 +8,8 @@ import { EnviarMensajeSchema } from "./schema";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { obtenerProvider } from "./providers/registry";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
-import type { MensajeEntranteNormalizado } from "./types";
+import { obtenerConversacionPorId } from "./queries";
+import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 
 // ── Procesar mensaje entrante desde webhook ─────────────────────────────────
 
@@ -152,58 +153,87 @@ export async function procesarMensajeEntrante(
     if (stage?.esGanado || stage?.esPerdido) oportunidadActiva = null;
   }
 
-  // 6. Marcar nuevo mensaje o crear oportunidad si no existe ninguna activa
+  // 6. Marcar nuevo mensaje o gestionar según historial de oportunidades
   if (oportunidadActiva) {
-    await prisma.oportunidad.update({
-      where: { id: oportunidadActiva.id },
-      data: { nuevoMensaje: true, ultimaInteraccionEn: new Date() },
-    });
-  } else {
-    // Resolver pipeline: 1) pipeline configurado en la cuenta canal, 2) default de la instancia, 3) cualquier activo
-    const stagesInclude = { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" } as const, take: 1 } };
-
-    const cuentaCanalCfg = cuentaCanalId
-      ? await prisma.cuentaCanal.findUnique({ where: { id: cuentaCanalId }, select: { pipelineId: true, stageId: true } })
-      : null;
-
-    const pipelineDefault =
-      (cuentaCanalCfg?.pipelineId
-        ? await prisma.pipeline.findUnique({ where: { id: cuentaCanalCfg.pipelineId, activo: true }, include: stagesInclude }) ?? null
-        : null) ??
-      await prisma.pipeline.findFirst({ where: { instanciaId, esDefault: true, activo: true }, include: stagesInclude }) ??
-      await prisma.pipeline.findFirst({ where: { esDefault: true, activo: true }, include: stagesInclude }) ??
-      await prisma.pipeline.findFirst({ where: { activo: true }, orderBy: [{ esDefault: "desc" }, { creadoEn: "asc" }], include: stagesInclude });
-
-    // Usar etapa configurada en la cuenta canal; si no, la etapa inicial del pipeline
-    const stageConfigurado = cuentaCanalCfg?.stageId
-      ? await prisma.pipelineStage.findUnique({ where: { id: cuentaCanalCfg.stageId, activo: true }, select: { id: true, probabilidad: true } })
-      : null;
-    const stageInicial = stageConfigurado ?? pipelineDefault?.stages[0] ?? null;
-
-    const [count, moneda] = await Promise.all([
-      prisma.oportunidad.count({ where: { instanciaId } }),
-      obtenerMonedaPrincipal(instanciaId),
+    await Promise.all([
+      prisma.oportunidad.update({
+        where: { id: oportunidadActiva.id },
+        data: { nuevoMensaje: true, ultimaInteraccionEn: new Date() },
+      }),
+      // Asegurar que la conversación quede vinculada a la oportunidad activa
+      prisma.oportunidadConversacion.upsert({
+        where: { oportunidadId_conversacionId: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id } },
+        create: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id },
+        update: {},
+      }),
     ]);
-
-    // Siempre vincular el contacto como principal (incluso si es placeholder)
-    // para que obtenerConversacionesPorOportunidad siempre encuentre un contacto principal
-    oportunidadActiva = await prisma.oportunidad.create({
-      data: {
-        titulo: `Oportunidad ${count + 1}`,
-        etapa: "PROSPECTO",
-        valor: 0,
-        moneda,
+  } else {
+    // Buscar última oportunidad GANADA del contacto para no crear nueva automáticamente
+    const ultimaGanada = await prisma.oportunidad.findFirst({
+      where: {
         instanciaId,
-        pipelineId: pipelineDefault?.id ?? null,
-        stageId: stageInicial?.id ?? null,
-        probabilidad: stageInicial?.probabilidad ?? 20,
-        contactos: { create: { contactoId, principal: true } },
+        contactos: { some: { contactoId, principal: true } },
+        OR: [
+          { etapa: "GANADO" },
+          { stage: { esGanado: true } },
+        ],
       },
+      orderBy: { actualizadoEn: "desc" },
+      select: { id: true },
     });
-    try {
-      revalidatePath("/crm/oportunidades");
-      revalidatePath("/crm/pipeline");
-    } catch { /* fuera de request context */ }
+
+    if (ultimaGanada) {
+      // Cliente con historial de compra — NO crear oportunidad, solo registrar referencia
+      await prisma.conversacion.update({
+        where: { id: conversacion.id },
+        data: { oportunidadGanadaRelId: ultimaGanada.id },
+      });
+    } else {
+      // Primer contacto o sin historial ganado → crear oportunidad (lead entrante)
+      const stagesInclude = { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" } as const, take: 1 } };
+
+      const cuentaCanalCfg = cuentaCanalId
+        ? await prisma.cuentaCanal.findUnique({ where: { id: cuentaCanalId }, select: { pipelineId: true, stageId: true } })
+        : null;
+
+      const pipelineCfgId = cuentaCanalCfg != null ? cuentaCanalCfg.pipelineId : null;
+      const pipelineDefault =
+        (pipelineCfgId != null
+          ? await prisma.pipeline.findUnique({ where: { id: pipelineCfgId, activo: true }, include: stagesInclude })
+          : null) ??
+        await prisma.pipeline.findFirst({ where: { instanciaId, esDefault: true, activo: true }, include: stagesInclude }) ??
+        await prisma.pipeline.findFirst({ where: { esDefault: true, activo: true }, include: stagesInclude }) ??
+        await prisma.pipeline.findFirst({ where: { activo: true }, orderBy: [{ esDefault: "desc" }, { creadoEn: "asc" }], include: stagesInclude });
+
+      const stageCfgId = cuentaCanalCfg != null ? cuentaCanalCfg.stageId : null;
+      const stageConfigurado = stageCfgId != null
+        ? await prisma.pipelineStage.findUnique({ where: { id: stageCfgId, activo: true }, select: { id: true, probabilidad: true } })
+        : null;
+      const stageInicial = stageConfigurado ?? pipelineDefault?.stages[0] ?? null;
+
+      const [count, moneda] = await Promise.all([
+        prisma.oportunidad.count({ where: { instanciaId } }),
+        obtenerMonedaPrincipal(instanciaId),
+      ]);
+
+      oportunidadActiva = await prisma.oportunidad.create({
+        data: {
+          titulo: `Oportunidad ${count + 1}`,
+          etapa: "PROSPECTO",
+          valor: 0,
+          moneda,
+          instanciaId,
+          pipelineId: pipelineDefault?.id ?? null,
+          stageId: stageInicial?.id ?? null,
+          probabilidad: stageInicial?.probabilidad ?? 20,
+          contactos: { create: { contactoId, principal: true } },
+        },
+      });
+      try {
+        revalidatePath("/crm/oportunidades");
+        revalidatePath("/crm/pipeline");
+      } catch { /* fuera de request context */ }
+    }
   }
 
   // 7. Guardar mensaje — deduplicar por idExterno para evitar duplicados en reintentos del worker
@@ -604,5 +634,147 @@ export async function marcarMensajesLeidos(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error al marcar como leído" };
+  }
+}
+
+// ── Obtener conversación actualizada (para refrescar estado en cliente) ────────
+
+export async function obtenerConversacionAction(conversacionId: string): Promise<ConversacionResumen | null> {
+  return obtenerConversacionPorId(conversacionId);
+}
+
+// ── Clasificar conversación ────────────────────────────────────────────────────
+
+export async function clasificarConversacion({
+  conversacionId,
+  clasificacion,
+}: {
+  conversacionId: string;
+  clasificacion: "NINGUNA" | "POSTVENTA" | "SOPORTE" | "COMERCIAL";
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const anterior = await prisma.conversacion.findUnique({
+      where: { id: conversacionId },
+      select: { clasificacion: true, instanciaId: true },
+    });
+
+    await prisma.conversacion.update({
+      where: { id: conversacionId },
+      data: { clasificacion, clasificadoEn: new Date() },
+    });
+
+    if (anterior?.instanciaId) {
+      await prisma.eventoLog.create({
+        data: {
+          tipo: "CLASIFICACION_CAMBIADA",
+          payload: { de: anterior.clasificacion, a: clasificacion, conversacionId },
+          entidadTipo: "Conversacion",
+          entidadId: conversacionId,
+          instanciaId: anterior.instanciaId,
+        },
+      });
+    }
+
+    revalidatePath("/crm/inbox");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al clasificar" };
+  }
+}
+
+// ── Crear oportunidad desde conversación (acción explícita del agente) ─────────
+
+export async function crearOportunidadDesdeConversacion({
+  conversacionId,
+  contactoId,
+  instanciaId,
+  cuentaCanalId,
+}: {
+  conversacionId: string;
+  contactoId: string;
+  instanciaId: string;
+  cuentaCanalId?: string | null;
+}): Promise<{ ok: boolean; oportunidadId?: string; error?: string }> {
+  try {
+    // Guard: verificar que no exista oportunidad activa (ni por etapa enum ni por stage pipeline)
+    const opActiva = await prisma.oportunidadContacto.findFirst({
+      where: {
+        contactoId,
+        principal: true,
+        oportunidad: {
+          instanciaId,
+          etapa: { notIn: ["GANADO", "PERDIDO"] },
+          // Excluir también oportunidades en stages marcados como ganado/perdido
+          NOT: { stage: { OR: [{ esGanado: true }, { esPerdido: true }] } },
+        },
+      },
+      select: { oportunidadId: true },
+    });
+    if (opActiva) {
+      return { ok: false, error: "Ya existe una oportunidad activa para este contacto" };
+    }
+
+    const stagesInclude = { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" } as const, take: 1 } };
+
+    const cuentaCanalCfg = cuentaCanalId
+      ? await prisma.cuentaCanal.findUnique({ where: { id: cuentaCanalId }, select: { pipelineId: true, stageId: true } })
+      : null;
+
+    const pipelineCfgId = cuentaCanalCfg != null ? cuentaCanalCfg.pipelineId : null;
+    const pipelineDefault =
+      (pipelineCfgId != null
+        ? await prisma.pipeline.findUnique({ where: { id: pipelineCfgId, activo: true }, include: stagesInclude })
+        : null) ??
+      await prisma.pipeline.findFirst({ where: { instanciaId, esDefault: true, activo: true }, include: stagesInclude }) ??
+      await prisma.pipeline.findFirst({ where: { activo: true }, orderBy: [{ esDefault: "desc" }, { creadoEn: "asc" }], include: stagesInclude });
+
+    const stageInicial = pipelineDefault?.stages[0] ?? null;
+
+    const [count, moneda] = await Promise.all([
+      prisma.oportunidad.count({ where: { instanciaId } }),
+      obtenerMonedaPrincipal(instanciaId),
+    ]);
+
+    const oportunidad = await prisma.oportunidad.create({
+      data: {
+        titulo: `Oportunidad ${count + 1}`,
+        etapa: "PROSPECTO",
+        valor: 0,
+        moneda,
+        instanciaId,
+        pipelineId: pipelineDefault?.id ?? null,
+        stageId: stageInicial?.id ?? null,
+        probabilidad: stageInicial?.probabilidad ?? 20,
+        contactos: { create: { contactoId, principal: true } },
+        conversaciones: { create: { conversacionId } },
+      },
+    });
+
+    // Limpiar la referencia a oportunidad ganada — ya no aplica, hay una nueva activa
+    await prisma.conversacion.update({
+      where: { id: conversacionId },
+      data: {
+        clasificacion: "COMERCIAL",
+        clasificadoEn: new Date(),
+        oportunidadGanadaRelId: null,
+      },
+    });
+
+    await prisma.eventoLog.create({
+      data: {
+        tipo: "OPORTUNIDAD_CREADA_DESDE_INBOX",
+        payload: { oportunidadId: oportunidad.id, conversacionId },
+        entidadTipo: "Oportunidad",
+        entidadId: oportunidad.id,
+        instanciaId,
+      },
+    });
+
+    revalidatePath("/crm/inbox");
+    revalidatePath("/crm/oportunidades");
+    revalidatePath("/crm/pipeline");
+    return { ok: true, oportunidadId: oportunidad.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error al crear oportunidad" };
   }
 }

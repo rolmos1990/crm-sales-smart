@@ -7,6 +7,19 @@ import { CrearOportunidadSchema, ActualizarOportunidadSchema, CambiarEtapaSchema
 import type { ResultadoAccion, Oportunidad } from "./types";
 import { PROBABILIDADES_ETAPA } from "./types";
 
+async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
+  const links = await prisma.oportunidadConversacion.findMany({
+    where: { oportunidadId },
+    select: { conversacionId: true },
+  });
+  const ids = links.map((l) => l.conversacionId);
+  if (ids.length === 0) return;
+  await prisma.conversacion.updateMany({
+    where: { id: { in: ids }, estado: { not: "CERRADA" } },
+    data: { estado: "CERRADA" },
+  });
+}
+
 export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<Oportunidad>> {
   const validado = CrearOportunidadSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
@@ -83,12 +96,15 @@ export async function cambiarEtapa(id: string, datos: unknown): Promise<Resultad
 
     if (validado.data.etapa === "GANADO") {
       busEventos.publicar(TIPOS_EVENTO.OPORTUNIDAD_GANADA, { oportunidadId: id, valor: 0 });
+      await cerrarConversacionesDeOportunidad(id);
     } else if (validado.data.etapa === "PERDIDO") {
       busEventos.publicar(TIPOS_EVENTO.OPORTUNIDAD_PERDIDA, { oportunidadId: id, motivo: validado.data.motivoPerdida });
+      await cerrarConversacionesDeOportunidad(id);
     }
 
     revalidatePath("/crm/oportunidades");
     revalidatePath("/crm/pipeline");
+    revalidatePath("/crm/inbox");
     revalidatePath(`/crm/oportunidades/${id}`);
     return { exito: true, datos: undefined };
   } catch {

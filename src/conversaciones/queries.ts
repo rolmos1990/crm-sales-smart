@@ -13,6 +13,36 @@ const contactoSelect = {
   },
 } as const;
 
+const oportunidadGanadaRelSelect = {
+  id: true,
+  titulo: true,
+  fechaGanada: true,
+  etapa: true,
+} as const;
+
+// Include compartido para todas las queries de inbox
+const conversacionInclude = {
+  contacto: { select: contactoSelect },
+  cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
+  oportunidades: {
+    include: {
+      oportunidad: {
+        select: {
+          id: true,
+          titulo: true,
+          etapa: true,
+          valor: true,
+          moneda: true,
+          stage: { select: { esGanado: true, esPerdido: true, nombre: true, color: true } },
+        },
+      },
+    },
+  },
+  oportunidadGanadaRel: { select: oportunidadGanadaRelSelect },
+  mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
+  _count: { select: { mensajes: true } },
+} as const;
+
 // Mapea una conversación Prisma a ConversacionResumen incluyendo el identificador de canal
 function mapearConversacion(conv: {
   id: string;
@@ -21,6 +51,8 @@ function mapearConversacion(conv: {
   cuentaCanalId: string | null;
   asunto: string | null;
   estado: ConversacionResumen["estado"];
+  clasificacion: ConversacionResumen["clasificacion"];
+  oportunidadGanadaRel: ConversacionResumen["oportunidadGanadaRel"];
   creadoEn: Date;
   actualizadoEn: Date;
   contacto: {
@@ -32,7 +64,8 @@ function mapearConversacion(conv: {
     identificadoresCanal: { identificador: string; canal: string }[];
   };
   cuentaCanal: ConversacionResumen["cuentaCanal"];
-  oportunidades: ConversacionResumen["oportunidades"];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  oportunidades: any[];
   mensajes: ConversacionResumen["ultimoMensaje"][];
   _count?: { mensajes: number };
 }): ConversacionResumen {
@@ -47,6 +80,8 @@ function mapearConversacion(conv: {
     cuentaCanalId: conv.cuentaCanalId,
     asunto: conv.asunto,
     estado: conv.estado,
+    clasificacion: conv.clasificacion,
+    oportunidadGanadaRel: conv.oportunidadGanadaRel,
     creadoEn: conv.creadoEn,
     actualizadoEn: conv.actualizadoEn,
     contacto: {
@@ -57,7 +92,10 @@ function mapearConversacion(conv: {
       email: conv.contacto.email,
     },
     cuentaCanal: conv.cuentaCanal,
-    oportunidades: conv.oportunidades,
+    oportunidades: conv.oportunidades.map((o) => ({
+      ...o,
+      oportunidad: { ...o.oportunidad, valor: Number(o.oportunidad.valor) },
+    })),
     _count: conv._count,
     ultimoMensaje: (conv.mensajes[0] as MensajeConMeta | null) ?? null,
     identificadorCanal,
@@ -75,13 +113,7 @@ export async function obtenerConversacionesPorOportunidad(
 
   const convs = await prisma.conversacion.findMany({
     where: { contactoId: relPrincipal.contactoId },
-    include: {
-      contacto: { select: contactoSelect },
-      cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
-      oportunidades: true,
-      mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
-      _count: { select: { mensajes: true } },
-    },
+    include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
   });
 
@@ -138,13 +170,7 @@ export async function obtenerConversacionesResumenPorContacto(
 ): Promise<ConversacionResumen[]> {
   const convs = await prisma.conversacion.findMany({
     where: { contactoId },
-    include: {
-      contacto: { select: contactoSelect },
-      cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
-      oportunidades: true,
-      mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
-      _count: { select: { mensajes: true } },
-    },
+    include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
   });
 
@@ -161,13 +187,7 @@ export async function buscarIdentificadorCanal(canal: string, identificador: str
 export async function obtenerConversacionesAbiertas(): Promise<ConversacionResumen[]> {
   const convs = await prisma.conversacion.findMany({
     where: { estado: { in: ["ABIERTA", "EN_ESPERA"] } },
-    include: {
-      contacto: { select: contactoSelect },
-      cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
-      oportunidades: true,
-      mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
-      _count: { select: { mensajes: true } },
-    },
+    include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
   });
 
@@ -176,23 +196,15 @@ export async function obtenerConversacionesAbiertas(): Promise<ConversacionResum
 
 // Carga el inbox completo: ABIERTA + EN_ESPERA + últimas 50 CERRADAS
 export async function obtenerConversacionesInbox(): Promise<ConversacionResumen[]> {
-  const include = {
-    contacto: { select: contactoSelect },
-    cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
-    oportunidades: true,
-    mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
-    _count: { select: { mensajes: true } },
-  } as const;
-
   const [activas, cerradas] = await Promise.all([
     prisma.conversacion.findMany({
       where: { estado: { in: ["ABIERTA", "EN_ESPERA"] } },
-      include,
+      include: conversacionInclude,
       orderBy: { actualizadoEn: "desc" as const },
     }),
     prisma.conversacion.findMany({
       where: { estado: "CERRADA" },
-      include,
+      include: conversacionInclude,
       orderBy: { actualizadoEn: "desc" as const },
       take: 50,
     }),
@@ -227,15 +239,18 @@ export async function obtenerMensajesAnteriores(
 
 export async function obtenerTodasLasConversaciones(): Promise<ConversacionResumen[]> {
   const convs = await prisma.conversacion.findMany({
-    include: {
-      contacto: { select: contactoSelect },
-      cuentaCanal: { select: { id: true, canal: true, nombre: true, identificador: true } },
-      oportunidades: true,
-      mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
-      _count: { select: { mensajes: true } },
-    },
+    include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
   });
 
   return convs.map(mapearConversacion);
+}
+
+export async function obtenerConversacionPorId(conversacionId: string): Promise<ConversacionResumen | null> {
+  const conv = await prisma.conversacion.findUnique({
+    where: { id: conversacionId },
+    include: conversacionInclude,
+  });
+  if (!conv) return null;
+  return mapearConversacion(conv);
 }

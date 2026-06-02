@@ -14,14 +14,18 @@ import { BurbujaMensaje } from "./burbuja-mensaje";
 import { EventoSistema } from "./evento-sistema";
 import { InputMensaje } from "./input-mensaje";
 import { PanelContactoInbox } from "./panel-contacto-inbox";
+import { BarraClasificacion } from "./barra-clasificacion";
 import {
   cerrarConversacion,
   enviarMensaje,
   marcarMensajesLeidos,
   marcarRespondida,
   reabrirConversacion,
+  clasificarConversacion,
+  crearOportunidadDesdeConversacion,
+  obtenerConversacionAction,
 } from "../actions";
-import type { ConversacionResumen, MensajeConMeta, CuentaCanalResumen } from "../types";
+import type { ConversacionResumen, MensajeConMeta, CuentaCanalResumen, ClasificacionConversacion } from "../types";
 
 // ── Tipos y configuración de estados ─────────────────────────────────────────
 
@@ -241,12 +245,16 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
       try {
         const { conversacionId: cid } = JSON.parse(e.data ?? "{}") as { conversacionId?: string };
         if (cid) {
-          // Si la conversación estaba en espera, reabrirla localmente
-          setConversaciones((prev) =>
-            prev.map((c) =>
-              c.id === cid && c.estado === "EN_ESPERA" ? { ...c, estado: "ABIERTA" } : c
-            )
-          );
+          // Refrescar datos completos de la conversación (incluye oportunidadGanadaRel, clasificacion)
+          obtenerConversacionAction(cid).then((fresca) => {
+            if (!fresca) return;
+            setConversaciones((prev) => {
+              const existe = prev.find((c) => c.id === cid);
+              if (existe) return prev.map((c) => c.id === cid ? fresca : c);
+              // Conversación nueva — agregar al inicio
+              return [fresca, ...prev];
+            });
+          });
         }
       } catch { /* ignorar */ }
     });
@@ -301,6 +309,42 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
         toast.success("Conversación cerrada");
       }
     });
+  };
+
+  // ── Clasificación ─────────────────────────────────────────────────────────
+
+  const handleClasificar = async (convId: string, clasificacion: ClasificacionConversacion) => {
+    setConversaciones((prev) =>
+      prev.map((c) => c.id === convId ? { ...c, clasificacion } : c)
+    );
+    const result = await clasificarConversacion({ conversacionId: convId, clasificacion });
+    if (!result.ok) {
+      toast.error(result.error ?? "Error al clasificar");
+    }
+  };
+
+  const handleCrearOportunidad = async (convId: string) => {
+    const conv = conversaciones.find((c) => c.id === convId);
+    if (!conv?.instanciaId) return;
+    const result = await crearOportunidadDesdeConversacion({
+      conversacionId: convId,
+      contactoId: conv.contactoId,
+      instanciaId: conv.instanciaId,
+      cuentaCanalId: conv.cuentaCanalId,
+    });
+    if (result.ok) {
+      toast.success("Oportunidad creada");
+      // Limpiar barra de clasificación: ya existe oportunidad activa vinculada
+      setConversaciones((prev) =>
+        prev.map((c) =>
+          c.id === convId
+            ? { ...c, clasificacion: "COMERCIAL", oportunidadGanadaRel: null }
+            : c
+        )
+      );
+    } else {
+      toast.error(result.error ?? "Error al crear oportunidad");
+    }
   };
 
   // ── Paginación ────────────────────────────────────────────────────────────
@@ -567,6 +611,15 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
               onCerrar={() => handleCerrar(convActiva.id)}
               onMarcarBloque={() => handleMarcarLeidos(mensajesNoLeidos.map((m) => m.id))}
             />
+
+            {/* Barra de clasificación (solo si hay oportunidad ganada previa) */}
+            {convActiva.oportunidadGanadaRel && (
+              <BarraClasificacion
+                conversacion={convActiva}
+                onClasificar={(c) => handleClasificar(convActiva.id, c)}
+                onCrearOportunidad={() => handleCrearOportunidad(convActiva.id)}
+              />
+            )}
 
             {/* Área de mensajes */}
             <div

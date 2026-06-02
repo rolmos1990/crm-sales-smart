@@ -3,9 +3,10 @@ import type {
   RemitenteMsg,
   EstadoMensaje,
   EstadoConversacion,
+  ClasificacionConversacion,
 } from "@/generated/prisma/enums";
 
-export type { TipoMensaje, RemitenteMsg, EstadoMensaje, EstadoConversacion };
+export type { TipoMensaje, RemitenteMsg, EstadoMensaje, EstadoConversacion, ClasificacionConversacion };
 
 export interface MensajeConMeta {
   id: string;
@@ -38,6 +39,31 @@ export interface ContactoResumen {
   email: string | null;
 }
 
+export interface OportunidadGanadaResumen {
+  id: string;
+  titulo: string;
+  fechaGanada: Date | null;
+  etapa: string;
+}
+
+export interface OportunidadActivaResumen {
+  id: string;
+  titulo: string;
+  etapa: string;
+  valor: number;
+  moneda: string;
+  stage: { esGanado: boolean; esPerdido: boolean; nombre: string; color: string | null } | null;
+}
+
+export interface OportunidadConversacionResumen {
+  id: string;
+  oportunidadId: string;
+  conversacionId: string;
+  esActiva: boolean;
+  creadoEn: Date;
+  oportunidad: OportunidadActivaResumen;
+}
+
 export interface ConversacionResumen {
   id: string;
   instanciaId: string | null;
@@ -45,14 +71,15 @@ export interface ConversacionResumen {
   cuentaCanalId: string | null;
   asunto: string | null;
   estado: EstadoConversacion;
+  clasificacion: ClasificacionConversacion;
+  oportunidadGanadaRel?: OportunidadGanadaResumen | null;
   creadoEn: Date;
   actualizadoEn: Date;
   contacto: ContactoResumen;
   cuentaCanal: CuentaCanalResumen | null;
   ultimoMensaje?: MensajeConMeta | null;
-  oportunidades: { id: string; oportunidadId: string; conversacionId: string; esActiva: boolean; creadoEn: Date }[];
+  oportunidades: OportunidadConversacionResumen[];
   _count?: { mensajes: number };
-  // Identificador del contacto en el canal (ej: "+50761234567" o "18345678901234@lid")
   identificadorCanal?: string | null;
 }
 

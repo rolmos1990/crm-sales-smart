@@ -426,15 +426,16 @@ model Oportunidad {
   usuarioInstanciaId String?
   usuarioInstancia   UsuarioInstancia? @relation(fields: [usuarioInstanciaId], references: [id])
 
-  contactos       OportunidadContacto[]
-  productos       OportunidadProducto[]
-  actividades     Actividad[]
-  cotizaciones    Cotizacion[]
-  pedidos         Pedido[]
-  tags            OportunidadTag[]
-  campos          CampoPersonalizadoValor[]
-  disparadorJobs  DisparadorJob[]
-  conversaciones  OportunidadConversacion[]
+  contactos             OportunidadContacto[]
+  productos             OportunidadProducto[]
+  actividades           Actividad[]
+  cotizaciones          Cotizacion[]
+  pedidos               Pedido[]
+  tags                  OportunidadTag[]
+  campos                CampoPersonalizadoValor[]
+  disparadorJobs        DisparadorJob[]
+  conversaciones        OportunidadConversacion[]
+  conversacionesGanadas Conversacion[]            @relation("ConvOportunidadGanada")
 
   @@index([instanciaId])
   @@index([pipelineId])
@@ -1063,9 +1064,15 @@ model CuentaCanal {
 
 // Agrupador de mensajes por contacto + canal/cuenta
 model Conversacion {
-  id     String             @id @default(cuid())
-  asunto String?
-  estado EstadoConversacion @default(ABIERTA)
+  id             String                    @id @default(cuid())
+  asunto         String?
+  estado         EstadoConversacion        @default(ABIERTA)
+  clasificacion  ClasificacionConversacion @default(NINGUNA)
+  clasificadoEn  DateTime?
+  clasificadoPorId String?
+
+  oportunidadGanadaRelId String?
+  oportunidadGanadaRel   Oportunidad? @relation("ConvOportunidadGanada", fields: [oportunidadGanadaRelId], references: [id], onDelete: SetNull)
 
   contactoId    String
   contacto      Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
@@ -1086,6 +1093,7 @@ model Conversacion {
   @@index([contactoId])
   @@index([cuentaCanalId])
   @@index([estado])
+  @@index([clasificacion])
 }
 
 // Mensaje individual dentro de una conversación
@@ -1145,6 +1153,13 @@ enum EstadoJobMensaje {
   PROCESANDO
   COMPLETADO
   FALLIDO
+}
+
+enum ClasificacionConversacion {
+  NINGUNA
+  POSTVENTA
+  SOPORTE
+  COMERCIAL
 }
 
 // Cola de jobs para envío/recepción asíncrona de mensajes por cualquier canal

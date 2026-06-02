@@ -3,8 +3,16 @@
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Lock, Check, CheckCheck, AlertCircle } from "lucide-react";
-import type { MensajeConMeta, RemitenteMsg, EstadoMensaje } from "../types";
+import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff } from "lucide-react";
+import type { MensajeConMeta, RemitenteMsg, EstadoMensaje, TipoMensaje } from "../types";
+
+const TIPO_FALLBACK: Partial<Record<TipoMensaje, { icono: React.ReactNode; texto: string }>> = {
+  IMAGEN:    { icono: <ImageIcon className="h-3.5 w-3.5" />, texto: "Imagen" },
+  VIDEO:     { icono: <Video className="h-3.5 w-3.5" />,     texto: "Video" },
+  AUDIO:     { icono: <Mic className="h-3.5 w-3.5" />,       texto: "Audio" },
+  NOTA_VOZ:  { icono: <Mic className="h-3.5 w-3.5" />,       texto: "Nota de voz" },
+  DOCUMENTO: { icono: <FileText className="h-3.5 w-3.5" />,  texto: "Documento" },
+};
 
 const iconoEstado: Record<EstadoMensaje, React.ReactNode> = {
   RECIBIDO: <Check className="h-3 w-3" />,
@@ -45,7 +53,23 @@ export function BurbujaMensaje({ mensaje, onMarcarLeido, leidoLocal }: BurbujaMe
             Nota interna
           </div>
         )}
-        {mensaje.contenido && <p className="whitespace-pre-wrap break-words">{mensaje.contenido}</p>}
+        {mensaje.contenido
+          ? <p className="whitespace-pre-wrap break-words">{mensaje.contenido}</p>
+          : (() => {
+              const fallback = TIPO_FALLBACK[mensaje.tipo as TipoMensaje];
+              return fallback ? (
+                <span className="flex items-center gap-1.5 text-stone-400 text-xs italic">
+                  {fallback.icono}
+                  {fallback.texto}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-stone-500 text-xs italic">
+                  <EyeOff className="h-3.5 w-3.5 shrink-0" />
+                  Este contenido no puede visualizarse. La conversación sigue disponible.
+                </span>
+              );
+            })()
+        }
 
         {/* Footer: botón marcar leído (hover) + timestamp + estado */}
         <div className="flex items-center justify-between gap-2 mt-1">

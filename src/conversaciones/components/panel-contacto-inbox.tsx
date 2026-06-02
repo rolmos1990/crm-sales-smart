@@ -2,12 +2,14 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X, Smartphone } from "lucide-react";
+import { User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X, Smartphone, Trophy, ShoppingBag, Headphones, TrendingUp } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { esLid, formatearIdentificadorWA } from "@/lib/whatsapp-utils";
 import { actualizarContacto, buscarContactosAction } from "@/crm/contactos/actions";
-import { vincularConversacionAContacto } from "../actions";
-import type { ConversacionResumen } from "../types";
+import { vincularConversacionAContacto, clasificarConversacion } from "../actions";
+import type { ConversacionResumen, ClasificacionConversacion } from "../types";
 
 type Contacto = ConversacionResumen["contacto"];
 
@@ -22,10 +24,8 @@ interface BuscarResultado {
 
 interface PanelContactoInboxProps {
   conversacion: ConversacionResumen;
-  onContactoActualizado: (
-    conversacionId: string,
-    nuevoContacto: Contacto
-  ) => void;
+  onContactoActualizado: (conversacionId: string, nuevoContacto: Contacto) => void;
+  onClasificacionCambiada?: (conversacionId: string, clasificacion: ClasificacionConversacion) => void;
 }
 
 // ── Campo editable inline ────────────────────────────────────────────────────
@@ -104,13 +104,21 @@ function CampoEditable({
 
 // ── Panel principal ───────────────────────────────────────────────────────────
 
-export function PanelContactoInbox({ conversacion, onContactoActualizado }: PanelContactoInboxProps) {
+const CLASIFICACION_CFG: Record<ClasificacionConversacion, { label: string; icono: React.ReactNode; color: string }> = {
+  NINGUNA:   { label: "Sin clasificación", icono: null, color: "text-stone-500" },
+  POSTVENTA: { label: "Postventa",  icono: <ShoppingBag className="h-3 w-3" />, color: "text-amber-400" },
+  SOPORTE:   { label: "Soporte",    icono: <Headphones  className="h-3 w-3" />, color: "text-blue-400"  },
+  COMERCIAL: { label: "Comercial",  icono: <TrendingUp  className="h-3 w-3" />, color: "text-lime-400"  },
+};
+
+export function PanelContactoInbox({ conversacion, onContactoActualizado, onClasificacionCambiada }: PanelContactoInboxProps) {
   const contacto = conversacion.contacto;
   const [vinculando, startVinculando] = useTransition();
   const [busqueda, setBusqueda] = useState("");
   const [resultados, setResultados] = useState<BuscarResultado[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
+  const [clasificando, startClasificando] = useTransition();
 
   const iniciales =
     `${contacto.nombre[0] ?? ""}${contacto.apellido[0] ?? ""}`.toUpperCase() || "?";
@@ -335,6 +343,127 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado }: Pane
                 <p className="text-xs text-stone-400 truncate">{conversacion.cuentaCanal.nombre}</p>
                 <p className="text-[10px] text-stone-600 truncate">{conversacion.cuentaCanal.identificador}</p>
               </div>
+            </div>
+          </>
+        )}
+
+        {/* Oportunidad activa vinculada (cuando hay una oportunidad en curso) */}
+        {(() => {
+          const opActiva = conversacion.oportunidades.find((o) => {
+            const op = o.oportunidad;
+            if (!op) return false;
+            const esGanada = op.stage?.esGanado || op.etapa === "GANADO";
+            const esPerdida = op.stage?.esPerdido || op.etapa === "PERDIDO";
+            return !esGanada && !esPerdida;
+          });
+          if (!opActiva) return null;
+          const op = opActiva.oportunidad;
+          const etapaLabel = op.stage?.nombre ?? op.etapa;
+          const stageColor = op.stage?.color ?? "#94a3b8";
+          return (
+            <>
+              <div className="pt-2 pb-1 px-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-stone-600">Oportunidad</p>
+              </div>
+              <div className="mx-2 px-3 py-2.5 rounded-xl bg-white/4 border border-white/8 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-3.5 w-3.5 text-lime-400 shrink-0" />
+                  <p className="text-xs font-semibold text-stone-200 truncate flex-1">{op.titulo}</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: stageColor }}
+                  />
+                  <span className="text-[10px] text-stone-400">{etapaLabel}</span>
+                  {op.valor > 0 && (
+                    <span className="ml-auto text-[10px] font-semibold text-lime-400 tabular-nums">
+                      {op.moneda} {Number(op.valor).toLocaleString("es-PE", { minimumFractionDigits: 0 })}
+                    </span>
+                  )}
+                </div>
+                <a
+                  href={`/crm/oportunidades/${op.id}`}
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-stone-300 bg-white/6 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 transition-all"
+                >
+                  Ver oportunidad
+                </a>
+              </div>
+            </>
+          );
+        })()}
+
+        {/* Oportunidad ganada relacionada */}
+        {conversacion.oportunidadGanadaRel && (
+          <>
+            <div className="pt-2 pb-1 px-3">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-stone-600">Oportunidad</p>
+            </div>
+            <div className="mx-2 px-3 py-2.5 rounded-xl bg-white/4 border border-white/8 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <p className="text-xs font-semibold text-stone-200 truncate flex-1">
+                  {conversacion.oportunidadGanadaRel.titulo}
+                </p>
+                <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                  Ganada
+                </span>
+              </div>
+              {conversacion.oportunidadGanadaRel.fechaGanada && (
+                <p className="text-[10px] text-stone-500">
+                  Ganada el {format(new Date(conversacion.oportunidadGanadaRel.fechaGanada), "dd/MM/yyyy", { locale: es })}
+                </p>
+              )}
+              <a
+                href={`/crm/oportunidades/${conversacion.oportunidadGanadaRel.id}`}
+                className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-stone-300 bg-white/6 hover:bg-white/10 border border-white/10 rounded-lg px-3 py-1.5 transition-all"
+              >
+                Ver oportunidad
+              </a>
+            </div>
+          </>
+        )}
+
+        {/* Clasificación de conversación */}
+        {(conversacion.oportunidadGanadaRel || conversacion.clasificacion !== "NINGUNA") && (
+          <>
+            <div className="pt-2 pb-1 px-3">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-stone-600">Clasificación de conversación</p>
+            </div>
+            <div className="mx-2 px-3 py-2.5 rounded-xl bg-white/4 border border-white/8 space-y-2">
+              {conversacion.clasificacion === "NINGUNA" ? (
+                <p className="text-[11px] text-stone-500 italic">Sin clasificación</p>
+              ) : (
+                <div className={cn("flex items-center gap-2", CLASIFICACION_CFG[conversacion.clasificacion].color)}>
+                  {CLASIFICACION_CFG[conversacion.clasificacion].icono}
+                  <span className="text-xs font-semibold">
+                    {CLASIFICACION_CFG[conversacion.clasificacion].label}
+                  </span>
+                </div>
+              )}
+              <button
+                type="button"
+                disabled={clasificando}
+                onClick={() => {
+                  startClasificando(async () => {
+                    const result = await clasificarConversacion({
+                      conversacionId: conversacion.id,
+                      clasificacion: "NINGUNA",
+                    });
+                    if (result.ok) {
+                      onClasificacionCambiada?.(conversacion.id, "NINGUNA");
+                    } else {
+                      toast.error(result.error ?? "Error al cambiar clasificación");
+                    }
+                  });
+                }}
+                className="flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-stone-400 bg-white/5 hover:bg-white/8 border border-white/8 rounded-lg px-3 py-1.5 transition-all disabled:opacity-50"
+              >
+                {clasificando
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : null}
+                Cambiar clasificación
+              </button>
             </div>
           </>
         )}

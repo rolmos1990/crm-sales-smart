@@ -364,8 +364,12 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                 <div className="space-y-2.5">
                   {oportunidades.map((rel: any) => {
                     const op = rel.oportunidad;
-                    const etapaConf = ETAPAS_PIPELINE.find((e) => e.valor === op.etapa);
-                    const colorHex = ETAPA_HEX[op.etapa] ?? "#94a3b8";
+                    // Usar flags del stage pipeline si existen — tienen precedencia sobre el enum etapa
+                    const etapaEfectiva = op.stage?.esGanado ? "GANADO"
+                      : op.stage?.esPerdido ? "PERDIDO"
+                      : op.etapa;
+                    const etapaConf = ETAPAS_PIPELINE.find((e) => e.valor === etapaEfectiva);
+                    const colorHex = ETAPA_HEX[etapaEfectiva] ?? op.stage?.color ?? "#94a3b8";
                     const valor = Number(op.valor);
                     return (
                       <Link key={op.id} href={`/crm/oportunidades/${op.id}`}>

@@ -126,22 +126,49 @@ export async function reordenarStages(pipelineId: string, stageIds: string[]) {
 
 export async function moverAStage(oportunidadId: string, stageId: string, pipelineId: string) {
   try {
-    const stage = await prisma.pipelineStage.findUnique({ where: { id: stageId }, select: { probabilidad: true } });
+    const stage = await prisma.pipelineStage.findUnique({
+      where: { id: stageId },
+      select: { probabilidad: true, esGanado: true, esPerdido: true },
+    });
+
+    const ahora = new Date();
     await prisma.oportunidad.update({
       where: { id: oportunidadId },
       data: {
         stageId,
         pipelineId,
         ...(stage != null && { probabilidad: stage.probabilidad }),
+        ...(stage?.esGanado && { etapa: "GANADO", fechaGanada: ahora }),
+        ...(stage?.esPerdido && { etapa: "PERDIDO", fechaPerdida: ahora }),
       },
     });
-    // Cancelar jobs pendientes anteriores y encolar nuevos disparadores del stage destino
+
+    // Cerrar conversaciones asociadas si la etapa es terminal
+    if (stage?.esGanado || stage?.esPerdido) {
+      await cerrarConversacionesDeOportunidad(oportunidadId);
+    }
+
     await procesarCambioStage(oportunidadId, stageId, pipelineId);
     revalidatePath("/crm/pipeline");
+    revalidatePath("/crm/oportunidades");
+    revalidatePath("/crm/inbox");
     return { exito: true as const };
   } catch {
     return { exito: false as const, error: "Error al mover la oportunidad" };
   }
+}
+
+async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
+  const links = await prisma.oportunidadConversacion.findMany({
+    where: { oportunidadId },
+    select: { conversacionId: true },
+  });
+  const ids = links.map((l) => l.conversacionId);
+  if (ids.length === 0) return;
+  await prisma.conversacion.updateMany({
+    where: { id: { in: ids }, estado: { not: "CERRADA" } },
+    data: { estado: "CERRADA" },
+  });
 }
 
 // ── Campos personalizados por stage ──────────────────────────────
