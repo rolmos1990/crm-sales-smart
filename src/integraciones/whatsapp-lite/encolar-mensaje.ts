@@ -44,6 +44,11 @@ export async function encolarMensajeEntrante(
     ((message?.extendedTextMessage as Record<string, unknown> | undefined)?.text as string | undefined) ??
     undefined;
 
+  const audioMsg = message?.audioMessage as Record<string, unknown> | undefined;
+  const esAudio = !!audioMsg;
+  const esPtt = esAudio && audioMsg?.ptt === true;
+  const tipo = esAudio ? (esPtt ? "NOTA_VOZ" : "AUDIO") : "TEXTO";
+
   const pushName = (msg.pushName && msg.pushName !== "") ? msg.pushName : undefined;
 
   // Intentar obtener foto de perfil de WhatsApp solo si el contacto no tiene avatar aún (best-effort)
@@ -65,6 +70,36 @@ export async function encolarMensajeEntrante(
     }
   } catch { /* sesión no disponible, sin foto o privacidad activada */ }
 
+  // Descargar y subir audio en el contexto del API route (aquí Baileys funciona correctamente).
+  // El worker recibe la URL ya resuelta en el payload para evitar problemas de resolución de módulos nativos.
+  let mediaUrl: string | undefined;
+  let mediaMimeType: string | undefined;
+  let mediaDuracion: number | undefined;
+
+  if (esAudio) {
+    try {
+      const { descargarMediaWA } = await import("./descargar-media-wa");
+      const { guardarArchivoRaw } = await import("@/lib/media/services/media-raw.service");
+      const descarga = await descargarMediaWA(msg);
+      if (descarga) {
+        const resultado = await guardarArchivoRaw({
+          buffer: descarga.buffer,
+          mimeType: descarga.mimeType,
+          nombreArchivo: `audio-${idExterno ?? Date.now()}`,
+          instanciaId,
+          modulo: "conversaciones",
+          canalOrigen: "whatsapp",
+        });
+        mediaUrl = resultado.urlOptimizada;
+        mediaMimeType = descarga.mimeType;
+        mediaDuracion = descarga.duracion;
+      }
+    } catch (e) {
+      console.error("[encolarMensaje] Error descargando audio WA:", e);
+      // Continúa: el mensaje se guarda sin media; la burbuja muestra el fallback
+    }
+  }
+
   await prisma.jobMensaje.create({
     data: {
       tipo: "PROCESAR_ENTRANTE",
@@ -75,10 +110,13 @@ export async function encolarMensajeEntrante(
         cuentaCanalId,
         instanciaId,
         contenido,
-        tipo: "TEXTO",
+        tipo,
         idExterno,
         pushName,
         ...(avatarUrl ? { avatarUrl } : {}),
+        ...(mediaUrl ? { mediaUrl } : {}),
+        ...(mediaMimeType ? { mediaMimeType } : {}),
+        ...(mediaDuracion !== undefined ? { mediaDuracion } : {}),
       },
     },
   });

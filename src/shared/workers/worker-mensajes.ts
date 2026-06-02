@@ -160,7 +160,7 @@ class WorkerMensajes {
   }
 
   private async procesarEntrante(p: Record<string, unknown>) {
-    // Reutilizamos la acción existente (no es circular: las server actions son funciones normales en imports server-side)
+    // El mediaUrl ya fue descargado y subido en encolar-mensaje.ts (contexto API route donde Baileys funciona)
     const { procesarMensajeEntrante } = await import("@/conversaciones/actions");
     await procesarMensajeEntrante({
       canal: p.canal as string,
@@ -172,6 +172,9 @@ class WorkerMensajes {
       idExterno: p.idExterno as string | undefined,
       pushName: p.pushName as string | undefined,
       avatarUrl: p.avatarUrl as string | undefined,
+      mediaUrl: p.mediaUrl as string | undefined,
+      mediaMimeType: p.mediaMimeType as string | undefined,
+      mediaDuracion: p.mediaDuracion as number | undefined,
     });
   }
 }

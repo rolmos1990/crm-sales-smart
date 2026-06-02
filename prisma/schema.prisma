@@ -1111,6 +1111,10 @@ model MensajeConversacion {
 
   usuarioId String? // agente que envió (si remitente = AGENTE)
 
+  mediaUrl      String?
+  mediaMimeType String?
+  mediaDuracion Int?
+
   creadoEn  DateTime  @default(now())
   enviadoEn DateTime?
   leidoEn   DateTime?

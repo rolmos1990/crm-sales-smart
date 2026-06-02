@@ -16,7 +16,7 @@ import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 export async function procesarMensajeEntrante(
   payload: MensajeEntranteNormalizado & { instanciaId: string }
 ) {
-  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl } = payload;
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl, mediaUrl, mediaMimeType, mediaDuracion } = payload;
 
   // 1. Buscar contacto por identificador de canal
   let identificador = await prisma.contactoIdentificadorCanal.findUnique({
@@ -229,6 +229,9 @@ export async function procesarMensajeEntrante(
           contactos: { create: { contactoId, principal: true } },
         },
       });
+      await prisma.oportunidadConversacion.create({
+        data: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id },
+      });
       try {
         revalidatePath("/crm/oportunidades");
         revalidatePath("/crm/pipeline");
@@ -252,6 +255,9 @@ export async function procesarMensajeEntrante(
       remitente: "CONTACTO",
       estado: "RECIBIDO",
       idExterno: idExterno ?? null,
+      mediaUrl: (mediaUrl as string | undefined) ?? null,
+      mediaMimeType: (mediaMimeType as string | undefined) ?? null,
+      mediaDuracion: (mediaDuracion as number | undefined) ?? null,
       creadoEn: new Date(),
     },
   });

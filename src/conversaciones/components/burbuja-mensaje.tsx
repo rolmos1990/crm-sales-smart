@@ -56,11 +56,44 @@ export function BurbujaMensaje({ mensaje, onMarcarLeido, leidoLocal }: BurbujaMe
         {mensaje.contenido
           ? <p className="whitespace-pre-wrap break-words">{mensaje.contenido}</p>
           : (() => {
+              const esAudioTipo = mensaje.tipo === "AUDIO" || mensaje.tipo === "NOTA_VOZ";
+
+              if (esAudioTipo && mensaje.mediaUrl) {
+                const minutos = mensaje.mediaDuracion
+                  ? Math.floor(mensaje.mediaDuracion / 60)
+                  : null;
+                const segundos = mensaje.mediaDuracion
+                  ? String(mensaje.mediaDuracion % 60).padStart(2, "0")
+                  : null;
+                return (
+                  <div className="flex flex-col gap-1.5 min-w-[200px]">
+                    <div className="flex items-center gap-1.5">
+                      <Mic className="h-3.5 w-3.5 text-lime-400 shrink-0" />
+                      <span className="text-xs text-stone-400">
+                        {mensaje.tipo === "NOTA_VOZ" ? "Nota de voz" : "Audio"}
+                        {minutos !== null && segundos !== null
+                          ? ` · ${minutos}:${segundos}`
+                          : ""}
+                      </span>
+                    </div>
+                    <audio
+                      controls
+                      src={mensaje.mediaUrl}
+                      preload="metadata"
+                      className="w-full max-w-[260px] h-8"
+                    />
+                  </div>
+                );
+              }
+
               const fallback = TIPO_FALLBACK[mensaje.tipo as TipoMensaje];
               return fallback ? (
                 <span className="flex items-center gap-1.5 text-stone-400 text-xs italic">
                   {fallback.icono}
                   {fallback.texto}
+                  {esAudioTipo && (
+                    <span className="text-stone-500 text-[10px]">(procesando…)</span>
+                  )}
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 text-stone-500 text-xs italic">

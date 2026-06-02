@@ -18,6 +18,9 @@ export interface MensajeConMeta {
   esNotaInterna: boolean;
   idExterno: string | null;
   usuarioId: string | null;
+  mediaUrl: string | null;
+  mediaMimeType: string | null;
+  mediaDuracion: number | null;
   creadoEn: Date;
   enviadoEn: Date | null;
   leidoEn: Date | null;
@@ -92,6 +95,7 @@ export interface MensajeEntranteNormalizado {
   idExterno?: string;
   mediaUrl?: string;
   mediaMimeType?: string;
+  mediaDuracion?: number;
   mediaNombre?: string;
   mediaBytes?: number;
   pushName?: string;
