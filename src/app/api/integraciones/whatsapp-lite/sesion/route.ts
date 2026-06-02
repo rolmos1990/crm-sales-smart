@@ -131,7 +131,13 @@ async function iniciarSesionBaileys(
         const loggedOut = code === DisconnectReason.loggedOut;
 
         if (loggedOut) {
-          // Usuario cerró sesión desde el teléfono — limpiar
+          // Usuario cerró sesión desde el teléfono — limpiar memoria y marcar cuenta inactiva en BD
+          const sesionActual = sesionManagerWA.obtener(sessionId);
+          if (sesionActual?.cuentaCanalId) {
+            prisma.cuentaCanal
+              .update({ where: { id: sesionActual.cuentaCanalId }, data: { activa: false } })
+              .catch((e) => console.error("[WA] Error marcando cuenta inactiva:", e));
+          }
           sesionManagerWA.eliminar(sessionId);
         } else {
           // WhatsApp cerró la conexión para que reconectemos (código 515 restartRequired
