@@ -44,3 +44,4 @@ next-env.d.ts
 
 # runtime data (sesiones WA, colas, archivos temporales)
 /data/
+/data/*
