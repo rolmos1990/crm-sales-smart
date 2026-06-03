@@ -1,4 +1,4 @@
-import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, MensajeLeidoPayload } from "./types";
+import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, MensajeLeidoPayload, ReaccionCanalPayload } from "./types";
 import type { MensajeEntranteNormalizado } from "../types";
 
 export class WhatsAppLiteProvider implements ICanalProvider {
@@ -13,6 +13,7 @@ export class WhatsAppLiteProvider implements ICanalProvider {
     plantillas: false,
     botones: false,
     marcarLeidoExterno: true,
+    reacciones: true,
   };
 
   async enviarMensaje(payload: MensajeSalientePayload): Promise<{ idExterno: string }> {
@@ -138,6 +139,31 @@ export class WhatsAppLiteProvider implements ICanalProvider {
 
   validarWebhook(_req: Request): boolean {
     return true;
+  }
+
+  async enviarReaccion(payload: ReaccionCanalPayload): Promise<void> {
+    const sessionId = (payload.configuracion as { sessionId?: string }).sessionId;
+    if (!sessionId) throw new Error("[WhatsAppLite] sessionId no configurado para enviarReaccion");
+
+    const { sesionManagerWA } = await import("@/integraciones/whatsapp-lite/sesion-manager");
+    const sesion = sesionManagerWA.obtener(sessionId);
+
+    if (!sesion?.socket || sesion.estado !== "conectado") {
+      throw new Error(`[WhatsAppLite] Sesión no conectada para enviarReaccion (sessionId: ${sessionId})`);
+    }
+
+    console.log(`[WhatsAppLite] enviarReaccion → jid: ${payload.jid} | emoji: "${payload.emoji}" | msgId: ${payload.idExternoMensaje}`);
+
+    await sesion.socket.sendMessage(payload.jid, {
+      react: {
+        text: payload.emoji,
+        key: {
+          remoteJid: payload.jid,
+          id: payload.idExternoMensaje,
+          fromMe: payload.fromMe,
+        },
+      },
+    });
   }
 
   async marcarLeido(mensajes: MensajeLeidoPayload[], configuracion: Record<string, unknown>): Promise<void> {

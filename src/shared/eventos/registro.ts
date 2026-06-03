@@ -32,6 +32,7 @@ export interface PedidoEntregadoPayload { pedidoId: string; numero: string }
 export interface MensajeRecibidoPayload extends Record<string, unknown> { mensajeId: string; conversacionId: string; instanciaId: string; oportunidadId?: string | null }
 export interface MensajeEnviadoPayload extends Record<string, unknown> { mensajeId: string; conversacionId: string; instanciaId: string }
 export interface ConversacionCreadaPayload extends Record<string, unknown> { conversacionId: string; instanciaId: string; contactoId: string }
+export interface ReaccionActualizadaPayload extends Record<string, unknown> { mensajeId: string; conversacionId: string; instanciaId: string }
 
 export const TIPOS_EVENTO = {
   CONTACTO_CREADO: "CONTACTO_CREADO",
@@ -59,6 +60,7 @@ export const TIPOS_EVENTO = {
   MENSAJE_RECIBIDO: "MENSAJE_RECIBIDO",
   MENSAJE_ENVIADO: "MENSAJE_ENVIADO",
   CONVERSACION_CREADA: "CONVERSACION_CREADA",
+  REACCION_ACTUALIZADA: "REACCION_ACTUALIZADA",
 } as const;
 
 export type TipoEvento = (typeof TIPOS_EVENTO)[keyof typeof TIPOS_EVENTO];

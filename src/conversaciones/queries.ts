@@ -216,10 +216,12 @@ export async function obtenerConversacionesInbox(): Promise<ConversacionResumen[
 export async function obtenerUltimosMensajes(conversacionId: string, limite = 50): Promise<MensajeConMeta[]> {
   const mensajes = await prisma.mensajeConversacion.findMany({
     where: { conversacionId },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    include: { reacciones: { orderBy: { creadoEn: "asc" } } } as any,
     orderBy: { creadoEn: "desc" as const },
     take: limite,
   });
-  return mensajes.reverse() as MensajeConMeta[];
+  return (mensajes.reverse() as unknown[]).map((m: unknown) => m as MensajeConMeta);
 }
 
 export async function obtenerMensajesAnteriores(
@@ -231,10 +233,12 @@ export async function obtenerMensajesAnteriores(
   if (!ref) return [];
   const mensajes = await prisma.mensajeConversacion.findMany({
     where: { conversacionId, creadoEn: { lt: ref.creadoEn } },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    include: { reacciones: { orderBy: { creadoEn: "asc" } } } as any,
     orderBy: { creadoEn: "desc" as const },
     take: limite,
   });
-  return mensajes.reverse() as MensajeConMeta[];
+  return (mensajes.reverse() as unknown[]).map((m: unknown) => m as MensajeConMeta);
 }
 
 export async function obtenerTodasLasConversaciones(): Promise<ConversacionResumen[]> {

@@ -784,3 +784,96 @@ export async function crearOportunidadDesdeConversacion({
     return { ok: false, error: e instanceof Error ? e.message : "Error al crear oportunidad" };
   }
 }
+
+// ── Reacciones a mensajes ────────────────────────────────────────────────────
+
+export async function toggleReaccion(
+  mensajeId: string,
+  emoji: string,
+  tipo: "CANAL" | "INTERNA",
+  usuarioId: string | null,
+  nombreUsuario: string | null,
+): Promise<{ exito: true } | { exito: false; error: string }> {
+  try {
+    const mensaje = await prisma.mensajeConversacion.findUnique({
+      where: { id: mensajeId },
+      select: {
+        conversacionId: true,
+        idExterno: true,
+        remitente: true,
+        conversacion: {
+          select: {
+            instanciaId: true,
+            cuentaCanal: { select: { canal: true, configuracion: true } },
+            contacto: { include: { identificadoresCanal: true } },
+          },
+        },
+      },
+    });
+    if (!mensaje) return { exito: false, error: "Mensaje no encontrado" };
+
+    const existente = await prisma.mensajeReaccion.findFirst({
+      where: { mensajeId, usuarioId, emoji },
+    });
+
+    const fueBorrado = !!existente;
+
+    if (existente) {
+      await prisma.mensajeReaccion.delete({ where: { id: existente.id } });
+    } else {
+      await prisma.mensajeReaccion.create({
+        data: {
+          mensajeId,
+          emoji,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          tipo: tipo as any,
+          usuarioId,
+          nombreUsuario: nombreUsuario ?? "Agente",
+        },
+      });
+    }
+
+    busEventos.publicar(TIPOS_EVENTO.REACCION_ACTUALIZADA, {
+      mensajeId,
+      conversacionId: mensaje.conversacionId,
+      instanciaId: mensaje.conversacion?.instanciaId ?? "",
+    });
+
+    // Enviar reacción al canal externo si aplica
+    if (tipo === "CANAL" && mensaje.idExterno && mensaje.conversacion?.cuentaCanal) {
+      const cuentaCanal = mensaje.conversacion.cuentaCanal;
+      const provider = obtenerProvider(cuentaCanal.canal);
+
+      if (provider?.enviarReaccion && provider.capacidades.reacciones) {
+        const canal = cuentaCanal.canal;
+        const identificador =
+          mensaje.conversacion.contacto.identificadoresCanal.find((i) => i.canal === canal)?.identificador ?? "";
+
+        const jid =
+          identificador.endsWith("@lid") || identificador.endsWith("@s.whatsapp.net")
+            ? identificador
+            : identificador.replace(/\D/g, "") + "@s.whatsapp.net";
+
+        const fromMe = mensaje.remitente === "AGENTE";
+        const emojiAEnviar = fueBorrado ? "" : emoji;
+
+        try {
+          await provider.enviarReaccion({
+            jid,
+            idExternoMensaje: mensaje.idExterno,
+            fromMe,
+            emoji: emojiAEnviar,
+            configuracion: cuentaCanal.configuracion as Record<string, unknown>,
+          });
+        } catch (e) {
+          // La reacción ya se guardó en BD — solo log del error de envío al canal
+          console.error("[toggleReaccion] Error enviando reacción al canal:", e);
+        }
+      }
+    }
+
+    return { exito: true };
+  } catch {
+    return { exito: false, error: "Error al guardar la reacción" };
+  }
+}

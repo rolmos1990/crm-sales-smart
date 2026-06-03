@@ -161,9 +161,23 @@ async function iniciarSesionBaileys(
       const cuentaCanalId = sesionActual?.cuentaCanalId;
       if (!cuentaCanalId) return; // aún no se ha guardado la cuenta (antes del "open")
       for (const msg of messages) {
-        if (msg.key.fromMe) continue;
         if (msg.key.remoteJid === "status@broadcast") continue;
         if (msg.key.remoteJid?.endsWith("@g.us")) continue; // ignorar mensajes de grupos
+
+        // Reacción entrante del contacto (no del agente)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const esReaccion = !!(msg.message as any)?.reactionMessage;
+        if (esReaccion && !msg.key.fromMe) {
+          try {
+            const { procesarReaccionEntranteWA } = await import("@/integraciones/whatsapp-lite/procesar-reaccion-wa");
+            await procesarReaccionEntranteWA(msg, instanciaId);
+          } catch (e) {
+            console.error("[WA Sesión] Error procesando reacción entrante:", e);
+          }
+          continue;
+        }
+
+        if (msg.key.fromMe) continue;
         try {
           const { encolarMensajeEntrante } = await import("@/integraciones/whatsapp-lite/encolar-mensaje");
           await encolarMensajeEntrante(msg, cuentaCanalId, instanciaId);

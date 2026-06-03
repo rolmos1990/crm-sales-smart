@@ -53,7 +53,13 @@
       "Bash(npx dotenv *)",
       "Bash(Get-Content .env)",
       "Bash(Select-String \"DATABASE_URL\")",
-      "Bash(node -e \"const f=require\\('fs'\\);const p=JSON.parse\\(f.readFileSync\\('package.json','utf8'\\)\\);console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")"
+      "Bash(node -e \"const f=require\\('fs'\\);const p=JSON.parse\\(f.readFileSync\\('package.json','utf8'\\)\\);console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(grep -v \"//.*auth\")",
+      "Bash(xargs grep -l \"next-auth\\\\|NextAuth\")",
+      "Bash(xargs grep -l \"messages.upsert\\\\|message-receipt.update\\\\|messages\\\\.upsert\")",
+      "Bash(xargs grep -l \"messageStubType\\\\|reactionMessage\\\\|react:\")",
+      "Bash(xargs grep -l \"makeWASocket\\\\|Boom\\\\|connection.update\")",
+      "Bash(xargs grep -l \"sendMessage\\\\|react\\\\|reactionMessage\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\RamonOlmos\\source\\repos\\crm-sales-smart\\crm-sales-smart\\src\\app\\api\\webhooks",

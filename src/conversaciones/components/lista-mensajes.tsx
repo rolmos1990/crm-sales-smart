@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { ChevronUp, Loader2 } from "lucide-react";
 import { BurbujaMensaje } from "./burbuja-mensaje";
 import { EventoSistema } from "./evento-sistema";
-import type { MensajeConMeta } from "../types";
+import type { MensajeConMeta, MensajeReaccionResumen } from "../types";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -13,6 +13,9 @@ interface ListaMensajesProps {
   hayMasAnteriores?: boolean;
   cargandoAnteriores?: boolean;
   onCargarAnteriores?: () => void;
+  reaccionesOptimistas?: Map<string, MensajeReaccionResumen[]>;
+  usuarioActualId?: string | null;
+  onToggleReaccion?: (mensajeId: string, emoji: string, tipo: "CANAL" | "INTERNA") => void;
 }
 
 function separarPorFecha(mensajes: MensajeConMeta[]) {
@@ -34,6 +37,9 @@ export function ListaMensajes({
   hayMasAnteriores,
   cargandoAnteriores,
   onCargarAnteriores,
+  reaccionesOptimistas,
+  usuarioActualId,
+  onToggleReaccion,
 }: ListaMensajesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -113,7 +119,13 @@ export function ListaMensajes({
                 m.tipo === "EVENTO_SISTEMA" ? (
                   <EventoSistema key={m.id} mensaje={m} />
                 ) : (
-                  <BurbujaMensaje key={m.id} mensaje={m} />
+                  <BurbujaMensaje
+                    key={m.id}
+                    mensaje={m}
+                    reaccionesEfectivas={reaccionesOptimistas?.get(m.id) ?? m.reacciones}
+                    usuarioActualId={usuarioActualId}
+                    onToggleReaccion={onToggleReaccion}
+                  />
                 )
               )}
             </div>

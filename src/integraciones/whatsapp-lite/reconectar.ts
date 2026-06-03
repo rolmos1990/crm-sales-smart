@@ -106,9 +106,23 @@ async function reconectarSocket(
     socket.ev.on("messages.upsert", async ({ messages, type }) => {
       if (type !== "notify") return;
       for (const msg of messages) {
-        if (msg.key.fromMe) continue;
         if (msg.key.remoteJid === "status@broadcast") continue;
         if (msg.key.remoteJid?.endsWith("@g.us")) continue; // ignorar mensajes de grupos
+
+        // Reacción entrante del contacto
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const esReaccion = !!(msg.message as any)?.reactionMessage;
+        if (esReaccion && !msg.key.fromMe) {
+          try {
+            const { procesarReaccionEntranteWA } = await import("./procesar-reaccion-wa");
+            await procesarReaccionEntranteWA(msg, instanciaId);
+          } catch (e) {
+            console.error("[WA Reconect] Error procesando reacción entrante:", e);
+          }
+          continue;
+        }
+
+        if (msg.key.fromMe) continue;
         try {
           await encolarMensajeEntrante(msg, cuentaCanalId, instanciaId);
         } catch (e) {

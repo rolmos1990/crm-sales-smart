@@ -1,7 +1,7 @@
 import { manejadorSSE } from "@/shared/eventos/sse";
 import { busEventos } from "@/shared/eventos/bus";
 import { TIPOS_EVENTO } from "@/shared/eventos/registro";
-import type { MensajeRecibidoPayload, MensajeEnviadoPayload } from "@/shared/eventos/registro";
+import type { MensajeRecibidoPayload, MensajeEnviadoPayload, ReaccionActualizadaPayload } from "@/shared/eventos/registro";
 import type { EventoDominio } from "@/shared/eventos/types";
 import { workerMensajes } from "@/shared/workers/worker-mensajes";
 import { reconectarSesionesWA } from "@/integraciones/whatsapp-lite/reconectar";
@@ -24,6 +24,10 @@ function inicializarPuente() {
 
   busEventos.suscribir<MensajeEnviadoPayload>(TIPOS_EVENTO.MENSAJE_ENVIADO, (evento: EventoDominio<MensajeEnviadoPayload>) => {
     manejadorSSE.emitir(evento.payload.instanciaId, TIPOS_EVENTO.MENSAJE_ENVIADO, evento.payload);
+  });
+
+  busEventos.suscribir<ReaccionActualizadaPayload>(TIPOS_EVENTO.REACCION_ACTUALIZADA, (evento: EventoDominio<ReaccionActualizadaPayload>) => {
+    manejadorSSE.emitir(evento.payload.instanciaId, TIPOS_EVENTO.REACCION_ACTUALIZADA, evento.payload);
   });
 }
 

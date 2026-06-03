@@ -160,6 +160,11 @@ enum EstadoMensaje {
   FALLIDO
 }
 
+enum TipoReaccion {
+  CANAL    // sincroniza con canal externo (WhatsApp)
+  INTERNA  // solo visible en CRM
+}
+
 // =====================
 // INSTANCIA / TENANT
 // =====================
@@ -1122,9 +1127,32 @@ model MensajeConversacion {
   enviadoEn DateTime?
   leidoEn   DateTime?
 
+  reacciones MensajeReaccion[]
+
   @@index([conversacionId])
   @@index([creadoEn])
   @@index([remitente])
+}
+
+model MensajeReaccion {
+  id            String       @id @default(cuid())
+  emoji         String
+  tipo          TipoReaccion @default(INTERNA)
+  nombreUsuario String?
+  canal         String?
+  idExterno     String?
+
+  mensajeId String
+  mensaje   MensajeConversacion @relation(fields: [mensajeId], references: [id], onDelete: Cascade)
+
+  usuarioId  String?
+  contactoId String?
+
+  creadoEn DateTime @default(now())
+
+  @@unique([mensajeId, usuarioId, emoji])
+  @@unique([mensajeId, contactoId, emoji])
+  @@index([mensajeId])
 }
 
 // Relación conversación ↔ oportunidad

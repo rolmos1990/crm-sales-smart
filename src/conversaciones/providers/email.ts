@@ -13,6 +13,7 @@ export class EmailProvider implements ICanalProvider {
     plantillas: true,
     botones: false,
     marcarLeidoExterno: false,
+    reacciones: false,
   };
 
   async enviarMensaje(payload: MensajeSalientePayload): Promise<{ idExterno: string }> {

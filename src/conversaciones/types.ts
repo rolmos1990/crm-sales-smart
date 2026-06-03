@@ -8,6 +8,16 @@ import type {
 
 export type { TipoMensaje, RemitenteMsg, EstadoMensaje, EstadoConversacion, ClasificacionConversacion };
 
+export interface MensajeReaccionResumen {
+  id: string;
+  emoji: string;
+  tipo: "CANAL" | "INTERNA";
+  nombreUsuario: string | null;
+  usuarioId: string | null;
+  contactoId: string | null;
+  creadoEn: Date;
+}
+
 export interface MensajeConMeta {
   id: string;
   conversacionId: string;
@@ -24,6 +34,7 @@ export interface MensajeConMeta {
   creadoEn: Date;
   enviadoEn: Date | null;
   leidoEn: Date | null;
+  reacciones?: MensajeReaccionResumen[];
 }
 
 export interface CuentaCanalResumen {

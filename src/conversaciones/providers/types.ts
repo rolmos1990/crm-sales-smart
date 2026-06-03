@@ -10,6 +10,7 @@ export interface CapacidadCanal {
   plantillas: boolean;
   botones: boolean;
   marcarLeidoExterno: boolean;
+  reacciones: boolean;
 }
 
 export interface MensajeSalientePayload {
@@ -27,6 +28,14 @@ export interface MensajeLeidoPayload {
   identificadorContacto: string; // E.164 para WhatsApp; el canal determina cómo lo usa
 }
 
+export interface ReaccionCanalPayload {
+  jid: string;
+  idExternoMensaje: string;
+  fromMe: boolean;
+  emoji: string;             // "" = quitar reacción en el canal
+  configuracion: Record<string, unknown>;
+}
+
 export interface ICanalProvider {
   readonly canal: string;
   readonly capacidades: CapacidadCanal;
@@ -34,4 +43,5 @@ export interface ICanalProvider {
   mapearEntrante(raw: unknown): MensajeEntranteNormalizado;
   validarWebhook(req: Request): boolean;
   marcarLeido?(mensajes: MensajeLeidoPayload[], configuracion: Record<string, unknown>): Promise<void>;
+  enviarReaccion?(payload: ReaccionCanalPayload): Promise<void>;
 }

@@ -24,8 +24,9 @@ import {
   clasificarConversacion,
   crearOportunidadDesdeConversacion,
   obtenerConversacionAction,
+  toggleReaccion,
 } from "../actions";
-import type { ConversacionResumen, MensajeConMeta, CuentaCanalResumen, ClasificacionConversacion } from "../types";
+import type { ConversacionResumen, MensajeConMeta, MensajeReaccionResumen, CuentaCanalResumen, ClasificacionConversacion } from "../types";
 
 // ── Tipos y configuración de estados ─────────────────────────────────────────
 
@@ -134,9 +135,11 @@ function agruparPorFecha(mensajes: MensajeConMeta[]) {
 interface InboxLayoutProps {
   conversacionesIniciales: ConversacionResumen[];
   cuentas: CuentaCanalResumen[];
+  usuarioActualId?: string | null;
+  nombreUsuarioActual?: string | null;
 }
 
-export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutProps) {
+export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId = null, nombreUsuarioActual = null }: InboxLayoutProps) {
   const queryClient = useQueryClient();
 
   const [conversaciones, setConversaciones] = useState(conversacionesIniciales);
@@ -152,6 +155,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
   const [mensajesAnteriores, setMensajesAnteriores] = useState<MensajeConMeta[]>([]);
   const [cargandoAnteriores, setCargandoAnteriores] = useState(false);
   const [hayMasAnteriores, setHayMasAnteriores] = useState(false);
+  const [reaccionesOptimistas, setReaccionesOptimistas] = useState<Map<string, MensajeReaccionResumen[]>>(new Map());
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesAreaRef = useRef<HTMLDivElement>(null);
@@ -201,6 +205,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
     setMensajesAnteriores([]);
     setHayMasAnteriores(false);
     setIdsLeidosLocal(new Set());
+    setReaccionesOptimistas(new Map());
   }, [seleccionada]);
 
   const handleMarcarLeidos = (ids: string[]) => {
@@ -263,8 +268,56 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
       queryClient.invalidateQueries({ queryKey: ["inbox-mensajes", seleccionada] });
     });
 
+    source.addEventListener("REACCION_ACTUALIZADA", () => {
+      setReaccionesOptimistas(new Map());
+      queryClient.invalidateQueries({ queryKey: ["inbox-mensajes", seleccionada] });
+    });
+
     return () => source.close();
   }, [instanciaId, seleccionada, queryClient]);
+
+  // ── Reacciones a mensajes ─────────────────────────────────────────────────
+
+  const todosLosMensajesRef = [...mensajesAnteriores, ...mensajesRecientes];
+
+  const handleToggleReaccion = (mensajeId: string, emoji: string, tipo: "CANAL" | "INTERNA") => {
+    setReaccionesOptimistas((prev) => {
+      const next = new Map(prev);
+      const actuales = next.get(mensajeId)
+        ?? todosLosMensajesRef.find((m) => m.id === mensajeId)?.reacciones
+        ?? [];
+      const yaReacciono = actuales.some((r) => r.emoji === emoji && r.usuarioId === usuarioActualId);
+      next.set(
+        mensajeId,
+        yaReacciono
+          ? actuales.filter((r) => !(r.emoji === emoji && r.usuarioId === usuarioActualId))
+          : [
+              ...actuales,
+              {
+                id: "optimistic",
+                emoji,
+                tipo,
+                usuarioId: usuarioActualId,
+                contactoId: null,
+                nombreUsuario: nombreUsuarioActual ?? "Yo",
+                creadoEn: new Date(),
+              },
+            ]
+      );
+      return next;
+    });
+
+    toggleReaccion(mensajeId, emoji, tipo, usuarioActualId, nombreUsuarioActual).then((r) => {
+      if (!r.exito) {
+        setReaccionesOptimistas((prev) => {
+          const next = new Map(prev);
+          next.delete(mensajeId);
+          return next;
+        });
+        toast.error("Error al guardar la reacción");
+      }
+    });
+  };
 
   // ── Actualizaciones de estado (optimistas) ────────────────────────────────
 
@@ -664,6 +717,9 @@ export function InboxLayout({ conversacionesIniciales, cuentas }: InboxLayoutPro
                             mensaje={m}
                             leidoLocal={idsLeidosLocal.has(m.id)}
                             onMarcarLeido={m.remitente === "CONTACTO" ? (id) => handleMarcarLeidos([id]) : undefined}
+                            reaccionesEfectivas={reaccionesOptimistas.get(m.id) ?? m.reacciones}
+                            usuarioActualId={usuarioActualId}
+                            onToggleReaccion={handleToggleReaccion}
                           />
                         )
                       )}
