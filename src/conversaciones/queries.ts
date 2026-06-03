@@ -44,34 +44,12 @@ const conversacionInclude = {
 } as const;
 
 // Mapea una conversación Prisma a ConversacionResumen incluyendo el identificador de canal
-function mapearConversacion(conv: {
-  id: string;
-  instanciaId: string | null;
-  contactoId: string;
-  cuentaCanalId: string | null;
-  asunto: string | null;
-  estado: ConversacionResumen["estado"];
-  clasificacion: ConversacionResumen["clasificacion"];
-  oportunidadGanadaRel: ConversacionResumen["oportunidadGanadaRel"];
-  creadoEn: Date;
-  actualizadoEn: Date;
-  contacto: {
-    id: string;
-    nombre: string;
-    apellido: string;
-    telefonoPrincipal: string | null;
-    email: string | null;
-    identificadoresCanal: { identificador: string; canal: string }[];
-  };
-  cuentaCanal: ConversacionResumen["cuentaCanal"];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  oportunidades: any[];
-  mensajes: ConversacionResumen["ultimoMensaje"][];
-  _count?: { mensajes: number };
-}): ConversacionResumen {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapearConversacion(conv: any): ConversacionResumen {
   const canal = conv.cuentaCanal?.canal ?? "";
   const identificadorCanal =
-    conv.contacto.identificadoresCanal.find((id) => id.canal === canal)?.identificador ?? null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    conv.contacto.identificadoresCanal.find((id: any) => id.canal === canal)?.identificador ?? null;
 
   return {
     id: conv.id,
@@ -92,7 +70,8 @@ function mapearConversacion(conv: {
       email: conv.contacto.email,
     },
     cuentaCanal: conv.cuentaCanal,
-    oportunidades: conv.oportunidades.map((o) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    oportunidades: conv.oportunidades.map((o: any) => ({
       ...o,
       oportunidad: { ...o.oportunidad, valor: Number(o.oportunidad.valor) },
     })),
@@ -213,15 +192,42 @@ export async function obtenerConversacionesInbox(): Promise<ConversacionResumen[
   return [...activas, ...cerradas].map(mapearConversacion);
 }
 
+const mensajeInclude = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  reacciones: { orderBy: { creadoEn: "asc" } },
+  mediaArchivo: {
+    select: {
+      id: true,
+      urlOptimizada: true,
+      urlThumbnail: true,
+      estadoProcesado: true,
+      errorMensaje: true,
+    },
+  },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as any;
+
+function mapearMensaje(m: unknown): MensajeConMeta {
+  const raw = m as Record<string, unknown> & { mediaArchivo?: { id: string; urlOptimizada: string; urlThumbnail: string | null; estadoProcesado: string; errorMensaje: string | null } | null };
+  const ma = raw.mediaArchivo;
+  return {
+    ...(raw as unknown as MensajeConMeta),
+    mediaArchivoId: ma?.id ?? null,
+    mediaEstado: (ma?.estadoProcesado as MensajeConMeta["mediaEstado"]) ?? null,
+    mediaUrlOptimizada: ma?.urlOptimizada ?? null,
+    mediaUrlThumbnail: ma?.urlThumbnail ?? null,
+    mediaErrorMensaje: ma?.errorMensaje ?? null,
+  };
+}
+
 export async function obtenerUltimosMensajes(conversacionId: string, limite = 50): Promise<MensajeConMeta[]> {
   const mensajes = await prisma.mensajeConversacion.findMany({
     where: { conversacionId },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    include: { reacciones: { orderBy: { creadoEn: "asc" } } } as any,
+    include: mensajeInclude,
     orderBy: { creadoEn: "desc" as const },
     take: limite,
   });
-  return (mensajes.reverse() as unknown[]).map((m: unknown) => m as MensajeConMeta);
+  return mensajes.reverse().map(mapearMensaje);
 }
 
 export async function obtenerMensajesAnteriores(
@@ -233,12 +239,11 @@ export async function obtenerMensajesAnteriores(
   if (!ref) return [];
   const mensajes = await prisma.mensajeConversacion.findMany({
     where: { conversacionId, creadoEn: { lt: ref.creadoEn } },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    include: { reacciones: { orderBy: { creadoEn: "asc" } } } as any,
+    include: mensajeInclude,
     orderBy: { creadoEn: "desc" as const },
     take: limite,
   });
-  return (mensajes.reverse() as unknown[]).map((m: unknown) => m as MensajeConMeta);
+  return mensajes.reverse().map(mapearMensaje);
 }
 
 export async function obtenerTodasLasConversaciones(): Promise<ConversacionResumen[]> {

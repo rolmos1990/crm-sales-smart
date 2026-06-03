@@ -167,6 +167,15 @@ function CardIntegracion({ integracion }: { integracion: IntegracionConEstado })
                 Configurar
               </Link>
             )}
+            {instalada.estado === "ACTIVA" && integracion.clave === "instagram" && (
+              <Link
+                href="/integraciones/instagram"
+                className="py-2 px-3 rounded-xl text-xs font-semibold border border-lime-500/25 text-lime-700 dark:text-lime-400 hover:bg-lime-500/8 transition-all flex items-center gap-1.5"
+              >
+                <Settings2 className="h-3 w-3" />
+                Configurar
+              </Link>
+            )}
             <button
               disabled={isPending}
               onClick={handleDesinstalar}

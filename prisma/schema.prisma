@@ -330,6 +330,7 @@ model Contacto {
   tags                 ContactoTag[]
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
+  mediaArchivos        MediaArchivo[]
 
   @@index([instanciaId])
   @@index([nombre])
@@ -1006,15 +1007,22 @@ model MediaArchivo {
   estadoProcesado EstadoMedia  @default(LISTO)
   errorMensaje    String?
 
+  // Relación con contacto (para cascade delete y limpieza de storage)
+  contactoId String?
+  contacto   Contacto? @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
   // Auditoría
   creadoPorId   String?
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
+  mensajes MensajeConversacion[]
+
   @@unique([instanciaId, hash])
   @@index([instanciaId])
   @@index([instanciaId, modulo])
   @@index([entidadTipo, entidadId])
+  @@index([contactoId])
   @@index([hash])
   @@index([estadoProcesado])
 }
@@ -1122,6 +1130,10 @@ model MensajeConversacion {
   mediaUrl      String?
   mediaMimeType String?
   mediaDuracion Int?
+
+  // FK a MediaArchivo para imágenes/media procesada con control de estado
+  mediaArchivoId String?
+  mediaArchivo   MediaArchivo? @relation(fields: [mediaArchivoId], references: [id], onDelete: SetNull)
 
   creadoEn  DateTime  @default(now())
   enviadoEn DateTime?

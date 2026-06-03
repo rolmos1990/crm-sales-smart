@@ -1,10 +1,12 @@
 import type { ICanalProvider } from "./types";
 import { WhatsAppLiteProvider } from "./whatsapp-lite";
 import { EmailProvider } from "./email";
+import { InstagramProvider } from "./instagram";
 
 const providers = new Map<string, ICanalProvider>([
   ["whatsapp_lite", new WhatsAppLiteProvider()],
   ["email", new EmailProvider()],
+  ["instagram", new InstagramProvider()],
 ]);
 
 export function obtenerProvider(canal: string): ICanalProvider | undefined {

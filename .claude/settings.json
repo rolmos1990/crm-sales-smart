@@ -59,7 +59,8 @@
       "Bash(xargs grep -l \"messages.upsert\\\\|message-receipt.update\\\\|messages\\\\.upsert\")",
       "Bash(xargs grep -l \"messageStubType\\\\|reactionMessage\\\\|react:\")",
       "Bash(xargs grep -l \"makeWASocket\\\\|Boom\\\\|connection.update\")",
-      "Bash(xargs grep -l \"sendMessage\\\\|react\\\\|reactionMessage\")"
+      "Bash(xargs grep -l \"sendMessage\\\\|react\\\\|reactionMessage\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\RamonOlmos\\\\source\\\\repos\\\\crm-sales-smart\\\\crm-sales-smart\\\\src\\\\app\\\\\" -Directory | Select-Object Name)"
     ],
     "additionalDirectories": [
       "c:\\Users\\RamonOlmos\\source\\repos\\crm-sales-smart\\crm-sales-smart\\src\\app\\api\\webhooks",

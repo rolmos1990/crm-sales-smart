@@ -4,9 +4,117 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff } from "lucide-react";
+import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff, Loader2, ShieldX, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 import type { MensajeConMeta, MensajeReaccionResumen, RemitenteMsg, EstadoMensaje, TipoMensaje } from "../types";
 import { BarraAccionesRapidas, SelectorReaccionesCompleto, BadgesReacciones } from "./reacciones-mensaje";
+
+// ── Lightbox de imagen ────────────────────────────────────────────────────────
+
+function LightboxImagen({ src, onClose }: { src: string; onClose: () => void }) {
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 bg-stone-950/95 border-white/10 flex items-center justify-center overflow-hidden">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 z-10 h-8 w-8 flex items-center justify-center rounded-full bg-black/60 text-stone-300 hover:text-white hover:bg-black/80 transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt="Imagen completa"
+          className="max-w-full max-h-[85vh] object-contain rounded-lg"
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Burbuja de imagen con thumbnail cliqueable ────────────────────────────────
+
+function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
+  const [lightboxAbierto, setLightboxAbierto] = useState(false);
+
+  const estado = mensaje.mediaEstado;
+  const esRechazada = estado === "ERROR" && mensaje.mediaErrorMensaje?.includes("RECHAZADA");
+
+  // Estado: rechazada por seguridad
+  if (esRechazada) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-3 py-2.5 min-w-[160px]">
+        <ShieldX className="h-4 w-4 text-red-400 shrink-0" />
+        <div>
+          <p className="text-xs font-medium text-red-400">Imagen no permitida</p>
+          <p className="text-[10px] text-red-400/70">Formato rechazado por seguridad</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Estado: error de procesamiento
+  if (estado === "ERROR") {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 min-w-[160px]">
+        <AlertCircle className="h-4 w-4 text-stone-500 shrink-0" />
+        <p className="text-xs text-stone-500">No se pudo cargar la imagen</p>
+      </div>
+    );
+  }
+
+  // Estado: sin mediaArchivo (no se pudo procesar antes de encolarlo)
+  if (!mensaje.mediaArchivoId && !mensaje.mediaUrl) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 min-w-[160px]">
+        <ImageIcon className="h-4 w-4 text-stone-500 shrink-0" />
+        <p className="text-xs text-stone-500">Imagen no disponible</p>
+      </div>
+    );
+  }
+
+  // URL a mostrar como thumbnail (prioridad: urlThumbnail, luego mediaUrl)
+  const thumbnailSrc = mensaje.mediaUrlThumbnail ?? mensaje.mediaUrl;
+  // URL completa para el lightbox
+  const fullSrc = mensaje.mediaUrlOptimizada ?? mensaje.mediaUrlThumbnail ?? mensaje.mediaUrl;
+
+  if (!thumbnailSrc) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 min-w-[160px]">
+        <ImageIcon className="h-4 w-4 text-stone-500 shrink-0" />
+        <p className="text-xs text-stone-500">Imagen no disponible</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => fullSrc && setLightboxAbierto(true)}
+        className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-lime-400/40"
+        title="Ver imagen completa"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={thumbnailSrc}
+          alt="Imagen recibida"
+          loading="lazy"
+          className="max-w-[240px] max-h-[240px] object-cover rounded-xl"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+      </button>
+      {lightboxAbierto && fullSrc && (
+        <LightboxImagen src={fullSrc} onClose={() => setLightboxAbierto(false)} />
+      )}
+    </>
+  );
+}
 
 const TIPO_FALLBACK: Partial<Record<TipoMensaje, { icono: React.ReactNode; texto: string }>> = {
   IMAGEN:    { icono: <ImageIcon className="h-3.5 w-3.5" />, texto: "Imagen" },
@@ -107,6 +215,12 @@ export function BurbujaMensaje({
             ? <p className="whitespace-pre-wrap break-words">{mensaje.contenido}</p>
             : (() => {
                 const esAudioTipo = mensaje.tipo === "AUDIO" || mensaje.tipo === "NOTA_VOZ";
+                const esImagenTipo = mensaje.tipo === "IMAGEN";
+
+                // ── Imagen recibida ───────────────────────────────────────
+                if (esImagenTipo) {
+                  return <BurbujaImagen mensaje={mensaje} />;
+                }
 
                 if (esAudioTipo && mensaje.mediaUrl) {
                   const minutos = mensaje.mediaDuracion

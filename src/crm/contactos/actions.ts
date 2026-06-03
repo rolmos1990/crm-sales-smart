@@ -122,6 +122,25 @@ export async function obtenerContactoAction(id: string) {
 
 export async function eliminarContacto(id: string): Promise<ResultadoAccion> {
   try {
+    // Limpiar archivos del storage antes de borrar la BD (cascade DB elimina MediaArchivo)
+    const mediasContacto = await prisma.mediaArchivo.findMany({
+      where: { contactoId: id },
+      select: { keyOptimizado: true, keyThumbnail: true, keyOriginal: true },
+    });
+
+    if (mediasContacto.length > 0) {
+      const { getStorageProvider } = await import("@/lib/media/providers/factory");
+      const provider = getStorageProvider();
+      await Promise.allSettled(
+        mediasContacto.flatMap((m) => [
+          m.keyOptimizado ? provider.delete(m.keyOptimizado) : null,
+          m.keyThumbnail  ? provider.delete(m.keyThumbnail)  : null,
+          m.keyOriginal   ? provider.delete(m.keyOriginal)   : null,
+        ].filter(Boolean) as Promise<void>[]
+        )
+      );
+    }
+
     // Actividad, Cotizacion y Pedido no tienen onDelete definido en el schema
     // → hay que nullificar el FK antes de borrar para que PostgreSQL no bloquee
     await prisma.$transaction([

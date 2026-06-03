@@ -35,6 +35,12 @@ export interface MensajeConMeta {
   enviadoEn: Date | null;
   leidoEn: Date | null;
   reacciones?: MensajeReaccionResumen[];
+  // Media enriquecida (imágenes procesadas)
+  mediaArchivoId: string | null;
+  mediaEstado: "LISTO" | "PENDIENTE" | "PROCESANDO" | "ERROR" | null;
+  mediaUrlOptimizada: string | null;
+  mediaUrlThumbnail: string | null;
+  mediaErrorMensaje: string | null;
 }
 
 export interface CuentaCanalResumen {
@@ -109,6 +115,7 @@ export interface MensajeEntranteNormalizado {
   mediaDuracion?: number;
   mediaNombre?: string;
   mediaBytes?: number;
+  mediaArchivoId?: string;
   pushName?: string;
   avatarUrl?: string;
 }

@@ -247,6 +247,15 @@ export async function procesarMensajeEntrante(
     if (existente) return { mensaje: existente, conversacion };
   }
 
+  // Vincular contactoId al MediaArchivo si viene de una imagen procesada
+  const mediaArchivoIdPayload = payload.mediaArchivoId as string | undefined;
+  if (mediaArchivoIdPayload) {
+    await prisma.mediaArchivo.update({
+      where: { id: mediaArchivoIdPayload },
+      data: { contactoId },
+    }).catch(() => { /* ignorar si el registro no existe */ });
+  }
+
   const mensaje = await prisma.mensajeConversacion.create({
     data: {
       conversacionId: conversacion.id,
@@ -258,6 +267,7 @@ export async function procesarMensajeEntrante(
       mediaUrl: (mediaUrl as string | undefined) ?? null,
       mediaMimeType: (mediaMimeType as string | undefined) ?? null,
       mediaDuracion: (mediaDuracion as number | undefined) ?? null,
+      mediaArchivoId: mediaArchivoIdPayload ?? null,
       creadoEn: new Date(),
     },
   });

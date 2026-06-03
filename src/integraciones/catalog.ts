@@ -20,6 +20,16 @@ export const CATALOGO_INTEGRACIONES: IntegracionCatalogo[] = [
     disponible:  true,
   },
 
+  {
+    clave:       "instagram",
+    nombre:      "Instagram",
+    descripcion: "Recibe y responde mensajes directos de Instagram desde el CRM. Conecta tu cuenta de negocio de Instagram usando la API de Meta para gestionar conversaciones con tus seguidores.",
+    categoria:   "mensajeria",
+    logoEmoji:   "📸",
+    disponible:  true,
+    badges:      ["Nuevo"],
+  },
+
   // ── Marketing ──────────────────────────────────────────────────
   {
     clave:       "mailchimp",

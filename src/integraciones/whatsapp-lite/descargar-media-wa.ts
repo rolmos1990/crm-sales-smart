@@ -1,9 +1,12 @@
 import { downloadMediaMessage } from "@whiskeysockets/baileys";
 
+export type TipoMediaWA = "AUDIO" | "IMAGEN" | "VIDEO" | "DOCUMENTO" | "STICKER";
+
 export interface DescargaMediaWA {
   buffer: Buffer;
   mimeType: string;
   duracion?: number;
+  tipoMedia: TipoMediaWA;
 }
 
 export async function descargarMediaWA(rawMessage: unknown): Promise<DescargaMediaWA | null> {
@@ -11,14 +14,28 @@ export async function descargarMediaWA(rawMessage: unknown): Promise<DescargaMed
     const msg = rawMessage as Record<string, unknown>;
     const message = msg.message as Record<string, unknown> | null | undefined;
 
-    const audioMsg =
-      (message?.audioMessage as Record<string, unknown> | undefined) ??
-      (message?.pttMessage as Record<string, unknown> | undefined);
+    // Detectar tipo de media
+    const audioMsg   = (message?.audioMessage as Record<string, unknown> | undefined);
+    const pttMsg     = (message?.pttMessage as Record<string, unknown> | undefined);
+    const imageMsg   = (message?.imageMessage as Record<string, unknown> | undefined);
+    const videoMsg   = (message?.videoMessage as Record<string, unknown> | undefined);
+    const docMsg     = (message?.documentMessage as Record<string, unknown> | undefined);
+    const stickerMsg = (message?.stickerMessage as Record<string, unknown> | undefined);
 
-    if (!audioMsg) {
-      console.warn("[descargarMediaWA] El mensaje no contiene audioMessage ni pttMessage");
+    const mediaMsg = audioMsg ?? pttMsg ?? imageMsg ?? videoMsg ?? docMsg ?? stickerMsg;
+
+    if (!mediaMsg) {
+      console.warn("[descargarMediaWA] El mensaje no contiene media conocida");
       return null;
     }
+
+    // Determinar tipo para logging y retorno
+    let tipoMedia: TipoMediaWA;
+    if (audioMsg || pttMsg) tipoMedia = "AUDIO";
+    else if (imageMsg)      tipoMedia = "IMAGEN";
+    else if (videoMsg)      tipoMedia = "VIDEO";
+    else if (stickerMsg)    tipoMedia = "STICKER";
+    else                    tipoMedia = "DOCUMENTO";
 
     const stream = await downloadMediaMessage(
       rawMessage as Parameters<typeof downloadMediaMessage>[0],
@@ -33,12 +50,21 @@ export async function descargarMediaWA(rawMessage: unknown): Promise<DescargaMed
       return null;
     }
 
-    const mimeType =
-      (audioMsg.mimetype as string | undefined) ?? "audio/ogg; codecs=opus";
-    const duracion =
-      typeof audioMsg.seconds === "number" ? audioMsg.seconds : undefined;
+    // MIME por defecto según tipo
+    const defaultMimes: Record<TipoMediaWA, string> = {
+      AUDIO:     "audio/ogg; codecs=opus",
+      IMAGEN:    "image/jpeg",
+      VIDEO:     "video/mp4",
+      DOCUMENTO: "application/octet-stream",
+      STICKER:   "image/webp",
+    };
 
-    return { buffer, mimeType, duracion };
+    const mimeType = (mediaMsg.mimetype as string | undefined) ?? defaultMimes[tipoMedia];
+    const duracion = (audioMsg ?? pttMsg) && typeof mediaMsg.seconds === "number"
+      ? mediaMsg.seconds
+      : undefined;
+
+    return { buffer, mimeType, duracion, tipoMedia };
   } catch (e) {
     console.error("[descargarMediaWA] Error descargando media de WhatsApp:", e);
     return null;

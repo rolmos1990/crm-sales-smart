@@ -44,10 +44,18 @@ export async function encolarMensajeEntrante(
     ((message?.extendedTextMessage as Record<string, unknown> | undefined)?.text as string | undefined) ??
     undefined;
 
-  const audioMsg = message?.audioMessage as Record<string, unknown> | undefined;
-  const esAudio = !!audioMsg;
-  const esPtt = esAudio && audioMsg?.ptt === true;
-  const tipo = esAudio ? (esPtt ? "NOTA_VOZ" : "AUDIO") : "TEXTO";
+  const audioMsg   = message?.audioMessage as Record<string, unknown> | undefined;
+  const pttMsg     = message?.pttMessage   as Record<string, unknown> | undefined;
+  const imageMsg   = message?.imageMessage  as Record<string, unknown> | undefined;
+
+  const esAudio  = !!audioMsg || !!pttMsg;
+  const esImagen = !!imageMsg;
+  const esPtt    = (!!audioMsg && audioMsg?.ptt === true) || !!pttMsg;
+
+  const tipo = esAudio
+    ? (esPtt ? "NOTA_VOZ" : "AUDIO")
+    : esImagen ? "IMAGEN"
+    : "TEXTO";
 
   const pushName = (msg.pushName && msg.pushName !== "") ? msg.pushName : undefined;
 
@@ -70,11 +78,12 @@ export async function encolarMensajeEntrante(
     }
   } catch { /* sesión no disponible, sin foto o privacidad activada */ }
 
-  // Descargar y subir audio en el contexto del API route (aquí Baileys funciona correctamente).
-  // El worker recibe la URL ya resuelta en el payload para evitar problemas de resolución de módulos nativos.
+  // Descargar y subir media en el contexto del API route (Baileys requiere módulos nativos aquí).
+  // El worker recibe URLs y IDs ya resueltos en el payload.
   let mediaUrl: string | undefined;
   let mediaMimeType: string | undefined;
   let mediaDuracion: number | undefined;
+  let mediaArchivoId: string | undefined;
 
   if (esAudio) {
     try {
@@ -96,7 +105,28 @@ export async function encolarMensajeEntrante(
       }
     } catch (e) {
       console.error("[encolarMensaje] Error descargando audio WA:", e);
-      // Continúa: el mensaje se guarda sin media; la burbuja muestra el fallback
+    }
+  }
+
+  if (esImagen) {
+    try {
+      const { descargarMediaWA } = await import("./descargar-media-wa");
+      const { subirImagenConversacion } = await import("@/lib/media/services/media-conversacion.service");
+      const descarga = await descargarMediaWA(msg);
+      if (descarga) {
+        const resultado = await subirImagenConversacion({
+          buffer: descarga.buffer,
+          mimeTypeProveedor: descarga.mimeType,
+          instanciaId,
+          canal: "whatsapp",
+          contactoId: null, // se completa en procesarMensajeEntrante cuando el contacto está resuelto
+        });
+        mediaArchivoId = resultado.mediaArchivoId;
+        mediaUrl = resultado.urlThumbnail ?? resultado.urlOptimizada ?? undefined;
+        mediaMimeType = "image/webp";
+      }
+    } catch (e) {
+      console.error("[encolarMensaje] Error procesando imagen WA:", e);
     }
   }
 
@@ -117,6 +147,7 @@ export async function encolarMensajeEntrante(
         ...(mediaUrl ? { mediaUrl } : {}),
         ...(mediaMimeType ? { mediaMimeType } : {}),
         ...(mediaDuracion !== undefined ? { mediaDuracion } : {}),
+        ...(mediaArchivoId ? { mediaArchivoId } : {}),
       },
     },
   });
