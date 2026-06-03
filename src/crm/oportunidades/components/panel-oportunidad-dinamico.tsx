@@ -48,6 +48,7 @@ import { ActualizarOportunidadSchema, type ActualizarOportunidadInput } from "..
 import type { Oportunidad } from "../types";
 import type { PipelineConStages } from "@/crm/pipeline/types";
 import { CamposDinamicos, validarCamposRequeridos } from "./campos-dinamicos";
+import { DialogCamposRequeridos } from "./dialog-campos-requeridos";
 import { cn } from "@/lib/utils";
 import { GestorContactosPanel, type ContactoEnPanel } from "./gestor-contactos-panel";
 import { MONEDAS } from "@/shared/moneda/constants";
@@ -202,6 +203,12 @@ function PanelFormulario({
   const [metadata, setMetadata] = useState<Record<string, unknown>>(initialMetadata);
   const [guardandoStage, setGuardandoStage] = useState(false);
   const [tagIds, setTagIds] = useState<string[]>(tagIdsIniciales);
+  const [bloqueoPendiente, setBloqueoPendiente] = useState<{
+    stageNombre: string;
+    stageColor: string | null;
+    campos: string[];
+  } | null>(null);
+  const camposRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<ActualizarOportunidadInput>({
     resolver: zodResolver(ActualizarOportunidadSchema),
@@ -220,13 +227,18 @@ function PanelFormulario({
   const stageActual = pipelineActual?.stages.find((s) => s.id === stageActualId);
   const camposPipeline = pipelineActual?.campos ?? [];
 
-  const handleCambiarStage = async (nuevoStageId: string, nuevoPipelineId: string) => {
+  const handleCambiarStage = async (
+    nuevoStageId: string,
+    nuevoPipelineId: string,
+    nuevoStageNombre: string,
+    nuevoStageColor: string | null,
+  ) => {
     if (nuevoStageId === stageActualId && nuevoPipelineId === pipelineActualId) return;
 
     const camposDestinoPipeline = todosPipelines.find((p) => p.id === nuevoPipelineId)?.campos ?? [];
     const camposFaltantes = validarCamposRequeridos(camposDestinoPipeline, nuevoStageId, metadata);
     if (camposFaltantes.length > 0) {
-      toast.error(`Debes completar los campos obligatorios antes de continuar: ${camposFaltantes.join(", ")}`);
+      setBloqueoPendiente({ stageNombre: nuevoStageNombre, stageColor: nuevoStageColor, campos: camposFaltantes });
       return;
     }
 
@@ -490,7 +502,7 @@ function PanelFormulario({
                 {camposPipeline.length > 0 && (
                   <>
                     <div className="h-px bg-stone-100 dark:bg-white/8" />
-                    <div className="space-y-4">
+                    <div ref={camposRef} className="space-y-4">
                       <div className="flex items-center gap-2">
                         <div className="flex items-center justify-center h-5 w-5 rounded-md flex-shrink-0 bg-lime-500/10">
                           <Layers className="h-3 w-3 text-lime-500" />
@@ -556,6 +568,21 @@ function PanelFormulario({
           />
         </div>
       </Tabs>
+
+      <DialogCamposRequeridos
+        open={bloqueoPendiente !== null}
+        onClose={() => setBloqueoPendiente(null)}
+        stageNombre={bloqueoPendiente?.stageNombre ?? ""}
+        stageColor={bloqueoPendiente?.stageColor}
+        camposFaltantes={bloqueoPendiente?.campos ?? []}
+        onIrACampos={
+          camposPipeline.length > 0
+            ? () => {
+                setTimeout(() => camposRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+              }
+            : undefined
+        }
+      />
     </>
   );
 }

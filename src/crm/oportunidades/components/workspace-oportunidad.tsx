@@ -45,6 +45,7 @@ import type { Oportunidad } from "../types";
 import type { PipelineConStages } from "@/crm/pipeline/types";
 import { validarCamposRequeridos } from "./campos-dinamicos";
 import { CamposDinamicos } from "./campos-dinamicos";
+import { DialogCamposRequeridos } from "./dialog-campos-requeridos";
 import { GestorContactosPanel, type ContactoEnPanel } from "./gestor-contactos-panel";
 import {
   obtenerConversacionesPorOportunidadAction,
@@ -264,6 +265,12 @@ function WorkspaceContenido({
   );
   const [tagIds, setTagIds] = useState<string[]>(data.tagIds);
   const [guardandoStage, setGuardandoStage] = useState(false);
+  const [bloqueoPendiente, setBloqueoPendiente] = useState<{
+    stageNombre: string;
+    stageColor: string | null;
+    campos: string[];
+  } | null>(null);
+  const camposSeccionRef = useRef<HTMLDivElement>(null);
   const [secciones, setSecciones] = useState({
     info: true,
     contactos: false,
@@ -303,13 +310,18 @@ function WorkspaceContenido({
   const toggleSeccion = (key: keyof typeof secciones) =>
     setSecciones((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  const handleCambiarStage = (nuevoStageId: string, nuevoPipelineId: string) => {
+  const handleCambiarStage = (
+    nuevoStageId: string,
+    nuevoPipelineId: string,
+    nuevoStageNombre: string,
+    nuevoStageColor: string | null,
+  ) => {
     if (nuevoStageId === stageActualId && nuevoPipelineId === pipelineActualId) return;
 
     const camposDestinoPipeline = todosPipelines.find((p) => p.id === nuevoPipelineId)?.campos ?? [];
     const camposFaltantes = validarCamposRequeridos(camposDestinoPipeline, nuevoStageId, metadata);
     if (camposFaltantes.length > 0) {
-      toast.error(`Debes completar los campos obligatorios antes de continuar: ${camposFaltantes.join(", ")}`);
+      setBloqueoPendiente({ stageNombre: nuevoStageNombre, stageColor: nuevoStageColor, campos: camposFaltantes });
       return;
     }
 
@@ -772,23 +784,25 @@ function WorkspaceContenido({
 
                 {/* ── Campos personalizados del pipeline ───────────── */}
                 {camposPipeline.length > 0 && (
-                  <Seccion
-                    titulo="Campos"
-                    icono={<Layers className="h-3 w-3" />}
-                    abierto={secciones.campos}
-                    onToggle={() => toggleSeccion("campos")}
-                  >
-                    <div className="pt-1">
-                      <CamposDinamicos
-                        campos={camposPipeline}
-                        stageId={stageActualId}
-                        valores={metadata}
-                        onChange={(clave, valor) =>
-                          setMetadata((prev) => ({ ...prev, [clave]: valor }))
-                        }
-                      />
-                    </div>
-                  </Seccion>
+                  <div ref={camposSeccionRef}>
+                    <Seccion
+                      titulo="Campos"
+                      icono={<Layers className="h-3 w-3" />}
+                      abierto={secciones.campos}
+                      onToggle={() => toggleSeccion("campos")}
+                    >
+                      <div className="pt-1">
+                        <CamposDinamicos
+                          campos={camposPipeline}
+                          stageId={stageActualId}
+                          valores={metadata}
+                          onChange={(clave, valor) =>
+                            setMetadata((prev) => ({ ...prev, [clave]: valor }))
+                          }
+                        />
+                      </div>
+                    </Seccion>
+                  </div>
                 )}
               </div>
 
@@ -827,6 +841,18 @@ function WorkspaceContenido({
           </Form>
         </div>
       </div>
+
+      <DialogCamposRequeridos
+        open={bloqueoPendiente !== null}
+        onClose={() => setBloqueoPendiente(null)}
+        stageNombre={bloqueoPendiente?.stageNombre ?? ""}
+        stageColor={bloqueoPendiente?.stageColor}
+        camposFaltantes={bloqueoPendiente?.campos ?? []}
+        onIrACampos={() => {
+          setSecciones((prev) => ({ ...prev, campos: true }));
+          setTimeout(() => camposSeccionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+        }}
+      />
     </div>
   );
 }

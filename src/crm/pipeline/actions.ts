@@ -126,10 +126,40 @@ export async function reordenarStages(pipelineId: string, stageIds: string[]) {
 
 export async function moverAStage(oportunidadId: string, stageId: string, pipelineId: string) {
   try {
-    const stage = await prisma.pipelineStage.findUnique({
-      where: { id: stageId },
-      select: { probabilidad: true, esGanado: true, esPerdido: true },
-    });
+    const [stage, todosCampos, oportunidad] = await Promise.all([
+      prisma.pipelineStage.findUnique({
+        where: { id: stageId },
+        select: { nombre: true, probabilidad: true, esGanado: true, esPerdido: true },
+      }),
+      prisma.campoPersonalizado.findMany({
+        where: { pipelineId, activo: true },
+        select: { nombre: true, clave: true, requeridoEn: true },
+      }),
+      prisma.oportunidad.findUnique({
+        where: { id: oportunidadId },
+        select: { metadata: true },
+      }),
+    ]);
+
+    // Validar campos requeridos para el stage destino
+    const camposRequeridos = todosCampos.filter(
+      (c) => Array.isArray(c.requeridoEn) && (c.requeridoEn as string[]).includes(stageId)
+    );
+    if (camposRequeridos.length > 0) {
+      const metadata = (oportunidad?.metadata as Record<string, unknown>) ?? {};
+      const faltantes = camposRequeridos
+        .filter((c) => {
+          const v = metadata[c.clave];
+          return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+        })
+        .map((c) => c.nombre);
+      if (faltantes.length > 0) {
+        return {
+          exito: false as const,
+          error: `Para avanzar a "${stage?.nombre ?? stageId}" debes completar: ${faltantes.join(", ")}`,
+        };
+      }
+    }
 
     const ahora = new Date();
     await prisma.oportunidad.update({
