@@ -3,6 +3,7 @@
  * Conserva: Instancia, Usuario, UsuarioInstancia, Pipeline, PipelineStage
  * Borra: todo lo demás (datos CRM, conversaciones, productos, config, etc.)
  */
+import 'dotenv/config'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../src/generated/prisma/client'
 

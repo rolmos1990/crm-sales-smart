@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CRM Sales Smart",
+  title: "Vento",
   description: "Gestión de clientes, oportunidades y ventas",
 };
 

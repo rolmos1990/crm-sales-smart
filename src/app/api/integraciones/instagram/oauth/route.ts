@@ -7,7 +7,8 @@ const SCOPES = [
   "instagram_basic",
   "instagram_manage_messages",
   "pages_show_list",
-  "pages_read_engagement",
+  "pages_manage_metadata",
+  "pages_messaging",
 ].join(",");
 
 /**
@@ -18,14 +19,14 @@ const SCOPES = [
  * Variables de entorno requeridas (solo en el servidor):
  *   META_APP_ID      — App ID de Meta for Developers
  *   META_APP_SECRET  — App Secret
- *   STORAGE_URL      — URL pública del servidor (ej: https://micrm.com)
+ *   APP_URL          — URL pública del servidor (ej: https://micrm.com)
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const instanciaId = searchParams.get("instanciaId");
 
   const appId = process.env.META_APP_ID;
-  const appUrl = process.env.STORAGE_URL ?? "";
+  const appUrl = process.env.APP_URL ?? "";
 
   if (!appId || !appUrl) {
     return NextResponse.redirect(

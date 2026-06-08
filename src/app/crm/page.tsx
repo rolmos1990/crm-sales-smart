@@ -389,7 +389,7 @@ export default function DashboardPage() {
         </h1>
         <p className="text-sm text-stone-500 dark:text-stone-400 mt-0.5">
           Bienvenido a{" "}
-          <span className="text-lime-600 dark:text-lime-400 font-medium">CRM Sales Smart</span>
+          <span className="text-lime-600 dark:text-lime-400 font-medium">Vento</span>
         </p>
       </div>
 

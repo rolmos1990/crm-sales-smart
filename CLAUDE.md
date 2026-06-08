@@ -1,8 +1,8 @@
-# CRM Sales Smart — Guía para Claude
+# Vento — Guía para Claude
 
 ## Descripción del proyecto
 
-**CRM Sales Smart** es una aplicación web de CRM (Customer Relationship Management) y ventas construida con Next.js 16 App Router, TypeScript, Prisma ORM sobre PostgreSQL y shadcn/ui.
+**Vento** es una aplicación web de CRM (Customer Relationship Management) y ventas construida con Next.js 16 App Router, TypeScript, Prisma ORM sobre PostgreSQL y shadcn/ui.
 
 El sistema gestiona:
 - **CRM**: contactos, empresas, oportunidades, actividades y pipeline Kanban

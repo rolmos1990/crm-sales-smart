@@ -19,7 +19,7 @@ const IG_GRAPH = "https://graph.facebook.com/v20.0";
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const appUrl = process.env.STORAGE_URL ?? "";
+  const appUrl = process.env.APP_URL ?? "";
   const returnBase = `${appUrl}/integraciones/instagram`;
 
   // ── Errores devueltos por Meta (usuario canceló, etc.) ────────────────────
@@ -146,6 +146,18 @@ export async function GET(req: NextRequest) {
             configuracion: configuracion as never,
           },
         });
+      }
+
+      // Suscribir la página al webhook para recibir DMs de Instagram
+      const subRes = await fetch(
+        `${IG_GRAPH}/${page.id}/subscribed_apps?subscribed_fields=messages&access_token=${page.access_token}`,
+        { method: "POST", cache: "no-store" }
+      );
+      const subJson = await subRes.json() as { success?: boolean; error?: unknown };
+      if (subJson.success) {
+        console.log(`[IG OAuth] Página ${page.id} suscrita al webhook messages ✓`);
+      } else {
+        console.warn(`[IG OAuth] Suscripción falló para página ${page.id}:`, subJson.error);
       }
 
       cuentasConectadas++;

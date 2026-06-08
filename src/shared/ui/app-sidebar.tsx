@@ -105,7 +105,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </div>
             <div className="flex flex-col leading-none">
               <span className="text-sm font-bold text-stone-900 dark:text-stone-50 tracking-tight">
-                CRM Smart
+                Vento
               </span>
               <span className="text-[0.6rem] text-stone-400 dark:text-stone-500 tracking-wide mt-0.5">
                 Sales Management
@@ -150,7 +150,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <header className="h-14 border-b border-stone-200 dark:border-white/8 flex items-center px-6 gap-4 flex-shrink-0 bg-white/80 dark:bg-stone-950/50 dark:backdrop-blur-xl">
           <div className="flex-1" />
           <div className="flex items-center gap-3 text-sm text-stone-500 dark:text-stone-400">
-            <span className="hidden sm:block text-xs">CRM Sales Smart</span>
+            <span className="hidden sm:block text-xs">Vento</span>
             <div className="md:hidden">
               <ThemeToggle />
             </div>
