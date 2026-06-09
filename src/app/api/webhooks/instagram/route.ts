@@ -43,6 +43,14 @@ export async function GET(req: NextRequest) {
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
+  console.log(JSON.stringify({
+    event: "IG_WEBHOOK_GET",
+    ts: new Date().toISOString(),
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries()),
+    params: { mode, token: token ? "***" : null, challenge },
+  }, null, 2));
+
   if (mode === "subscribe" && token === process.env.WEBHOOK_VERIFY_TOKEN) {
     console.log("[IG Webhook] Verificación exitosa");
     return new Response(challenge ?? "", { status: 200 });
@@ -55,16 +63,27 @@ export async function GET(req: NextRequest) {
 // ── POST: mensajes entrantes en batch de Meta ─────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const rawText = await req.text();
+
+  console.log(JSON.stringify({
+    event: "IG_WEBHOOK_POST",
+    ts: new Date().toISOString(),
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries()),
+    body: (() => { try { return JSON.parse(rawText); } catch { return rawText; } })(),
+  }, null, 2));
+
   let body: unknown;
   try {
-    body = await req.json();
+    body = JSON.parse(rawText);
   } catch {
     return NextResponse.json({ error: "Body inválido" }, { status: 400 });
   }
 
   const payload = body as IGWebhookPayload;
 
-  if (payload.object !== "instagram") {
+  // Aceptar tanto "instagram" (DMs clásicos) como "page" (Instagram via Facebook Page)
+  if (payload.object !== "instagram" && payload.object !== "page") {
     return NextResponse.json({ ok: true });
   }
 
@@ -75,16 +94,25 @@ export async function POST(req: NextRequest) {
   }
 
   for (const entry of payload.entry ?? []) {
-    const igBusinessAccountId = entry.id;
-
-    // Buscar CuentaCanal por el Instagram Business Account ID
-    const cuentaCanal = await prisma.cuentaCanal.findFirst({
-      where: { canal: "instagram", identificador: igBusinessAccountId, activa: true },
-      select: { id: true, instanciaId: true },
-    });
+    // object:"instagram" → entry.id es el Instagram Business Account ID
+    // object:"page"      → entry.id es el Facebook Page ID; buscar por configuracion.pageId
+    const cuentaCanal = await (payload.object === "instagram"
+      ? prisma.cuentaCanal.findFirst({
+          where: { canal: "instagram", identificador: entry.id, activa: true },
+          select: { id: true, instanciaId: true },
+        })
+      : prisma.cuentaCanal.findFirst({
+          where: {
+            canal: "instagram",
+            activa: true,
+            configuracion: { path: ["pageId"], equals: entry.id },
+          },
+          select: { id: true, instanciaId: true },
+        })
+    );
 
     if (!cuentaCanal) {
-      console.log(`[IG Webhook] CuentaCanal no encontrada para igBusinessAccountId: ${igBusinessAccountId}`);
+      console.log(`[IG Webhook] CuentaCanal no encontrada para id: ${entry.id} (object: ${payload.object})`);
       continue;
     }
 
