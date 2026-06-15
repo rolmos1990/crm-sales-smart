@@ -12,9 +12,9 @@ const IG_GRAPH = "https://graph.facebook.com/v20.0";
  * 1. Verifica el nonce (CSRF)
  * 2. Intercambia el code por un user access token
  * 3. Eleva a long-lived token
- * 4. Obtiene todas las Páginas de Facebook del usuario
- * 5. Para cada Página, busca la cuenta de Instagram Business vinculada
- * 6. Guarda cada cuenta en CuentaCanal
+ * 4. Intenta vía Pages → instagram_business_account (flujo clásico)
+ * 5. Fallback: vía /me/instagram_accounts (flujo nuevo Meta con selección directa)
+ * 6. Guarda cada cuenta en CuentaCanal y suscribe el webhook
  * 7. Redirige a /integraciones/instagram con resultado
  */
 export async function GET(req: NextRequest) {
@@ -95,77 +95,108 @@ export async function GET(req: NextRequest) {
     };
 
     const pages = pagesJson.data ?? [];
+
+    console.log("[IG OAuth] Páginas encontradas:", JSON.stringify(
+      pages.map(p => ({
+        id: p.id,
+        name: p.name,
+        instagram_business_account: p.instagram_business_account ?? null,
+      })),
+      null, 2
+    ));
+
     let cuentasConectadas = 0;
 
-    // ── 4. Conectar cada cuenta de Instagram Business encontrada ─────────
+    // ── 4. Flujo clásico: Instagram vinculado a Página de Facebook ────────
     for (const page of pages) {
       const igId = page.instagram_business_account?.id;
-      if (!igId) continue;
-
-      // Obtener username y foto de perfil
-      const igRes = await fetch(
-        `${IG_GRAPH}/${igId}?fields=id,username,profile_picture_url` +
-        `&access_token=${page.access_token}`,
-        { cache: "no-store" }
-      );
-      const igJson = await igRes.json() as {
-        id?: string;
-        username?: string;
-        profile_picture_url?: string;
-      };
-
-      const nombre = igJson.username ? `@${igJson.username}` : page.name;
-      const configuracion = {
-        accessToken: page.access_token,
-        instagramBusinessAccountId: igId,
+      if (!igId) {
+        console.warn(`[IG OAuth] Página "${page.name}" (${page.id}) sin instagram_business_account`);
+        continue;
+      }
+      cuentasConectadas += await conectarCuentaIG({
+        igId,
+        pageAccessToken: page.access_token,
         pageId: page.id,
         pageName: page.name,
-        username: igJson.username,
-        profilePicUrl: igJson.profile_picture_url,
+        instanciaId,
+      });
+    }
+
+    // ── 5. Fallback: Business Manager API ────────────────────────────────
+    // Las páginas gestionadas a través de Business Manager no aparecen en
+    // /me/accounts. Se deben buscar via /me/businesses → /{biz-id}/owned_pages.
+    if (cuentasConectadas === 0) {
+      console.log("[IG OAuth] Intentando vía Business Manager API...");
+
+      const bizRes = await fetch(
+        `${IG_GRAPH}/me/businesses?fields=id,name&access_token=${userToken}`,
+        { cache: "no-store" }
+      );
+      const bizJson = await bizRes.json() as {
+        data?: Array<{ id: string; name: string }>;
+        error?: unknown;
       };
 
-      // Upsert: si ya existe la cuenta, actualizar el token; si no, crear
-      const existente = await prisma.cuentaCanal.findFirst({
-        where: { canal: "instagram", identificador: igId, instanciaId },
-        select: { id: true },
-      });
+      if (bizJson.error) {
+        console.warn("[IG OAuth] /me/businesses error:", bizJson.error);
+      }
 
-      if (existente) {
-        await prisma.cuentaCanal.update({
-          where: { id: existente.id },
-          data: { activa: true, nombre, configuracion: configuracion as never },
-        });
-      } else {
-        await prisma.cuentaCanal.create({
-          data: {
+      const businesses = bizJson.data ?? [];
+      console.log("[IG OAuth] Businesses:", businesses.map(b => `${b.name} (${b.id})`));
+
+      for (const biz of businesses) {
+        // Obtener páginas del Business Manager (owned + client)
+        const [ownedRes, clientRes] = await Promise.all([
+          fetch(
+            `${IG_GRAPH}/${biz.id}/owned_pages` +
+            `?fields=id,name,access_token,instagram_business_account` +
+            `&access_token=${userToken}`,
+            { cache: "no-store" }
+          ),
+          fetch(
+            `${IG_GRAPH}/${biz.id}/client_pages` +
+            `?fields=id,name,access_token,instagram_business_account` +
+            `&access_token=${userToken}`,
+            { cache: "no-store" }
+          ),
+        ]);
+
+        const [ownedJson, clientJson] = await Promise.all([
+          ownedRes.json() as Promise<{ data?: Array<{ id: string; name: string; access_token: string; instagram_business_account?: { id: string } }> }>,
+          clientRes.json() as Promise<{ data?: Array<{ id: string; name: string; access_token: string; instagram_business_account?: { id: string } }> }>,
+        ]);
+
+        const bizPages = [...(ownedJson.data ?? []), ...(clientJson.data ?? [])];
+
+        console.log(`[IG OAuth] Business "${biz.name}" páginas:`, JSON.stringify(
+          bizPages.map(p => ({
+            id: p.id,
+            name: p.name,
+            instagram_business_account: p.instagram_business_account ?? null,
+          })),
+          null, 2
+        ));
+
+        for (const page of bizPages) {
+          const igId = page.instagram_business_account?.id;
+          if (!igId) {
+            console.warn(`[IG OAuth] Página "${page.name}" (${page.id}) sin instagram_business_account`);
+            continue;
+          }
+          cuentasConectadas += await conectarCuentaIG({
+            igId,
+            pageAccessToken: page.access_token,
+            pageId: page.id,
+            pageName: page.name,
             instanciaId,
-            canal: "instagram",
-            nombre,
-            identificador: igId,
-            activa: true,
-            configuracion: configuracion as never,
-          },
-        });
+          });
+        }
       }
-
-      // Suscribir la página al webhook para recibir DMs de Instagram
-      const subRes = await fetch(
-        `${IG_GRAPH}/${page.id}/subscribed_apps?subscribed_fields=messages&access_token=${page.access_token}`,
-        { method: "POST", cache: "no-store" }
-      );
-      const subJson = await subRes.json() as { success?: boolean; error?: unknown };
-      if (subJson.success) {
-        console.log(`[IG OAuth] Página ${page.id} suscrita al webhook messages ✓`);
-      } else {
-        console.warn(`[IG OAuth] Suscripción falló para página ${page.id}:`, subJson.error);
-      }
-
-      cuentasConectadas++;
-      console.log(`[IG OAuth] Cuenta conectada: ${nombre} (${igId})`);
     }
 
     if (cuentasConectadas === 0) {
-      console.warn("[IG OAuth] No se encontraron cuentas de Instagram Business en las páginas del usuario");
+      console.warn("[IG OAuth] No se encontraron cuentas de Instagram Business");
       return redirect(returnBase, "sin_instagram");
     }
 
@@ -180,6 +211,95 @@ export async function GET(req: NextRequest) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+interface ConectarCuentaIGParams {
+  igId: string;
+  pageAccessToken: string;
+  pageId: string;
+  pageName: string;
+  instanciaId: string;
+  usernameOverride?: string;
+  profilePicOverride?: string;
+}
+
+async function conectarCuentaIG({
+  igId,
+  pageAccessToken,
+  pageId,
+  pageName,
+  instanciaId,
+  usernameOverride,
+  profilePicOverride,
+}: ConectarCuentaIGParams): Promise<number> {
+  let username = usernameOverride;
+  let profilePicUrl = profilePicOverride;
+
+  // Obtener datos del perfil si no los tenemos
+  if (!username) {
+    const igRes = await fetch(
+      `${IG_GRAPH}/${igId}?fields=id,username,profile_picture_url` +
+      `&access_token=${pageAccessToken}`,
+      { cache: "no-store" }
+    );
+    const igJson = await igRes.json() as {
+      id?: string;
+      username?: string;
+      profile_picture_url?: string;
+    };
+    username = igJson.username;
+    profilePicUrl = igJson.profile_picture_url;
+  }
+
+  const nombre = username ? `@${username}` : pageName || `IG:${igId}`;
+  const configuracion = {
+    accessToken: pageAccessToken,
+    instagramBusinessAccountId: igId,
+    pageId,
+    pageName,
+    username,
+    profilePicUrl,
+  };
+
+  const existente = await prisma.cuentaCanal.findFirst({
+    where: { canal: "instagram", identificador: igId, instanciaId },
+    select: { id: true },
+  });
+
+  if (existente) {
+    await prisma.cuentaCanal.update({
+      where: { id: existente.id },
+      data: { activa: true, nombre, configuracion: configuracion as never },
+    });
+  } else {
+    await prisma.cuentaCanal.create({
+      data: {
+        instanciaId,
+        canal: "instagram",
+        nombre,
+        identificador: igId,
+        activa: true,
+        configuracion: configuracion as never,
+      },
+    });
+  }
+
+  // Suscribir la página al webhook si tenemos pageId
+  if (pageId) {
+    const subRes = await fetch(
+      `${IG_GRAPH}/${pageId}/subscribed_apps?subscribed_fields=messages&access_token=${pageAccessToken}`,
+      { method: "POST", cache: "no-store" }
+    );
+    const subJson = await subRes.json() as { success?: boolean; error?: unknown };
+    if (subJson.success) {
+      console.log(`[IG OAuth] Página ${pageId} suscrita al webhook messages ✓`);
+    } else {
+      console.warn(`[IG OAuth] Suscripción webhook falló para página ${pageId}:`, subJson.error);
+    }
+  }
+
+  console.log(`[IG OAuth] Cuenta conectada: ${nombre} (${igId})`);
+  return 1;
+}
 
 function redirect(base: string, error: string | null, conectadas?: number): NextResponse {
   const url = new URL(base);
