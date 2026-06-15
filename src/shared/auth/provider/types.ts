@@ -14,5 +14,7 @@ export type ResultadoAuthLogin =
 export interface AuthProvider {
   obtenerUsuarioActual(): Promise<AuthUsuario | null>;
   iniciarSesionConPassword(email: string, password: string): Promise<ResultadoAuthLogin>;
+  registrarUsuario(email: string, password: string): Promise<ResultadoAuthLogin>;
+  eliminarUsuarioAuth(authUserId: string): Promise<void>;
   cerrarSesion(): Promise<void>;
 }

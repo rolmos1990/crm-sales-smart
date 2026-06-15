@@ -14,6 +14,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { generarSlug } from "../src/shared/lib/slug";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -27,15 +28,6 @@ function leerArgumento(nombre: string): string | undefined {
   if (indice !== -1) return process.argv[indice + 1];
 
   return undefined;
-}
-
-function generarSlug(nombre: string): string {
-  return nombre
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
 }
 
 async function main() {

@@ -1,34 +1,32 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FormLogin } from "@/shared/auth/components/form-login";
+import { FormRegistro } from "@/shared/auth/components/form-registro";
 import { AuthLayout } from "@/shared/auth/components/auth-layout";
 
 export const metadata: Metadata = {
-  title: "Iniciar sesión — Vento",
+  title: "Crea tu cuenta — Vento",
 };
 
-export default function LoginPage() {
+export default function RegistroPage() {
   return (
     <AuthLayout>
       <div className="mb-8 space-y-1 text-center lg:text-left">
         <h2 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
-          Bienvenido de vuelta
+          Crea tu cuenta
         </h2>
-        <p className="text-sm text-muted-foreground">Inicia sesión para continuar</p>
+        <p className="text-sm text-muted-foreground">Configura tu empresa en minutos</p>
       </div>
 
       <Suspense>
-        <FormLogin />
+        <FormRegistro />
       </Suspense>
 
       <p className="mt-6 text-center text-sm text-muted-foreground lg:text-left">
-        ¿No tienes cuenta?{" "}
-        <Link href="/registro" className="font-medium text-lime-600 hover:underline dark:text-lime-400">
-          Crea tu empresa
+        ¿Ya tienes cuenta?{" "}
+        <Link href="/login" className="font-medium text-lime-600 hover:underline dark:text-lime-400">
+          Inicia sesión
         </Link>
-        . Si eres parte de un equipo existente, solicita una invitación al administrador de tu
-        instancia.
       </p>
     </AuthLayout>
   );

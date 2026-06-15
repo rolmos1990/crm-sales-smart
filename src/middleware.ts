@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { refrescarSesion } from "@/shared/auth/provider";
 
 // Rutas públicas que no requieren sesión activa.
-const RUTAS_PUBLICAS = ["/login", "/auth/callback", "/auth/invitacion"];
+const RUTAS_PUBLICAS = ["/login", "/registro", "/auth/callback", "/auth/invitacion"];
 
 function esRutaPublica(pathname: string) {
   return RUTAS_PUBLICAS.some((ruta) => pathname.startsWith(ruta));

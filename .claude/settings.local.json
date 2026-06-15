@@ -87,7 +87,9 @@
       "Bash(npx --yes playwright --version)",
       "Bash(node -e \"require\\('playwright'\\)\")",
       "Bash(npm init *)",
-      "Bash(node shot.mjs)"
+      "Bash(node shot.mjs)",
+      "Bash(grep -rn \"from \\\\\"@/\\\\|from '@/\" scripts/*.ts)",
+      "Bash(git stash *)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
