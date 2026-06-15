@@ -1,0 +1,36 @@
+import { type NextRequest, NextResponse } from "next/server";
+import { refrescarSesion } from "@/shared/auth/provider";
+
+// Rutas públicas que no requieren sesión activa.
+const RUTAS_PUBLICAS = ["/login", "/auth/callback", "/auth/invitacion"];
+
+function esRutaPublica(pathname: string) {
+  return RUTAS_PUBLICAS.some((ruta) => pathname.startsWith(ruta));
+}
+
+export async function middleware(request: NextRequest) {
+  const { response, usuario } = await refrescarSesion(request);
+  const { pathname } = request.nextUrl;
+
+  if (!usuario && !esRutaPublica(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  if (usuario && pathname === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/crm";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};

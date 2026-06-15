@@ -89,6 +89,13 @@ enum EstadoInstancia {
   SUSPENDIDA
 }
 
+enum EstadoUsuario {
+  ACTIVO
+  INVITADO
+  SUSPENDIDO
+  BLOQUEADO
+}
+
 enum EstadoIntegracion {
   INSTALADA
   ACTIVA
@@ -161,8 +168,8 @@ enum EstadoMensaje {
 }
 
 enum TipoReaccion {
-  CANAL    // sincroniza con canal externo (WhatsApp)
-  INTERNA  // solo visible en CRM
+  CANAL // sincroniza con canal externo (WhatsApp)
+  INTERNA // solo visible en CRM
 }
 
 // =====================
@@ -212,13 +219,21 @@ model Instancia {
 // =====================
 
 model Usuario {
-  id            String   @id @default(cuid())
-  nombre        String
-  email         String   @unique
-  passwordHash  String
-  rol           Rol      @default(AGENTE)
-  activo        Boolean  @default(true)
-  creadoEn      DateTime @default(now())
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String?
+  rol          Rol      @default(AGENTE)
+  activo       Boolean  @default(true)
+  creadoEn     DateTime @default(now())
+
+  // Autenticación (proveedor externo, ej. Supabase)
+  authUserId       String?       @unique
+  estado           EstadoUsuario @default(INVITADO)
+  intentosFallidos Int           @default(0)
+  bloqueadoHasta   DateTime?
+  nivelBloqueo     Int           @default(0)
+  ultimoLogin      DateTime?
 
   instancias    UsuarioInstancia[]
   empresas      Empresa[]
@@ -295,20 +310,20 @@ model Empresa {
 }
 
 model Contacto {
-  id            String         @id @default(cuid())
+  id                 String         @id @default(cuid())
   nombre             String
   apellido           String
   email              String?
   telefonoPrincipal  String?
   telefonoSecundario String?
   cargo              String?
-  notas         String?
-  estado        EstadoContacto @default(LEAD)
-  activo        Boolean        @default(true)
-  avatarUrl     String?
-  metadata      Json?
-  creadoEn      DateTime       @default(now())
-  actualizadoEn DateTime       @updatedAt
+  notas              String?
+  estado             EstadoContacto @default(LEAD)
+  activo             Boolean        @default(true)
+  avatarUrl          String?
+  metadata           Json?
+  creadoEn           DateTime       @default(now())
+  actualizadoEn      DateTime       @updatedAt
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])
@@ -395,17 +410,17 @@ model PipelineStage {
 // =====================
 
 model Oportunidad {
-  id            String    @id @default(cuid())
-  titulo        String
-  descripcion   String?
-  valor         Decimal   @default(0)
-  moneda        String    @default("PEN")
-  etapa         Etapa     @default(PROSPECTO)
-  probabilidad  Int       @default(20)
-  fechaCierre   DateTime?
-  fechaGanada   DateTime?
-  fechaPerdida  DateTime?
-  notas         String?
+  id                  String    @id @default(cuid())
+  titulo              String
+  descripcion         String?
+  valor               Decimal   @default(0)
+  moneda              String    @default("PEN")
+  etapa               Etapa     @default(PROSPECTO)
+  probabilidad        Int       @default(20)
+  fechaCierre         DateTime?
+  fechaGanada         DateTime?
+  fechaPerdida        DateTime?
+  notas               String?
   motivoPerdida       String?
   metadata            Json?
   nuevoMensaje        Boolean   @default(false)
@@ -481,11 +496,11 @@ model OportunidadProducto {
 // =====================
 
 model Tag {
-  id        String   @id @default(cuid())
-  nombre    String
-  color     String?
-  activo    Boolean  @default(true)
-  creadoEn  DateTime @default(now())
+  id       String   @id @default(cuid())
+  nombre   String
+  color    String?
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now())
 
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -734,9 +749,9 @@ model CotizacionLinea {
 // =====================
 
 model Pedido {
-  id            String       @id @default(cuid())
-  numero        String       @unique
-  estado        EstadoPedido @default(PENDIENTE)
+  id     String       @id @default(cuid())
+  numero String       @unique
+  estado EstadoPedido @default(PENDIENTE)
 
   // Datos del comprador (pedido manual sin contacto en sistema)
   nombre        String?
@@ -746,26 +761,26 @@ model Pedido {
   ruc           String?
   empresaNombre String?
 
-  fechaPedido   DateTime     @default(now())
+  fechaPedido   DateTime  @default(now())
   fechaEntrega  DateTime?
-  subtotal      Decimal      @default(0)
-  descuento     Decimal      @default(0)
-  impuesto      Decimal      @default(0)
-  total         Decimal      @default(0)
-  moneda        String       @default("PEN")
+  subtotal      Decimal   @default(0)
+  descuento     Decimal   @default(0)
+  impuesto      Decimal   @default(0)
+  total         Decimal   @default(0)
+  moneda        String    @default("PEN")
   notas         String?
   metadata      Json?
-  creadoEn      DateTime     @default(now())
-  actualizadoEn DateTime     @updatedAt
+  creadoEn      DateTime  @default(now())
+  actualizadoEn DateTime  @updatedAt
 
   contactoId String?
-  contacto   Contacto?   @relation(fields: [contactoId], references: [id])
+  contacto   Contacto? @relation(fields: [contactoId], references: [id])
 
   empresaId String?
-  empresa   Empresa?    @relation(fields: [empresaId], references: [id])
+  empresa   Empresa? @relation(fields: [empresaId], references: [id])
 
   usuarioId String?
-  usuario   Usuario?    @relation(fields: [usuarioId], references: [id])
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
 
   cotizacionId String?
   cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
@@ -801,7 +816,7 @@ model PedidoLinea {
   metadata       Json?
 
   pedidoId String
-  pedido   Pedido    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   productoId String?
   producto   Producto? @relation(fields: [productoId], references: [id])
@@ -844,8 +859,8 @@ model Disparador {
   creadoEn      DateTime             @default(now())
   actualizadoEn DateTime             @updatedAt
 
-  stageId    String
-  stage      PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  stageId String
+  stage   PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
   pipelineId String
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
@@ -857,14 +872,14 @@ model Disparador {
 }
 
 model DisparadorJob {
-  id           String              @id @default(cuid())
-  estado       EstadoDisparadorJob @default(PENDIENTE)
-  ejecutarEn   DateTime
-  payload      Json
-  resultado    Json?
-  error        String?
-  creadoEn     DateTime            @default(now())
-  procesadoEn  DateTime?
+  id          String              @id @default(cuid())
+  estado      EstadoDisparadorJob @default(PENDIENTE)
+  ejecutarEn  DateTime
+  payload     Json
+  resultado   Json?
+  error       String?
+  creadoEn    DateTime            @default(now())
+  procesadoEn DateTime?
 
   disparadorId String
   disparador   Disparador @relation(fields: [disparadorId], references: [id])
@@ -950,8 +965,8 @@ model PlantillaCRM {
   creadoEn       DateTime      @default(now())
   actualizadoEn  DateTime      @updatedAt
 
-  instanciaId      String
-  instancia        Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
   creadoPorId      String?
   actualizadoPorId String?
@@ -974,37 +989,37 @@ model MediaArchivo {
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
   // Módulo de origen
-  modulo      String  // "productos" | "plantillas" | "logos" | "conversaciones" | ...
+  modulo      String // "productos" | "plantillas" | "logos" | "conversaciones" | ...
   entidadTipo String? // tipo de entidad relacionada, ej: "producto"
   entidadId   String? // ID de la entidad relacionada
 
   // Archivo original
-  nombreOriginal  String
-  mimeOriginal    String
-  pesoOriginal    Int
-  anchoOriginal   Int?
-  altoOriginal    Int?
+  nombreOriginal String
+  mimeOriginal   String
+  pesoOriginal   Int
+  anchoOriginal  Int?
+  altoOriginal   Int?
 
   // Archivo procesado
-  mimeOptimizado  String       @default("image/webp")
-  pesoOptimizado  Int?
-  ancho           Int?
-  alto            Int?
+  mimeOptimizado String @default("image/webp")
+  pesoOptimizado Int?
+  ancho          Int?
+  alto           Int?
 
   // URLs de storage
-  keyOptimizado   String  // clave en el storage (ej: {instanciaId}/productos/optimized/{id}.webp)
-  keyThumbnail    String? // clave del thumbnail
-  keyOriginal     String? // clave del original (si se guarda)
+  keyOptimizado String // clave en el storage (ej: {instanciaId}/productos/optimized/{id}.webp)
+  keyThumbnail  String? // clave del thumbnail
+  keyOriginal   String? // clave del original (si se guarda)
 
-  urlOptimizada   String
-  urlThumbnail    String?
-  urlOriginal     String?
+  urlOptimizada String
+  urlThumbnail  String?
+  urlOriginal   String?
 
   // Metadatos
-  hash            String       // SHA-256 del buffer original para deduplicación
-  proveedor       String       @default("local") // "r2" | "local" | "s3" | "azure"
-  canalOrigen     String?      // "web" | "whatsapp" | "instagram" | ...
-  estadoProcesado EstadoMedia  @default(LISTO)
+  hash            String // SHA-256 del buffer original para deduplicación
+  proveedor       String      @default("local") // "r2" | "local" | "s3" | "azure"
+  canalOrigen     String? // "web" | "whatsapp" | "instagram" | ...
+  estadoProcesado EstadoMedia @default(LISTO)
   errorMensaje    String?
 
   // Relación con contacto (para cascade delete y limpieza de storage)
@@ -1033,9 +1048,9 @@ model MediaArchivo {
 
 // Identificador externo del contacto por canal (teléfono, email, instagramId, etc.)
 model ContactoIdentificadorCanal {
-  id            String   @id @default(cuid())
-  canal         String   // "whatsapp", "email", "instagram", "tiktok"
-  identificador String   // número, email, userId externo
+  id            String @id @default(cuid())
+  canal         String // "whatsapp", "email", "instagram", "tiktok"
+  identificador String // número, email, userId externo
 
   contactoId String
   contacto   Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
@@ -1053,10 +1068,10 @@ model ContactoIdentificadorCanal {
 // Cuenta configurada por canal (número de WhatsApp, email, cuenta Instagram, etc.)
 model CuentaCanal {
   id            String  @id @default(cuid())
-  canal         String  // "whatsapp_lite", "whatsapp_business", "email", "instagram"
-  nombre        String  // "WhatsApp Principal", "Email Ventas"
-  identificador String  // +51955..., info@empresa.com
-  configuracion Json    // tokens, credenciales
+  canal         String // "whatsapp_lite", "whatsapp_business", "email", "instagram"
+  nombre        String // "WhatsApp Principal", "Email Ventas"
+  identificador String // +51955..., info@empresa.com
+  configuracion Json // tokens, credenciales
   activa        Boolean @default(true)
 
   instanciaId String
@@ -1065,8 +1080,8 @@ model CuentaCanal {
   pipelineId String?
   pipeline   Pipeline? @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
 
-  stageId    String?
-  stage      PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  stageId String?
+  stage   PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
 
   conversaciones Conversacion[]
 
@@ -1080,18 +1095,18 @@ model CuentaCanal {
 
 // Agrupador de mensajes por contacto + canal/cuenta
 model Conversacion {
-  id             String                    @id @default(cuid())
-  asunto         String?
-  estado         EstadoConversacion        @default(ABIERTA)
-  clasificacion  ClasificacionConversacion @default(NINGUNA)
-  clasificadoEn  DateTime?
+  id               String                    @id @default(cuid())
+  asunto           String?
+  estado           EstadoConversacion        @default(ABIERTA)
+  clasificacion    ClasificacionConversacion @default(NINGUNA)
+  clasificadoEn    DateTime?
   clasificadoPorId String?
 
   oportunidadGanadaRelId String?
   oportunidadGanadaRel   Oportunidad? @relation("ConvOportunidadGanada", fields: [oportunidadGanadaRelId], references: [id], onDelete: SetNull)
 
-  contactoId    String
-  contacto      Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+  contactoId String
+  contacto   Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
 
   cuentaCanalId String?
   cuentaCanal   CuentaCanal? @relation(fields: [cuentaCanalId], references: [id])
@@ -1120,7 +1135,7 @@ model MensajeConversacion {
   remitente     RemitenteMsg
   estado        EstadoMensaje @default(ENVIADO)
   esNotaInterna Boolean       @default(false)
-  idExterno     String?       // ID del mensaje en el canal externo
+  idExterno     String? // ID del mensaje en el canal externo
 
   conversacionId String
   conversacion   Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
