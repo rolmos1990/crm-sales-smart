@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaContactos } from "@/crm/contactos/components/lista-contactos";
 import { obtenerContactos } from "@/crm/contactos/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { Contacto } from "@/crm/contactos/types";
 
 export default async function ContactosPage() {
+  const sesion = await requireSesion();
   let contactos: Contacto[] = [];
   try {
-    const datos = await obtenerContactos();
+    const datos = await obtenerContactos(sesion.instanciaId);
     contactos = datos as unknown as Contacto[];
   } catch {
     // DB no configurada aún

@@ -1,9 +1,9 @@
 import { prisma } from "@/shared/db/prisma";
 import type { Disparador, DisparadorJob } from "./types";
 
-export async function obtenerDisparadores(stageId: string): Promise<Disparador[]> {
+export async function obtenerDisparadores(stageId: string, instanciaId: string): Promise<Disparador[]> {
   const rows = await prisma.disparador.findMany({
-    where: { stageId, activo: true },
+    where: { stageId, pipeline: { instanciaId }, activo: true },
     orderBy: { orden: "asc" },
   });
   return rows.map((r) => ({
@@ -12,11 +12,11 @@ export async function obtenerDisparadores(stageId: string): Promise<Disparador[]
   }));
 }
 
-export async function obtenerDisparadoresPorPipeline(pipelineId: string): Promise<
+export async function obtenerDisparadoresPorPipeline(pipelineId: string, instanciaId: string): Promise<
   (Disparador & { jobs: Pick<DisparadorJob, "id" | "estado" | "ejecutarEn" | "creadoEn">[] })[]
 > {
   const rows = await prisma.disparador.findMany({
-    where: { pipelineId, activo: true },
+    where: { pipelineId, pipeline: { instanciaId }, activo: true },
     orderBy: [{ stageId: "asc" }, { orden: "asc" }],
     include: {
       jobs: {
@@ -36,6 +36,7 @@ export async function obtenerDisparadoresPorPipeline(pipelineId: string): Promis
   }));
 }
 
+// Usado por el worker interno — NO filtrar por instanciaId (procesa todas las instancias)
 export async function obtenerJobsPendientes(): Promise<DisparadorJob[]> {
   const rows = await prisma.disparadorJob.findMany({
     where: { estado: "PENDIENTE", ejecutarEn: { lte: new Date() } },

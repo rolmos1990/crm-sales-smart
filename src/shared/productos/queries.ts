@@ -1,20 +1,21 @@
 import { prisma } from "@/shared/db/prisma";
 import type { ProductoCatalogo } from "./types";
 
-export async function obtenerProductos() {
+export async function obtenerProductos(instanciaId: string) {
   return prisma.producto.findMany({
-    where: { activo: true },
+    where: { instanciaId, activo: true },
     orderBy: { nombre: "asc" },
   });
 }
 
-export async function obtenerProductoPorId(id: string) {
-  return prisma.producto.findUnique({ where: { id } });
+export async function obtenerProductoPorId(id: string, instanciaId: string) {
+  return prisma.producto.findFirst({ where: { id, instanciaId } });
 }
 
-export async function buscarProductos(query: string) {
+export async function buscarProductos(query: string, instanciaId: string) {
   return prisma.producto.findMany({
     where: {
+      instanciaId,
       activo: true,
       OR: [
         { nombre: { contains: query, mode: "insensitive" } },
@@ -27,10 +28,10 @@ export async function buscarProductos(query: string) {
   });
 }
 
-export async function obtenerProductosCatalogo(): Promise<ProductoCatalogo[]> {
+export async function obtenerProductosCatalogo(instanciaId: string): Promise<ProductoCatalogo[]> {
   try {
     const datos = await prisma.producto.findMany({
-      where: { activo: true },
+      where: { instanciaId, activo: true },
       select: { id: true, sku: true, nombre: true, precio: true, moneda: true, unidad: true, imagenUrl: true, manejaStock: true, cantidadDisponible: true },
       orderBy: { nombre: "asc" },
     });

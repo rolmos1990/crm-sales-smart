@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearCotizacionSchema } from "./schema";
 import { generarNumeroCotizacion } from "./queries";
@@ -13,8 +14,9 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
+    const sesion = await requireSesion();
     const { lineas, contactoId, empresaId, notas, impuesto, ...resto } = validado.data;
-    const numero = await generarNumeroCotizacion();
+    const numero = await generarNumeroCotizacion(sesion.instanciaId);
 
     const subtotal = lineas.reduce((acc, l) => {
       const base = l.cantidad * l.precioUnitario;
@@ -26,6 +28,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     const cotizacion = await prisma.cotizacion.create({
       data: {
         ...resto,
+        instanciaId: sesion.instanciaId,
         numero,
         subtotal,
         impuesto: impuestoMonto,
@@ -76,8 +79,9 @@ export async function cambiarEstadoCotizacion(id: string, estado: string): Promi
 
 export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ pedidoId: string; numeroPedido: string }>> {
   try {
-    const cotizacion = await prisma.cotizacion.findUnique({
-      where: { id },
+    const sesion = await requireSesion();
+    const cotizacion = await prisma.cotizacion.findFirst({
+      where: { id, instanciaId: sesion.instanciaId },
       include: {
         lineas: {
           include: {
@@ -106,7 +110,7 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
       return { exito: false, error: `Stock insuficiente — ${erroresStock.join(" · ")}` };
     }
 
-    const numeroPedido = await generarNumeroPedido();
+    const numeroPedido = await generarNumeroPedido(sesion.instanciaId);
 
     const pedido = await prisma.$transaction(async (tx) => {
       // Aprobar cotización
@@ -117,6 +121,7 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
         data: {
           numero:       numeroPedido,
           estado:       "CONFIRMADO",
+          instanciaId:  sesion.instanciaId,
           moneda:       cotizacion.moneda,
           subtotal:     cotizacion.subtotal,
           descuento:    cotizacion.descuento,

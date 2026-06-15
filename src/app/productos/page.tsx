@@ -5,13 +5,15 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaProductos } from "@/shared/productos/components/lista-productos";
 import { obtenerProductos } from "@/shared/productos/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { Producto } from "@/shared/productos/types";
 
 export default async function ProductosPage() {
+  const sesion = await requireSesion();
   let productos: Producto[] = [];
 
   try {
-    const datos = await obtenerProductos();
+    const datos = await obtenerProductos(sesion.instanciaId);
     productos = datos.map((p) => ({ ...p, precio: Number(p.precio), cantidadDisponible: Number(p.cantidadDisponible) })) as Producto[];
   } catch {
     // DB not configured — show empty state

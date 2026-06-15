@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearOportunidadSchema, ActualizarOportunidadSchema, CambiarEtapaSchema } from "./schema";
 import type { ResultadoAccion, Oportunidad } from "./types";
@@ -25,6 +26,7 @@ export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
+    const sesion = await requireSesion();
     const { empresaId, contactoId, notas, pipelineId, stageId, probabilidad: _prob, tagIds, ...resto } = validado.data;
 
     let probabilidad: number;
@@ -38,6 +40,7 @@ export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<
     const oportunidad = await prisma.oportunidad.create({
       data: {
         ...resto,
+        instanciaId: sesion.instanciaId,
         probabilidad,
         notas: notas || null,
         empresaId: empresaId || null,
@@ -76,7 +79,8 @@ export async function cambiarEtapa(id: string, datos: unknown): Promise<Resultad
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const actual = await prisma.oportunidad.findUnique({ where: { id }, select: { etapa: true } });
+    const sesion = await requireSesion();
+    const actual = await prisma.oportunidad.findFirst({ where: { id, instanciaId: sesion.instanciaId }, select: { etapa: true } });
     if (!actual) return { exito: false, error: "Oportunidad no encontrada" };
 
     await prisma.oportunidad.update({
@@ -117,6 +121,10 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
+    const sesion = await requireSesion();
+    const existe = await prisma.oportunidad.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
+    if (!existe) return { exito: false, error: "Oportunidad no encontrada" };
+
     const { empresaId, contactoId: _, notas, probabilidad: _prob, tagIds, ...resto } = validado.data;
     const oportunidad = await prisma.oportunidad.update({
       where: { id },
@@ -147,8 +155,9 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
 }
 
 export async function obtenerOportunidadAction(id: string) {
-  return prisma.oportunidad.findUnique({
-    where: { id },
+  const sesion = await requireSesion();
+  return prisma.oportunidad.findFirst({
+    where: { id, instanciaId: sesion.instanciaId },
     select: {
       id: true,
       titulo: true,
@@ -278,6 +287,10 @@ export async function actualizarMetadataOportunidad(
   metadata: Record<string, unknown>,
 ): Promise<ResultadoAccion> {
   try {
+    const sesion = await requireSesion();
+    const existe = await prisma.oportunidad.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
+    if (!existe) return { exito: false, error: "Oportunidad no encontrada" };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await prisma.oportunidad.update({ where: { id }, data: { metadata: metadata as any } });
     revalidatePath("/crm/pipeline");
@@ -290,6 +303,10 @@ export async function actualizarMetadataOportunidad(
 
 export async function eliminarOportunidad(id: string): Promise<ResultadoAccion> {
   try {
+    const sesion = await requireSesion();
+    const existe = await prisma.oportunidad.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
+    if (!existe) return { exito: false, error: "Oportunidad no encontrada" };
+
     await prisma.oportunidad.delete({ where: { id } });
     revalidatePath("/crm/oportunidades");
     revalidatePath("/crm/pipeline");

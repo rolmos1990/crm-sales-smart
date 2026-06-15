@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaEmpresas } from "@/crm/empresas/components/lista-empresas";
 import { obtenerEmpresas } from "@/crm/empresas/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { EmpresaConRelaciones } from "@/crm/empresas/types";
 
 export default async function EmpresasPage() {
+  const sesion = await requireSesion();
   let empresas: EmpresaConRelaciones[] = [];
   try {
-    const datos = await obtenerEmpresas();
+    const datos = await obtenerEmpresas(sesion.instanciaId);
     empresas = datos as unknown as EmpresaConRelaciones[];
   } catch {
     // DB no configurada

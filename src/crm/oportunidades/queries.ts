@@ -1,8 +1,9 @@
 import { prisma } from "@/shared/db/prisma";
 import type { Etapa } from "@/generated/prisma/enums";
 
-export async function obtenerOportunidades() {
+export async function obtenerOportunidades(instanciaId: string) {
   return prisma.oportunidad.findMany({
+    where: { instanciaId },
     include: {
       empresa: { select: { id: true, nombre: true } },
       contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },
@@ -11,9 +12,9 @@ export async function obtenerOportunidades() {
   });
 }
 
-export async function obtenerOportunidadesPorEtapa() {
+export async function obtenerOportunidadesPorEtapa(instanciaId: string) {
   const oportunidades = await prisma.oportunidad.findMany({
-    where: { etapa: { notIn: ["GANADO", "PERDIDO"] }, pipelineId: null },
+    where: { instanciaId, etapa: { notIn: ["GANADO", "PERDIDO"] }, pipelineId: null },
     include: {
       empresa: { select: { id: true, nombre: true } },
       contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },
@@ -30,9 +31,9 @@ export async function obtenerOportunidadesPorEtapa() {
   return agrupadas;
 }
 
-export async function obtenerOportunidadPorId(id: string) {
-  return prisma.oportunidad.findUnique({
-    where: { id },
+export async function obtenerOportunidadPorId(id: string, instanciaId: string) {
+  return prisma.oportunidad.findFirst({
+    where: { id, instanciaId },
     include: {
       empresa: {
         select: {

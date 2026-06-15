@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaOportunidades } from "@/crm/oportunidades/components/lista-oportunidades";
 import { obtenerOportunidades } from "@/crm/oportunidades/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { Oportunidad } from "@/crm/oportunidades/types";
 
 export default async function OportunidadesPage() {
+  const sesion = await requireSesion();
   let oportunidades: Oportunidad[] = [];
   try {
-    const datos = await obtenerOportunidades();
+    const datos = await obtenerOportunidades(sesion.instanciaId);
     oportunidades = datos.map((o) => ({ ...o, valor: Number(o.valor) })) as unknown as Oportunidad[];
   } catch {
     // DB no configurada

@@ -14,11 +14,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { cn } from "@/lib/utils";
 
 // ---- KPI data ----
 
-async function obtenerKpis() {
+async function obtenerKpis(instanciaId: string) {
   try {
     const ahora = new Date();
     const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
@@ -31,17 +32,17 @@ async function obtenerKpis() {
       oportunidadesGanadasMes,
       actividadesPendientesHoy,
     ] = await Promise.all([
-      prisma.contacto.count({ where: { estado: "ACTIVO" } }),
+      prisma.contacto.count({ where: { instanciaId, estado: "ACTIVO" } }),
       prisma.oportunidad.findMany({
-        where: { etapa: { notIn: ["GANADO", "PERDIDO"] } },
+        where: { instanciaId, etapa: { notIn: ["GANADO", "PERDIDO"] } },
         select: { valor: true },
       }),
       prisma.oportunidad.findMany({
-        where: { etapa: "GANADO", actualizadoEn: { gte: inicioMes } },
+        where: { instanciaId, etapa: "GANADO", actualizadoEn: { gte: inicioMes } },
         select: { valor: true },
       }),
       prisma.actividad.count({
-        where: { completada: false, fecha: { gte: inicioDia, lt: finDia } },
+        where: { instanciaId, completada: false, fecha: { gte: inicioDia, lt: finDia } },
       }),
     ]);
 
@@ -74,9 +75,10 @@ async function obtenerKpis() {
   }
 }
 
-async function obtenerUltimasOportunidades() {
+async function obtenerUltimasOportunidades(instanciaId: string) {
   try {
     return prisma.oportunidad.findMany({
+      where: { instanciaId },
       take: 5,
       orderBy: { creadoEn: "desc" },
       include: {
@@ -92,14 +94,14 @@ async function obtenerUltimasOportunidades() {
   }
 }
 
-async function obtenerActividadesHoy() {
+async function obtenerActividadesHoy(instanciaId: string) {
   try {
     const inicioDia = new Date();
     inicioDia.setHours(0, 0, 0, 0);
     const finDia = new Date(inicioDia.getTime() + 86400000);
 
     return prisma.actividad.findMany({
-      where: { completada: false, fecha: { gte: inicioDia, lt: finDia } },
+      where: { instanciaId, completada: false, fecha: { gte: inicioDia, lt: finDia } },
       orderBy: { fecha: "asc" },
       take: 8,
       include: {
@@ -151,7 +153,8 @@ function getBadgeEtapaClass(etapa: string): string {
 // ---- Components ----
 
 async function KpiCards() {
-  const kpis = await obtenerKpis();
+  const sesion = await requireSesion();
+  const kpis = await obtenerKpis(sesion.instanciaId);
 
   const tarjetas = [
     {
@@ -234,7 +237,8 @@ async function KpiCards() {
 }
 
 async function UltimasOportunidades() {
-  const oportunidades = await obtenerUltimasOportunidades();
+  const sesion = await requireSesion();
+  const oportunidades = await obtenerUltimasOportunidades(sesion.instanciaId);
 
   if (oportunidades.length === 0) {
     return (
@@ -288,7 +292,8 @@ async function UltimasOportunidades() {
 }
 
 async function ActividadesHoy() {
-  const actividades = await obtenerActividadesHoy();
+  const sesion = await requireSesion();
+  const actividades = await obtenerActividadesHoy(sesion.instanciaId);
 
   if (actividades.length === 0) {
     return (

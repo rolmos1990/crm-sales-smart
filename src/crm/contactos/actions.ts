@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { CrearContactoSchema, ActualizarContactoSchema } from "./schema";
@@ -21,10 +22,12 @@ export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Con
   }
 
   try {
+    const sesion = await requireSesion();
     const { empresaId, email, telefonoPrincipal, telefonoSecundario, cargo, notas, tagIds, ...resto } = validado.data;
     const contacto = await prisma.contacto.create({
       data: {
         ...resto,
+        instanciaId: sesion.instanciaId,
         email: email || null,
         telefonoPrincipal: telNorm(telefonoPrincipal),
         telefonoSecundario: telNorm(telefonoSecundario),
@@ -60,6 +63,10 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
   }
 
   try {
+    const sesion = await requireSesion();
+    const existe = await prisma.contacto.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
+    if (!existe) return { exito: false, error: "Contacto no encontrado" };
+
     const { empresaId, email, telefonoPrincipal, telefonoSecundario, cargo, notas, tagIds, ...resto } = validado.data;
     const contacto = await prisma.contacto.update({
       where: { id },
@@ -99,13 +106,15 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
 
 export async function buscarContactosAction(query: string) {
   if (!query.trim()) return [];
+  const sesion = await requireSesion();
   const { buscarContactos } = await import("./queries");
-  return buscarContactos(query);
+  return buscarContactos(query, sesion.instanciaId);
 }
 
 export async function obtenerContactoAction(id: string) {
-  return prisma.contacto.findUnique({
-    where: { id },
+  const sesion = await requireSesion();
+  return prisma.contacto.findFirst({
+    where: { id, instanciaId: sesion.instanciaId },
     select: {
       id: true,
       nombre: true,
@@ -122,6 +131,10 @@ export async function obtenerContactoAction(id: string) {
 
 export async function eliminarContacto(id: string): Promise<ResultadoAccion> {
   try {
+    const sesion = await requireSesion();
+    const existe = await prisma.contacto.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
+    if (!existe) return { exito: false, error: "Contacto no encontrado" };
+
     // Limpiar archivos del storage antes de borrar la BD (cascade DB elimina MediaArchivo)
     const mediasContacto = await prisma.mediaArchivo.findMany({
       where: { contactoId: id },

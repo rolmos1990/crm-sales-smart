@@ -3,7 +3,7 @@ import { obtenerPipelines, obtenerOportunidadesPorPipeline } from "@/crm/pipelin
 import { obtenerOportunidadesPorEtapa } from "@/crm/oportunidades/queries";
 import { obtenerEmpresas } from "@/crm/empresas/queries";
 import { obtenerContactos } from "@/crm/contactos/queries";
-import { obtenerOCrearInstancia } from "@/shared/db/instancia";
+import { requireSesion } from "@/shared/auth/sesion";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import type { OportunidadEnStage, PipelineConStages } from "@/crm/pipeline/types";
 import type { Etapa, Oportunidad } from "@/crm/oportunidades/types";
@@ -31,12 +31,12 @@ export default async function PipelinePage(props: {
   let defaultCountryCode = "PA";
 
   try {
-    const instancia = await obtenerOCrearInstancia();
+    const sesion = await requireSesion();
     const [pipelinesData, empresas, contactos, config] = await Promise.all([
-      obtenerPipelines(),
-      obtenerEmpresas(),
-      obtenerContactos(),
-      obtenerConfiguracionEmpresa(instancia.id),
+      obtenerPipelines(sesion.instanciaId),
+      obtenerEmpresas(sesion.instanciaId),
+      obtenerContactos(sesion.instanciaId),
+      obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
 
     pipelines = pipelinesData as unknown as PipelineConStages[];
@@ -53,9 +53,9 @@ export default async function PipelinePage(props: {
     const pipelineValido = pipelineId && pipelines.some((p) => p.id === pipelineId);
 
     if (pipelineValido && pipelineId) {
-      oportunidadesDinamicas = await obtenerOportunidadesPorPipeline(pipelineId);
+      oportunidadesDinamicas = await obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId);
     } else {
-      const datos = await obtenerOportunidadesPorEtapa();
+      const datos = await obtenerOportunidadesPorEtapa(sesion.instanciaId);
       oportunidadesLegacy = datos as unknown as Map<Etapa, Oportunidad[]>;
     }
   } catch {

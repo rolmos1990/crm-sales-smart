@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { obtenerPedidoPorId } from "@/sales/pedidos/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import { actualizarEstadoPedido } from "@/sales/pedidos/actions";
 import { ESTADO_PEDIDO_CONFIG } from "@/sales/pedidos/types";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,8 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
   let pedido = null;
 
   try {
-    pedido = await obtenerPedidoPorId(id);
+    const sesion = await requireSesion();
+    pedido = await obtenerPedidoPorId(id, sesion.instanciaId);
   } catch {
     // DB not configured
   }

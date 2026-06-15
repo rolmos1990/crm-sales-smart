@@ -3,6 +3,7 @@ import { FormActividad } from "@/crm/actividades/components/form-actividad";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { obtenerOportunidades } from "@/crm/oportunidades/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 
 export default async function NuevaActividadPage({
   searchParams,
@@ -15,10 +16,11 @@ export default async function NuevaActividadPage({
   let oportunidades: { valor: string; etiqueta: string }[] = [];
 
   try {
+    const sesion = await requireSesion();
     const [c, e, o] = await Promise.all([
-      buscarContactos(""),
-      buscarEmpresas(""),
-      obtenerOportunidades(),
+      buscarContactos("", sesion.instanciaId),
+      buscarEmpresas("", sesion.instanciaId),
+      obtenerOportunidades(sesion.instanciaId),
     ]);
     contactos = c.map((x: { id: string; nombre: string; apellido: string }) => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
     empresas = e.map((x: { id: string; nombre: string }) => ({ valor: x.id, etiqueta: x.nombre }));

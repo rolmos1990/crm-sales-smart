@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearActividadSchema, ActualizarActividadSchema } from "./schema";
 import type { ResultadoAccion, Actividad } from "./types";
@@ -11,10 +12,12 @@ export async function crearActividad(datos: unknown): Promise<ResultadoAccion<Ac
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
+    const sesion = await requireSesion();
     const { contactoId, empresaId, oportunidadId, descripcion, ...resto } = validado.data;
     const actividad = await prisma.actividad.create({
       data: {
         ...resto,
+        instanciaId: sesion.instanciaId,
         descripcion: descripcion || null,
         contactoId: contactoId || null,
         empresaId: empresaId || null,

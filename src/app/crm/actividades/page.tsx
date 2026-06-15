@@ -5,12 +5,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { TimelineActividades } from "@/crm/actividades/components/timeline-actividades";
 import { obtenerActividades } from "@/crm/actividades/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { Actividad } from "@/crm/actividades/types";
 
 export default async function ActividadesPage() {
+  const sesion = await requireSesion();
   let actividades: Actividad[] = [];
   try {
-    const datos = await obtenerActividades();
+    const datos = await obtenerActividades(sesion.instanciaId);
     actividades = datos as unknown as Actividad[];
   } catch {
     // DB no configurada

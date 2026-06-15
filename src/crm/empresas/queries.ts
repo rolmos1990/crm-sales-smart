@@ -1,8 +1,8 @@
 import { prisma } from "@/shared/db/prisma";
 
-export async function obtenerEmpresas() {
+export async function obtenerEmpresas(instanciaId: string) {
   return prisma.empresa.findMany({
-    where: { activo: true },
+    where: { instanciaId, activo: true },
     include: {
       _count: { select: { contactos: true, oportunidades: true, actividades: true } },
     },
@@ -10,9 +10,9 @@ export async function obtenerEmpresas() {
   });
 }
 
-export async function obtenerEmpresaPorId(id: string) {
-  return prisma.empresa.findUnique({
-    where: { id },
+export async function obtenerEmpresaPorId(id: string, instanciaId: string) {
+  return prisma.empresa.findFirst({
+    where: { id, instanciaId },
     include: {
       contactos: { include: { empresa: { select: { id: true, nombre: true } } }, take: 10 },
       oportunidades: { orderBy: { creadoEn: "desc" }, take: 10 },
@@ -22,9 +22,10 @@ export async function obtenerEmpresaPorId(id: string) {
   });
 }
 
-export async function buscarEmpresas(query: string) {
+export async function buscarEmpresas(query: string, instanciaId: string) {
   return prisma.empresa.findMany({
     where: {
+      instanciaId,
       activo: true,
       OR: [
         { nombre: { contains: query, mode: "insensitive" } },

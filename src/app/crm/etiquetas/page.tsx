@@ -1,13 +1,15 @@
 import { Tag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { obtenerTags } from "@/crm/tags/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import { ListaTags } from "@/crm/tags/components/lista-tags";
 
 export default async function EtiquetasPage() {
+  const sesion = await requireSesion();
   let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
 
   try {
-    tags = await obtenerTags();
+    tags = await obtenerTags(sesion.instanciaId);
   } catch {
     // DB no configurada
   }

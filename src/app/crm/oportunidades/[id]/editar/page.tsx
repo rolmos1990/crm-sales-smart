@@ -8,6 +8,7 @@ import { obtenerOportunidadPorId } from "@/crm/oportunidades/queries";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerTags } from "@/crm/tags/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 
 export default async function EditarOportunidadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,11 +19,12 @@ export default async function EditarOportunidadPage({ params }: { params: Promis
   let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
 
   try {
+    const sesion = await requireSesion();
     [oportunidad, empresas, contactos, tags] = await Promise.all([
-      obtenerOportunidadPorId(id),
-      buscarEmpresas(""),
-      buscarContactos(""),
-      obtenerTags(),
+      obtenerOportunidadPorId(id, sesion.instanciaId),
+      buscarEmpresas("", sesion.instanciaId),
+      buscarContactos("", sesion.instanciaId),
+      obtenerTags(sesion.instanciaId),
     ]);
   } catch {
     // DB not configured

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { obtenerCotizacionPorId } from "@/sales/cotizaciones/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import { cambiarEstadoCotizacion } from "@/sales/cotizaciones/actions";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,8 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
   let cotizacion = null;
 
   try {
-    cotizacion = await obtenerCotizacionPorId(id);
+    const sesion = await requireSesion();
+    cotizacion = await obtenerCotizacionPorId(id, sesion.instanciaId);
   } catch {
     // DB not configured
   }

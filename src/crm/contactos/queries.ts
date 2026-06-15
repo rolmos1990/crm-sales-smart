@@ -1,15 +1,16 @@
 import { prisma } from "@/shared/db/prisma";
 
-export async function obtenerContactos() {
+export async function obtenerContactos(instanciaId: string) {
   return prisma.contacto.findMany({
+    where: { instanciaId },
     include: { empresa: { select: { id: true, nombre: true } } },
     orderBy: { creadoEn: "desc" },
   });
 }
 
-export async function obtenerContactoPorId(id: string) {
-  return prisma.contacto.findUnique({
-    where: { id },
+export async function obtenerContactoPorId(id: string, instanciaId: string) {
+  return prisma.contacto.findFirst({
+    where: { id, instanciaId },
     include: {
       empresa: { select: { id: true, nombre: true } },
       actividades: { orderBy: { fecha: "desc" }, take: 10 },
@@ -31,9 +32,10 @@ export async function obtenerContactoPorId(id: string) {
   });
 }
 
-export async function buscarContactos(query: string) {
+export async function buscarContactos(query: string, instanciaId: string) {
   return prisma.contacto.findMany({
     where: {
+      instanciaId,
       OR: [
         { nombre: { contains: query, mode: "insensitive" } },
         { apellido: { contains: query, mode: "insensitive" } },

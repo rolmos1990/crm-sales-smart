@@ -19,9 +19,9 @@ function normalizarCampo(raw: CampoPersonalizado): CampoPersonalizadoPipeline {
   };
 }
 
-export async function obtenerPipelines() {
+export async function obtenerPipelines(instanciaId: string) {
   const pipelines = await prisma.pipeline.findMany({
-    where: { activo: true },
+    where: { instanciaId, activo: true },
     include: {
       stages: {
         where: { activo: true },
@@ -41,17 +41,17 @@ export async function obtenerPipelines() {
   }));
 }
 
-export async function obtenerCamposPorPipeline(pipelineId: string): Promise<CampoPersonalizadoPipeline[]> {
+export async function obtenerCamposPorPipeline(pipelineId: string, instanciaId: string): Promise<CampoPersonalizadoPipeline[]> {
   const campos = await prisma.campoPersonalizado.findMany({
-    where: { pipelineId, activo: true },
+    where: { pipelineId, instanciaId, activo: true },
     orderBy: { orden: "asc" },
   });
   return campos.map(normalizarCampo);
 }
 
-export async function obtenerOportunidadesPorPipeline(pipelineId: string) {
+export async function obtenerOportunidadesPorPipeline(pipelineId: string, instanciaId: string) {
   const rows = await prisma.oportunidad.findMany({
-    where: { pipelineId },
+    where: { pipelineId, instanciaId },
     select: {
       id: true,
       titulo: true,

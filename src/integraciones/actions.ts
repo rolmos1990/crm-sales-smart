@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
-import { obtenerInstanciaActiva } from "./queries";
+import { requireSesion } from "@/shared/auth/sesion";
 
 export async function instalarIntegracion(clave: string) {
   try {
-    const instanciaId = await obtenerInstanciaActiva();
+    const sesion = await requireSesion();
+    const { instanciaId } = sesion;
     await prisma.integracionInstancia.upsert({
       where:  { instanciaId_clave: { instanciaId, clave } },
       update: { estado: "INSTALADA" },

@@ -4,15 +4,13 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/shared/ui/page-header";
 import { FormProducto } from "@/shared/productos/components/form-producto";
 import { obtenerProductoPorId } from "@/shared/productos/queries";
-import { obtenerOCrearInstancia } from "@/shared/db/instancia";
+import { requireSesion } from "@/shared/auth/sesion";
 
 export default async function EditarProductoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const sesion = await requireSesion();
 
-  const [instancia, producto] = await Promise.all([
-    obtenerOCrearInstancia(),
-    obtenerProductoPorId(id).catch(() => null),
-  ]);
+  const producto = await obtenerProductoPorId(id, sesion.instanciaId).catch(() => null);
 
   if (!producto && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
     notFound();
@@ -25,7 +23,7 @@ export default async function EditarProductoPage({ params }: { params: Promise<{
       </div>
       <PageHeader titulo="Editar producto" descripcion={producto?.nombre ?? ""} />
       <FormProducto
-        instanciaId={instancia.id}
+        instanciaId={sesion.instanciaId}
         inicial={producto ? { ...producto, precio: Number(producto.precio), cantidadDisponible: Number(producto.cantidadDisponible) } : undefined}
         modo="editar"
       />

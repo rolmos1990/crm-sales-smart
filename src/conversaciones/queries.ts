@@ -82,7 +82,8 @@ function mapearConversacion(conv: any): ConversacionResumen {
 }
 
 export async function obtenerConversacionesPorOportunidad(
-  oportunidadId: string
+  oportunidadId: string,
+  instanciaId: string
 ): Promise<ConversacionResumen[]> {
   const relPrincipal = await prisma.oportunidadContacto.findFirst({
     where: { oportunidadId, principal: true },
@@ -91,7 +92,7 @@ export async function obtenerConversacionesPorOportunidad(
   if (!relPrincipal) return [];
 
   const convs = await prisma.conversacion.findMany({
-    where: { contactoId: relPrincipal.contactoId },
+    where: { contactoId: relPrincipal.contactoId, instanciaId },
     include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
   });
@@ -129,9 +130,9 @@ export async function obtenerTodasLasCuentasCanal() {
   });
 }
 
-export async function obtenerConversacionesContacto(contactoId: string) {
+export async function obtenerConversacionesContacto(contactoId: string, instanciaId: string) {
   return prisma.conversacion.findMany({
-    where: { contactoId },
+    where: { contactoId, instanciaId },
     include: {
       cuentaCanal: { select: { id: true, canal: true, nombre: true } },
       _count: { select: { mensajes: true } },
@@ -145,10 +146,11 @@ export async function obtenerConversacionesContacto(contactoId: string) {
 }
 
 export async function obtenerConversacionesResumenPorContacto(
-  contactoId: string
+  contactoId: string,
+  instanciaId: string
 ): Promise<ConversacionResumen[]> {
   const convs = await prisma.conversacion.findMany({
-    where: { contactoId },
+    where: { contactoId, instanciaId },
     include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
   });
@@ -163,9 +165,9 @@ export async function buscarIdentificadorCanal(canal: string, identificador: str
   });
 }
 
-export async function obtenerConversacionesAbiertas(): Promise<ConversacionResumen[]> {
+export async function obtenerConversacionesAbiertas(instanciaId: string): Promise<ConversacionResumen[]> {
   const convs = await prisma.conversacion.findMany({
-    where: { estado: { in: ["ABIERTA", "EN_ESPERA"] } },
+    where: { instanciaId, estado: { in: ["ABIERTA", "EN_ESPERA"] } },
     include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
   });
@@ -174,15 +176,15 @@ export async function obtenerConversacionesAbiertas(): Promise<ConversacionResum
 }
 
 // Carga el inbox completo: ABIERTA + EN_ESPERA + últimas 50 CERRADAS
-export async function obtenerConversacionesInbox(): Promise<ConversacionResumen[]> {
+export async function obtenerConversacionesInbox(instanciaId: string): Promise<ConversacionResumen[]> {
   const [activas, cerradas] = await Promise.all([
     prisma.conversacion.findMany({
-      where: { estado: { in: ["ABIERTA", "EN_ESPERA"] } },
+      where: { instanciaId, estado: { in: ["ABIERTA", "EN_ESPERA"] } },
       include: conversacionInclude,
       orderBy: { actualizadoEn: "desc" as const },
     }),
     prisma.conversacion.findMany({
-      where: { estado: "CERRADA" },
+      where: { instanciaId, estado: "CERRADA" },
       include: conversacionInclude,
       orderBy: { actualizadoEn: "desc" as const },
       take: 50,
@@ -246,8 +248,9 @@ export async function obtenerMensajesAnteriores(
   return mensajes.reverse().map(mapearMensaje);
 }
 
-export async function obtenerTodasLasConversaciones(): Promise<ConversacionResumen[]> {
+export async function obtenerTodasLasConversaciones(instanciaId: string): Promise<ConversacionResumen[]> {
   const convs = await prisma.conversacion.findMany({
+    where: { instanciaId },
     include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
   });

@@ -15,7 +15,8 @@ import { obtenerActividadesPorContacto } from "@/crm/actividades/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
 import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
-import { obtenerConversacionesResumenPorContacto, obtenerTodasLasCuentasCanal } from "@/conversaciones/queries";
+import { obtenerConversacionesResumenPorContacto, obtenerCuentasCanal } from "@/conversaciones/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag as TagType } from "@/crm/tags/types";
@@ -51,14 +52,15 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
   let contacto = null;
   let actividades: Actividad[] = [];
   let todosLosTags: TagType[] = [];
+  const sesion = await requireSesion();
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesResumenPorContacto>> = [];
-  let cuentasCanal: Awaited<ReturnType<typeof obtenerTodasLasCuentasCanal>> = [];
+  let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];
 
   try {
     [contacto, actividades, todosLosTags] = await Promise.all([
-      obtenerContactoPorId(id),
-      obtenerActividadesPorContacto(id),
-      obtenerTags(),
+      obtenerContactoPorId(id, sesion.instanciaId),
+      obtenerActividadesPorContacto(id, sesion.instanciaId),
+      obtenerTags(sesion.instanciaId),
     ]);
   } catch {
     // DB not configured
@@ -81,8 +83,8 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
 
   try {
     [conversaciones, cuentasCanal] = await Promise.all([
-      obtenerConversacionesResumenPorContacto(id),
-      obtenerTodasLasCuentasCanal(),
+      obtenerConversacionesResumenPorContacto(id, sesion.instanciaId),
+      obtenerCuentasCanal(sesion.instanciaId),
     ]);
   } catch {
     // Conversaciones no disponibles

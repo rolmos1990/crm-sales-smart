@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaCotizaciones } from "@/sales/cotizaciones/components/lista-cotizaciones";
 import { obtenerCotizaciones } from "@/sales/cotizaciones/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { Cotizacion } from "@/sales/cotizaciones/types";
 
 export default async function CotizacionesPage() {
+  const sesion = await requireSesion();
   let cotizaciones: Cotizacion[] = [];
   try {
-    const datos = await obtenerCotizaciones();
+    const datos = await obtenerCotizaciones(sesion.instanciaId);
     cotizaciones = datos.map((c) => ({
       ...c,
       subtotal:  Number(c.subtotal),

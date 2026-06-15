@@ -1,4 +1,4 @@
-import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TabEmpresa } from "@/configuracion/components/tab-empresa";
@@ -12,21 +12,12 @@ import { obtenerPlantillas } from "@/configuracion/plantillas/queries";
 
 export const dynamic = "force-dynamic";
 
-async function obtenerOCrearInstancia() {
-  const instancia = await prisma.instancia.findFirst();
-  if (instancia) return instancia;
-
-  return prisma.instancia.create({
-    data: { nombre: "Mi Empresa", slug: "mi-empresa" },
-  });
-}
-
 export default async function ConfiguracionPage() {
-  const instancia = await obtenerOCrearInstancia();
+  const sesion = await requireSesion();
 
   const [configEmpresa, plantillas] = await Promise.all([
-    obtenerConfiguracionEmpresa(instancia.id),
-    obtenerPlantillas(instancia.id),
+    obtenerConfiguracionEmpresa(sesion.instanciaId),
+    obtenerPlantillas(sesion.instanciaId),
   ]);
 
   return (
@@ -58,7 +49,7 @@ export default async function ConfiguracionPage() {
 
         <div className="pt-6">
           <TabsContent value="empresa">
-            <TabEmpresa instanciaId={instancia.id} inicial={configEmpresa} />
+            <TabEmpresa instanciaId={sesion.instanciaId} inicial={configEmpresa} />
           </TabsContent>
 
           <TabsContent value="preferencias">
@@ -70,7 +61,7 @@ export default async function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="plantillas">
-            <TabPlantillas plantillas={plantillas} instanciaId={instancia.id} />
+            <TabPlantillas plantillas={plantillas} instanciaId={sesion.instanciaId} />
           </TabsContent>
 
           <TabsContent value="plan">

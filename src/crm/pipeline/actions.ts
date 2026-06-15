@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { SchemaPipeline, SchemaStage, SchemaCampoPersonalizado } from "./schema";
 import { obtenerPipelines } from "./queries";
 import { procesarCambioStage } from "./disparadores/motor";
 
 export async function obtenerPipelinesAction() {
-  return obtenerPipelines();
+  const sesion = await requireSesion();
+  return obtenerPipelines(sesion.instanciaId);
 }
 
 const STAGES_INICIALES = [
@@ -24,10 +26,12 @@ export async function crearPipeline(datos: unknown) {
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
+    const sesion = await requireSesion();
     const pipeline = await prisma.pipeline.create({
       data: {
         nombre: parsed.data.nombre,
         descripcion: parsed.data.descripcion ?? null,
+        instanciaId: sesion.instanciaId,
         stages: { create: STAGES_INICIALES },
       },
     });

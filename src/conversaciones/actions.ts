@@ -9,6 +9,7 @@ import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { obtenerProvider } from "./providers/registry";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import { obtenerConversacionPorId } from "./queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 
 // ── Procesar mensaje entrante desde webhook ─────────────────────────────────
@@ -461,8 +462,9 @@ export async function enviarMensaje(input: {
 
 export async function obtenerConversacionesPorOportunidadAction(oportunidadId: string) {
   try {
+    const sesion = await requireSesion();
     const { obtenerConversacionesPorOportunidad } = await import("./queries");
-    return obtenerConversacionesPorOportunidad(oportunidadId);
+    return obtenerConversacionesPorOportunidad(oportunidadId, sesion.instanciaId);
   } catch {
     return [];
   }
@@ -470,8 +472,9 @@ export async function obtenerConversacionesPorOportunidadAction(oportunidadId: s
 
 export async function obtenerCuentasCanalAction() {
   try {
-    const { obtenerTodasLasCuentasCanal } = await import("./queries");
-    return obtenerTodasLasCuentasCanal();
+    const sesion = await requireSesion();
+    const { obtenerCuentasCanal } = await import("./queries");
+    return obtenerCuentasCanal(sesion.instanciaId);
   } catch {
     return [];
   }

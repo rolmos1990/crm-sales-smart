@@ -2,20 +2,24 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { SchemaDisparador } from "./schema";
 import { obtenerDisparadoresPorPipeline } from "./queries";
 import type { Disparador, DisparadorJob } from "./types";
 
 export async function obtenerTagsParaDisparadorAction() {
+  const sesion = await requireSesion();
   return prisma.tag.findMany({
-    where: { activo: true },
+    where: { instanciaId: sesion.instanciaId, activo: true },
     select: { id: true, nombre: true, color: true },
     orderBy: { nombre: "asc" },
   });
 }
 
 export async function obtenerPipelinesParaDisparadorAction() {
+  const sesion = await requireSesion();
   return prisma.pipeline.findMany({
+    where: { instanciaId: sesion.instanciaId, activo: true },
     include: {
       stages: {
         select: { id: true, nombre: true, color: true, orden: true },
@@ -29,7 +33,8 @@ export async function obtenerPipelinesParaDisparadorAction() {
 export async function obtenerDisparadoresAction(
   pipelineId: string
 ): Promise<(Disparador & { jobs: Pick<DisparadorJob, "id" | "estado" | "ejecutarEn" | "creadoEn">[] })[]> {
-  return obtenerDisparadoresPorPipeline(pipelineId);
+  const sesion = await requireSesion();
+  return obtenerDisparadoresPorPipeline(pipelineId, sesion.instanciaId);
 }
 
 export async function crearDisparador(

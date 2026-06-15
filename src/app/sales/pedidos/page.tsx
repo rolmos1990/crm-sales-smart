@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaPedidos } from "@/sales/pedidos/components/lista-pedidos";
 import { obtenerPedidos } from "@/sales/pedidos/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { Pedido } from "@/sales/pedidos/types";
 
 export default async function PedidosPage() {
+  const sesion = await requireSesion();
   let pedidos: Pedido[] = [];
   try {
-    const datos = await obtenerPedidos();
+    const datos = await obtenerPedidos(sesion.instanciaId);
     pedidos = datos.map((p) => ({
       ...p,
       subtotal:  Number(p.subtotal),

@@ -1,17 +1,18 @@
 import { Puzzle } from "lucide-react";
 import { CATALOGO_INTEGRACIONES } from "@/integraciones/catalog";
 import { ListaIntegracionesLazy } from "@/integraciones/components/lista-integraciones-lazy";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { IntegracionConEstado } from "@/integraciones/types";
 
 export default async function IntegracionesPage() {
+  const sesion = await requireSesion();
   // Intentar cargar integraciones instaladas — puede no haber DB configurada aún
   let instaladas: { id: string; clave: string; estado: string }[] = [];
   try {
-    const { obtenerInstanciaActiva, obtenerIntegracionesInstaladas } = await import("@/integraciones/queries");
-    const instanciaId = await obtenerInstanciaActiva();
-    instaladas = await obtenerIntegracionesInstaladas(instanciaId) as typeof instaladas;
+    const { obtenerIntegracionesInstaladas } = await import("@/integraciones/queries");
+    instaladas = await obtenerIntegracionesInstaladas(sesion.instanciaId) as typeof instaladas;
   } catch {
-    // DB no disponible o sin instancia activa — se muestra el catálogo vacío igualmente
+    // DB no disponible — se muestra el catálogo vacío igualmente
   }
 
   const integraciones: IntegracionConEstado[] = CATALOGO_INTEGRACIONES.map((item) => {

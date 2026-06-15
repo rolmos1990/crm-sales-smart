@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearEmpresaSchema, ActualizarEmpresaSchema } from "./schema";
 import type { ResultadoAccion, Empresa } from "./types";
@@ -11,10 +12,12 @@ export async function crearEmpresa(datos: unknown): Promise<ResultadoAccion<Empr
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
+    const sesion = await requireSesion();
     const { ruc, industria, tamano, sitioWeb, telefono, email, notas, ...resto } = validado.data;
     const empresa = await prisma.empresa.create({
       data: {
         ...resto,
+        instanciaId: sesion.instanciaId,
         ruc: ruc || null,
         industria: industria || null,
         tamano: tamano || null,
@@ -38,6 +41,10 @@ export async function actualizarEmpresa(id: string, datos: unknown): Promise<Res
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
+    const sesion = await requireSesion();
+    const existe = await prisma.empresa.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
+    if (!existe) return { exito: false, error: "Empresa no encontrada" };
+
     const empresa = await prisma.empresa.update({
       where: { id },
       data: {
@@ -62,8 +69,9 @@ export async function actualizarEmpresa(id: string, datos: unknown): Promise<Res
 }
 
 export async function obtenerEmpresaAction(id: string) {
-  return prisma.empresa.findUnique({
-    where: { id },
+  const sesion = await requireSesion();
+  return prisma.empresa.findFirst({
+    where: { id, instanciaId: sesion.instanciaId },
     select: {
       id: true,
       nombre: true,
@@ -81,6 +89,10 @@ export async function obtenerEmpresaAction(id: string) {
 
 export async function eliminarEmpresa(id: string): Promise<ResultadoAccion> {
   try {
+    const sesion = await requireSesion();
+    const existe = await prisma.empresa.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
+    if (!existe) return { exito: false, error: "Empresa no encontrada" };
+
     await prisma.empresa.update({ where: { id }, data: { activo: false } });
     revalidatePath("/crm/empresas");
     return { exito: true, datos: undefined };

@@ -1,12 +1,12 @@
 import { prisma } from "@/shared/db/prisma";
 
-export async function obtenerTags() {
+export async function obtenerTags(instanciaId: string) {
   return prisma.tag.findMany({
-    where: { activo: true },
+    where: { instanciaId, activo: true },
     orderBy: { nombre: "asc" },
   });
 }
 
-export async function obtenerTagPorId(id: string) {
-  return prisma.tag.findUnique({ where: { id } });
+export async function obtenerTagPorId(id: string, instanciaId: string) {
+  return prisma.tag.findFirst({ where: { id, instanciaId } });
 }

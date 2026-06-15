@@ -6,7 +6,7 @@ import { FormContacto } from "@/crm/contactos/components/form-contacto";
 import { obtenerContactoPorId } from "@/crm/contactos/queries";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { obtenerTags } from "@/crm/tags/queries";
-import { obtenerOCrearInstancia } from "@/shared/db/instancia";
+import { requireSesion } from "@/shared/auth/sesion";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 
 const PAIS_A_ISO: Record<string, string> = {
@@ -25,13 +25,13 @@ export default async function EditarContactoPage({ params }: { params: Promise<{
   let defaultCountryCode = "PA";
 
   try {
-    const instancia = await obtenerOCrearInstancia();
+    const sesion = await requireSesion();
     [contacto, empresas, tags] = await Promise.all([
-      obtenerContactoPorId(id),
-      buscarEmpresas(""),
-      obtenerTags(),
+      obtenerContactoPorId(id, sesion.instanciaId),
+      buscarEmpresas("", sesion.instanciaId),
+      obtenerTags(sesion.instanciaId),
     ]);
-    const config = await obtenerConfiguracionEmpresa(instancia.id);
+    const config = await obtenerConfiguracionEmpresa(sesion.instanciaId);
     if (config?.pais) defaultCountryCode = PAIS_A_ISO[config.pais] ?? "PA";
   } catch {
     // DB not configured

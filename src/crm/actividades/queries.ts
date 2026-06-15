@@ -6,40 +6,41 @@ const incluirRelaciones = {
   oportunidad: { select: { id: true, titulo: true } },
 } as const;
 
-export async function obtenerActividades() {
+export async function obtenerActividades(instanciaId: string) {
   return prisma.actividad.findMany({
+    where: { instanciaId },
     include: incluirRelaciones,
     orderBy: { fecha: "desc" },
   });
 }
 
-export async function obtenerActividadesPorContacto(contactoId: string) {
+export async function obtenerActividadesPorContacto(contactoId: string, instanciaId: string) {
   return prisma.actividad.findMany({
-    where: { contactoId },
+    where: { contactoId, instanciaId },
     include: incluirRelaciones,
     orderBy: { fecha: "desc" },
   });
 }
 
-export async function obtenerActividadesPorEmpresa(empresaId: string) {
+export async function obtenerActividadesPorEmpresa(empresaId: string, instanciaId: string) {
   return prisma.actividad.findMany({
-    where: { empresaId },
+    where: { empresaId, instanciaId },
     include: incluirRelaciones,
     orderBy: { fecha: "desc" },
   });
 }
 
-export async function obtenerActividadesPorOportunidad(oportunidadId: string) {
+export async function obtenerActividadesPorOportunidad(oportunidadId: string, instanciaId: string) {
   return prisma.actividad.findMany({
-    where: { oportunidadId },
+    where: { oportunidadId, instanciaId },
     include: incluirRelaciones,
     orderBy: { fecha: "desc" },
   });
 }
 
-export async function obtenerActividadesPendientes() {
+export async function obtenerActividadesPendientes(instanciaId: string) {
   return prisma.actividad.findMany({
-    where: { completada: false },
+    where: { instanciaId, completada: false },
     include: incluirRelaciones,
     orderBy: { fecha: "asc" },
   });

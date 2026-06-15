@@ -1,7 +1,7 @@
 import { ArrowLeft, MessageCircle, Shield, Zap } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/shared/db/prisma";
-import { resolverInstanciaId } from "@/shared/db/instancia";
+import { requireSesion } from "@/shared/auth/sesion";
 import { PanelInstagram } from "@/integraciones/instagram/components/panel-instagram";
 
 async function obtenerCuentasIG(instanciaId: string) {
@@ -46,7 +46,8 @@ export default async function InstagramPage({ searchParams }: { searchParams: Se
   let instanciaId = "";
 
   try {
-    instanciaId = await resolverInstanciaId();
+    const sesion = await requireSesion();
+    instanciaId = sesion.instanciaId;
     cuentas = await obtenerCuentasIG(instanciaId);
   } catch (e) {
     console.error("[Instagram page] Error cargando datos:", e);

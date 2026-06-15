@@ -6,20 +6,26 @@ import { FormCotizacion } from "@/sales/cotizaciones/components/form-cotizacion"
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 
 export default async function NuevaCotizacionPage() {
+  const sesion = await requireSesion();
   let empresas: { id: string; nombre: string }[] = [];
   let contactos: any[] = [];
+  let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
 
   try {
-    [empresas, contactos] = await Promise.all([buscarEmpresas(""), buscarContactos("")]);
+    [empresas, contactos, productos] = await Promise.all([
+      buscarEmpresas("", sesion.instanciaId),
+      buscarContactos("", sesion.instanciaId),
+      obtenerProductosCatalogo(sesion.instanciaId),
+    ]);
   } catch {
     // DB not configured
   }
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
   const opcionesContactos = contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));
-  const productos = await obtenerProductosCatalogo();
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">

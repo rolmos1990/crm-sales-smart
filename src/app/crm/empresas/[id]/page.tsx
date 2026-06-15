@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TimelineActividades } from "@/crm/actividades/components/timeline-actividades";
 import { obtenerEmpresaPorId } from "@/crm/empresas/queries";
 import { obtenerActividadesPorEmpresa } from "@/crm/actividades/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { Actividad } from "@/crm/actividades/types";
 import { cn } from "@/lib/utils";
 
@@ -29,9 +30,10 @@ export default async function EmpresaDetallePage({ params }: { params: Promise<{
   let actividades: Actividad[] = [];
 
   try {
+    const sesion = await requireSesion();
     [empresa, actividades] = await Promise.all([
-      obtenerEmpresaPorId(id),
-      obtenerActividadesPorEmpresa(id),
+      obtenerEmpresaPorId(id, sesion.instanciaId),
+      obtenerActividadesPorEmpresa(id, sesion.instanciaId),
     ]);
   } catch {
     // DB not configured

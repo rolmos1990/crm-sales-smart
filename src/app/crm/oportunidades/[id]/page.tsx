@@ -20,7 +20,8 @@ import { obtenerActividadesPorOportunidad } from "@/crm/actividades/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
 import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
-import { obtenerConversacionesPorOportunidad, obtenerTodasLasCuentasCanal } from "@/conversaciones/queries";
+import { obtenerConversacionesPorOportunidad, obtenerCuentasCanal } from "@/conversaciones/queries";
+import { requireSesion } from "@/shared/auth/sesion";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag } from "@/crm/tags/types";
@@ -32,14 +33,15 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   let oportunidad = null;
   let actividades: Actividad[] = [];
   let todosLosTags: Tag[] = [];
+  const sesion = await requireSesion();
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesPorOportunidad>> = [];
-  let cuentasCanal: Awaited<ReturnType<typeof obtenerTodasLasCuentasCanal>> = [];
+  let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];
 
   try {
     [oportunidad, actividades, todosLosTags] = await Promise.all([
-      obtenerOportunidadPorId(id),
-      obtenerActividadesPorOportunidad(id),
-      obtenerTags(),
+      obtenerOportunidadPorId(id, sesion.instanciaId),
+      obtenerActividadesPorOportunidad(id, sesion.instanciaId),
+      obtenerTags(sesion.instanciaId),
     ]);
   } catch {
     // DB not configured
@@ -61,8 +63,8 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   // Cargar datos de conversaciones (no bloquea si falla)
   try {
     [conversaciones, cuentasCanal] = await Promise.all([
-      obtenerConversacionesPorOportunidad(id),
-      obtenerTodasLasCuentasCanal(),
+      obtenerConversacionesPorOportunidad(id, sesion.instanciaId),
+      obtenerCuentasCanal(sesion.instanciaId),
     ]);
   } catch {
     // Conversaciones aún no disponibles

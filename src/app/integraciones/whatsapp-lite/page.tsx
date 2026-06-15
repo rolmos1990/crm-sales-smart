@@ -1,6 +1,6 @@
 import { ArrowLeft, Smartphone, ShieldCheck, Zap } from "lucide-react";
 import Link from "next/link";
-import { resolverInstanciaId } from "@/shared/db/instancia";
+import { requireSesion } from "@/shared/auth/sesion";
 import { prisma } from "@/shared/db/prisma";
 import { PanelNumerosWhatsApp } from "@/integraciones/whatsapp-lite/components/panel-numeros-whatsapp";
 
@@ -20,14 +20,6 @@ async function obtenerCuentasWALite(instanciaId: string) {
   });
 }
 
-async function obtenerInstanciaId(): Promise<string> {
-  try {
-    return await resolverInstanciaId();
-  } catch {
-    return "";
-  }
-}
-
 export default async function WhatsAppLitePage() {
   let cuentas: {
     id: string;
@@ -41,10 +33,9 @@ export default async function WhatsAppLitePage() {
   let instanciaId = "";
 
   try {
-    instanciaId = await obtenerInstanciaId();
-    if (instanciaId) {
-      cuentas = await obtenerCuentasWALite(instanciaId);
-    }
+    const sesion = await requireSesion();
+    instanciaId = sesion.instanciaId;
+    cuentas = await obtenerCuentasWALite(instanciaId);
   } catch (e) {
     console.error("[WhatsApp Lite page] Error cargando datos:", e);
   }

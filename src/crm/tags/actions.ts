@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { CrearTagSchema, ActualizarTagSchema } from "./schema";
 import type { ResultadoAccion, Tag } from "./types";
 
 export async function obtenerTagsAction(): Promise<Tag[]> {
+  const sesion = await requireSesion();
   return prisma.tag.findMany({
-    where: { activo: true },
+    where: { instanciaId: sesion.instanciaId, activo: true },
     orderBy: { nombre: "asc" },
   }) as unknown as Promise<Tag[]>;
 }
@@ -17,10 +19,12 @@ export async function crearTag(datos: unknown): Promise<ResultadoAccion<Tag>> {
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
+    const sesion = await requireSesion();
     const tag = await prisma.tag.create({
       data: {
         nombre: validado.data.nombre,
         color: validado.data.color || null,
+        instanciaId: sesion.instanciaId,
       },
     });
     revalidatePath("/crm/etiquetas");

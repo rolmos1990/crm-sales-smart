@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearPedidoSchema, ActualizarEstadoPedidoSchema } from "./schema";
 import { generarNumeroPedido } from "./queries";
@@ -12,12 +13,13 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
+    const sesion = await requireSesion();
     const {
       lineas, contactoId, empresaId, cotizacionId, notas, impuesto,
       nombre, apellido, telefono, email, ruc, empresaNombre,
       ...resto
     } = validado.data;
-    const numero = await generarNumeroPedido();
+    const numero = await generarNumeroPedido(sesion.instanciaId);
 
     // Cargar y validar stock de productos que lo manejan
     const idsProducto = lineas.map(l => l.productoId).filter(Boolean) as string[];
@@ -53,6 +55,7 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     const pedido = await prisma.pedido.create({
       data: {
         ...resto,
+        instanciaId: sesion.instanciaId,
         numero,
         subtotal,
         impuesto: impuestoMonto,

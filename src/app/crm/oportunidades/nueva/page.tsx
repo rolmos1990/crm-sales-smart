@@ -5,7 +5,7 @@ import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerPipelines } from "@/crm/pipeline/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
-import { resolverInstanciaId } from "@/shared/db/instancia";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { PipelineConStages } from "@/crm/pipeline/types";
 
 export default async function NuevaOportunidadPage(props: {
@@ -22,13 +22,13 @@ export default async function NuevaOportunidadPage(props: {
   let monedaDefault = "PEN";
 
   try {
-    const instanciaId = await resolverInstanciaId();
+    const sesion = await requireSesion();
     const [e, c, pipelines, t, moneda] = await Promise.all([
-      buscarEmpresas(""),
-      buscarContactos(""),
-      pipelineId ? obtenerPipelines() : Promise.resolve([]),
-      obtenerTags(),
-      obtenerMonedaPrincipal(instanciaId),
+      buscarEmpresas("", sesion.instanciaId),
+      buscarContactos("", sesion.instanciaId),
+      pipelineId ? obtenerPipelines(sesion.instanciaId) : Promise.resolve([]),
+      obtenerTags(sesion.instanciaId),
+      obtenerMonedaPrincipal(sesion.instanciaId),
     ]);
     monedaDefault = moneda;
     empresas = e.map(x => ({ valor: x.id, etiqueta: x.nombre }));
