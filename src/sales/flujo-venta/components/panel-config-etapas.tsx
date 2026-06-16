@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent, type DragMoveEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext, useSortable, arrayMove, verticalListSortingStrategy,
@@ -25,6 +26,60 @@ import { cn } from "@/lib/utils";
 import { crearEtapa, actualizarEtapa, eliminarEtapa, reordenarEtapas } from "../actions";
 import type { FlujoVentaEtapa } from "../types";
 import { COLORES_ETAPA } from "../types";
+
+const INDENT_WIDTH = 32;
+const MAX_DEPTH = 2;
+
+type EtapaFlat = FlujoVentaEtapa & { depth: number };
+
+// Convierte lista plana con parentId a lista plana con depth, en orden correcto (DFS)
+function flattenTree(etapas: FlujoVentaEtapa[]): EtapaFlat[] {
+  const result: EtapaFlat[] = [];
+
+  function walk(parentId: string | null, depth: number) {
+    etapas
+      .filter((e) => e.parentId === parentId)
+      .sort((a, b) => a.orden - b.orden)
+      .forEach((e) => {
+        result.push({ ...e, depth });
+        walk(e.id, depth + 1);
+      });
+  }
+
+  walk(null, 0);
+  return result;
+}
+
+// Calcula el parentId proyectado durante el drag basado en la posición horizontal
+function getProjection(
+  items: EtapaFlat[],
+  activeId: string,
+  overId: string,
+  deltaX: number,
+): { parentId: string | null; depth: number } {
+  const overIndex = items.findIndex((i) => i.id === overId);
+  const activeIndex = items.findIndex((i) => i.id === activeId);
+  const activeItem = items[activeIndex];
+
+  const depthDelta = Math.round(deltaX / INDENT_WIDTH);
+  const projectedDepth = Math.max(0, Math.min(MAX_DEPTH, activeItem.depth + depthDelta));
+
+  // El item justo arriba de la posición destino determina el padre posible
+  const prevItem = items.slice(0, overIndex).reverse().find((i) => i.depth <= projectedDepth);
+
+  let parentId: string | null = null;
+  if (projectedDepth === 0) {
+    parentId = null;
+  } else if (prevItem) {
+    if (prevItem.depth === projectedDepth) {
+      parentId = prevItem.parentId;
+    } else {
+      parentId = prevItem.id;
+    }
+  }
+
+  return { parentId, depth: projectedDepth };
+}
 
 function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
   return (
@@ -53,9 +108,11 @@ function ColorPicker({ color, onChange }: { color: string; onChange: (c: string)
 }
 
 function SortableEtapaItem({
-  etapa, onEditar, onEliminar,
+  etapa, depth, isProjected, onEditar, onEliminar,
 }: {
-  etapa: FlujoVentaEtapa;
+  etapa: EtapaFlat;
+  depth: number;
+  isProjected: boolean;
   onEditar: (e: FlujoVentaEtapa) => void;
   onEliminar: (id: string) => void;
 }) {
@@ -64,47 +121,73 @@ function SortableEtapaItem({
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
-        "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10",
-        isDragging ? "opacity-50 shadow-xl border-lime-400/40 z-50" : "hover:border-stone-300 dark:hover:border-white/20"
-      )}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        paddingLeft: depth * INDENT_WIDTH,
+      }}
+      className={cn(isDragging && "opacity-50 z-50")}
     >
-      <button
-        {...attributes}
-        {...listeners}
-        className="flex-shrink-0 touch-none cursor-grab active:cursor-grabbing text-stone-300 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400"
+      {/* Guía visual de indentación */}
+      <div
+        className={cn(
+          "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
+          "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10",
+          isDragging
+            ? "shadow-xl border-lime-400/40"
+            : "hover:border-stone-300 dark:hover:border-white/20",
+          isProjected && "border-lime-400/60 dark:border-lime-400/40 bg-lime-50/30 dark:bg-lime-400/5",
+          depth > 0 && "border-l-2"
+        )}
+        style={depth > 0 ? { borderLeftColor: etapa.color ?? "#4ade80" } : undefined}
       >
-        <GripVertical className="h-4 w-4" />
-      </button>
-
-      <div className="h-3 w-3 rounded-full flex-shrink-0 ring-1 ring-white/20" style={{ backgroundColor: etapa.color ?? "#4ade80" }} />
-
-      <span className="flex-1 text-sm font-medium text-stone-800 dark:text-stone-200 truncate">{etapa.nombre}</span>
-
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        {etapa.esInicial && (
-          <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/12 border border-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
-            <Circle className="h-2.5 w-2.5 fill-current" /> Inicial
-          </span>
-        )}
-        {etapa.esFinal && (
-          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/12 border border-emerald-500/20 px-1.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-            <Flag className="h-2.5 w-2.5" /> Final
-          </span>
-        )}
-        {etapa.esCancelacion && (
-          <span className="inline-flex items-center gap-1 rounded-md bg-red-500/12 border border-red-500/20 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
-            <XCircle className="h-2.5 w-2.5" /> Cancelación
-          </span>
-        )}
-        <button onClick={() => onEditar(etapa)} className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors">
-          <Pencil className="h-3.5 w-3.5" />
+        <button
+          {...attributes}
+          {...listeners}
+          className="flex-shrink-0 touch-none cursor-grab active:cursor-grabbing text-stone-300 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400"
+          title="Arrastra arriba/abajo para reordenar, izquierda/derecha para anidar"
+        >
+          <GripVertical className="h-4 w-4" />
         </button>
-        <button onClick={() => onEliminar(etapa.id)} className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-500/8 transition-colors">
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+
+        <div className="h-3 w-3 rounded-full flex-shrink-0 ring-1 ring-white/20" style={{ backgroundColor: etapa.color ?? "#4ade80" }} />
+
+        <span className="flex-1 text-sm font-medium text-stone-800 dark:text-stone-200 truncate">{etapa.nombre}</span>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {etapa.esInicial && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/12 border border-blue-500/20 px-1.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+              <Circle className="h-2.5 w-2.5 fill-current" /> Inicial
+            </span>
+          )}
+          {etapa.esFinal && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/12 border border-emerald-500/20 px-1.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <Flag className="h-2.5 w-2.5" /> Final
+            </span>
+          )}
+          {etapa.esCancelacion && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-red-500/12 border border-red-500/20 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+              <XCircle className="h-2.5 w-2.5" /> Cancelación
+            </span>
+          )}
+          {depth > 0 && (
+            <span className="inline-flex items-center rounded-md bg-stone-100 dark:bg-white/8 border border-stone-200 dark:border-white/10 px-1.5 py-0.5 text-xs text-stone-400 dark:text-stone-500">
+              sub-etapa
+            </span>
+          )}
+          <button
+            onClick={() => onEditar(etapa)}
+            className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onEliminar(etapa.id)}
+            className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-500/8 transition-colors"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -130,7 +213,7 @@ function DialogEditarEtapa({
     startTransition(async () => {
       const resultado = await actualizarEtapa(etapa.id, {
         nombre: nombre.trim(), color, orden: etapa.orden,
-        esInicial, esFinal, esCancelacion, activo: true,
+        esInicial, esFinal, esCancelacion, activo: true, parentId: etapa.parentId,
       });
       if (resultado.exito) {
         toast.success("Etapa actualizada");
@@ -165,7 +248,7 @@ function DialogEditarEtapa({
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => { setEsInicial(!esInicial); }}
+              onClick={() => setEsInicial(!esInicial)}
               className={cn(
                 "flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium border transition-all",
                 esInicial ? "bg-blue-500/12 border-blue-500/30 text-blue-600 dark:text-blue-400" : "border-stone-200 dark:border-white/10 text-stone-500 hover:bg-stone-50 dark:hover:bg-white/5"
@@ -211,7 +294,10 @@ interface PanelConfigEtapasProps {
 }
 
 export function PanelConfigEtapas({ flujoVentaId, etapasIniciales }: PanelConfigEtapasProps) {
-  const [etapas, setEtapas] = useState<FlujoVentaEtapa[]>(etapasIniciales);
+  const [items, setItems] = useState<EtapaFlat[]>(() => flattenTree(etapasIniciales));
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [offsetX, setOffsetX] = useState(0);
   const [etapaEditando, setEtapaEditando] = useState<FlujoVentaEtapa | null>(null);
   const [nuevaNombre, setNuevaNombre] = useState("");
   const [nuevaColor, setNuevaColor] = useState("#4ade80");
@@ -221,32 +307,94 @@ export function PanelConfigEtapas({ flujoVentaId, etapasIniciales }: PanelConfig
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = etapas.findIndex((e) => e.id === active.id);
-    const newIndex = etapas.findIndex((e) => e.id === over.id);
-    const reordenadas = arrayMove(etapas, oldIndex, newIndex);
-    setEtapas(reordenadas);
-    startTransitionReorden(async () => {
-      const r = await reordenarEtapas(reordenadas.map((e) => e.id));
-      if (!r.exito) { toast.error(r.error); setEtapas(etapas); }
-    });
+  const projected =
+    activeId && overId
+      ? getProjection(items, activeId, overId, offsetX)
+      : null;
+
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    setActiveId(active.id as string);
+    setOverId(active.id as string);
   };
+
+  const handleDragMove = ({ delta, over }: DragMoveEvent) => {
+    setOffsetX(delta.x);
+    if (over) setOverId(over.id as string);
+  };
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    const activeIndex = items.findIndex((i) => i.id === active.id);
+    const activeItem = items[activeIndex];
+    const { parentId, depth } = projected ?? { parentId: activeItem.parentId, depth: activeItem.depth };
+
+    // Drag solo horizontal (over null o sobre sí mismo): aplicar solo el nuevo parentId
+    if (!over || active.id === over.id) {
+      if (parentId === activeItem.parentId) { resetDrag(); return; }
+      const actualizado = items.map((item) =>
+        item.id === active.id ? { ...item, parentId, depth } : item
+      );
+      const conOrden = recalcularOrden(actualizado);
+      setItems(conOrden);
+      const prev = items;
+      startTransitionReorden(async () => {
+        const r = await reordenarEtapas(conOrden.map((i) => ({ id: i.id, parentId: i.parentId, orden: i.orden })));
+        if (!r.exito) { toast.error(r.error ?? "Error al reordenar"); setItems(prev); }
+      });
+      resetDrag();
+      return;
+    }
+
+    // Drag vertical (reordenar) + posible cambio de parentId
+    const overIndex = items.findIndex((i) => i.id === over.id);
+    let reordenados = arrayMove(items, activeIndex, overIndex);
+    reordenados = reordenados.map((item) =>
+      item.id === active.id ? { ...item, parentId, depth } : item
+    );
+    const conOrden = recalcularOrden(reordenados);
+    setItems(conOrden);
+
+    const prev = items;
+    startTransitionReorden(async () => {
+      const r = await reordenarEtapas(conOrden.map((i) => ({ id: i.id, parentId: i.parentId, orden: i.orden })));
+      if (!r.exito) { toast.error(r.error ?? "Error al reordenar"); setItems(prev); }
+    });
+
+    resetDrag();
+  };
+
+  const handleDragCancel = () => resetDrag();
+
+  const resetDrag = () => {
+    setActiveId(null);
+    setOverId(null);
+    setOffsetX(0);
+  };
+
+  // Asigna orden secuencial dentro de cada grupo de siblings
+  function recalcularOrden(flat: EtapaFlat[]): EtapaFlat[] {
+    const contadores = new Map<string | null, number>();
+    return flat.map((item) => {
+      const key = item.parentId ?? null;
+      const orden = contadores.get(key) ?? 0;
+      contadores.set(key, orden + 1);
+      return { ...item, orden };
+    });
+  }
 
   const handleCrear = () => {
     if (!nuevaNombre.trim()) return;
     startTransitionNueva(async () => {
       const r = await crearEtapa(flujoVentaId, {
-        nombre: nuevaNombre.trim(), color: nuevaColor, orden: etapas.length,
-        esInicial: false, esFinal: false, esCancelacion: false, activo: true,
+        nombre: nuevaNombre.trim(), color: nuevaColor, orden: items.length,
+        esInicial: false, esFinal: false, esCancelacion: false, activo: true, parentId: null,
       });
       if (r.exito) {
-        const nueva: FlujoVentaEtapa = {
-          id: r.datos.id, nombre: nuevaNombre.trim(), color: nuevaColor, orden: etapas.length,
-          esInicial: false, esFinal: false, esCancelacion: false, activo: true, descripcion: null, flujoVentaId,
+        const nueva: EtapaFlat = {
+          id: r.datos.id, nombre: nuevaNombre.trim(), color: nuevaColor, orden: items.length,
+          esInicial: false, esFinal: false, esCancelacion: false, activo: true,
+          descripcion: null, flujoVentaId, parentId: null, depth: 0,
         };
-        setEtapas((prev) => [...prev, nueva]);
+        setItems((prev) => [...prev, nueva]);
         setNuevaNombre(""); setNuevaColor("#4ade80"); setMostrarFormNueva(false);
         toast.success("Etapa creada");
       } else {
@@ -256,30 +404,59 @@ export function PanelConfigEtapas({ flujoVentaId, etapasIniciales }: PanelConfig
   };
 
   const handleEliminar = (id: string) => {
-    const prev = etapas;
-    setEtapas((e) => e.filter((x) => x.id !== id));
+    const prev = items;
+    // Eliminar la etapa y sus hijos
+    const idsAEliminar = new Set<string>();
+    const collectChildren = (parentId: string) => {
+      idsAEliminar.add(parentId);
+      items.filter((i) => i.parentId === parentId).forEach((i) => collectChildren(i.id));
+    };
+    collectChildren(id);
+    setItems((e) => e.filter((x) => !idsAEliminar.has(x.id)));
     eliminarEtapa(id).then((r) => {
       if (r.exito) toast.success("Etapa eliminada");
-      else { toast.error(r.error); setEtapas(prev); }
+      else { toast.error(r.error); setItems(prev); }
     });
   };
 
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <Label className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-widest">
-            Etapas · arrastra para reordenar
-          </Label>
-          <span className="text-xs text-stone-400">{etapas.length} etapas</span>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <Label className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-widest">
+              Etapas · arrastra para reordenar o anidar
+            </Label>
+            <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+              Arrastra a la <strong>derecha</strong> para crear sub-etapas (máx. {MAX_DEPTH} niveles)
+            </p>
+          </div>
+          <span className="text-xs text-stone-400">{items.length} etapas</span>
         </div>
 
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={etapas.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragMove={handleDragMove}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <SortableContext items={items.map((e) => e.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-1.5">
-              {etapas.map((etapa) => (
-                <SortableEtapaItem key={etapa.id} etapa={etapa} onEditar={setEtapaEditando} onEliminar={handleEliminar} />
-              ))}
+              {items.map((etapa) => {
+                const depth = activeId === etapa.id && projected ? projected.depth : etapa.depth;
+                return (
+                  <SortableEtapaItem
+                    key={etapa.id}
+                    etapa={etapa}
+                    depth={depth}
+                    isProjected={activeId === etapa.id && !!projected}
+                    onEditar={setEtapaEditando}
+                    onEliminar={handleEliminar}
+                  />
+                );
+              })}
             </div>
           </SortableContext>
         </DndContext>
@@ -316,7 +493,9 @@ export function PanelConfigEtapas({ flujoVentaId, etapasIniciales }: PanelConfig
         etapa={etapaEditando}
         open={!!etapaEditando}
         onOpenChange={(v) => { if (!v) setEtapaEditando(null); }}
-        onGuardado={(actualizada) => setEtapas((prev) => prev.map((e) => e.id === actualizada.id ? actualizada : e))}
+        onGuardado={(actualizada) =>
+          setItems((prev) => prev.map((e) => e.id === actualizada.id ? { ...e, ...actualizada } : e))
+        }
       />
     </div>
   );

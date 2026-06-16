@@ -89,7 +89,11 @@
       "Bash(npm init *)",
       "Bash(node shot.mjs)",
       "Bash(grep -rn \"from \\\\\"@/\\\\|from '@/\" scripts/*.ts)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(node -e ' *)",
+      "Bash(psql \"postgresql://crm_sales_smart_user:kW8!Ty.om0n3@localhost:5432/crm_sales_smart_dev\" -c \"SELECT id, email, nombre, rol, estado, \\\\\"authUserId\\\\\", \\\\\"creadoEn\\\\\" FROM \\\\\"Usuario\\\\\" WHERE email = 'rolmos1990@gmail.com';\")",
+      "PowerShell(& \"C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql.exe\" \"postgresql://crm_sales_smart_user:kW8!Ty.om0n3@localhost:5432/crm_sales_smart_dev\" -c \"SELECT id, email, nombre, rol, estado, `\"authUserId`\", `\"creadoEn`\" FROM `\"Usuario`\" WHERE email = 'rolmos1990@gmail.com';\" 2>&1)",
+      "PowerShell(Get-Command psql -ErrorAction SilentlyContinue)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

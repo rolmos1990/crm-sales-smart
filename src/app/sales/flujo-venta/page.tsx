@@ -1,8 +1,7 @@
 import { Settings2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { requireSesion } from "@/shared/auth/sesion";
-import { obtenerFlujoVentaCompleto } from "@/sales/flujo-venta/queries";
-import { crearOActualizarFlujoVenta } from "@/sales/flujo-venta/actions";
+import { obtenerFlujoVentaCompleto, inicializarFlujoVentaPorDefecto } from "@/sales/flujo-venta/queries";
 import { PanelConfigEtapas } from "@/sales/flujo-venta/components/panel-config-etapas";
 import { PanelConfigReglas } from "@/sales/flujo-venta/components/panel-config-reglas";
 
@@ -12,7 +11,7 @@ export default async function FlujoVentaPage() {
 
   // Si no existe flujo, crear uno por defecto con etapas iniciales
   if (!flujo) {
-    await crearOActualizarFlujoVenta({ nombre: "Flujo de venta", esDefault: true });
+    await inicializarFlujoVentaPorDefecto(sesion.instanciaId);
     flujo = await obtenerFlujoVentaCompleto(sesion.instanciaId);
   }
 

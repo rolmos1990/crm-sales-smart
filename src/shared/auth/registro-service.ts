@@ -42,6 +42,7 @@ export async function registrarEmpresa(input: RegistroInput): Promise<ResultadoR
   const resultado = await authProvider.registrarUsuario(email, password);
 
   if (resultado.error || !resultado.usuario) {
+    console.error("[registro] authProvider.registrarUsuario falló:", resultado.error);
     return { error: MENSAJE_REGISTRO_INVALIDO };
   }
 

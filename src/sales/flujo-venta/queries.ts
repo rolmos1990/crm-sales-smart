@@ -38,6 +38,12 @@ export async function obtenerFlujoVentaCompleto(instanciaId: string) {
   });
 }
 
+export async function inicializarFlujoVentaPorDefecto(instanciaId: string): Promise<void> {
+  await prisma.flujoVenta.create({
+    data: { nombre: "Flujo de venta", esDefault: true, instanciaId },
+  });
+}
+
 export async function obtenerHistorialPedido(pedidoId: string) {
   return prisma.pedidoHistorialEtapa.findMany({
     where: { pedidoId },

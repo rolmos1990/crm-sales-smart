@@ -13,6 +13,7 @@ export interface FlujoVentaEtapa {
   esCancelacion: boolean;
   activo: boolean;
   flujoVentaId: string;
+  parentId: string | null;
 }
 
 export interface FlujoVentaReglaCondicion {

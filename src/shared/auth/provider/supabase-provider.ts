@@ -16,6 +16,7 @@ export const supabaseAuthProvider: AuthProvider = {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error || !data.user) {
+      console.error("[supabase] signInWithPassword error:", error);
       return { usuario: null, error: MENSAJE_LOGIN_INVALIDO };
     }
 
@@ -31,6 +32,7 @@ export const supabaseAuthProvider: AuthProvider = {
     });
 
     if (error || !data.user) {
+      console.error("[supabase] admin.createUser error:", error);
       return { usuario: null, error: MENSAJE_REGISTRO_INVALIDO };
     }
 

@@ -11,7 +11,7 @@ import type { Pedido } from "@/sales/pedidos/types";
 export default async function PedidosPage() {
   const sesion = await requireSesion();
   let pedidos: Pedido[] = [];
-  let etapasFlujo: { id: string; nombre: string; color: string | null; esCancelacion: boolean }[] = [];
+  let etapasFlujo: { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; parentId: string | null }[] = [];
   try {
     const [datos, flujo] = await Promise.all([
       obtenerPedidos(sesion.instanciaId),

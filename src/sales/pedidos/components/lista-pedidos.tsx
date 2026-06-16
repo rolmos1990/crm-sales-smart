@@ -44,12 +44,22 @@ function EstadoBadge({ estado, etapa }: { estado: EstadoPedido; etapa: EtapaResu
   );
 }
 
-type EtapaFlujo = { id: string; nombre: string; color: string | null; esCancelacion: boolean };
+type EtapaFlujo = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; parentId: string | null };
 
 function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: EtapaFlujo[] }) {
   const router = useRouter();
   const etapaActualId = (pedido as any).flujoVentaEtapa?.id ?? null;
-  const siguientesEtapas = etapasFlujo.filter((e) => e.id !== etapaActualId);
+  const etapaActual = etapasFlujo.find((e) => e.id === etapaActualId);
+  const estaEnEtapaTerminal = etapaActual?.esFinal || etapaActual?.esCancelacion;
+
+  // Si no hay etapa actual o está en etapa terminal, no mostrar transiciones
+  const siguientesEtapas = estaEnEtapaTerminal
+    ? []
+    : etapasFlujo.filter(
+        (e) =>
+          e.id !== etapaActualId &&
+          (e.esFinal || e.esCancelacion || e.parentId === etapaActualId)
+      );
 
   const handleMover = async (etapaId: string, etapaNombre: string) => {
     const resultado = await moverPedidoAction(pedido.id, etapaId);
@@ -160,6 +170,7 @@ interface ListaPedidosProps {
   pedidos: Pedido[];
   etapasFlujo: EtapaFlujo[];
 }
+
 
 export function ListaPedidos({ pedidos, etapasFlujo }: ListaPedidosProps) {
   const columnas: ColumnDef<Pedido>[] = [

@@ -9,6 +9,7 @@ export const EtapaSchema = z.object({
   esFinal:       z.boolean().optional(),
   esCancelacion: z.boolean().optional(),
   activo:        z.boolean().optional(),
+  parentId:      z.string().nullable().optional(),
 });
 
 export const CondicionSchema = z.object({

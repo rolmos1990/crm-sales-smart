@@ -47,11 +47,20 @@ export async function crearEtapa(flujoVentaId: string, datos: unknown): Promise<
 
   try {
     const etapa = await prisma.flujoVentaEtapa.create({
-      data: { ...validado.data, flujoVentaId, esInicial: validado.data.esInicial ?? false, esFinal: validado.data.esFinal ?? false, esCancelacion: validado.data.esCancelacion ?? false, activo: validado.data.activo ?? true },
+      data: {
+        ...validado.data,
+        flujoVentaId,
+        esInicial: validado.data.esInicial ?? false,
+        esFinal: validado.data.esFinal ?? false,
+        esCancelacion: validado.data.esCancelacion ?? false,
+        activo: validado.data.activo ?? true,
+        parentId: validado.data.parentId ?? null,
+      },
     });
     revalidatePath("/sales/flujo-venta");
     return { exito: true, datos: { id: etapa.id } };
-  } catch {
+  } catch (e) {
+    console.error("[crearEtapa] error:", e);
     return { exito: false, error: "Error al crear la etapa" };
   }
 }
@@ -89,9 +98,13 @@ export async function eliminarEtapa(etapaId: string): Promise<Resultado> {
   return { exito: true, datos: undefined };
 }
 
-export async function reordenarEtapas(etapaIds: string[]): Promise<Resultado> {
+export async function reordenarEtapas(
+  items: { id: string; parentId: string | null; orden: number }[]
+): Promise<Resultado> {
   await prisma.$transaction(
-    etapaIds.map((id, i) => prisma.flujoVentaEtapa.update({ where: { id }, data: { orden: i } }))
+    items.map(({ id, parentId, orden }) =>
+      prisma.flujoVentaEtapa.update({ where: { id }, data: { parentId, orden } })
+    )
   );
   revalidatePath("/sales/flujo-venta");
   return { exito: true, datos: undefined };

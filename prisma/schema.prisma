@@ -958,12 +958,17 @@ model FlujoVentaEtapa {
   flujoVentaId String
   flujoVenta   FlujoVenta @relation(fields: [flujoVentaId], references: [id], onDelete: Cascade)
 
+  parentId String?
+  parent   FlujoVentaEtapa?  @relation("EtapaTree", fields: [parentId], references: [id])
+  children FlujoVentaEtapa[] @relation("EtapaTree")
+
   pedidos   Pedido[]
   reglas    FlujoVentaRegla[]
   historial PedidoHistorialEtapa[]
 
-  @@unique([flujoVentaId, orden])
+  @@index([flujoVentaId, orden])
   @@index([flujoVentaId])
+  @@index([parentId])
 }
 
 model FlujoVentaRegla {
