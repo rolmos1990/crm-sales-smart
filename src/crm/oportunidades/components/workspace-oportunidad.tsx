@@ -8,7 +8,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   X, Phone, Video, Search, MoreHorizontal, ExternalLink, Loader2,
   ChevronDown, Building2, Layers, Mail, Globe,
-  Save, Tag as TagIcon, User,
+  Save, Tag as TagIcon, User, FileText, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -55,6 +55,12 @@ import {
 import type { ConversacionResumen, CuentaCanalResumen } from "@/conversaciones/types";
 import { MONEDAS } from "@/shared/moneda/constants";
 import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
+import {
+  cambiarEstadoCotizacion,
+  aprobarCotizacion,
+  obtenerCotizacionesPorOportunidadAction,
+} from "@/sales/cotizaciones/actions";
+import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -72,6 +78,15 @@ export interface WorkspaceOportunidadProps {
   onDelete: (id: string) => void;
 }
 
+type CotizacionResumen = {
+  id: string;
+  numero: string;
+  estado: string;
+  total: number;
+  moneda: string;
+  creadoEn: Date;
+};
+
 interface WorkspaceData {
   oportunidad: OportunidadFetched;
   tagsDisponibles: Tag[];
@@ -80,6 +95,7 @@ interface WorkspaceData {
   contactosIniciales: ContactoEnPanel[];
   conversaciones: ConversacionResumen[];
   cuentasCanal: CuentaCanalResumen[];
+  cotizaciones: CotizacionResumen[];
 }
 
 // ── Accordion helper ──────────────────────────────────────────────────────────
@@ -163,7 +179,8 @@ export function WorkspaceOportunidad({
       obtenerPipelinesAction(),
       obtenerConversacionesPorOportunidadAction(oportunidadId),
       obtenerCuentasCanalAction(),
-    ]).then(([oportunidad, tags, pipelines, conversaciones, cuentasCanal]) => {
+      obtenerCotizacionesPorOportunidadAction(oportunidadId),
+    ]).then(([oportunidad, tags, pipelines, conversaciones, cuentasCanal, cotizaciones]) => {
       if (!oportunidad) { setCargando(false); return; }
 
       const tagIds = (oportunidad as any).tags?.map((t: { tagId: string }) => t.tagId) ?? [];
@@ -183,6 +200,7 @@ export function WorkspaceOportunidad({
         contactosIniciales,
         conversaciones: conversaciones as ConversacionResumen[],
         cuentasCanal: cuentasCanal as CuentaCanalResumen[],
+        cotizaciones: cotizaciones as CotizacionResumen[],
       });
       setResetKey((k) => k + 1);
       setCargando(false);
@@ -273,13 +291,20 @@ function WorkspaceContenido({
     campos: string[];
   } | null>(null);
   const camposSeccionRef = useRef<HTMLDivElement>(null);
+  const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>(data.cotizaciones);
   const [secciones, setSecciones] = useState({
     info: true,
     contactos: false,
     empresa: false,
     etiquetas: false,
     campos: false,
+    cotizaciones: false,
   });
+
+  const refrescarCotizaciones = async () => {
+    const nuevas = await obtenerCotizacionesPorOportunidadAction(oportunidad.id);
+    setCotizaciones(nuevas as CotizacionResumen[]);
+  };
 
   const actualizarMutation = useActualizarOportunidadMutation(oportunidad.id);
   const eliminarMutation = useEliminarOportunidadMutation();
@@ -529,6 +554,10 @@ function WorkspaceContenido({
                 apellido: contactoPrincipal?.apellido,
                 telefono: (contactoPrincipal as any)?.telefonoPrincipal ?? undefined,
                 email: (contactoPrincipal as any)?.email ?? undefined,
+              }}
+              onCreada={() => {
+                refrescarCotizaciones();
+                setSecciones((prev) => ({ ...prev, cotizaciones: true }));
               }}
             />
             <div className="w-px h-5 bg-white/10 mx-1" />
@@ -791,6 +820,91 @@ function WorkspaceContenido({
                     </div>
                   </Seccion>
                 )}
+
+                {/* ── Cotizaciones ──────────────────────────────────── */}
+                <Seccion
+                  titulo="Cotizaciones"
+                  icono={<FileText className="h-3 w-3" />}
+                  abierto={secciones.cotizaciones}
+                  onToggle={() => toggleSeccion("cotizaciones")}
+                  badge={cotizaciones.length}
+                >
+                  <div className="space-y-2 pt-1">
+                    {cotizaciones.length === 0 ? (
+                      <p className="text-xs text-stone-500 text-center py-3">Sin cotizaciones</p>
+                    ) : (
+                      cotizaciones.map((c) => {
+                        const conf = ESTADO_COTIZACION_CONFIG[c.estado as keyof typeof ESTADO_COTIZACION_CONFIG];
+                        const esEditable = c.estado === "BORRADOR" || c.estado === "ENVIADA";
+                        return (
+                          <div key={c.id} className="rounded-lg bg-white/4 border border-white/8 px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-xs font-mono text-stone-300 truncate">{c.numero}</span>
+                                <span className={cn(
+                                  "shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+                                  c.estado === "BORRADOR" && "bg-stone-500/20 text-stone-400",
+                                  c.estado === "ENVIADA" && "bg-blue-500/20 text-blue-400",
+                                  c.estado === "APROBADA" && "bg-green-500/20 text-green-400",
+                                  c.estado === "RECHAZADA" && "bg-red-500/20 text-red-400",
+                                  c.estado === "VENCIDA" && "bg-yellow-500/20 text-yellow-400",
+                                )}>
+                                  {conf?.etiqueta ?? c.estado}
+                                </span>
+                              </div>
+                              <a
+                                href={`/sales/cotizaciones/${c.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0 h-5 w-5 flex items-center justify-center rounded text-stone-500 hover:text-stone-200 hover:bg-white/8 transition-colors"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+                            <div className="flex items-center justify-between mt-1.5 gap-2">
+                              <span className="text-xs text-stone-500 tabular-nums">
+                                {c.moneda} {c.total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                              </span>
+                              {esEditable && (
+                                <div className="flex items-center gap-1">
+                                  {c.estado === "BORRADOR" && (
+                                    <button
+                                      type="button"
+                                      className="text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-stone-400 hover:text-stone-200 border border-white/10 transition-colors"
+                                      onClick={async () => {
+                                        const r = await cambiarEstadoCotizacion(c.id, "ENVIADA");
+                                        if (r.exito) { toast.success("Marcada como enviada"); refrescarCotizaciones(); }
+                                        else toast.error(r.error);
+                                      }}
+                                    >
+                                      Marcar enviada
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="text-[10px] px-2 py-0.5 rounded bg-lime-500/15 hover:bg-lime-500/25 text-lime-400 hover:text-lime-300 border border-lime-400/20 transition-colors flex items-center gap-1"
+                                    onClick={async () => {
+                                      const r = await aprobarCotizacion(c.id);
+                                      if (r.exito) {
+                                        toast.success(`Pedido ${r.datos.numeroPedido} creado`);
+                                        refrescarCotizaciones();
+                                      } else {
+                                        toast.error(r.error);
+                                      }
+                                    }}
+                                  >
+                                    <CheckCircle2 className="h-2.5 w-2.5" />
+                                    Generar pedido
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </Seccion>
 
                 {/* ── Campos personalizados del pipeline ───────────── */}
                 {camposPipeline.length > 0 && (

@@ -21,6 +21,7 @@ interface SheetNuevaCotizacionProps {
   contactoId?: string;
   empresaId?: string;
   destinatario?: Partial<DestinatarioCotizacionInput>;
+  onCreada?: () => void;
 }
 
 interface DatosFormulario {
@@ -36,18 +37,24 @@ export function SheetNuevaCotizacion({
   contactoId,
   empresaId,
   destinatario,
+  onCreada,
 }: SheetNuevaCotizacionProps) {
   const [open, setOpen] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [datos, setDatos] = useState<DatosFormulario | null>(null);
 
   const handleOpenChange = async (siguiente: boolean) => {
     setOpen(siguiente);
     if (siguiente && !datos) {
       setCargando(true);
+      setError(null);
       try {
         const resultado = await obtenerDatosFormularioCotizacion();
         setDatos(resultado);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Error al cargar el formulario";
+        setError(msg);
       } finally {
         setCargando(false);
       }
@@ -101,6 +108,12 @@ export function SheetNuevaCotizacion({
             </div>
           )}
 
+          {!cargando && error && (
+            <div className="flex items-center justify-center h-40 px-6">
+              <p className="text-sm text-red-500 text-center">{error}</p>
+            </div>
+          )}
+
           {!cargando && datos && (
             <div className="px-6 py-6">
               <FormCotizacion
@@ -122,7 +135,10 @@ export function SheetNuevaCotizacion({
                 contactoOrigen={destinatario}
                 contactoFijo
                 empresaFija
-                onSuccess={() => setOpen(false)}
+                onSuccess={() => {
+                  setOpen(false);
+                  onCreada?.();
+                }}
               />
             </div>
           )}

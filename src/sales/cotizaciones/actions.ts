@@ -5,7 +5,7 @@ import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
-import { generarNumeroCotizacion } from "./queries";
+import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad } from "./queries";
 import { generarNumeroPedido } from "@/sales/pedidos/queries";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
@@ -62,8 +62,10 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     revalidatePath("/sales/cotizaciones");
     if (oportunidadId) revalidatePath(`/crm/oportunidades/${oportunidadId}`);
     return { exito: true, datos: { ...cotizacion, subtotal, total, impuesto: impuestoMonto } as unknown as Cotizacion };
-  } catch {
-    return { exito: false, error: "Error al crear la cotización" };
+  } catch (e: unknown) {
+    console.error("[crearCotizacion]", e);
+    const detalle = e instanceof Error ? e.message : String(e);
+    return { exito: false, error: `Error al crear la cotización: ${detalle}` };
   }
 }
 
@@ -139,9 +141,10 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
 }
 
 export async function cambiarEstadoCotizacion(id: string, estado: string): Promise<ResultadoAccion> {
+  const sesion = await requireSesion();
   try {
     await prisma.cotizacion.update({
-      where: { id },
+      where: { id, instanciaId: sesion.instanciaId },
       data: { estado: estado as "BORRADOR" | "ENVIADA" | "APROBADA" | "RECHAZADA" | "VENCIDA" },
     });
 
@@ -155,6 +158,12 @@ export async function cambiarEstadoCotizacion(id: string, estado: string): Promi
   } catch {
     return { exito: false, error: "Error al cambiar el estado" };
   }
+}
+
+export async function obtenerCotizacionesPorOportunidadAction(oportunidadId: string) {
+  const sesion = await requireSesion();
+  const datos = await obtenerCotizacionesPorOportunidad(oportunidadId, sesion.instanciaId);
+  return datos.map((c) => ({ ...c, total: Number(c.total) }));
 }
 
 export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ pedidoId: string; numeroPedido: string }>> {

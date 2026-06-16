@@ -16,12 +16,14 @@ import { BotonAprobarCotizacion } from "@/sales/cotizaciones/components/boton-ap
 import { cn } from "@/lib/utils";
 
 const TRANSICIONES_MANUALES: Record<string, string[]> = {
-  BORRADOR: [],
+  BORRADOR: ["ENVIADA"],
   ENVIADA: ["RECHAZADA"],
   APROBADA: [],
   RECHAZADA: [],
   VENCIDA: [],
 };
+
+const ESTADOS_EDITABLES = new Set(["BORRADOR", "ENVIADA"]);
 
 export default async function CotizacionDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -93,7 +95,7 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {cotizacion.estado === "BORRADOR" && (
+          {ESTADOS_EDITABLES.has(cotizacion.estado) && (
             <ButtonLink href={`/sales/cotizaciones/${id}/editar`} variant="outline" size="sm">
               <Pencil className="h-4 w-4" />Editar
             </ButtonLink>

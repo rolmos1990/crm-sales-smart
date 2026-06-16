@@ -16,7 +16,7 @@ export function BotonAprobarCotizacion({ cotizacionId, estado }: BotonAprobarCot
   const router = useRouter();
   const [cargando, setCargando] = useState(false);
 
-  if (estado !== "ENVIADA") return null;
+  if (estado !== "ENVIADA" && estado !== "BORRADOR") return null;
 
   const handleClick = async () => {
     setCargando(true);
