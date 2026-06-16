@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { obtenerPedidoPorId } from "@/sales/pedidos/queries";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { moverPedidoAEtapa } from "@/sales/flujo-venta/motor";
+import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
 import { requireSesion } from "@/shared/auth/sesion";
 import { actualizarEstadoPedido } from "@/sales/pedidos/actions";
 import { moverPedidoAction } from "@/sales/flujo-venta/actions";
@@ -98,8 +99,8 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
 
   const historial: any[] = (pedido as any).historialEtapas ?? [];
   const usandoFlujo = todasLasEtapas.length > 0;
-  const siguientesEtapas = usandoFlujo && etapaActual
-    ? todasLasEtapas.filter((e: any) => e.id !== etapaActual.id)
+  const siguientesEtapas = usandoFlujo
+    ? calcularSiguientesEtapas(todasLasEtapas, etapaActual?.id ?? null)
     : [];
   const siguientesEstado = !usandoFlujo ? (TRANSICIONES[pedido.estado] ?? []) : [];
 

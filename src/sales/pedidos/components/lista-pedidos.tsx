@@ -15,6 +15,7 @@ import {
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { eliminarPedido } from "../actions";
 import { moverPedidoAction } from "@/sales/flujo-venta/actions";
+import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
 import type { Pedido, EstadoPedido } from "../types";
 import { ESTADO_PEDIDO_CONFIG } from "../types";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ import { cn } from "@/lib/utils";
 const formatearMoneda = (valor: number, moneda: string) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: moneda }).format(valor);
 
-type EtapaResumen = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean } | null;
+type EtapaResumen = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null } | null;
 
 function EstadoBadge({ estado, etapa }: { estado: EstadoPedido; etapa: EtapaResumen }) {
   if (etapa) {
@@ -44,22 +45,12 @@ function EstadoBadge({ estado, etapa }: { estado: EstadoPedido; etapa: EtapaResu
   );
 }
 
-type EtapaFlujo = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; parentId: string | null };
+type EtapaFlujo = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null };
 
 function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: EtapaFlujo[] }) {
   const router = useRouter();
   const etapaActualId = (pedido as any).flujoVentaEtapa?.id ?? null;
-  const etapaActual = etapasFlujo.find((e) => e.id === etapaActualId);
-  const estaEnEtapaTerminal = etapaActual?.esFinal || etapaActual?.esCancelacion;
-
-  // Si no hay etapa actual o está en etapa terminal, no mostrar transiciones
-  const siguientesEtapas = estaEnEtapaTerminal
-    ? []
-    : etapasFlujo.filter(
-        (e) =>
-          e.id !== etapaActualId &&
-          (e.esFinal || e.esCancelacion || e.parentId === etapaActualId)
-      );
+  const siguientesEtapas = calcularSiguientesEtapas(etapasFlujo, etapaActualId);
 
   const handleMover = async (etapaId: string, etapaNombre: string) => {
     const resultado = await moverPedidoAction(pedido.id, etapaId);

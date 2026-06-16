@@ -10,7 +10,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical, Pencil, Trash2, Plus, Check, X, Loader2, Flag, XCircle, Circle,
+  GripVertical, Pencil, Trash2, Plus, Check, X, Loader2, Flag, XCircle, Circle, Shuffle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ import { COLORES_ETAPA } from "../types";
 const INDENT_WIDTH = 32;
 const MAX_DEPTH = 2;
 
-type EtapaFlat = FlujoVentaEtapa & { depth: number };
+type EtapaFlat = FlujoVentaEtapa & { depth: number; esSecuencial: boolean };
 
 // Convierte lista plana con parentId a lista plana con depth, en orden correcto (DFS)
 function flattenTree(etapas: FlujoVentaEtapa[]): EtapaFlat[] {
@@ -170,6 +170,11 @@ function SortableEtapaItem({
               <XCircle className="h-2.5 w-2.5" /> Cancelación
             </span>
           )}
+          {!etapa.esSecuencial && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/12 border border-amber-500/20 px-1.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+              <Shuffle className="h-2.5 w-2.5" /> Manual
+            </span>
+          )}
           {depth > 0 && (
             <span className="inline-flex items-center rounded-md bg-stone-100 dark:bg-white/8 border border-stone-200 dark:border-white/10 px-1.5 py-0.5 text-xs text-stone-400 dark:text-stone-500">
               sub-etapa
@@ -206,18 +211,22 @@ function DialogEditarEtapa({
   const [esInicial, setEsInicial] = useState(etapa?.esInicial ?? false);
   const [esFinal, setEsFinal] = useState(etapa?.esFinal ?? false);
   const [esCancelacion, setEsCancelacion] = useState(etapa?.esCancelacion ?? false);
+  const [esSecuencial, setEsSecuencial] = useState(etapa?.esSecuencial ?? true);
   const [isPending, startTransition] = useTransition();
+
+  const tipoFlujoLocked = esInicial || esFinal || esCancelacion;
 
   const handleGuardar = () => {
     if (!etapa || !nombre.trim()) return;
     startTransition(async () => {
+      const secuencialFinal = tipoFlujoLocked ? true : esSecuencial;
       const resultado = await actualizarEtapa(etapa.id, {
         nombre: nombre.trim(), color, orden: etapa.orden,
-        esInicial, esFinal, esCancelacion, activo: true, parentId: etapa.parentId,
+        esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal, activo: true, parentId: etapa.parentId,
       });
       if (resultado.exito) {
         toast.success("Etapa actualizada");
-        onGuardado({ ...etapa, nombre: nombre.trim(), color, esInicial, esFinal, esCancelacion });
+        onGuardado({ ...etapa, nombre: nombre.trim(), color, esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal });
         onOpenChange(false);
       } else {
         toast.error(resultado.error);
@@ -273,6 +282,46 @@ function DialogEditarEtapa({
               )}
             >
               <XCircle className="h-3.5 w-3.5" /> Cancelación
+            </button>
+          </div>
+
+          {/* Tipo de flujo */}
+          <div className={cn(
+            "rounded-xl border p-3 transition-all",
+            tipoFlujoLocked
+              ? "opacity-50 cursor-not-allowed border-stone-200 dark:border-white/10"
+              : "border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20"
+          )}>
+            <button
+              type="button"
+              disabled={tipoFlujoLocked}
+              onClick={() => !tipoFlujoLocked && setEsSecuencial(!esSecuencial)}
+              className="w-full flex items-center justify-between gap-3 disabled:cursor-not-allowed"
+            >
+              <div className="text-left">
+                <p className={cn(
+                  "text-xs font-medium",
+                  (tipoFlujoLocked ? true : esSecuencial)
+                    ? "text-stone-800 dark:text-stone-200"
+                    : "text-amber-600 dark:text-amber-400"
+                )}>
+                  {(tipoFlujoLocked ? true : esSecuencial) ? "Secuencial" : "Manual"}
+                </p>
+                <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+                  {(tipoFlujoLocked ? true : esSecuencial)
+                    ? "Respeta el orden del flujo y se sugiere como siguiente paso."
+                    : "Disponible para selección manual, no depende del orden automático."}
+                </p>
+              </div>
+              <div className={cn(
+                "relative flex-shrink-0 h-5 w-9 rounded-full transition-colors",
+                (tipoFlujoLocked ? true : esSecuencial) ? "bg-lime-500" : "bg-stone-300 dark:bg-white/20"
+              )}>
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                  (tipoFlujoLocked ? true : esSecuencial) ? "translate-x-4" : "translate-x-0"
+                )} />
+              </div>
             </button>
           </div>
         </div>
@@ -386,12 +435,12 @@ export function PanelConfigEtapas({ flujoVentaId, etapasIniciales }: PanelConfig
     startTransitionNueva(async () => {
       const r = await crearEtapa(flujoVentaId, {
         nombre: nuevaNombre.trim(), color: nuevaColor, orden: items.length,
-        esInicial: false, esFinal: false, esCancelacion: false, activo: true, parentId: null,
+        esInicial: false, esFinal: false, esCancelacion: false, esSecuencial: true, activo: true, parentId: null,
       });
       if (r.exito) {
         const nueva: EtapaFlat = {
           id: r.datos.id, nombre: nuevaNombre.trim(), color: nuevaColor, orden: items.length,
-          esInicial: false, esFinal: false, esCancelacion: false, activo: true,
+          esInicial: false, esFinal: false, esCancelacion: false, esSecuencial: true, activo: true,
           descripcion: null, flujoVentaId, parentId: null, depth: 0,
         };
         setItems((prev) => [...prev, nueva]);

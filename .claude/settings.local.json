@@ -93,7 +93,17 @@
       "Bash(node -e ' *)",
       "Bash(psql \"postgresql://crm_sales_smart_user:kW8!Ty.om0n3@localhost:5432/crm_sales_smart_dev\" -c \"SELECT id, email, nombre, rol, estado, \\\\\"authUserId\\\\\", \\\\\"creadoEn\\\\\" FROM \\\\\"Usuario\\\\\" WHERE email = 'rolmos1990@gmail.com';\")",
       "PowerShell(& \"C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql.exe\" \"postgresql://crm_sales_smart_user:kW8!Ty.om0n3@localhost:5432/crm_sales_smart_dev\" -c \"SELECT id, email, nombre, rol, estado, `\"authUserId`\", `\"creadoEn`\" FROM `\"Usuario`\" WHERE email = 'rolmos1990@gmail.com';\" 2>&1)",
-      "PowerShell(Get-Command psql -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Command psql -ErrorAction SilentlyContinue)",
+      "Bash(Get-Content \"C:\\\\Users\\\\RAMON~1.OLM\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ramon-olmos-source-repos-Vento-crm-sales-smart\\\\552e2e8a-bb0c-45f4-81ce-0b73a93540e0\\\\tasks\\\\b6co423nz.output\")",
+      "Bash(node -e \"const {PrismaClient} = require\\('./src/generated/prisma/client.js'\\); console.log\\('Prisma client loaded OK'\\)\")",
+      "Bash(node -e \"const {Shuffle} = require\\('lucide-react'\\); console.log\\('Shuffle:', !!Shuffle\\);\")",
+      "Bash(node -e \"const pkg = require\\('./package.json'\\); const keys = Object.keys\\({...pkg.dependencies, ...pkg.devDependencies}\\).filter\\(k => k.includes\\('prisma'\\)\\); keys.forEach\\(k => console.log\\(k, \\({...pkg.dependencies, ...pkg.devDependencies}\\)[k]\\)\\)\")",
+      "Bash(node -e 'const { PrismaClient } = require\\('\\\\''./src/generated/prisma/client'\\\\''\\); const c = new PrismaClient\\(\\); const fields = c._runtimeDataModel?.models?.FlujoVentaEtapa?.fields ?? c._engineConfig?.inlineSchema ?? '\\\\''not found'\\\\''; const esSecuencial = JSON.stringify\\(fields\\).includes\\('\\\\''esSecuencial'\\\\''\\); console.log\\('\\\\''esSecuencial in runtime model:'\\\\'', esSecuencial\\); c.$disconnect\\(\\);')",
+      "Bash(findstr /c:\"esSecuencial\" src\\\\generated\\\\prisma\\\\internal\\\\class.ts)",
+      "Bash(Select-String -Path \"src\\\\generated\\\\prisma\\\\internal\\\\class.ts\" -Pattern \"esSecuencial\" -SimpleMatch)",
+      "Bash(Select-Object -First 3)",
+      "Bash(Format-List)",
+      "Bash(node -e \"console.log\\(require\\('dotenv'\\).config\\({ path: '.env' }\\)\\)\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

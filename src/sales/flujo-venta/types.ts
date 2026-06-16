@@ -11,6 +11,7 @@ export interface FlujoVentaEtapa {
   esInicial: boolean;
   esFinal: boolean;
   esCancelacion: boolean;
+  esSecuencial: boolean;
   activo: boolean;
   flujoVentaId: string;
   parentId: string | null;
@@ -77,3 +78,65 @@ export const COLORES_ETAPA = [
   "#4ade80", "#60a5fa", "#f97316", "#facc15",
   "#c084fc", "#f87171", "#34d399", "#fb923c",
 ];
+
+type EtapaParaFlujo = {
+  id: string;
+  parentId: string | null;
+  orden: number;
+  esSecuencial: boolean;
+  esFinal: boolean;
+  esCancelacion: boolean;
+};
+
+/**
+ * Calcula las etapas disponibles para transición desde la etapa actual.
+ * - Sub-etapas directas de la etapa actual (profundizar en el flujo)
+ * - La siguiente etapa raíz secuencial inmediata (por orden)
+ * - Todas las etapas Manual (!esSecuencial) como opciones libres
+ * - Etapas Final/Cancelación siempre visibles como salidas
+ */
+export function calcularSiguientesEtapas<T extends EtapaParaFlujo>(
+  etapas: T[],
+  etapaActualId: string | null,
+): T[] {
+  if (!etapaActualId) return [];
+  const etapaActual = etapas.find((e) => e.id === etapaActualId);
+  if (!etapaActual || etapaActual.esFinal || etapaActual.esCancelacion) return [];
+
+  const ids = new Set<string>();
+  const resultado: T[] = [];
+  const agregar = (e: T) => {
+    if (!ids.has(e.id)) { ids.add(e.id); resultado.push(e); }
+  };
+
+  // 1. Sub-etapas directas de la etapa actual
+  etapas
+    .filter((e) => e.parentId === etapaActualId)
+    .sort((a, b) => a.orden - b.orden)
+    .forEach(agregar);
+
+  // 2. Siguiente etapa raíz secuencial (solo la inmediata por orden)
+  const raices = etapas
+    .filter((e) => e.parentId === null)
+    .sort((a, b) => a.orden - b.orden);
+  const raizActualId =
+    etapaActual.parentId === null ? etapaActual.id : etapaActual.parentId;
+  const idxRaiz = raices.findIndex((e) => e.id === raizActualId);
+  if (idxRaiz !== -1) {
+    for (let i = idxRaiz + 1; i < raices.length; i++) {
+      if (raices[i].esSecuencial) { agregar(raices[i]); break; }
+    }
+  }
+
+  // 3. Todas las etapas Manual (!esSecuencial), excepto la actual
+  etapas
+    .filter((e) => !e.esSecuencial && e.id !== etapaActualId)
+    .forEach(agregar);
+
+  // 4. Etapas Final/Cancelación (siempre visibles como salidas)
+  etapas
+    .filter((e) => (e.esFinal || e.esCancelacion) && e.id !== etapaActualId)
+    .forEach(agregar);
+
+  return resultado;
+}

@@ -8,6 +8,7 @@ export const EtapaSchema = z.object({
   esInicial:     z.boolean().optional(),
   esFinal:       z.boolean().optional(),
   esCancelacion: z.boolean().optional(),
+  esSecuencial:  z.boolean().optional(),
   activo:        z.boolean().optional(),
   parentId:      z.string().nullable().optional(),
 });

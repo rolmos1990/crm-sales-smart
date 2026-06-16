@@ -11,7 +11,7 @@ import type { Pedido } from "@/sales/pedidos/types";
 export default async function PedidosPage() {
   const sesion = await requireSesion();
   let pedidos: Pedido[] = [];
-  let etapasFlujo: { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; parentId: string | null }[] = [];
+  let etapasFlujo: { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null }[] = [];
   try {
     const [datos, flujo] = await Promise.all([
       obtenerPedidos(sesion.instanciaId),
@@ -25,8 +25,8 @@ export default async function PedidosPage() {
       total:     Number(p.total),
     })) as unknown as Pedido[];
     etapasFlujo = flujo?.etapas ?? [];
-  } catch {
-    // DB no configurada
+  } catch (err) {
+    console.error("[PedidosPage] Error al cargar pedidos:", err);
   }
 
   return (

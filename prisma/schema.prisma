@@ -951,6 +951,7 @@ model FlujoVentaEtapa {
   esInicial     Boolean  @default(false)
   esFinal       Boolean  @default(false)
   esCancelacion Boolean  @default(false)
+  esSecuencial  Boolean  @default(true)
   activo        Boolean  @default(true)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
