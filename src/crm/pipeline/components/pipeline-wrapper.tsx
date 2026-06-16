@@ -57,7 +57,7 @@ export function PipelineWrapper({
   };
 
   return (
-    <div className="flex flex-col gap-4 p-6 h-full overflow-hidden">
+    <div className="flex flex-col gap-4 p-5 h-full overflow-hidden">
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
         <PipelineSwitcher
@@ -74,12 +74,12 @@ export function PipelineWrapper({
           <Button
             onClick={() => setModoConfig(false)}
             className={cn(
-              "h-9 px-3 rounded-xl gap-2 text-sm",
-              "bg-lime-500/10 dark:bg-lime-400/10 border border-lime-500/25 dark:border-lime-400/25",
-              "text-lime-700 dark:text-lime-400 hover:bg-lime-500/15 dark:hover:bg-lime-400/15"
+              "h-8 px-3 rounded-lg gap-1.5 text-[12.5px] font-medium",
+              "bg-lime-500/[0.1] dark:bg-lime-400/[0.08] border border-lime-500/20 dark:border-lime-400/20",
+              "text-lime-700 dark:text-lime-400 hover:bg-lime-500/[0.15] dark:hover:bg-lime-400/[0.12]"
             )}
           >
-            <CheckCheck className="h-4 w-4" />
+            <CheckCheck className="h-3.5 w-3.5" />
             Listo
           </Button>
         )}
@@ -91,9 +91,9 @@ export function PipelineWrapper({
               ? `/crm/oportunidades/nueva?pipelineId=${pipelineActual.id}&stageId=${pipelineActual.stages[0].id}`
               : "/crm/oportunidades/nueva"
           }
-          className="h-9 px-3 rounded-xl bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-sm gap-2 text-sm"
+          className="h-8 px-3 rounded-lg bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-[0_0_14px_rgba(132,204,22,0.3)] hover:shadow-[0_0_20px_rgba(132,204,22,0.45)] gap-1.5 text-[12.5px] font-semibold transition-all"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           Nueva oportunidad
         </ButtonLink>
       </div>
@@ -103,15 +103,15 @@ export function PipelineWrapper({
         {/* Modo configuración */}
         {modoConfig && pipelineActual && (
           <div className="h-full overflow-y-auto">
-            <div className="rounded-2xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/4 dark:backdrop-blur-xl p-6">
+            <div className="rounded-xl border border-stone-200 dark:border-white/[0.07] bg-white dark:bg-[oklch(0.110_0.003_264)] p-6">
               <div className="flex items-center gap-2 mb-6">
                 <button
                   onClick={() => setModoConfig(false)}
-                  className="h-7 w-7 flex items-center justify-center rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
+                  className="h-6 w-6 flex items-center justify-center rounded-md text-stone-400 dark:text-white/30 hover:text-stone-600 dark:hover:text-white/70 hover:bg-stone-100 dark:hover:bg-white/[0.06] transition-colors"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  <ArrowLeft className="h-3.5 w-3.5" />
                 </button>
-                <span className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-widest">
+                <span className="text-[10px] font-semibold text-stone-400 dark:text-white/25 uppercase tracking-[0.08em]">
                   Configuración del pipeline
                 </span>
               </div>
@@ -128,17 +128,17 @@ export function PipelineWrapper({
         {!modoConfig && esDinamico && pipelineActual && (
           pipelineActual.stages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-              <KanbanSquare className="h-10 w-10 text-stone-300 dark:text-stone-600" />
-              <p className="text-sm font-medium text-stone-500 dark:text-stone-400">
+              <KanbanSquare className="h-9 w-9 text-stone-300 dark:text-white/[0.08]" />
+              <p className="text-[13px] font-medium text-stone-500 dark:text-white/35">
                 Este pipeline no tiene etapas todavía
               </p>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setModoConfig(true)}
-                className="rounded-xl border border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 gap-2"
+                className="rounded-lg border border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70 gap-1.5 text-[12px]"
               >
-                <Settings2 className="h-4 w-4" />
+                <Settings2 className="h-3.5 w-3.5" />
                 Configurar etapas
               </Button>
             </div>
@@ -164,12 +164,12 @@ export function PipelineWrapper({
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-              <KanbanSquare className="h-10 w-10 text-stone-300 dark:text-stone-600" />
-              <p className="text-sm font-medium text-stone-500 dark:text-stone-400">
+              <KanbanSquare className="h-9 w-9 text-stone-300 dark:text-white/[0.08]" />
+              <p className="text-[13px] font-medium text-stone-500 dark:text-white/35">
                 Pipeline vacío
               </p>
-              <p className="text-xs text-stone-400 dark:text-stone-600">
-                Crea oportunidades o crea un pipeline personalizado
+              <p className="text-[11px] text-stone-400 dark:text-white/20">
+                Crea oportunidades o un pipeline personalizado
               </p>
             </div>
           )

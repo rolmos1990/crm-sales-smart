@@ -16,7 +16,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, Building2, TrendingUp, MoreHorizontal, Plus } from "lucide-react";
+import { CalendarDays, Building2, MoreHorizontal, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,32 +63,33 @@ function TarjetaOportunidad({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform) }}
-      className={cn("mb-2.5 touch-none", isDragging && "opacity-25")}
+      className={cn("mb-2 touch-none", isDragging && "opacity-20")}
       {...attributes}
       {...listeners}
     >
       <div
         className={cn(
-          "cursor-pointer rounded-xl border bg-white dark:bg-white/6 dark:backdrop-blur-sm",
-          "border-stone-200 dark:border-white/10",
-          "hover:border-stone-300 dark:hover:border-white/20",
-          "hover:shadow-md dark:hover:shadow-[0_4px_20px_-6px_rgba(0,0,0,0.5)]",
-          "transition-all duration-150 group select-none p-4 space-y-3"
+          "cursor-pointer rounded-xl border group select-none",
+          "bg-white dark:bg-[oklch(0.130_0.004_264)]",
+          "border-stone-200/80 dark:border-white/[0.07]",
+          "hover:border-stone-300 dark:hover:border-white/[0.13]",
+          "hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
+          "transition-all duration-150 p-3.5 space-y-2.5"
         )}
         onClick={onClick}
       >
         {/* Título + menú */}
         <div className="flex items-start justify-between gap-1.5">
-          <span className="text-sm font-semibold leading-snug line-clamp-2 flex-1 text-stone-900 dark:text-stone-100 pointer-events-none">
+          <span className="text-[13px] font-semibold leading-snug line-clamp-2 flex-1 text-stone-900 dark:text-white/90 pointer-events-none">
             {oportunidad.titulo}
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
-              className="inline-flex size-6 items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 hover:bg-stone-100 dark:hover:bg-white/10 transition-all outline-none flex-shrink-0 mt-0.5"
+              className="inline-flex size-5 items-center justify-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-stone-100 dark:hover:bg-white/10 transition-all outline-none flex-shrink-0 mt-0.5"
             >
-              <MoreHorizontal className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
+              <MoreHorizontal className="h-3 w-3 text-stone-400 dark:text-white/40" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuItem
@@ -107,21 +108,21 @@ function TarjetaOportunidad({
         </div>
 
         {/* Valor */}
-        <div className="text-lg font-bold text-lime-600 dark:text-lime-400 tabular-nums pointer-events-none">
+        <div className="text-base font-bold text-lime-600 dark:text-lime-400 tabular-nums pointer-events-none">
           {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
         </div>
 
         {/* Meta */}
-        <div className="space-y-1.5 pointer-events-none">
+        <div className="space-y-1 pointer-events-none">
           {oportunidad.empresa && (
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
-              <Building2 className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
+            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-white/35">
+              <Building2 className="h-3 w-3 shrink-0" />
               <span className="truncate">{oportunidad.empresa.nombre}</span>
             </div>
           )}
           {oportunidad.fechaCierre && (
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
-              <CalendarDays className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
+            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-white/35">
+              <CalendarDays className="h-3 w-3 shrink-0" />
               {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
             </div>
           )}
@@ -133,23 +134,21 @@ function TarjetaOportunidad({
             {oportunidad.tags.slice(0, 3).map(({ tagId, tag }) => (
               <span
                 key={tagId}
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium border"
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
                 style={tag.color ? {
-                  backgroundColor: `${tag.color}20`,
-                  borderColor: `${tag.color}40`,
+                  backgroundColor: `${tag.color}18`,
                   color: tag.color,
                 } : {
-                  backgroundColor: "rgba(0,0,0,0.05)",
-                  borderColor: "rgba(0,0,0,0.1)",
-                  color: "#78716c",
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                  color: "#9ca3af",
                 }}
               >
-                <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color ?? "#a8a29e" }} />
+                <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color ?? "#6b7280" }} />
                 {tag.nombre}
               </span>
             ))}
             {oportunidad.tags.length > 3 && (
-              <span className="text-[10px] text-stone-400 dark:text-stone-500 self-center">
+              <span className="text-[10px] text-stone-400 dark:text-white/25 self-center">
                 +{oportunidad.tags.length - 3}
               </span>
             )}
@@ -157,16 +156,16 @@ function TarjetaOportunidad({
         )}
 
         {/* Barra de probabilidad */}
-        <div className="flex items-center justify-between gap-3 pointer-events-none">
-          <span className="text-xs font-medium text-stone-500 dark:text-stone-400 tabular-nums">
-            {oportunidad.probabilidad}%
-          </span>
-          <div className="flex-1 bg-stone-100 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
+        <div className="flex items-center gap-2.5 pointer-events-none">
+          <div className="flex-1 bg-stone-100 dark:bg-white/[0.07] rounded-full h-1 overflow-hidden">
             <div
-              className="bg-lime-500 dark:bg-lime-400 rounded-full h-1.5 transition-all"
+              className="bg-lime-500 dark:bg-lime-400 rounded-full h-1 transition-all"
               style={{ width: `${oportunidad.probabilidad}%` }}
             />
           </div>
+          <span className="text-[10px] font-medium text-stone-400 dark:text-white/30 tabular-nums w-7 text-right">
+            {oportunidad.probabilidad}%
+          </span>
         </div>
       </div>
     </div>
@@ -177,15 +176,15 @@ function TarjetaOportunidad({
 
 function TarjetaOverlay({ oportunidad }: { oportunidad: Oportunidad }) {
   return (
-    <div className="w-[280px] rotate-1 rounded-xl border-2 border-lime-400/30 bg-white dark:bg-stone-900 shadow-2xl p-4 space-y-2 opacity-95">
-      <p className="text-sm font-semibold line-clamp-1 text-stone-900 dark:text-stone-100">
+    <div className="w-[272px] rotate-[1.5deg] rounded-xl border border-lime-400/20 bg-white dark:bg-[oklch(0.155_0.004_264)] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)] p-3.5 space-y-2">
+      <p className="text-[13px] font-semibold line-clamp-1 text-stone-900 dark:text-white/90">
         {oportunidad.titulo}
       </p>
-      <p className="text-lg font-bold text-lime-600 dark:text-lime-400 tabular-nums">
+      <p className="text-base font-bold text-lime-600 dark:text-lime-400 tabular-nums">
         {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
       </p>
       {oportunidad.empresa && (
-        <p className="text-xs text-stone-500 dark:text-stone-400">{oportunidad.empresa.nombre}</p>
+        <p className="text-[11px] text-stone-500 dark:text-white/35">{oportunidad.empresa.nombre}</p>
       )}
     </div>
   );
@@ -206,28 +205,28 @@ function ColumnaKanban({
   const totalValor = items.reduce((sum, o) => sum + o.valor, 0);
 
   return (
-    <div className="flex-shrink-0 w-[280px]">
+    <div className="flex-shrink-0 w-[272px]">
       <div
         className={cn(
-          "flex flex-col rounded-2xl border transition-all",
-          "bg-stone-100/60 dark:bg-white/4 dark:backdrop-blur-xl",
-          "border-stone-200 dark:border-white/10",
-          isOver && "ring-2 ring-lime-400/40 bg-lime-50 dark:bg-lime-400/5"
+          "flex flex-col rounded-xl border transition-all duration-150",
+          "bg-stone-100/50 dark:bg-[oklch(0.095_0.003_264)]",
+          "border-stone-200/70 dark:border-white/[0.06]",
+          isOver && "ring-1 ring-lime-400/30 dark:ring-lime-400/20 bg-lime-50/30 dark:bg-lime-400/[0.04]"
         )}
       >
         {/* Encabezado de columna */}
-        <div className="px-3.5 pt-3.5 pb-2.5">
+        <div className="px-3 pt-3 pb-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span
                 className={cn(
-                  "inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-semibold",
+                  "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold",
                   etapaConfig.color
                 )}
               >
                 {etapaConfig.etiqueta}
               </span>
-              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-md bg-stone-200 dark:bg-white/10 text-xs font-bold text-stone-600 dark:text-stone-400">
+              <span className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40">
                 {items.length}
               </span>
             </div>
@@ -235,32 +234,29 @@ function ColumnaKanban({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-200 dark:hover:bg-white/10"
+                className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-3 w-3" />
               </Button>
             </Link>
           </div>
           {items.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium text-stone-500 dark:text-stone-400">
-              <TrendingUp className="h-3 w-3 text-lime-500 dark:text-lime-500" />
-              <span className="text-lime-600 dark:text-lime-400 font-semibold">
-                {formatearMoneda(totalValor, "PEN")}
-              </span>
-            </div>
+            <p className="mt-1.5 text-[11px] font-semibold text-lime-600 dark:text-lime-400/80 tabular-nums">
+              {formatearMoneda(totalValor, "PEN")}
+            </p>
           )}
         </div>
 
         {/* Área droppable con tarjetas */}
-        <ScrollArea className="h-[calc(100vh-300px)]">
-          <div ref={setNodeRef} className="px-3 pb-3 min-h-[80px]">
+        <ScrollArea className="h-[calc(100vh-290px)]">
+          <div ref={setNodeRef} className="px-2.5 pb-2.5 min-h-[80px]">
             {items.length === 0 ? (
               <div
                 className={cn(
-                  "rounded-xl border-2 border-dashed py-10 text-center text-xs transition-colors",
+                  "rounded-lg border border-dashed py-8 text-center text-[11px] transition-all",
                   isOver
-                    ? "border-lime-400/50 bg-lime-500/5 text-lime-500 dark:text-lime-400 font-semibold"
-                    : "border-stone-300 dark:border-white/10 text-stone-400 dark:text-stone-600"
+                    ? "border-lime-400/40 bg-lime-500/[0.04] text-lime-500 dark:text-lime-400 font-medium"
+                    : "border-stone-300/60 dark:border-white/[0.06] text-stone-400 dark:text-white/20"
                 )}
               >
                 {isOver ? "Soltar aquí" : "Sin oportunidades"}

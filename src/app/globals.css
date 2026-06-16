@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -85,38 +85,38 @@
 }
 
 .dark {
-  /* Olive UI — Dark Mode */
-  --background: oklch(0.147 0.003 49.77);    /* stone-950 */
-  --foreground: oklch(0.985 0.002 106.42);   /* stone-50 */
-  --card: oklch(0.216 0.005 49.77);          /* stone-900 */
-  --card-foreground: oklch(0.985 0.002 106.42);
-  --popover: oklch(0.216 0.005 49.77);
-  --popover-foreground: oklch(0.985 0.002 106.42);
-  --primary: oklch(0.648 0.180 137.6);       /* lime-600 */
-  --primary-foreground: oklch(0.147 0.003 49.77);
-  --secondary: oklch(0.268 0.008 49.77);     /* stone-800 */
-  --secondary-foreground: oklch(0.985 0.002 106.42);
-  --muted: oklch(0.268 0.008 49.77);         /* stone-800 */
-  --muted-foreground: oklch(0.709 0.010 57.00); /* stone-400 */
-  --accent: oklch(0.186 0.054 162.1);        /* emerald-950 */
-  --accent-foreground: oklch(0.806 0.130 163.8); /* emerald-300 */
+  /* Vento Design System — Dark Mode (neutral near-black + lime #84CC16) */
+  --background: oklch(0.063 0.002 264);      /* #0A0A0B — near-black neutral */
+  --foreground: oklch(0.960 0.003 264);      /* #F4F4F6 — off-white */
+  --card: oklch(0.110 0.003 264);            /* #17181B — surface-1 */
+  --card-foreground: oklch(0.960 0.003 264);
+  --popover: oklch(0.130 0.004 264);         /* #1C1D21 — surface-2 */
+  --popover-foreground: oklch(0.960 0.003 264);
+  --primary: oklch(0.769 0.189 130.9);       /* #84CC16 — lime brand */
+  --primary-foreground: oklch(0.063 0.002 264);
+  --secondary: oklch(0.155 0.004 264);       /* surface-2 subtle */
+  --secondary-foreground: oklch(0.960 0.003 264);
+  --muted: oklch(0.155 0.004 264);
+  --muted-foreground: oklch(0.560 0.008 264); /* #848490 — muted text */
+  --accent: oklch(0.155 0.038 145);          /* lime tinted surface */
+  --accent-foreground: oklch(0.769 0.189 130.9);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.268 0.008 49.77);        /* stone-800 */
-  --input: oklch(0.268 0.008 49.77);
-  --ring: oklch(0.648 0.180 137.6);          /* lime-600 */
-  --chart-1: oklch(0.648 0.180 137.6);       /* lime-600 */
-  --chart-2: oklch(0.534 0.152 130.4);       /* lime-700 */
+  --border: oklch(0.185 0.004 264);          /* #272830 — subtle border */
+  --input: oklch(0.155 0.004 264);
+  --ring: oklch(0.769 0.189 130.9);          /* lime brand */
+  --chart-1: oklch(0.769 0.189 130.9);       /* lime #84CC16 */
+  --chart-2: oklch(0.648 0.180 137.6);       /* lime-600 */
   --chart-3: oklch(0.806 0.130 163.8);       /* emerald-300 */
-  --chart-4: oklch(0.709 0.010 57.00);       /* stone-400 */
-  --chart-5: oklch(0.895 0.005 106.42);      /* stone-200 */
-  --sidebar: oklch(0.216 0.005 49.77);
-  --sidebar-foreground: oklch(0.985 0.002 106.42);
-  --sidebar-primary: oklch(0.648 0.180 137.6);
-  --sidebar-primary-foreground: oklch(0.147 0.003 49.77);
-  --sidebar-accent: oklch(0.268 0.008 49.77);
-  --sidebar-accent-foreground: oklch(0.985 0.002 106.42);
-  --sidebar-border: oklch(0.268 0.008 49.77);
-  --sidebar-ring: oklch(0.648 0.180 137.6);
+  --chart-4: oklch(0.560 0.008 264);         /* muted */
+  --chart-5: oklch(0.720 0.006 264);         /* light muted */
+  --sidebar: oklch(0.085 0.002 264);         /* #111113 — sidebar bg */
+  --sidebar-foreground: oklch(0.960 0.003 264);
+  --sidebar-primary: oklch(0.769 0.189 130.9);
+  --sidebar-primary-foreground: oklch(0.063 0.002 264);
+  --sidebar-accent: oklch(0.130 0.004 264);
+  --sidebar-accent-foreground: oklch(0.960 0.003 264);
+  --sidebar-border: oklch(0.155 0.003 264);
+  --sidebar-ring: oklch(0.769 0.189 130.9);
 }
 
 @layer base {
@@ -237,9 +237,9 @@
 /* Premium SaaS gradient background — dark mode only */
 .dark .app-gradient-bg {
   background: radial-gradient(
-    ellipse 130% 90% at 0% 0%,
-    oklch(0.235 0.012 49.77) 0%,
-    oklch(0.147 0.003 49.77) 55%,
-    oklch(0.07 0.002 49.77) 100%
+    ellipse 120% 80% at 0% 0%,
+    oklch(0.130 0.010 145) 0%,
+    oklch(0.085 0.003 264) 45%,
+    oklch(0.063 0.002 264) 100%
   );
 }

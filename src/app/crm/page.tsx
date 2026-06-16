@@ -204,7 +204,7 @@ async function KpiCards() {
       {tarjetas.map((t) => (
         <Card
           key={t.etiqueta}
-          className="bg-white dark:bg-white/5 dark:backdrop-blur-xl border-stone-200 dark:border-white/10 shadow-sm dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden"
+          className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl overflow-hidden"
         >
           <CardHeader className="pb-2 pt-5">
             <CardTitle className="text-xs font-semibold text-stone-500 dark:text-stone-400 flex items-center gap-2 uppercase tracking-wide">
@@ -256,10 +256,10 @@ async function UltimasOportunidades() {
           <Link
             key={op.id}
             href={`/crm/oportunidades/${op.id}`}
-            className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-stone-50 dark:hover:bg-white/5 transition-all duration-150 group"
+            className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-stone-50 dark:hover:bg-white/[0.04] transition-all duration-150 group"
           >
             <div className="min-w-0 flex items-center gap-2.5">
-              <div className="h-7 w-7 rounded-lg bg-stone-100 dark:bg-white/8 flex items-center justify-center flex-shrink-0">
+              <div className="h-7 w-7 rounded-lg bg-stone-100 dark:bg-white/[0.06] flex items-center justify-center flex-shrink-0">
                 <Building2 className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
               </div>
               <div className="min-w-0">
@@ -315,7 +315,7 @@ async function ActividadesHoy() {
         return (
           <div
             key={act.id}
-            className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-stone-50 dark:hover:bg-white/5 transition-colors"
+            className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-stone-50 dark:hover:bg-white/[0.04] transition-colors"
           >
             <div className="flex-shrink-0 h-1.5 w-1.5 rounded-full bg-lime-500 dark:bg-lime-400 mt-0.5" />
             <div className="min-w-0 flex-1">
@@ -343,14 +343,14 @@ function KpiCardsSkeleton() {
       {[...Array(4)].map((_, i) => (
         <Card
           key={i}
-          className="bg-white dark:bg-white/5 dark:backdrop-blur-xl border-stone-200 dark:border-white/10 rounded-2xl"
+          className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] rounded-xl"
         >
           <CardHeader className="pb-2 pt-5">
-            <div className="h-3 w-24 bg-stone-100 dark:bg-white/8 animate-pulse rounded-full" />
+            <div className="h-3 w-24 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded-full" />
           </CardHeader>
           <CardContent className="pb-5">
-            <div className="h-9 w-16 bg-stone-100 dark:bg-white/8 animate-pulse rounded-lg mb-2" />
-            <div className="h-3 w-20 bg-stone-100 dark:bg-white/8 animate-pulse rounded-full" />
+            <div className="h-9 w-16 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded-lg mb-2" />
+            <div className="h-3 w-20 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded-full" />
           </CardContent>
         </Card>
       ))}
@@ -364,10 +364,10 @@ function TableSkeleton() {
       {[...Array(4)].map((_, i) => (
         <div key={i} className="flex items-center justify-between px-3 py-2.5">
           <div className="space-y-1.5">
-            <div className="h-3.5 w-40 bg-stone-100 dark:bg-white/8 animate-pulse rounded" />
-            <div className="h-3 w-24 bg-stone-100 dark:bg-white/8 animate-pulse rounded" />
+            <div className="h-3.5 w-40 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded" />
+            <div className="h-3 w-24 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded" />
           </div>
-          <div className="h-5 w-20 bg-stone-100 dark:bg-white/8 animate-pulse rounded" />
+          <div className="h-5 w-20 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded" />
         </div>
       ))}
     </div>
@@ -403,8 +403,8 @@ export default function DashboardPage() {
       </Suspense>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-white dark:bg-white/5 dark:backdrop-blur-xl border-stone-200 dark:border-white/10 shadow-sm dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)] rounded-2xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-stone-100 dark:border-white/8">
+        <Card className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-stone-100 dark:border-white/[0.06]">
             <CardTitle className="text-sm font-semibold text-stone-900 dark:text-stone-50 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-lime-500 dark:text-lime-400" />
               Últimas oportunidades
@@ -425,8 +425,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-white/5 dark:backdrop-blur-xl border-stone-200 dark:border-white/10 shadow-sm dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)] rounded-2xl">
-          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-stone-100 dark:border-white/8">
+        <Card className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-stone-100 dark:border-white/[0.06]">
             <CardTitle className="text-sm font-semibold text-stone-900 dark:text-stone-50 flex items-center gap-2">
               <CalendarCheck className="h-4 w-4 text-lime-500 dark:text-lime-400" />
               Actividades de hoy
@@ -449,7 +449,7 @@ export default function DashboardPage() {
       </div>
 
       <div>
-        <p className="text-xs font-semibold text-stone-400 dark:text-stone-600 uppercase tracking-widest mb-3">
+        <p className="text-[10px] font-semibold text-stone-400 dark:text-white/25 uppercase tracking-[0.08em] mb-3">
           Acciones rápidas
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
@@ -459,14 +459,14 @@ export default function DashboardPage() {
               href={href}
               className={cn(
                 "flex flex-col items-center justify-center h-auto py-4 gap-2 rounded-xl border text-center transition-all duration-150",
-                "border-stone-200 dark:border-white/10 bg-white dark:bg-white/5",
-                "hover:border-lime-500/40 dark:hover:border-lime-400/30",
-                "hover:bg-lime-50 dark:hover:bg-lime-400/8",
+                "border-stone-200/80 dark:border-white/[0.06] bg-white dark:bg-[oklch(0.110_0.003_264)]",
+                "hover:border-lime-500/40 dark:hover:border-lime-400/25",
+                "hover:bg-lime-50 dark:hover:bg-lime-400/[0.06]",
                 "hover:shadow-sm dark:hover:shadow-[0_2px_12px_-4px_rgba(163,230,53,0.15)]",
                 "group"
               )}
             >
-              <div className="rounded-lg bg-stone-100 dark:bg-white/8 p-1.5 group-hover:bg-lime-500/10 dark:group-hover:bg-lime-400/10 transition-colors">
+              <div className="rounded-lg bg-stone-100 dark:bg-white/[0.06] p-1.5 group-hover:bg-lime-500/10 dark:group-hover:bg-lime-400/[0.1] transition-colors">
                 <Icono className="h-3.5 w-3.5 text-stone-500 dark:text-stone-400 group-hover:text-lime-600 dark:group-hover:text-lime-400 transition-colors" />
               </div>
               <span className="text-xs text-center leading-tight text-stone-600 dark:text-stone-300 group-hover:text-stone-900 dark:group-hover:text-stone-100 transition-colors px-1">

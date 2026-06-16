@@ -69,7 +69,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
         <PopoverTrigger
           className={cn(
             "flex items-center gap-2 h-9 px-3 rounded-xl transition-all",
-            "bg-white/80 dark:bg-white/8 border border-stone-200 dark:border-white/12",
+            "bg-white/80 dark:bg-white/[0.06] border border-stone-200 dark:border-white/[0.08]",
             "text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-white/12",
             "shadow-sm dark:shadow-none font-medium text-sm cursor-pointer"
           )}
@@ -83,7 +83,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
 
         <PopoverContent
           align="start"
-          className="w-64 p-1.5 bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 shadow-xl rounded-xl"
+          className="w-64 p-1.5 bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200 dark:border-white/[0.08] shadow-xl rounded-xl"
         >
           <div className="space-y-0.5">
             <button
@@ -92,7 +92,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
                 "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors text-left",
                 pipelineActualId === (pipelineDefault?.id ?? null)
                   ? "bg-lime-500/10 dark:bg-lime-400/10 text-lime-700 dark:text-lime-400"
-                  : "text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-white/6"
+                  : "text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-white/[0.05]"
               )}
             >
               <KanbanSquare className="h-4 w-4 flex-shrink-0 text-stone-400" />
@@ -101,7 +101,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
             </button>
 
             {pipelinesPersonalizados.length > 0 && (
-              <div className="mx-2 my-1 h-px bg-stone-100 dark:bg-white/8" />
+              <div className="mx-2 my-1 h-px bg-stone-100 dark:bg-white/[0.06]" />
             )}
 
             {pipelinesPersonalizados.map((p) => (
@@ -112,7 +112,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
                   "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors text-left",
                   p.id === pipelineActualId
                     ? "bg-lime-500/10 dark:bg-lime-400/10 text-lime-700 dark:text-lime-400"
-                    : "text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-white/6"
+                    : "text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-white/[0.05]"
                 )}
               >
                 <span
@@ -129,12 +129,12 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
               </button>
             ))}
 
-            <div className="mx-2 my-1 h-px bg-stone-100 dark:bg-white/8" />
+            <div className="mx-2 my-1 h-px bg-stone-100 dark:bg-white/[0.06]" />
 
             {pipelineActualId && onConfigurar && (
               <button
                 onClick={() => { setOpen(false); onConfigurar(); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/6 transition-colors text-left"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/[0.05] transition-colors text-left"
               >
                 <Settings2 className="h-4 w-4 flex-shrink-0" />
                 Configurar pipeline
@@ -143,7 +143,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
 
             <button
               onClick={() => { setOpen(false); setDialogCrear(true); }}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/6 transition-colors text-left"
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/[0.05] transition-colors text-left"
             >
               <Plus className="h-4 w-4 flex-shrink-0" />
               Crear nuevo pipeline
@@ -153,7 +153,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
       </Popover>
 
       <Dialog open={dialogCrear} onOpenChange={setDialogCrear}>
-        <DialogContent className="sm:max-w-sm bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10">
+        <DialogContent className="sm:max-w-sm bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200 dark:border-white/[0.08]">
           <DialogHeader>
             <DialogTitle className="text-stone-900 dark:text-stone-50">Nuevo pipeline</DialogTitle>
           </DialogHeader>
@@ -168,7 +168,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleCrear(); }}
-                className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
+                className="bg-stone-50 dark:bg-white/[0.04] border-stone-200 dark:border-white/[0.08] rounded-xl"
               />
             </div>
             <p className="text-xs text-stone-400 dark:text-stone-500">

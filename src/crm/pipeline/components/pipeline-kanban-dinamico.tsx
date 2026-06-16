@@ -15,7 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, Building2, Plus, TrendingUp } from "lucide-react";
+import { CalendarDays, Building2, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -55,43 +55,44 @@ function TarjetaOportunidad({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform) }}
-      className={cn("mb-2.5 touch-none", isDragging && "opacity-25")}
+      className={cn("mb-2 touch-none", isDragging && "opacity-20")}
       {...attributes}
       {...listeners}
       onClick={() => onCardClick(oportunidad)}
     >
       <div
         className={cn(
-          "block cursor-pointer rounded-xl border",
-          "bg-white dark:bg-white/6 dark:backdrop-blur-sm",
-          "border-stone-200 dark:border-white/10",
-          "hover:border-stone-300 dark:hover:border-white/20",
-          "hover:shadow-md dark:hover:shadow-[0_4px_20px_-6px_rgba(0,0,0,0.5)]",
-          "transition-all duration-150 select-none p-4 space-y-3"
+          "block cursor-pointer rounded-xl border select-none",
+          "bg-white dark:bg-[oklch(0.130_0.004_264)]",
+          "border-stone-200/80 dark:border-white/[0.07]",
+          "hover:border-stone-300 dark:hover:border-white/[0.13]",
+          "hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
+          "transition-all duration-150 p-3.5 space-y-2.5"
         )}
       >
+        {/* Indicador de color de stage */}
         <div
-          className="h-0.5 rounded-full -mt-1 mb-2 opacity-60"
-          style={{ backgroundColor: stageColor }}
+          className="h-[2px] rounded-full -mt-0.5 mb-0.5"
+          style={{ backgroundColor: stageColor, opacity: 0.5 }}
         />
 
-        <p className="text-sm font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-stone-100">
+        <p className="text-[13px] font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-white/90">
           {oportunidad.titulo}
         </p>
 
-        <div className="text-lg font-bold tabular-nums" style={{ color: stageColor }}>
+        <div className="text-base font-bold tabular-nums" style={{ color: stageColor }}>
           {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {oportunidad.empresa && (
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-white/35">
               <Building2 className="h-3 w-3 shrink-0" />
               <span className="truncate">{oportunidad.empresa.nombre}</span>
             </div>
           )}
           {oportunidad.fechaCierre && (
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-white/35">
               <CalendarDays className="h-3 w-3 shrink-0" />
               {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
             </div>
@@ -104,46 +105,41 @@ function TarjetaOportunidad({
             {oportunidad.tags.slice(0, 3).map(({ tagId, tag }) => (
               <span
                 key={tagId}
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium border"
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
                 style={tag.color ? {
-                  backgroundColor: `${tag.color}20`,
-                  borderColor: `${tag.color}40`,
+                  backgroundColor: `${tag.color}18`,
                   color: tag.color,
                 } : {
-                  backgroundColor: "rgba(0,0,0,0.05)",
-                  borderColor: "rgba(0,0,0,0.1)",
-                  color: "#78716c",
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                  color: "#9ca3af",
                 }}
               >
-                <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color ?? "#a8a29e" }} />
+                <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color ?? "#6b7280" }} />
                 {tag.nombre}
               </span>
             ))}
             {oportunidad.tags.length > 3 && (
-              <span className="text-[10px] text-stone-400 dark:text-stone-500 self-center">
+              <span className="text-[10px] text-stone-400 dark:text-white/25 self-center">
                 +{oportunidad.tags.length - 3}
               </span>
             )}
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs font-medium text-stone-500 dark:text-stone-400 tabular-nums">
-            {oportunidad.probabilidad}%
-          </span>
-          <div className="flex-1 bg-stone-100 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
+        <div className="flex items-center gap-2.5">
+          <div className="flex-1 bg-stone-100 dark:bg-white/[0.07] rounded-full h-1 overflow-hidden">
             <div
-              className="rounded-full h-1.5 transition-all"
-              style={{
-                width: `${oportunidad.probabilidad}%`,
-                backgroundColor: stageColor,
-              }}
+              className="rounded-full h-1 transition-all"
+              style={{ width: `${oportunidad.probabilidad}%`, backgroundColor: stageColor }}
             />
           </div>
+          <span className="text-[10px] font-medium text-stone-400 dark:text-white/30 tabular-nums w-7 text-right">
+            {oportunidad.probabilidad}%
+          </span>
           {oportunidad.nuevoMensaje && (
-            <span className="relative flex h-2.5 w-2.5 shrink-0">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime-500" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-500" />
             </span>
           )}
         </div>
@@ -154,15 +150,15 @@ function TarjetaOportunidad({
 
 function TarjetaOverlay({ oportunidad }: { oportunidad: OportunidadEnStage }) {
   return (
-    <div className="w-[280px] rotate-1 rounded-xl border-2 border-lime-400/30 bg-white dark:bg-stone-900 shadow-2xl p-4 space-y-2 opacity-95">
-      <p className="text-sm font-semibold line-clamp-1 text-stone-900 dark:text-stone-100">
+    <div className="w-[272px] rotate-[1.5deg] rounded-xl border border-lime-400/20 bg-white dark:bg-[oklch(0.155_0.004_264)] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)] p-3.5 space-y-2">
+      <p className="text-[13px] font-semibold line-clamp-1 text-stone-900 dark:text-white/90">
         {oportunidad.titulo}
       </p>
-      <p className="text-lg font-bold text-lime-600 dark:text-lime-400 tabular-nums">
+      <p className="text-base font-bold text-lime-600 dark:text-lime-400 tabular-nums">
         {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
       </p>
       {oportunidad.empresa && (
-        <p className="text-xs text-stone-500 dark:text-stone-400">{oportunidad.empresa.nombre}</p>
+        <p className="text-[11px] text-stone-500 dark:text-white/35">{oportunidad.empresa.nombre}</p>
       )}
     </div>
   );
@@ -186,35 +182,32 @@ function ColumnaStage({
   const color = stage.color ?? "#818cf8";
 
   return (
-    <div className="flex-shrink-0 w-[280px]">
+    <div className="flex-shrink-0 w-[272px]">
       <div
         className={cn(
-          "flex flex-col rounded-2xl border overflow-hidden transition-all",
-          "bg-stone-100/60 dark:bg-white/4 dark:backdrop-blur-xl",
-          "border-stone-200 dark:border-white/10",
-          isOver && "ring-2 ring-offset-1 dark:ring-offset-stone-950"
+          "flex flex-col rounded-xl border overflow-hidden transition-all duration-150",
+          "bg-stone-100/50 dark:bg-[oklch(0.095_0.003_264)]",
+          "border-stone-200/70 dark:border-white/[0.06]",
+          isOver && "ring-1 dark:ring-offset-[oklch(0.063_0.002_264)]"
         )}
-        style={isOver ? { "--tw-ring-color": `${color}40` } as React.CSSProperties : undefined}
+        style={isOver ? { "--tw-ring-color": `${color}30` } as React.CSSProperties : undefined}
       >
-        <div
-          className="h-[3px] flex-shrink-0"
-          style={{ backgroundColor: color }}
-        />
+        {/* Línea de color del stage */}
+        <div className="h-[2px] flex-shrink-0 opacity-70" style={{ backgroundColor: color }} />
 
-        <div className="px-3.5 pt-3 pb-2.5">
+        <div className="px-3 pt-3 pb-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span
-                className="inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-semibold border"
+                className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
                 style={{
-                  backgroundColor: `${color}18`,
+                  backgroundColor: `${color}15`,
                   color: color,
-                  borderColor: `${color}35`,
                 }}
               >
                 {stage.nombre}
               </span>
-              <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-md bg-stone-200 dark:bg-white/10 text-xs font-bold text-stone-600 dark:text-stone-400">
+              <span className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40">
                 {items.length}
               </span>
             </div>
@@ -225,32 +218,29 @@ function ColumnaStage({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-200 dark:hover:bg-white/10"
+                className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-3 w-3" />
               </Button>
             </Link>
           </div>
 
           {items.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-medium">
-              <TrendingUp className="h-3 w-3" style={{ color }} />
-              <span className="font-semibold" style={{ color }}>
-                {formatearMoneda(totalValor, "PEN")}
-              </span>
-            </div>
+            <p className="mt-1.5 text-[11px] font-semibold tabular-nums" style={{ color, opacity: 0.85 }}>
+              {formatearMoneda(totalValor, "PEN")}
+            </p>
           )}
         </div>
 
-        <ScrollArea className="h-[calc(100vh-300px)]">
-          <div ref={setNodeRef} className="px-3 pb-3 min-h-[80px]">
+        <ScrollArea className="h-[calc(100vh-290px)]">
+          <div ref={setNodeRef} className="px-2.5 pb-2.5 min-h-[80px]">
             {items.length === 0 ? (
               <div
                 className={cn(
-                  "rounded-xl border-2 border-dashed py-10 text-center text-xs transition-colors",
-                  isOver ? "font-semibold" : "border-stone-300 dark:border-white/10 text-stone-400 dark:text-stone-600"
+                  "rounded-lg border border-dashed py-8 text-center text-[11px] transition-all",
+                  isOver ? "font-medium" : "border-stone-300/60 dark:border-white/[0.06] text-stone-400 dark:text-white/20"
                 )}
-                style={isOver ? { borderColor: `${color}50`, color, backgroundColor: `${color}08` } : undefined}
+                style={isOver ? { borderColor: `${color}40`, color, backgroundColor: `${color}06` } : undefined}
               >
                 {isOver ? "Soltar aquí" : "Sin oportunidades"}
               </div>
