@@ -109,22 +109,52 @@ export function calcularSiguientesEtapas<T extends EtapaParaFlujo>(
     if (!ids.has(e.id)) { ids.add(e.id); resultado.push(e); }
   };
 
-  // 1. Sub-etapas directas de la etapa actual
-  etapas
-    .filter((e) => e.parentId === etapaActualId)
-    .sort((a, b) => a.orden - b.orden)
-    .forEach(agregar);
+  const tieneHijos = etapas.some((e) => e.parentId === etapaActualId);
 
-  // 2. Siguiente etapa raíz secuencial (solo la inmediata por orden)
-  const raices = etapas
-    .filter((e) => e.parentId === null)
+  // 1. Sub-etapas directas: solo el primer hijo secuencial + todos los manuales
+  const hijos = etapas
+    .filter((e) => e.parentId === etapaActualId)
     .sort((a, b) => a.orden - b.orden);
-  const raizActualId =
-    etapaActual.parentId === null ? etapaActual.id : etapaActual.parentId;
-  const idxRaiz = raices.findIndex((e) => e.id === raizActualId);
-  if (idxRaiz !== -1) {
-    for (let i = idxRaiz + 1; i < raices.length; i++) {
-      if (raices[i].esSecuencial) { agregar(raices[i]); break; }
+  let primeraSecuencialHijo = false;
+  for (const hijo of hijos) {
+    if (hijo.esSecuencial) {
+      if (!primeraSecuencialHijo) { agregar(hijo); primeraSecuencialHijo = true; }
+    } else {
+      agregar(hijo);
+    }
+  }
+
+  // 1.5. Siguiente hermano secuencial (solo para hojas: hijos sin hijos propios)
+  if (etapaActual.parentId !== null && !tieneHijos) {
+    const hermanos = etapas
+      .filter((e) => e.parentId === etapaActual.parentId)
+      .sort((a, b) => a.orden - b.orden);
+    const idx = hermanos.findIndex((e) => e.id === etapaActualId);
+    if (idx !== -1) {
+      for (let i = idx + 1; i < hermanos.length; i++) {
+        agregar(hermanos[i]);
+        if (hermanos[i].esSecuencial) break;
+      }
+    }
+  }
+
+  // 2. Siguiente etapa raíz secuencial inmediata
+  // Solo para raíces O para hojas. Sube toda la cadena para encontrar el ancestro raíz real.
+  if (etapaActual.parentId === null || !tieneHijos) {
+    let ancestroRaiz: T = etapaActual;
+    while (ancestroRaiz.parentId !== null) {
+      const padre = etapas.find((e) => e.id === ancestroRaiz.parentId);
+      if (!padre) break;
+      ancestroRaiz = padre;
+    }
+    const raices = etapas
+      .filter((e) => e.parentId === null)
+      .sort((a, b) => a.orden - b.orden);
+    const idxRaiz = raices.findIndex((e) => e.id === ancestroRaiz.id);
+    if (idxRaiz !== -1) {
+      for (let i = idxRaiz + 1; i < raices.length; i++) {
+        if (raices[i].esSecuencial) { agregar(raices[i]); break; }
+      }
     }
   }
 
