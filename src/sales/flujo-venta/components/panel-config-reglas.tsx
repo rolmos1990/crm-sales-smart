@@ -146,7 +146,7 @@ function DialogRegla({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-1.5 block">Mover a etapa</Label>
+              <Label className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-1.5 block">Requerido para llegar a</Label>
               <Select value={etapaDestinoId} onValueChange={(v) => v && setEtapaDestinoId(v)}>
                 <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl">
                   {etapaDestinoId ? (() => {
@@ -266,7 +266,7 @@ export function PanelConfigReglas({ etapas, reglasIniciales }: PanelConfigReglas
     <div className="flex flex-col gap-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <p className="text-sm text-stone-500 dark:text-stone-400">
-          Las reglas se evalúan en orden de prioridad. La primera que se cumpla mueve el pedido automáticamente.
+          Si una etapa tiene reglas, <strong>todas deben cumplirse</strong> para permitir mover el pedido a ella.
         </p>
         <Button
           size="sm"
@@ -281,7 +281,7 @@ export function PanelConfigReglas({ etapas, reglasIniciales }: PanelConfigReglas
         <div className="rounded-xl border border-dashed border-stone-300 dark:border-white/12 p-8 text-center">
           <p className="text-sm text-stone-400 dark:text-stone-500">Sin reglas configuradas.</p>
           <p className="text-xs text-stone-400/60 dark:text-stone-600 mt-1">
-            Las reglas permiten mover pedidos automáticamente según condiciones.
+            Agrega reglas para requerir condiciones antes de llegar a una etapa.
           </p>
         </div>
       ) : (
@@ -302,10 +302,10 @@ export function PanelConfigReglas({ etapas, reglasIniciales }: PanelConfigReglas
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-stone-800 dark:text-stone-200">{regla.nombre}</span>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">Prioridad {regla.prioridad}</Badge>
                       {etapaDest && (
                         <span className="inline-flex items-center gap-1 text-xs text-stone-500 dark:text-stone-400">
-                          → <span className="font-medium" style={{ color: etapaDest.color ?? undefined }}>{etapaDest.nombre}</span>
+                          requerido para →{" "}
+                          <span className="font-medium" style={{ color: etapaDest.color ?? undefined }}>{etapaDest.nombre}</span>
                         </span>
                       )}
                     </div>

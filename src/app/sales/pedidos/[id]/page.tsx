@@ -16,8 +16,8 @@ import { moverPedidoAEtapa } from "@/sales/flujo-venta/motor";
 import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
 import { requireSesion } from "@/shared/auth/sesion";
 import { actualizarEstadoPedido } from "@/sales/pedidos/actions";
-import { moverPedidoAction } from "@/sales/flujo-venta/actions";
 import { ESTADO_PEDIDO_CONFIG } from "@/sales/pedidos/types";
+import { BotonesTransicion } from "@/sales/pedidos/components/botones-transicion";
 import { cn } from "@/lib/utils";
 
 const TRANSICIONES: Record<string, string[]> = {
@@ -142,32 +142,19 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
         </div>
 
         {/* Botones de transición */}
-        <div className="flex gap-2 flex-wrap">
-          {usandoFlujo ? (
-            siguientesEtapas.map((etapa) => (
-              <form
-                key={etapa.id}
-                action={async () => { "use server"; await moverPedidoAction(id, etapa.id); }}
-              >
-                <Button
-                  type="submit"
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "transition-all",
-                    etapa.esCancelacion ? "text-destructive border-destructive hover:bg-destructive/10" : ""
-                  )}
-                  style={!etapa.esCancelacion ? {
-                    borderColor: `${etapa.color}55`,
-                    color: etapa.color,
-                  } : undefined}
-                >
-                  {etapa.nombre}
-                </Button>
-              </form>
-            ))
-          ) : (
-            siguientesEstado.map((sig) => {
+        {usandoFlujo ? (
+          <BotonesTransicion
+            pedidoId={id}
+            etapas={siguientesEtapas.map((e) => ({
+              id: e.id,
+              nombre: e.nombre,
+              color: e.color ?? null,
+              esCancelacion: e.esCancelacion,
+            }))}
+          />
+        ) : (
+          <div className="flex gap-2 flex-wrap">
+            {siguientesEstado.map((sig) => {
               const conf = ESTADO_PEDIDO_CONFIG[sig as keyof typeof ESTADO_PEDIDO_CONFIG];
               return (
                 <form key={sig} action={async () => { "use server"; await actualizarEstadoPedido(id, sig); }}>
@@ -181,9 +168,9 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
                   </Button>
                 </form>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Cotización vinculada ──────────────────────────────────── */}

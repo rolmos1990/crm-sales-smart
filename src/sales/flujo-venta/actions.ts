@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { EtapaSchema, ReglaSchema, FlujoVentaSchema } from "./schema";
-import { moverPedidoAEtapa, evaluarYMoverPedido } from "./motor";
+import { moverPedidoAEtapa, validarTransicion } from "./motor";
 
 type Resultado<T = void> = { exito: true; datos: T } | { exito: false; error: string };
 
@@ -173,12 +173,13 @@ export async function toggleRegla(reglaId: string, activo: boolean): Promise<Res
 
 export async function moverPedidoAction(pedidoId: string, etapaDestinoId: string): Promise<Resultado<void>> {
   const sesion = await requireSesion();
+
+  const validacion = await validarTransicion(pedidoId, etapaDestinoId);
+  if (!validacion.permitido) {
+    return { exito: false, error: validacion.motivo ?? "Requisito no cumplido" };
+  }
+
   const resultado = await moverPedidoAEtapa(pedidoId, etapaDestinoId, sesion.usuarioId);
   if (!resultado.exito) return resultado;
   return { exito: true, datos: undefined };
-}
-
-export async function evaluarReglasAction(pedidoId: string): Promise<Resultado<{ movido: boolean; etapaNombre?: string }>> {
-  const resultado = await evaluarYMoverPedido(pedidoId);
-  return { exito: true, datos: resultado };
 }

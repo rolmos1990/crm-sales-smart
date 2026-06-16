@@ -36,26 +36,22 @@ function evaluarCondicion(
   }
 }
 
-export async function evaluarYMoverPedido(pedidoId: string): Promise<{ movido: boolean; etapaNombre?: string }> {
+export async function validarTransicion(
+  pedidoId: string,
+  etapaDestinoId: string,
+): Promise<{ permitido: boolean; motivo?: string }> {
   const pedido = await prisma.pedido.findFirst({
     where: { id: pedidoId },
-    select: { flujoVentaId: true, flujoVentaEtapaId: true, total: true, metadata: true },
+    select: { total: true, metadata: true, flujoVentaEtapaId: true },
   });
+  if (!pedido) return { permitido: false, motivo: "Pedido no encontrado" };
 
-  if (!pedido?.flujoVentaId) return { movido: false };
-
-  // Cargar todas las reglas del flujo ordenadas por prioridad
   const reglas = await prisma.flujoVentaRegla.findMany({
-    where: {
-      activo: true,
-      etapaDestino: { flujoVentaId: pedido.flujoVentaId, activo: true },
-    },
-    orderBy: { prioridad: "asc" },
-    include: {
-      condiciones: true,
-      etapaDestino: { select: { id: true, nombre: true } },
-    },
+    where: { etapaDestinoId, activo: true },
+    include: { condiciones: true },
   });
+
+  if (reglas.length === 0) return { permitido: true };
 
   const ctx: ContextoPedido = {
     total: Number(pedido.total),
@@ -64,17 +60,13 @@ export async function evaluarYMoverPedido(pedidoId: string): Promise<{ movido: b
   };
 
   for (const regla of reglas) {
-    // Saltar si ya está en la etapa destino
-    if (regla.etapaDestinoId === pedido.flujoVentaEtapaId) continue;
-
     const todasCumplen = regla.condiciones.every((c) => evaluarCondicion(c, ctx));
-    if (todasCumplen) {
-      await _moverInterno(pedidoId, regla.etapaDestino.id, regla.etapaDestino.nombre, "AUTOMATICO", null, `Regla: ${regla.nombre}`);
-      return { movido: true, etapaNombre: regla.etapaDestino.nombre };
+    if (!todasCumplen) {
+      return { permitido: false, motivo: `Requisito no cumplido: "${regla.nombre}"` };
     }
   }
 
-  return { movido: false };
+  return { permitido: true };
 }
 
 export async function moverPedidoAEtapa(
