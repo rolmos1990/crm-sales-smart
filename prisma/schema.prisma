@@ -121,6 +121,21 @@ enum EstadoDisparadorJob {
   FALLIDO
 }
 
+enum OperadorCondicion {
+  IGUAL
+  DIFERENTE
+  MAYOR_QUE
+  MENOR_QUE
+  CONTIENE
+  ES_VERDADERO
+  ES_FALSO
+}
+
+enum TipoMovimientoEtapa {
+  MANUAL
+  AUTOMATICO
+}
+
 enum TipoPlantilla {
   TEXTO
   TEXTO_IMAGEN
@@ -210,6 +225,7 @@ model Instancia {
   identificadoresCanal ContactoIdentificadorCanal[]
   jobsMensaje          JobMensaje[]
   jobsSistema          JobSistema[]
+  flujosVenta          FlujoVenta[]
 
   @@index([slug])
   @@index([estado])
@@ -795,11 +811,19 @@ model Pedido {
   usuarioInstanciaId String?
   usuarioInstancia   UsuarioInstancia? @relation(fields: [usuarioInstanciaId], references: [id])
 
-  lineas PedidoLinea[]
-  campos CampoPersonalizadoValor[]
+  flujoVentaId String?
+  flujoVenta   FlujoVenta? @relation(fields: [flujoVentaId], references: [id])
+
+  flujoVentaEtapaId String?
+  flujoVentaEtapa   FlujoVentaEtapa? @relation(fields: [flujoVentaEtapaId], references: [id])
+
+  lineas          PedidoLinea[]
+  campos          CampoPersonalizadoValor[]
+  historialEtapas PedidoHistorialEtapa[]
 
   @@index([instanciaId])
   @@index([estado])
+  @@index([flujoVentaEtapaId])
   @@index([telefono])
   @@index([email])
 }
@@ -894,6 +918,100 @@ model DisparadorJob {
   @@index([estado, ejecutarEn])
   @@index([oportunidadId, stageId])
   @@index([disparadorId])
+}
+
+// =====================
+// FLUJO DE VENTA (PEDIDOS)
+// =====================
+
+model FlujoVenta {
+  id            String   @id @default(cuid())
+  nombre        String
+  descripcion   String?
+  esDefault     Boolean  @default(false)
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  instanciaId String?
+  instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  etapas  FlujoVentaEtapa[]
+  pedidos Pedido[]
+
+  @@index([instanciaId])
+}
+
+model FlujoVentaEtapa {
+  id            String   @id @default(cuid())
+  nombre        String
+  descripcion   String?
+  color         String?
+  orden         Int      @default(0)
+  esInicial     Boolean  @default(false)
+  esFinal       Boolean  @default(false)
+  esCancelacion Boolean  @default(false)
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  flujoVentaId String
+  flujoVenta   FlujoVenta @relation(fields: [flujoVentaId], references: [id], onDelete: Cascade)
+
+  pedidos   Pedido[]
+  reglas    FlujoVentaRegla[]
+  historial PedidoHistorialEtapa[]
+
+  @@unique([flujoVentaId, orden])
+  @@index([flujoVentaId])
+}
+
+model FlujoVentaRegla {
+  id            String   @id @default(cuid())
+  nombre        String
+  descripcion   String?
+  activo        Boolean  @default(true)
+  prioridad     Int      @default(0)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  etapaDestinoId String
+  etapaDestino   FlujoVentaEtapa @relation(fields: [etapaDestinoId], references: [id], onDelete: Cascade)
+
+  condiciones FlujoVentaReglaCondicion[]
+
+  @@index([etapaDestinoId])
+}
+
+model FlujoVentaReglaCondicion {
+  id       String            @id @default(cuid())
+  campo    String
+  operador OperadorCondicion
+  valor    String
+
+  reglaId String
+  regla   FlujoVentaRegla @relation(fields: [reglaId], references: [id], onDelete: Cascade)
+
+  @@index([reglaId])
+}
+
+model PedidoHistorialEtapa {
+  id          String              @id @default(cuid())
+  etapaNombre String
+  tipo        TipoMovimientoEtapa
+  notas       String?
+  creadoEn    DateTime            @default(now())
+
+  pedidoId String
+  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  etapaId String
+  etapa   FlujoVentaEtapa @relation(fields: [etapaId], references: [id])
+
+  usuarioId String?
+
+  @@index([pedidoId])
+  @@index([etapaId])
 }
 
 // =====================

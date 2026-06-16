@@ -6,6 +6,7 @@ import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearPedidoSchema, ActualizarEstadoPedidoSchema } from "./schema";
 import { generarNumeroPedido } from "./queries";
+import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import type { ResultadoAccion, Pedido } from "./types";
 
 export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedido>> {
@@ -99,6 +100,27 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
             })
           )
       );
+    }
+
+    // Vincular al FlujoVenta del tenant si existe
+    const flujoTenant = await obtenerFlujoVenta(sesion.instanciaId);
+    if (flujoTenant && flujoTenant.etapas.length > 0) {
+      const etapaInicial = flujoTenant.etapas.find((e) => e.esInicial) ?? flujoTenant.etapas[0];
+      await prisma.$transaction([
+        prisma.pedido.update({
+          where: { id: pedido.id },
+          data: { flujoVentaId: flujoTenant.id, flujoVentaEtapaId: etapaInicial.id },
+        }),
+        prisma.pedidoHistorialEtapa.create({
+          data: {
+            pedidoId: pedido.id,
+            etapaId: etapaInicial.id,
+            etapaNombre: etapaInicial.nombre,
+            tipo: "AUTOMATICO",
+            usuarioId: sesion.usuarioId,
+          },
+        }),
+      ]);
     }
 
     busEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, { pedidoId: pedido.id, numero: pedido.numero, total });

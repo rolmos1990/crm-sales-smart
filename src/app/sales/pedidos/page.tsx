@@ -4,14 +4,19 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaPedidos } from "@/sales/pedidos/components/lista-pedidos";
 import { obtenerPedidos } from "@/sales/pedidos/queries";
+import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { requireSesion } from "@/shared/auth/sesion";
 import type { Pedido } from "@/sales/pedidos/types";
 
 export default async function PedidosPage() {
   const sesion = await requireSesion();
   let pedidos: Pedido[] = [];
+  let etapasFlujo: { id: string; nombre: string; color: string | null; esCancelacion: boolean }[] = [];
   try {
-    const datos = await obtenerPedidos(sesion.instanciaId);
+    const [datos, flujo] = await Promise.all([
+      obtenerPedidos(sesion.instanciaId),
+      obtenerFlujoVenta(sesion.instanciaId),
+    ]);
     pedidos = datos.map((p) => ({
       ...p,
       subtotal:  Number(p.subtotal),
@@ -19,6 +24,7 @@ export default async function PedidosPage() {
       impuesto:  Number(p.impuesto),
       total:     Number(p.total),
     })) as unknown as Pedido[];
+    etapasFlujo = flujo?.etapas ?? [];
   } catch {
     // DB no configurada
   }
@@ -48,7 +54,7 @@ export default async function PedidosPage() {
           }
         />
       ) : (
-        <ListaPedidos pedidos={pedidos} />
+        <ListaPedidos pedidos={pedidos} etapasFlujo={etapasFlujo} />
       )}
     </div>
   );

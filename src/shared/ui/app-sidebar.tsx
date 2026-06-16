@@ -20,6 +20,7 @@ import {
   Settings,
   LogOut,
   ChevronUp,
+  GitBranch,
 } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,7 @@ const NAVEGACION = [
     items: [
       { href: "/sales/cotizaciones", etiqueta: "Cotizaciones", Icono: FileText },
       { href: "/sales/pedidos", etiqueta: "Pedidos", Icono: ShoppingCart },
+      { href: "/sales/flujo-venta", etiqueta: "Flujo de venta", Icono: GitBranch },
     ],
   },
   {

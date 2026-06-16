@@ -13,7 +13,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
-import { eliminarPedido, actualizarEstadoPedido } from "../actions";
+import { eliminarPedido } from "../actions";
+import { moverPedidoAction } from "@/sales/flujo-venta/actions";
 import type { Pedido, EstadoPedido } from "../types";
 import { ESTADO_PEDIDO_CONFIG } from "../types";
 import { cn } from "@/lib/utils";
@@ -21,7 +22,20 @@ import { cn } from "@/lib/utils";
 const formatearMoneda = (valor: number, moneda: string) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: moneda }).format(valor);
 
-function EstadoBadge({ estado }: { estado: EstadoPedido }) {
+type EtapaResumen = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean } | null;
+
+function EstadoBadge({ estado, etapa }: { estado: EstadoPedido; etapa: EtapaResumen }) {
+  if (etapa) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium border"
+        style={{ backgroundColor: `${etapa.color}18`, color: etapa.color ?? undefined, borderColor: `${etapa.color}40` }}
+      >
+        <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: etapa.color ?? undefined }} />
+        {etapa.nombre}
+      </span>
+    );
+  }
   const config = ESTADO_PEDIDO_CONFIG[estado];
   return (
     <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", config.color)}>
@@ -30,23 +44,18 @@ function EstadoBadge({ estado }: { estado: EstadoPedido }) {
   );
 }
 
-function AccionesPedido({ pedido }: { pedido: Pedido }) {
+type EtapaFlujo = { id: string; nombre: string; color: string | null; esCancelacion: boolean };
+
+function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: EtapaFlujo[] }) {
   const router = useRouter();
+  const etapaActualId = (pedido as any).flujoVentaEtapa?.id ?? null;
+  const siguientesEtapas = etapasFlujo.filter((e) => e.id !== etapaActualId);
 
-  const SIGUIENTE_ESTADO: Partial<Record<EstadoPedido, EstadoPedido>> = {
-    PENDIENTE: "CONFIRMADO",
-    CONFIRMADO: "EN_PROCESO",
-    EN_PROCESO: "ENVIADO",
-    ENVIADO: "ENTREGADO",
-  };
-
-  const siguiente = SIGUIENTE_ESTADO[pedido.estado];
-
-  const handleAvanzar = async () => {
-    if (!siguiente) return;
-    const resultado = await actualizarEstadoPedido(pedido.id, { estado: siguiente });
-    if (resultado.exito) toast.success(`Estado actualizado a ${ESTADO_PEDIDO_CONFIG[siguiente].etiqueta}`);
+  const handleMover = async (etapaId: string, etapaNombre: string) => {
+    const resultado = await moverPedidoAction(pedido.id, etapaId);
+    if (resultado.exito) toast.success(`Pedido movido a "${etapaNombre}"`);
     else toast.error(resultado.error);
+    router.refresh();
   };
 
   const handleEliminar = async () => {
@@ -62,11 +71,20 @@ function AccionesPedido({ pedido }: { pedido: Pedido }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => router.push(`/sales/pedidos/${pedido.id}`)}>Ver detalle</DropdownMenuItem>
-        {siguiente && (
-          <DropdownMenuItem onClick={handleAvanzar}>
-            → {ESTADO_PEDIDO_CONFIG[siguiente].etiqueta}
+        {siguientesEtapas.length > 0 && <DropdownMenuSeparator />}
+        {siguientesEtapas.map((etapa) => (
+          <DropdownMenuItem
+            key={etapa.id}
+            onClick={() => handleMover(etapa.id, etapa.nombre)}
+            className={cn(etapa.esCancelacion && "text-destructive focus:text-destructive")}
+          >
+            <span
+              className="mr-2 h-2 w-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: etapa.esCancelacion ? undefined : (etapa.color ?? undefined) }}
+            />
+            Mover a {etapa.nombre}
           </DropdownMenuItem>
-        )}
+        ))}
         <DropdownMenuSeparator />
         <ConfirmacionDialog
           trigger={
@@ -83,7 +101,7 @@ function AccionesPedido({ pedido }: { pedido: Pedido }) {
   );
 }
 
-const columnas: ColumnDef<Pedido>[] = [
+const columnasFijas: ColumnDef<Pedido>[] = [
   {
     accessorKey: "numero",
     header: ({ column }) => (
@@ -120,7 +138,12 @@ const columnas: ColumnDef<Pedido>[] = [
   {
     accessorKey: "estado",
     header: "Estado",
-    cell: ({ getValue }) => <EstadoBadge estado={getValue<EstadoPedido>()} />,
+    cell: ({ row }) => (
+      <EstadoBadge
+        estado={row.original.estado}
+        etapa={(row.original as any).flujoVentaEtapa ?? null}
+      />
+    ),
   },
   {
     accessorKey: "fechaPedido",
@@ -131,12 +154,20 @@ const columnas: ColumnDef<Pedido>[] = [
       </span>
     ),
   },
-  {
-    id: "acciones",
-    cell: ({ row }) => <AccionesPedido pedido={row.original} />,
-  },
 ];
 
-export function ListaPedidos({ pedidos }: { pedidos: Pedido[] }) {
+interface ListaPedidosProps {
+  pedidos: Pedido[];
+  etapasFlujo: EtapaFlujo[];
+}
+
+export function ListaPedidos({ pedidos, etapasFlujo }: ListaPedidosProps) {
+  const columnas: ColumnDef<Pedido>[] = [
+    ...columnasFijas,
+    {
+      id: "acciones",
+      cell: ({ row }) => <AccionesPedido pedido={row.original} etapasFlujo={etapasFlujo} />,
+    },
+  ];
   return <DataTable columnas={columnas} datos={pedidos} filtroPor="numero" placeholderFiltro="Buscar pedido..." />;
 }

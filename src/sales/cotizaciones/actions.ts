@@ -7,6 +7,7 @@ import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
 import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad } from "./queries";
 import { generarNumeroPedido } from "@/sales/pedidos/queries";
+import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
@@ -199,7 +200,14 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
       return { exito: false, error: `Stock insuficiente — ${erroresStock.join(" · ")}` };
     }
 
-    const numeroPedido = await generarNumeroPedido(sesion.instanciaId);
+    const [numeroPedido, flujoTenant] = await Promise.all([
+      generarNumeroPedido(sesion.instanciaId),
+      obtenerFlujoVenta(sesion.instanciaId),
+    ]);
+
+    const etapaInicial = flujoTenant?.etapas.length
+      ? (flujoTenant.etapas.find((e) => e.esInicial) ?? flujoTenant.etapas[0])
+      : null;
 
     const pedido = await prisma.$transaction(async (tx) => {
       // Aprobar cotización
@@ -210,22 +218,24 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
       // Crear pedido vinculado
       const nuevoPedido = await tx.pedido.create({
         data: {
-          numero:       numeroPedido,
-          estado:       "CONFIRMADO",
-          instanciaId:  sesion.instanciaId,
-          moneda:       cotizacion.moneda,
-          subtotal:     cotizacion.subtotal,
-          descuento:    cotizacion.descuento,
-          impuesto:     cotizacion.impuesto,
-          total:        cotizacion.total,
-          notas:        cotizacion.notas,
-          contactoId:   cotizacion.contactoId,
-          empresaId:    cotizacion.empresaId,
-          cotizacionId: cotizacion.id,
-          nombre:       dest.nombre || null,
-          apellido:     dest.apellido || null,
-          telefono:     dest.telefono || null,
-          email:        dest.email || null,
+          numero:             numeroPedido,
+          estado:             "CONFIRMADO",
+          instanciaId:        sesion.instanciaId,
+          moneda:             cotizacion.moneda,
+          subtotal:           cotizacion.subtotal,
+          descuento:          cotizacion.descuento,
+          impuesto:           cotizacion.impuesto,
+          total:              cotizacion.total,
+          notas:              cotizacion.notas,
+          contactoId:         cotizacion.contactoId,
+          empresaId:          cotizacion.empresaId,
+          cotizacionId:       cotizacion.id,
+          nombre:             dest.nombre || null,
+          apellido:           dest.apellido || null,
+          telefono:           dest.telefono || null,
+          email:              dest.email || null,
+          flujoVentaId:       flujoTenant?.id ?? null,
+          flujoVentaEtapaId:  etapaInicial?.id ?? null,
           lineas: {
             create: cotizacion.lineas.map((l) => ({
               productoId:     l.productoId,
@@ -240,6 +250,18 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
           },
         },
       });
+
+      if (etapaInicial) {
+        await tx.pedidoHistorialEtapa.create({
+          data: {
+            pedidoId:    nuevoPedido.id,
+            etapaId:     etapaInicial.id,
+            etapaNombre: etapaInicial.nombre,
+            tipo:        "AUTOMATICO",
+            usuarioId:   sesion.usuarioId,
+          },
+        });
+      }
 
       // Descontar stock de productos que lo manejan
       const lineasConStock = cotizacion.lineas.filter((l) => l.producto?.manejaStock && l.productoId);
