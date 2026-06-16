@@ -209,6 +209,7 @@ model Instancia {
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
   jobsMensaje          JobMensaje[]
+  jobsSistema          JobSistema[]
 
   @@index([slug])
   @@index([estado])
@@ -1229,6 +1230,40 @@ model JobMensaje {
   id          String           @id @default(cuid())
   tipo        TipoJobMensaje
   estado      EstadoJobMensaje @default(PENDIENTE)
+  payload     Json
+  intentos    Int              @default(0)
+  maxIntentos Int              @default(3)
+  error       String?
+  creadoEn    DateTime         @default(now())
+  procesadoEn DateTime?
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id])
+
+  @@index([estado, creadoEn])
+  @@index([instanciaId])
+}
+
+// =====================
+// JOB QUEUE - SISTEMA
+// =====================
+
+enum TipoJobSistema {
+  INICIALIZAR_INSTANCIA
+}
+
+enum EstadoJobSistema {
+  PENDIENTE
+  PROCESANDO
+  COMPLETADO
+  FALLIDO
+}
+
+// Cola de jobs para tareas de inicialización y configuración de instancias
+model JobSistema {
+  id          String           @id @default(cuid())
+  tipo        TipoJobSistema
+  estado      EstadoJobSistema @default(PENDIENTE)
   payload     Json
   intentos    Int              @default(0)
   maxIntentos Int              @default(3)

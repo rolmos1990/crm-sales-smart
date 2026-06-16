@@ -38,8 +38,6 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
   const [isPending, startTransition] = useTransition();
 
   const pipelineActual = pipelines.find((p) => p.id === pipelineActualId);
-  const pipelineDefault = pipelines.find((p) => p.esDefault);
-  const pipelinesPersonalizados = pipelines.filter((p) => !p.esDefault);
 
   const handleSwitch = (id: string | null) => {
     setOpen(false);
@@ -76,7 +74,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
         >
           <KanbanSquare className="h-4 w-4 text-lime-600 dark:text-lime-400 flex-shrink-0" />
           <span className="max-w-[180px] truncate">
-            {pipelineActual?.nombre ?? "Pipeline clásico"}
+            {pipelineActual?.nombre ?? "Sin pipeline"}
           </span>
           <ChevronDown className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500 flex-shrink-0" />
         </PopoverTrigger>
@@ -86,25 +84,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
           className="w-64 p-1.5 bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200 dark:border-white/[0.08] shadow-xl rounded-xl"
         >
           <div className="space-y-0.5">
-            <button
-              onClick={() => handleSwitch(pipelineDefault?.id ?? null)}
-              className={cn(
-                "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors text-left",
-                pipelineActualId === (pipelineDefault?.id ?? null)
-                  ? "bg-lime-500/10 dark:bg-lime-400/10 text-lime-700 dark:text-lime-400"
-                  : "text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-white/[0.05]"
-              )}
-            >
-              <KanbanSquare className="h-4 w-4 flex-shrink-0 text-stone-400" />
-              <span className="flex-1 truncate font-medium">Pipeline clásico</span>
-              {pipelineActualId === (pipelineDefault?.id ?? null) && <Check className="h-3.5 w-3.5 flex-shrink-0" />}
-            </button>
-
-            {pipelinesPersonalizados.length > 0 && (
-              <div className="mx-2 my-1 h-px bg-stone-100 dark:bg-white/[0.06]" />
-            )}
-
-            {pipelinesPersonalizados.map((p) => (
+            {pipelines.map((p) => (
               <button
                 key={p.id}
                 onClick={() => handleSwitch(p.id)}

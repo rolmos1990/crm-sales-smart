@@ -328,10 +328,10 @@ async function main() {
   });
   console.log("✓ 1 cotización creada");
 
-  // Pipeline clásico (default)
+  // Pipeline por defecto
   await prisma.pipeline.create({
     data: {
-      nombre: "Pipeline clásico",
+      nombre: "Pipeline de ventas",
       esDefault: true,
       activo: true,
       stages: {
@@ -346,7 +346,7 @@ async function main() {
       },
     },
   });
-  console.log("✓ Pipeline clásico creado");
+  console.log("✓ Pipeline por defecto creado");
 
   console.log("\n✅ Seed completado exitosamente.");
   console.log("   Email admin: admin@empresa.com");

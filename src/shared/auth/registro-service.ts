@@ -3,6 +3,8 @@
 import { prisma } from "@/shared/db/prisma";
 import { obtenerAuthProvider } from "@/shared/auth/provider";
 import { generarSlug } from "@/shared/lib/slug";
+import { busEventos } from "@/shared/eventos/bus";
+import { TIPOS_EVENTO } from "@/shared/eventos/registro";
 import {
   RegistroSchema,
   MENSAJE_REGISTRO_INVALIDO,
@@ -46,8 +48,12 @@ export async function registrarEmpresa(input: RegistroInput): Promise<ResultadoR
   const authUserId = resultado.usuario.id;
   const slug = await generarSlugUnico(empresa);
 
+  let instanciaId: string;
+  let instanciaNombre: string;
+  let instanciaSlug: string;
+
   try {
-    await prisma.$transaction(async (tx) => {
+    const resultado = await prisma.$transaction(async (tx) => {
       const instancia = await tx.instancia.create({
         data: { nombre: empresa, slug, estado: "ACTIVA" },
       });
@@ -66,6 +72,26 @@ export async function registrarEmpresa(input: RegistroInput): Promise<ResultadoR
       await tx.usuarioInstancia.create({
         data: { usuarioId: usuario.id, instanciaId: instancia.id, rol: "OWNER", activo: true },
       });
+
+      return { id: instancia.id, nombre: instancia.nombre, slug: instancia.slug };
+    });
+
+    instanciaId = resultado.id;
+    instanciaNombre = resultado.nombre;
+    instanciaSlug = resultado.slug;
+
+    await prisma.jobSistema.create({
+      data: {
+        tipo: "INICIALIZAR_INSTANCIA",
+        instanciaId,
+        payload: { instanciaId, nombre: instanciaNombre, slug: instanciaSlug },
+      },
+    });
+
+    busEventos.publicar(TIPOS_EVENTO.INSTANCIA_CREADA, {
+      instanciaId,
+      nombre: instanciaNombre,
+      slug: instanciaSlug,
     });
   } catch {
     await authProvider.eliminarUsuarioAuth(authUserId);
