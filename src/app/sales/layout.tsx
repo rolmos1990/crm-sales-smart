@@ -1,6 +1,12 @@
 import { ReactNode } from "react";
 import { AppLayout } from "@/shared/ui/app-sidebar";
+import { obtenerSesionActual } from "@/shared/auth/sesion";
 
-export default function SalesLayout({ children }: { children: ReactNode }) {
-  return <AppLayout>{children}</AppLayout>;
+export default async function SalesLayout({ children }: { children: ReactNode }) {
+  const sesion = await obtenerSesionActual();
+  return (
+    <AppLayout usuario={sesion ? { nombre: sesion.nombre, email: sesion.email } : null}>
+      {children}
+    </AppLayout>
+  );
 }

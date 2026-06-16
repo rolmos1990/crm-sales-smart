@@ -1,7 +1,7 @@
 /**
  * Script de limpieza de datos de la base de datos.
- * Conserva: Instancia, Usuario, UsuarioInstancia, Pipeline, PipelineStage
- * Borra: todo lo demás (datos CRM, conversaciones, productos, config, etc.)
+ * Conserva: Instancia, Pipeline, PipelineStage
+ * Borra: todo lo demás (usuarios, datos CRM, conversaciones, productos, config, etc.)
  */
 import 'dotenv/config'
 import { PrismaPg } from '@prisma/adapter-pg'
@@ -18,6 +18,7 @@ async function main() {
   await prisma.$transaction(async (tx) => {
     // --- Cola de jobs ---
     results.JobMensaje = (await tx.jobMensaje.deleteMany()).count
+    results.JobSistema = (await tx.jobSistema.deleteMany()).count
     results.DisparadorJob = (await tx.disparadorJob.deleteMany()).count
 
     // --- Conversaciones y mensajes ---
@@ -68,6 +69,10 @@ async function main() {
     results.ConfiguracionEmpresa = (await tx.configuracionEmpresa.deleteMany()).count
     results.IntegracionInstancia = (await tx.integracionInstancia.deleteMany()).count
     results.EventoLog = (await tx.eventoLog.deleteMany()).count
+
+    // --- Usuarios ---
+    results.UsuarioInstancia = (await tx.usuarioInstancia.deleteMany()).count
+    results.Usuario = (await tx.usuario.deleteMany()).count
   }, { timeout: 30000 })
 
   console.log('Registros eliminados por tabla:')
@@ -77,7 +82,7 @@ async function main() {
 
   const total = Object.values(results).reduce((a, b) => a + b, 0)
   console.log(`\nTotal eliminado: ${total} registros`)
-  console.log('\nConservado: Instancia, Usuario, UsuarioInstancia, Pipeline, PipelineStage')
+  console.log('\nConservado: Instancia, Pipeline, PipelineStage')
   console.log('Limpieza completada.')
 }
 
