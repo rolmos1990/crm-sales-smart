@@ -25,9 +25,10 @@ interface FormProductoProps {
   instanciaId: string;
   inicial?: Partial<Producto>;
   modo?: "crear" | "editar";
+  monedaDefault?: string;
 }
 
-export function FormProducto({ instanciaId, inicial, modo = "crear" }: FormProductoProps) {
+export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefault = "PEN" }: FormProductoProps) {
   const router = useRouter();
   const [productoId, setProductoId] = useState<string | null>(inicial?.id ?? null);
   const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
@@ -39,7 +40,7 @@ export function FormProducto({ instanciaId, inicial, modo = "crear" }: FormProdu
       nombre: inicial?.nombre ?? "",
       descripcion: inicial?.descripcion ?? "",
       precio: inicial?.precio ?? 0,
-      moneda: inicial?.moneda ?? "PEN",
+      moneda: inicial?.moneda ?? monedaDefault,
       categoria: inicial?.categoria ?? "",
       unidad: inicial?.unidad ?? "",
       imagenUrl: inicial?.imagenUrl ?? "",

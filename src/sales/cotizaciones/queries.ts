@@ -23,6 +23,14 @@ export async function obtenerCotizacionPorId(id: string, instanciaId: string) {
   });
 }
 
+export async function obtenerCotizacionesPorOportunidad(oportunidadId: string, instanciaId: string) {
+  return prisma.cotizacion.findMany({
+    where: { oportunidadId, instanciaId },
+    orderBy: { creadoEn: "desc" },
+    select: { id: true, numero: true, estado: true, total: true, moneda: true, creadoEn: true },
+  });
+}
+
 export async function generarNumeroCotizacion(instanciaId: string): Promise<string> {
   const count = await prisma.cotizacion.count({ where: { instanciaId } });
   const año = new Date().getFullYear();

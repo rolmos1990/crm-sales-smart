@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import {
   obtenerOportunidadAction,
@@ -52,6 +53,7 @@ import { DialogCamposRequeridos } from "./dialog-campos-requeridos";
 import { cn } from "@/lib/utils";
 import { GestorContactosPanel, type ContactoEnPanel } from "./gestor-contactos-panel";
 import { MONEDAS } from "@/shared/moneda/constants";
+import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
 
 // ── Tipos ─────────────────────────────────────────────────────────
 
@@ -197,6 +199,11 @@ function PanelFormulario({
   onUpdate,
   onDelete,
 }: FormularioProps) {
+  const contactoPrincipal =
+    contactosIniciales.find((r) => r.principal)?.contacto ??
+    contactosIniciales[0]?.contacto ??
+    null;
+
   const [activeTab, setActiveTab] = useState<"info" | "contacto">("info");
   const [stageActualId, setStageActualId] = useState<string | null>(initialStageId);
   const [pipelineActualId, setPipelineActualId] = useState<string | null>(initialPipelineId);
@@ -432,12 +439,10 @@ function PanelFormulario({
                     <FormItem>
                       <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Fecha de cierre</FormLabel>
                       <FormControl>
-                        <Input
-                          type="date"
-                          className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
-                          value={field.value ? new Date(field.value).toISOString().split("T")[0] : ""}
-                          onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
-                          onBlur={field.onBlur} name={field.name} ref={field.ref}
+                        <SmartDatePicker
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Selecciona fecha de cierre"
                         />
                       </FormControl>
                       <FormMessage />
@@ -524,7 +529,7 @@ function PanelFormulario({
 
               {/* Footer info */}
               <SheetFooter className="flex-row items-center justify-between gap-2 border-t border-stone-100 dark:border-white/10 px-6 py-4 flex-shrink-0">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap">
                   <ConfirmacionDialog
                     trigger={
                       <Button type="button" variant="ghost" size="sm" className="text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 rounded-lg">
@@ -544,6 +549,18 @@ function PanelFormulario({
                     <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                     Ver completo
                   </ButtonLink>
+                  <SheetNuevaCotizacion
+                    oportunidadId={oportunidad.id}
+                    oportunidadTitulo={oportunidad.titulo}
+                    contactoId={contactoPrincipal?.id}
+                    empresaId={oportunidad.empresaId ?? undefined}
+                    destinatario={{
+                      nombre: contactoPrincipal?.nombre,
+                      apellido: contactoPrincipal?.apellido,
+                      telefono: (contactoPrincipal as any)?.telefonoPrincipal ?? undefined,
+                      email: (contactoPrincipal as any)?.email ?? undefined,
+                    }}
+                  />
                 </div>
                 <Button
                   type="submit"

@@ -1,7 +1,9 @@
 "use client";
 
 import { Lock } from "lucide-react";
+import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -156,19 +158,22 @@ function CampoInput({
         </div>
       );
 
-    case "FECHA":
+    case "FECHA": {
+      const fechaDate = typeof valor === "string" && valor
+        ? new Date(valor + "T00:00:00")
+        : undefined;
       return (
         <div className="space-y-1.5">
           {label}
-          <Input
-            type="date"
-            className={inputClasses}
-            value={typeof valor === "string" ? valor : ""}
-            onChange={(e) => onChange(e.target.value)}
+          <SmartDatePicker
+            value={fechaDate}
+            onChange={(date) => onChange(format(date, "yyyy-MM-dd"))}
             disabled={disabled}
+            placeholder="Selecciona una fecha"
           />
         </div>
       );
+    }
 
     case "BOOLEANO":
       return (

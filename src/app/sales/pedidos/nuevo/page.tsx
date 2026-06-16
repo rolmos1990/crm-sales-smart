@@ -7,18 +7,21 @@ import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 
 export default async function NuevoPedidoPage() {
   const sesion = await requireSesion();
   let empresas: { id: string; nombre: string }[] = [];
   let contactos: any[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
+  let monedaDefault = "PEN";
 
   try {
-    [empresas, contactos, productos] = await Promise.all([
+    [empresas, contactos, productos, monedaDefault] = await Promise.all([
       buscarEmpresas("", sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),
       obtenerProductosCatalogo(sesion.instanciaId),
+      obtenerMonedaPrincipal(sesion.instanciaId),
     ]);
   } catch {
     // DB not configured
@@ -33,7 +36,7 @@ export default async function NuevoPedidoPage() {
         <ButtonLink variant="ghost" size="icon-sm" href="/sales/pedidos"><ArrowLeft className="h-4 w-4" /></ButtonLink>
       </div>
       <PageHeader titulo="Nuevo pedido" descripcion="Crea un pedido con líneas de productos" />
-      <FormPedido empresas={opcionesEmpresas} contactos={opcionesContactos} productos={productos} />
+      <FormPedido empresas={opcionesEmpresas} contactos={opcionesContactos} productos={productos} monedaDefault={monedaDefault} />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowLeft, FileText, Building2, User } from "lucide-react";
+import { ArrowLeft, FileText, Building2, User, Pencil, Phone, Mail } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,11 +11,13 @@ import { obtenerCotizacionPorId } from "@/sales/cotizaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
 import { cambiarEstadoCotizacion } from "@/sales/cotizaciones/actions";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
+import { BotonCopiarCotizacion } from "@/sales/cotizaciones/components/boton-copiar-cotizacion";
+import { BotonAprobarCotizacion } from "@/sales/cotizaciones/components/boton-aprobar-cotizacion";
 import { cn } from "@/lib/utils";
 
-const TRANSICIONES: Record<string, string[]> = {
-  BORRADOR: ["ENVIADA"],
-  ENVIADA: ["APROBADA", "RECHAZADA"],
+const TRANSICIONES_MANUALES: Record<string, string[]> = {
+  BORRADOR: [],
+  ENVIADA: ["RECHAZADA"],
   APROBADA: [],
   RECHAZADA: [],
   VENCIDA: [],
@@ -47,12 +49,23 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
   }
 
   const estadoConf = ESTADO_COTIZACION_CONFIG[cotizacion.estado];
-  const siguientes = TRANSICIONES[cotizacion.estado] ?? [];
+  const siguientesManuales = TRANSICIONES_MANUALES[cotizacion.estado] ?? [];
   const lineas = (cotizacion as any).lineas ?? [];
+  const metadata = (cotizacion as any).metadata as Record<string, unknown> | null;
+  const destinatario = metadata?.destinatario as Record<string, string> | undefined;
 
   const subtotal = Number(cotizacion.subtotal);
   const impuesto = Number(cotizacion.impuesto);
   const total = Number(cotizacion.total);
+
+  const lineasParaCopiar = lineas.map((l: any) => ({
+    descripcion: l.descripcion,
+    productoNombre: l.producto?.nombre ?? null,
+    cantidad: Number(l.cantidad),
+    precioUnitario: Number(l.precioUnitario),
+    descuento: Number(l.descuento),
+    subtotal: Number(l.subtotal),
+  }));
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
@@ -80,7 +93,27 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {siguientes.map((sig) => {
+          {cotizacion.estado === "BORRADOR" && (
+            <ButtonLink href={`/sales/cotizaciones/${id}/editar`} variant="outline" size="sm">
+              <Pencil className="h-4 w-4" />Editar
+            </ButtonLink>
+          )}
+          <BotonCopiarCotizacion
+            cotizacionId={id}
+            numero={cotizacion.numero}
+            estado={cotizacion.estado}
+            moneda={cotizacion.moneda}
+            fechaEmision={cotizacion.fechaEmision}
+            fechaVencimiento={cotizacion.fechaVencimiento}
+            subtotal={subtotal}
+            impuesto={impuesto}
+            total={total}
+            notas={cotizacion.notas}
+            destinatario={destinatario}
+            lineas={lineasParaCopiar}
+          />
+          <BotonAprobarCotizacion cotizacionId={id} estado={cotizacion.estado} />
+          {siguientesManuales.map((sig) => {
             const conf = ESTADO_COTIZACION_CONFIG[sig as keyof typeof ESTADO_COTIZACION_CONFIG];
             return (
               <form key={sig} action={async () => { "use server"; await cambiarEstadoCotizacion(id, sig); }}>
@@ -111,6 +144,28 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
               <Link href={`/crm/contactos/${cotizacion.contacto.id}`} className="font-medium hover:underline text-primary flex items-center gap-1">
                 <User className="h-4 w-4" />{cotizacion.contacto.nombre} {cotizacion.contacto.apellido}
               </Link>
+            </CardContent>
+          </Card>
+        )}
+        {destinatario && (destinatario.nombre || destinatario.telefono || destinatario.email) && (
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Destinatario</CardTitle></CardHeader>
+            <CardContent className="space-y-1.5">
+              {(destinatario.nombre || destinatario.apellido) && (
+                <p className="font-medium text-sm">
+                  {[destinatario.nombre, destinatario.apellido].filter(Boolean).join(" ")}
+                </p>
+              )}
+              {destinatario.telefono && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5" />{destinatario.telefono}
+                </p>
+              )}
+              {destinatario.email && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5" />{destinatario.email}
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
@@ -149,7 +204,7 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
               <span>{cotizacion.moneda} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
             </div>
             <div className="flex gap-8 text-sm">
-              <span className="text-muted-foreground">IGV (18%)</span>
+              <span className="text-muted-foreground">IGV</span>
               <span>{cotizacion.moneda} {impuesto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
             </div>
             <Separator className="my-1 w-48" />

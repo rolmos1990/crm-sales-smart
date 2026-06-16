@@ -8,6 +8,7 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -193,10 +194,10 @@ export function FormOportunidad({
             <FormItem>
               <FormLabel>Fecha de cierre</FormLabel>
               <FormControl>
-                <Input
-                  type="date"
-                  value={field.value ? new Date(field.value).toISOString().split("T")[0] : ""}
-                  onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                <SmartDatePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Selecciona fecha de cierre"
                 />
               </FormControl>
               <FormMessage />

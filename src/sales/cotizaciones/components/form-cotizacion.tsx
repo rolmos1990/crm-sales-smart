@@ -1,15 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronUp, UserCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -17,14 +19,27 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
+import { PhoneInput } from "@/components/ui/phone-input";
 import type { ProductoCatalogo } from "@/shared/productos/types";
-import { crearCotizacion } from "../actions";
-import { CrearCotizacionSchema, type CrearCotizacionInput } from "../schema";
+import { crearCotizacion, actualizarCotizacion } from "../actions";
+import { CrearCotizacionSchema, type CrearCotizacionInput, type DestinatarioCotizacionInput } from "../schema";
 
 interface FormCotizacionProps {
   contactos: OpcionCombobox[];
   empresas: OpcionCombobox[];
   productos?: ProductoCatalogo[];
+  oportunidadId?: string;
+  cotizacionId?: string;
+  defaultValues?: Partial<CrearCotizacionInput>;
+  onSuccess?: () => void;
+  /** Datos del contacto de la oportunidad para el toggle "Misma info del contacto" */
+  contactoOrigen?: Partial<DestinatarioCotizacionInput>;
+  /** Cuando viene del pipeline, el contacto ya está fijado y no se puede cambiar */
+  contactoFijo?: boolean;
+  /** Cuando viene del pipeline, la empresa ya está fijada y no se puede cambiar */
+  empresaFija?: boolean;
+  /** Moneda preferida de la instancia; se usa solo al crear */
+  monedaDefault?: string;
 }
 
 const nv = (v: number | undefined | null): number | string =>
@@ -33,19 +48,47 @@ const nv = (v: number | undefined | null): number | string =>
 const parseNum = (e: React.ChangeEvent<HTMLInputElement>): number =>
   Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber;
 
-export function FormCotizacion({ contactos, empresas, productos = [] }: FormCotizacionProps) {
+const tieneContactoOrigen = (c?: Partial<DestinatarioCotizacionInput>) =>
+  !!(c?.nombre || c?.apellido || c?.telefono || c?.email);
+
+export function FormCotizacion({
+  contactos,
+  empresas,
+  productos = [],
+  oportunidadId,
+  cotizacionId,
+  defaultValues,
+  onSuccess,
+  contactoOrigen,
+  contactoFijo = false,
+  empresaFija = false,
+  monedaDefault = "PEN",
+}: FormCotizacionProps) {
   const router = useRouter();
+  const hayContactoOrigen = tieneContactoOrigen(contactoOrigen);
+
+  const [mostrarCliente, setMostrarCliente] = useState(
+    hayContactoOrigen ||
+    !!(defaultValues?.destinatario?.nombre || defaultValues?.destinatario?.apellido ||
+       defaultValues?.destinatario?.telefono || defaultValues?.destinatario?.email)
+  );
+  const [usarInfoContacto, setUsarInfoContacto] = useState(hayContactoOrigen);
+
+  const modoEdicion = !!cotizacionId;
 
   const form = useForm<CrearCotizacionInput>({
     resolver: zodResolver(CrearCotizacionSchema),
     defaultValues: {
       estado: "BORRADOR",
-      moneda: "PEN",
+      moneda: monedaDefault,
       impuesto: 18,
       notas: "",
       contactoId: "",
       empresaId: "",
+      oportunidadId: oportunidadId ?? "",
+      destinatario: { nombre: "", apellido: "", telefono: "", email: "" },
       lineas: [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
+      ...defaultValues,
     },
   });
 
@@ -62,13 +105,43 @@ export function FormCotizacion({ contactos, empresas, productos = [] }: FormCoti
   const impuestoMonto = subtotal * (impuesto / 100);
   const total = subtotal + impuestoMonto;
 
+  const handleToggleInfoContacto = (checked: boolean) => {
+    setUsarInfoContacto(checked);
+    if (checked && contactoOrigen) {
+      form.setValue("destinatario.nombre", contactoOrigen.nombre ?? "");
+      form.setValue("destinatario.apellido", contactoOrigen.apellido ?? "");
+      form.setValue("destinatario.telefono", contactoOrigen.telefono ?? "");
+      form.setValue("destinatario.email", contactoOrigen.email ?? "");
+    }
+  };
+
   const onSubmit = async (datos: CrearCotizacionInput) => {
-    const resultado = await crearCotizacion(datos);
-    if (resultado.exito) {
-      toast.success("Cotización creada correctamente");
-      router.push("/sales/cotizaciones");
+    if (modoEdicion) {
+      const resultado = await actualizarCotizacion(cotizacionId, datos);
+      if (resultado.exito) {
+        toast.success("Cotización actualizada correctamente");
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          router.push(`/sales/cotizaciones/${cotizacionId}`);
+        }
+      } else {
+        toast.error(resultado.error);
+      }
     } else {
-      toast.error(resultado.error);
+      const resultado = await crearCotizacion(datos);
+      if (resultado.exito) {
+        toast.success("Cotización creada correctamente");
+        if (onSuccess) {
+          onSuccess();
+        } else if (oportunidadId) {
+          router.push(`/crm/oportunidades/${oportunidadId}`);
+        } else {
+          router.push("/sales/cotizaciones");
+        }
+      } else {
+        toast.error(resultado.error);
+      }
     }
   };
 
@@ -105,10 +178,10 @@ export function FormCotizacion({ contactos, empresas, productos = [] }: FormCoti
             <FormItem>
               <FormLabel>Fecha vencimiento</FormLabel>
               <FormControl>
-                <Input
-                  type="date"
-                  value={field.value ? new Date(field.value).toISOString().split("T")[0] : ""}
-                  onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                <SmartDatePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Selecciona fecha de vencimiento"
                 />
               </FormControl>
             </FormItem>
@@ -120,7 +193,13 @@ export function FormCotizacion({ contactos, empresas, productos = [] }: FormCoti
             <FormItem>
               <FormLabel>Empresa</FormLabel>
               <FormControl>
-                <Combobox opciones={empresas} valor={field.value} onChange={field.onChange} placeholder="Seleccionar empresa..." />
+                <Combobox
+                  opciones={empresas}
+                  valor={field.value}
+                  onChange={field.onChange}
+                  placeholder="Seleccionar empresa..."
+                  disabled={empresaFija}
+                />
               </FormControl>
             </FormItem>
           )} />
@@ -128,10 +207,115 @@ export function FormCotizacion({ contactos, empresas, productos = [] }: FormCoti
             <FormItem>
               <FormLabel>Contacto</FormLabel>
               <FormControl>
-                <Combobox opciones={contactos} valor={field.value} onChange={field.onChange} placeholder="Seleccionar contacto..." />
+                <Combobox
+                  opciones={contactos}
+                  valor={field.value}
+                  onChange={field.onChange}
+                  placeholder="Seleccionar contacto..."
+                  disabled={contactoFijo}
+                />
               </FormControl>
             </FormItem>
           )} />
+        </div>
+
+        {/* Sección Cliente */}
+        <div className="rounded-lg border border-border">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left hover:bg-muted/40 transition-colors rounded-lg"
+            onClick={() => setMostrarCliente(!mostrarCliente)}
+          >
+            <span className="flex items-center gap-2">
+              <UserCircle2 className="h-4 w-4 text-muted-foreground" />
+              Cliente
+              <span className="text-xs text-muted-foreground font-normal">(datos para la cotización)</span>
+            </span>
+            {mostrarCliente ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+
+          {mostrarCliente && (
+            <div className="px-4 pb-4 pt-1 border-t border-border space-y-4">
+              {/* Toggle "Misma información del contacto" */}
+              {hayContactoOrigen && (
+                <label className="flex items-center gap-2.5 cursor-pointer select-none pt-1">
+                  <input
+                    type="checkbox"
+                    checked={usarInfoContacto}
+                    onChange={(e) => handleToggleInfoContacto(e.target.checked)}
+                    className="h-4 w-4 rounded border-stone-300 dark:border-white/20 text-lime-600 focus:ring-lime-500 accent-lime-500"
+                  />
+                  <span className="text-sm text-stone-600 dark:text-stone-400">
+                    Usar información del contacto
+                    {(contactoOrigen?.nombre || contactoOrigen?.apellido) && (
+                      <span className="ml-1 font-medium text-stone-800 dark:text-stone-200">
+                        ({[contactoOrigen.nombre, contactoOrigen.apellido].filter(Boolean).join(" ")})
+                      </span>
+                    )}
+                  </span>
+                </label>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="destinatario.nombre" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Juan"
+                        {...field}
+                        value={field.value ?? ""}
+                        disabled={usarInfoContacto && hayContactoOrigen}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="destinatario.apellido" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Apellido</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="García"
+                        {...field}
+                        value={field.value ?? ""}
+                        disabled={usarInfoContacto && hayContactoOrigen}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="destinatario.telefono" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl>
+                      <PhoneInput
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        disabled={usarInfoContacto && hayContactoOrigen}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="destinatario.email" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="juan@email.com"
+                        {...field}
+                        value={field.value ?? ""}
+                        disabled={usarInfoContacto && hayContactoOrigen}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -249,15 +433,17 @@ export function FormCotizacion({ contactos, empresas, productos = [] }: FormCoti
           <FormItem>
             <FormLabel>Notas</FormLabel>
             <FormControl>
-              <Textarea placeholder="Condiciones, términos de pago..." rows={3} className="resize-none" {...field} />
+              <Textarea placeholder="Condiciones, términos de pago..." rows={3} className="resize-none" {...field} value={field.value ?? ""} />
             </FormControl>
           </FormItem>
         )} />
 
         <div className="flex gap-3 justify-end pt-2">
-          <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
+          <Button type="button" variant="outline" onClick={() => onSuccess ? onSuccess() : router.back()}>Cancelar</Button>
           <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Creando..." : "Crear cotización"}
+            {form.formState.isSubmitting
+              ? modoEdicion ? "Guardando..." : "Creando..."
+              : modoEdicion ? "Guardar cambios" : "Crear cotización"}
           </Button>
         </div>
       </form>

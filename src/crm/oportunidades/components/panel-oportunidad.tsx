@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import {
   actualizarOportunidad,
@@ -48,6 +49,7 @@ import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { obtenerTagsAction } from "@/crm/tags/actions";
 import type { Tag } from "@/crm/tags/types";
 import { GestorContactosPanel, type ContactoEnPanel } from "./gestor-contactos-panel";
+import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
 
 // ── Props ─────────────────────────────────────────────────────────
 
@@ -305,11 +307,10 @@ export function PanelOportunidad({
                             Fecha de cierre
                           </FormLabel>
                           <FormControl>
-                            <Input
-                              type="date"
-                              className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"
-                              value={field.value ? new Date(field.value).toISOString().split("T")[0] : ""}
-                              onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                            <SmartDatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Selecciona fecha de cierre"
                             />
                           </FormControl>
                           <FormMessage />
@@ -375,7 +376,7 @@ export function PanelOportunidad({
 
                   {/* Footer */}
                   <SheetFooter className="flex-row items-center justify-between gap-2 border-t border-stone-100 dark:border-white/10 px-6 py-4 flex-shrink-0">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <ConfirmacionDialog
                         trigger={
                           <Button type="button" variant="ghost" size="sm" className="text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 rounded-lg">
@@ -395,6 +396,18 @@ export function PanelOportunidad({
                         <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                         Ver completo
                       </ButtonLink>
+                      <SheetNuevaCotizacion
+                        oportunidadId={oportunidad.id}
+                        oportunidadTitulo={oportunidad.titulo}
+                        contactoId={contactosIniciales.find((r) => r.principal)?.contactoId ?? contactosIniciales[0]?.contactoId}
+                        empresaId={oportunidad.empresaId ?? undefined}
+                        destinatario={{
+                          nombre: (contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto)?.nombre,
+                          apellido: (contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto)?.apellido,
+                          telefono: ((contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto) as any)?.telefonoPrincipal ?? undefined,
+                          email: ((contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto) as any)?.email ?? undefined,
+                        }}
+                      />
                     </div>
                     <Button
                       type="submit"

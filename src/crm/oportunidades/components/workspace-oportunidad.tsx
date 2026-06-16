@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   X, Phone, Video, Search, MoreHorizontal, ExternalLink, Loader2,
-  ChevronDown, Building2, CalendarDays, Layers, Mail, Globe,
+  ChevronDown, Building2, Layers, Mail, Globe,
   Save, Tag as TagIcon, User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
@@ -53,6 +54,7 @@ import {
 } from "@/conversaciones/actions";
 import type { ConversacionResumen, CuentaCanalResumen } from "@/conversaciones/types";
 import { MONEDAS } from "@/shared/moneda/constants";
+import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -517,6 +519,19 @@ function WorkspaceContenido({
               <MoreHorizontal className="h-4 w-4" />
             </button>
             <div className="w-px h-5 bg-white/10 mx-1" />
+            <SheetNuevaCotizacion
+              oportunidadId={oportunidad.id}
+              oportunidadTitulo={oportunidad.titulo}
+              contactoId={contactoPrincipal?.id}
+              empresaId={(oportunidad as any).empresaId ?? undefined}
+              destinatario={{
+                nombre: contactoPrincipal?.nombre,
+                apellido: contactoPrincipal?.apellido,
+                telefono: (contactoPrincipal as any)?.telefonoPrincipal ?? undefined,
+                email: (contactoPrincipal as any)?.email ?? undefined,
+              }}
+            />
+            <div className="w-px h-5 bg-white/10 mx-1" />
             <button
               type="button"
               onClick={onClose}
@@ -638,16 +653,11 @@ function WorkspaceContenido({
                         <FormItem>
                           <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Fecha de cierre</FormLabel>
                           <FormControl>
-                            <div className="relative">
-                              <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-500 pointer-events-none" />
-                              <Input
-                                type="date"
-                                className="bg-white/4 border-white/10 rounded-xl h-8 text-sm pl-8"
-                                value={field.value ? new Date(field.value).toISOString().split("T")[0] : ""}
-                                onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
-                                onBlur={field.onBlur} name={field.name} ref={field.ref}
-                              />
-                            </div>
+                            <SmartDatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Selecciona fecha de cierre"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

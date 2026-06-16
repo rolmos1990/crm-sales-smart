@@ -7,9 +7,9 @@ import { es } from "date-fns/locale";
 import {
   ArrowLeft, Pencil, Building2, Calendar, Plus,
   Phone, Mail, User, Globe, FileText, Hash,
-  Briefcase, ExternalLink,
+  Briefcase, ExternalLink, FileCheck,
 } from "lucide-react";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -21,6 +21,8 @@ import { obtenerTags } from "@/crm/tags/queries";
 import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
 import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
 import { obtenerConversacionesPorOportunidad, obtenerCuentasCanal } from "@/conversaciones/queries";
+import { obtenerCotizacionesPorOportunidad } from "@/sales/cotizaciones/queries";
+import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
 import { requireSesion } from "@/shared/auth/sesion";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
@@ -36,12 +38,14 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   const sesion = await requireSesion();
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesPorOportunidad>> = [];
   let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];
+  let cotizaciones: Awaited<ReturnType<typeof obtenerCotizacionesPorOportunidad>> = [];
 
   try {
-    [oportunidad, actividades, todosLosTags] = await Promise.all([
+    [oportunidad, actividades, todosLosTags, cotizaciones] = await Promise.all([
       obtenerOportunidadPorId(id, sesion.instanciaId),
       obtenerActividadesPorOportunidad(id, sesion.instanciaId),
       obtenerTags(sesion.instanciaId),
+      obtenerCotizacionesPorOportunidad(id, sesion.instanciaId),
     ]);
   } catch {
     // DB not configured
@@ -182,6 +186,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
               <TabsTrigger value="info">Información</TabsTrigger>
               <TabsTrigger value="productos">Productos ({productos.length})</TabsTrigger>
               <TabsTrigger value="actividades">Actividades ({actividades.length})</TabsTrigger>
+              <TabsTrigger value="cotizaciones">Cotizaciones ({cotizaciones.length})</TabsTrigger>
             </TabsList>
 
             {/* ── Tab Información ───────────────────────────────── */}
@@ -420,6 +425,76 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
                 </ButtonLink>
               </div>
               <TimelineActividades actividades={actividades} />
+            </TabsContent>
+
+            {/* ── Tab Cotizaciones ──────────────────────────────── */}
+            <TabsContent value="cotizaciones" className="mt-4">
+              <div className="flex justify-end mb-4">
+                <ButtonLink
+                  size="sm"
+                  href={`/sales/cotizaciones/nueva?oportunidadId=${id}${contactoPrincipal ? `&contactoId=${contactoPrincipal.id}` : ""}`}
+                >
+                  <Plus className="h-4 w-4" />Nueva cotización
+                </ButtonLink>
+              </div>
+              {cotizaciones.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center">
+                  <FileCheck className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Sin cotizaciones vinculadas.</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Crea una cotización pre-cargada con los datos de esta oportunidad.</p>
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="pt-0">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-2 font-medium text-muted-foreground">Número</th>
+                          <th className="text-left py-3 px-2 font-medium text-muted-foreground">Estado</th>
+                          <th className="text-right py-3 px-2 font-medium text-muted-foreground">Total</th>
+                          <th className="text-right py-3 px-2 font-medium text-muted-foreground">Fecha</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cotizaciones.map((cot) => {
+                          const conf = ESTADO_COTIZACION_CONFIG[cot.estado];
+                          return (
+                            <tr
+                              key={cot.id}
+                              className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
+                              onClick={() => undefined}
+                            >
+                              <td className="py-2.5 px-2">
+                                <a href={`/sales/cotizaciones/${cot.id}`} className="font-medium text-primary hover:underline">
+                                  {cot.numero}
+                                </a>
+                              </td>
+                              <td className="py-2.5 px-2">
+                                <span className={cn(
+                                  "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                  cot.estado === "APROBADA" && "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400",
+                                  cot.estado === "ENVIADA" && "bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400",
+                                  cot.estado === "BORRADOR" && "bg-stone-100 text-stone-600 dark:bg-stone-500/10 dark:text-stone-400",
+                                  cot.estado === "RECHAZADA" && "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+                                  cot.estado === "VENCIDA" && "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+                                )}>
+                                  {conf.etiqueta}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-2 text-right font-medium tabular-nums">
+                                {cot.moneda} {Number(cot.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-2.5 px-2 text-right text-muted-foreground">
+                                {format(new Date(cot.creadoEn), "dd MMM yyyy", { locale: es })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>
