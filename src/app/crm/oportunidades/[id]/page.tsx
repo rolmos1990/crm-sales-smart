@@ -461,8 +461,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
                           return (
                             <tr
                               key={cot.id}
-                              className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
-                              onClick={() => undefined}
+                              className="border-b last:border-0 hover:bg-muted/30 transition-colors"
                             >
                               <td className="py-2.5 px-2">
                                 <a href={`/sales/cotizaciones/${cot.id}`} className="font-medium text-primary hover:underline">
