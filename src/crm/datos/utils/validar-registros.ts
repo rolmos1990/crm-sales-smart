@@ -3,12 +3,14 @@ import type {
   DefinicionCampo,
   ResultadoValidacion,
   ErrorFila,
+  EntidadImportable,
 } from "../types";
 
 export function validarRegistros(
   filas: Record<string, string>[],
   mapeos: MapeoColumna[],
   camposDestino: DefinicionCampo[],
+  entidad?: EntidadImportable,
 ): ResultadoValidacion {
   const mapeoActivos = mapeos.filter(
     (m) => (m.accion === "mapear" || m.accion === "crear") && m.campoDestino,
@@ -102,6 +104,29 @@ export function validarRegistros(
         }
         default:
           filaTransformada[clave] = valorRaw.trim();
+      }
+    }
+
+    // Validación cross-campo específica de Pedido
+    if (entidad === "PEDIDO" && erroresFila.length === 0) {
+      const idPedido = filaTransformada.idPedido ?? fila["ID Pedido"] ?? fila["idPedido"] ?? "";
+      if (!idPedido || String(idPedido).trim() === "") {
+        erroresFila.push({
+          fila: idx + 2,
+          campo: "idPedido",
+          mensaje: 'El campo "ID Pedido" es requerido en cada fila',
+          valor: String(idPedido),
+        });
+      }
+      const tieneDescripcion = filaTransformada.descripcion && String(filaTransformada.descripcion).trim() !== "";
+      const tieneSku = filaTransformada.skuProducto && String(filaTransformada.skuProducto).trim() !== "";
+      if (!tieneDescripcion && !tieneSku) {
+        erroresFila.push({
+          fila: idx + 2,
+          campo: "descripcion",
+          mensaje: 'Cada línea debe tener "Descripción del producto" o "SKU del producto"',
+          valor: "",
+        });
       }
     }
 

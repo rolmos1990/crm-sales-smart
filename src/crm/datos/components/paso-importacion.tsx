@@ -15,6 +15,7 @@ import type { ResultadoImportacion } from "../types";
 interface PasoImportacionProps {
   resultado: ResultadoImportacion | null;
   registrosAImportar: number;
+  etiquetaRegistro?: string;
   cargando: boolean;
   onEjecutar: () => void;
   onReiniciar: () => void;
@@ -23,6 +24,7 @@ interface PasoImportacionProps {
 export function PasoImportacion({
   resultado,
   registrosAImportar,
+  etiquetaRegistro = "registros",
   cargando,
   onEjecutar,
   onReiniciar,
@@ -181,7 +183,7 @@ export function PasoImportacion({
         </div>
         <div>
           <p className="text-stone-100 font-semibold text-lg">
-            {registrosAImportar} registros listos
+            {registrosAImportar} {etiquetaRegistro} listos
           </p>
           <p className="text-stone-400 text-sm mt-1">
             Haz clic en el botón para iniciar la importación.

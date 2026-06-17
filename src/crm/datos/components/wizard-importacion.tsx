@@ -83,6 +83,7 @@ export function WizardImportacion({
       estado.archivo!.filas,
       mapeos,
       camposStd,
+      estado.entidad!,
     );
     setEstado((e) => ({ ...e, mapeos, validacion, paso: "validacion" }));
   };
@@ -95,7 +96,7 @@ export function WizardImportacion({
     startTransition(async () => {
       setEstado((e) => ({ ...e, cargando: true }));
 
-      const filasAImportar = estado.soloValidos
+      const filasParaImportar = estado.soloValidos
         ? estado.validacion!.filasValidas
         : [
             ...estado.validacion!.filasValidas,
@@ -107,7 +108,7 @@ export function WizardImportacion({
         archivoNombre: estado.archivo!.nombre,
         archivoTipo: estado.archivo!.tipo,
         archivoPeso: estado.archivo!.peso,
-        registros: filasAImportar,
+        registros: filasParaImportar,
         mapeos: estado.mapeos,
       });
 
@@ -128,9 +129,22 @@ export function WizardImportacion({
     setCamposPersonalizados(camposPersonalizadosIniciales);
   };
 
-  const registrosAImportar = estado.soloValidos
-    ? (estado.validacion?.validos ?? 0)
-    : (estado.validacion?.total ?? 0);
+  const filasAImportar = estado.soloValidos
+    ? (estado.validacion?.filasValidas ?? [])
+    : [
+        ...(estado.validacion?.filasValidas ?? []),
+        ...(estado.validacion?.filasConError ?? []),
+      ];
+
+  // Para Pedidos mostramos el número de pedidos únicos (grupos), no de filas
+  const registrosAImportar =
+    estado.entidad === "PEDIDO"
+      ? new Set(
+          filasAImportar
+            .map((f) => String((f as Record<string, unknown>).idPedido ?? "").trim())
+            .filter(Boolean),
+        ).size
+      : filasAImportar.length;
 
   return (
     <div className="flex flex-col gap-8">
@@ -183,6 +197,7 @@ export function WizardImportacion({
           <PasoImportacion
             resultado={estado.resultado}
             registrosAImportar={registrosAImportar}
+            etiquetaRegistro={estado.entidad === "PEDIDO" ? "pedidos" : "registros"}
             cargando={isPending}
             onEjecutar={ejecutarImportacion}
             onReiniciar={reiniciar}

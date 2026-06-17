@@ -174,20 +174,9 @@ async function insertar(
       break;
 
     case "PEDIDO":
-      await tx.pedido.create({
-        data: {
-          numero: `IMP-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-          nombre: datos.nombre ? String(datos.nombre) : null,
-          apellido: datos.apellido ? String(datos.apellido) : null,
-          telefono: datos.telefono ? String(datos.telefono) : null,
-          email: datos.email ? String(datos.email) : null,
-          empresaNombre: datos.empresaNombre
-            ? String(datos.empresaNombre)
-            : null,
-          instanciaId,
-        },
-      });
-      break;
+      // Los pedidos se insertan en lote agrupado via insertarPedidosAgrupados
+      throw new Error("Use insertarPedidosAgrupados para la entidad PEDIDO");
+
 
     case "ACTIVIDAD":
       await tx.actividad.create({
@@ -204,6 +193,102 @@ async function insertar(
       });
       break;
   }
+}
+
+async function insertarPedidosAgrupados(
+  tx: PrismaTransactionClient,
+  filas: Record<string, unknown>[],
+  instanciaId: string,
+  contadorBase: number,
+): Promise<number> {
+  const año = new Date().getFullYear();
+
+  // Agrupar filas por idPedido preservando orden de aparición
+  const grupos = new Map<string, Record<string, unknown>[]>();
+  for (const fila of filas) {
+    const idPedido = String(fila.idPedido ?? "").trim();
+    if (!idPedido) continue;
+    if (!grupos.has(idPedido)) grupos.set(idPedido, []);
+    grupos.get(idPedido)!.push(fila);
+  }
+
+  let offset = 0;
+  for (const [, lineas] of grupos) {
+    const header = lineas[0]!;
+    const numero = `PED-${año}-${String(contadorBase + offset + 1).padStart(4, "0")}`;
+    offset++;
+
+    const impuestoPct = Number(header.impuesto ?? 0);
+
+    const lineasData: Array<{
+      descripcion: string | null;
+      cantidad: number;
+      precioUnitario: number;
+      descuento: number;
+      subtotal: number;
+      total: number;
+      orden: number;
+      productoId: string | null;
+    }> = [];
+
+    for (const [idx, linea] of lineas.entries()) {
+      const cantidad = Number(linea.cantidad ?? 1);
+      const precioUnitario = Number(linea.precioUnitario ?? 0);
+      const descuento = Number(linea.descuento ?? 0);
+      const subtotal = cantidad * precioUnitario * (1 - descuento / 100);
+
+      let productoId: string | null = null;
+      const sku = linea.skuProducto ? String(linea.skuProducto).trim() : null;
+      if (sku) {
+        const prod = await tx.producto.findFirst({
+          where: { sku, instanciaId, activo: true },
+          select: { id: true },
+        });
+        if (prod) productoId = prod.id;
+      }
+
+      lineasData.push({
+        descripcion: linea.descripcion ? String(linea.descripcion) : null,
+        cantidad,
+        precioUnitario,
+        descuento,
+        subtotal,
+        total: subtotal,
+        orden: idx,
+        productoId,
+      });
+    }
+
+    const pedidoSubtotal = lineasData.reduce((acc, l) => acc + l.subtotal, 0);
+    const impuestoMonto = pedidoSubtotal * (impuestoPct / 100);
+    const total = pedidoSubtotal + impuestoMonto;
+
+    await tx.pedido.create({
+      data: {
+        numero,
+        nombre: header.nombre ? String(header.nombre) : null,
+        apellido: header.apellido ? String(header.apellido) : null,
+        ruc: header.ruc ? String(header.ruc) : null,
+        email: header.email ? String(header.email) : null,
+        telefono: header.telefono ? String(header.telefono) : null,
+        empresaNombre: header.empresaNombre ? String(header.empresaNombre) : null,
+        fechaEntrega: header.fechaEntrega ? new Date(String(header.fechaEntrega)) : null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        estado: (header.estado as any) ?? "PENDIENTE",
+        subtotal: pedidoSubtotal,
+        impuesto: impuestoMonto,
+        total,
+        moneda: header.moneda ? String(header.moneda) : "PEN",
+        notas: header.notas ? String(header.notas) : null,
+        instanciaId,
+        lineas: {
+          createMany: { data: lineasData },
+        },
+      },
+    });
+  }
+
+  return grupos.size;
 }
 
 export async function importarRegistrosAction(datos: unknown) {
@@ -225,6 +310,17 @@ export async function importarRegistrosAction(datos: unknown) {
     registros,
   } = parsed.data;
 
+  const esPedido = entidad === "PEDIDO";
+
+  // Para pedidos, contar grupos únicos por idPedido para el historial
+  const totalHistorial = esPedido
+    ? new Set(
+        registros
+          .map((r) => String((r as Record<string, unknown>).idPedido ?? "").trim())
+          .filter(Boolean),
+      ).size
+    : registros.length;
+
   const historial = await prisma.historialImportacion.create({
     data: {
       instanciaId: sesion.instanciaId,
@@ -233,7 +329,7 @@ export async function importarRegistrosAction(datos: unknown) {
       archivoNombre,
       archivoTipo,
       archivoPeso,
-      totalRegistros: registros.length,
+      totalRegistros: totalHistorial,
       registrosExitosos: 0,
       registrosConError: 0,
       errores: [],
@@ -241,7 +337,6 @@ export async function importarRegistrosAction(datos: unknown) {
     },
   });
 
-  const CHUNK = 100;
   let exitosos = 0;
   const erroresImport: Array<{
     fila: number;
@@ -249,26 +344,50 @@ export async function importarRegistrosAction(datos: unknown) {
     mensaje: string;
   }> = [];
 
-  for (let i = 0; i < registros.length; i += CHUNK) {
-    const chunk = registros.slice(i, i + CHUNK);
+  if (esPedido) {
+    // Insertar todos los pedidos en una única transacción agrupada
     try {
+      const contadorBase = await prisma.pedido.count({
+        where: { instanciaId: sesion.instanciaId },
+      });
       await prisma.$transaction(async (tx) => {
-        for (let j = 0; j < chunk.length; j++) {
-          await insertar(
-            tx,
-            entidad as EntidadImportable,
-            chunk[j] as Record<string, unknown>,
-            sesion.instanciaId,
-          );
-          exitosos++;
-        }
+        exitosos = await insertarPedidosAgrupados(
+          tx,
+          registros as Record<string, unknown>[],
+          sesion.instanciaId,
+          contadorBase,
+        );
       });
     } catch (e) {
       erroresImport.push({
-        fila: i + 2,
+        fila: 2,
         campo: "batch",
-        mensaje: e instanceof Error ? e.message : "Error desconocido en lote",
+        mensaje: e instanceof Error ? e.message : "Error desconocido al importar pedidos",
       });
+    }
+  } else {
+    const CHUNK = 100;
+    for (let i = 0; i < registros.length; i += CHUNK) {
+      const chunk = registros.slice(i, i + CHUNK);
+      try {
+        await prisma.$transaction(async (tx) => {
+          for (let j = 0; j < chunk.length; j++) {
+            await insertar(
+              tx,
+              entidad as EntidadImportable,
+              chunk[j] as Record<string, unknown>,
+              sesion.instanciaId,
+            );
+            exitosos++;
+          }
+        });
+      } catch (e) {
+        erroresImport.push({
+          fila: i + 2,
+          campo: "batch",
+          mensaje: e instanceof Error ? e.message : "Error desconocido en lote",
+        });
+      }
     }
   }
 
