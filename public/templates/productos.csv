@@ -1,0 +1,6 @@
+Nombre,Precio,SKU,Descripción,Categoría,Unidad,Stock disponible
+Laptop HP 15",2500,LAP-HP-15,Laptop procesador Intel i7 16GB RAM,Computadoras,unidad,10
+Mouse Inalámbrico,45,MOU-001,Mouse ergonómico inalámbrico,Accesorios,unidad,50
+Teclado Mecánico,180,TEC-MEC-01,Teclado mecánico retroiluminado,Accesorios,unidad,20
+Monitor 24" Full HD,650,MON-24-FHD,Monitor IPS 144Hz,Monitores,unidad,8
+Servicio de Soporte Mensual,350,SVC-SOP-01,Soporte técnico remoto mensual,Servicios,mes,

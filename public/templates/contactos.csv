@@ -1,0 +1,5 @@
+Nombre,Apellido,Email,Telefono,Cargo,Notas,Estado
+Juan,Pérez,juan.perez@empresa.com,60000000,Gerente Comercial,Cliente desde 2022,ACTIVO
+María,García,maria.garcia@techcorp.com,70112233,Directora de Operaciones,,LEAD
+Carlos,López,carlos.lopez@gmail.com,60987654,Vendedor,,ACTIVO
+Ana,Martínez,ana.martinez@negocio.pe,71234567,Gerente General,Referida por Juan,LEAD

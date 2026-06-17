@@ -1,0 +1,6 @@
+Tipo,Titulo,Fecha,Prioridad,Descripción
+LLAMADA,Llamada de seguimiento a Juan Pérez,2025-06-20,ALTA,Confirmar reunión de demostración
+REUNION,Presentación de propuesta a TechCorp,2025-06-25,ALTA,Llevar demo del sistema
+TAREA,Enviar cotización a Empresa SAC,2025-06-18,MEDIA,Incluir descuento por volumen
+EMAIL,Responder consulta cliente Norte,2025-06-17,BAJA,
+NOTA,Nota de seguimiento post-reunión,2025-06-15,BAJA,El cliente solicita referencias

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Upload, FileText, X, AlertCircle, ChevronRight } from "lucide-react";
+import { Upload, FileText, X, AlertCircle, ChevronRight, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import {
   detectarSeparador,
   etiquetaSeparador,
 } from "../utils/detectar-separador";
+import { obtenerPlantilla } from "../utils/plantillas-config";
 import type { DatosArchivo, EntidadImportable, SeparadorCSV } from "../types";
 
 const MAX_SIZE = 2 * 1024 * 1024;
@@ -139,48 +140,60 @@ export function PasoArchivo({
       </div>
 
       {!archivoRaw ? (
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setArrastrando(true);
-          }}
-          onDragLeave={() => setArrastrando(false)}
-          onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
-          className={cn(
-            "flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed p-12 cursor-pointer transition-all",
-            arrastrando
-              ? "border-lime-500/60 bg-lime-500/5"
-              : "border-white/15 bg-white/4 hover:border-white/25 hover:bg-white/6",
-          )}
-        >
-          <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-white/8">
-            <Upload className="w-7 h-7 text-stone-400" />
-          </div>
-          <div className="text-center">
-            <p className="text-stone-200 font-medium">
-              Arrastra tu archivo aquí
-            </p>
-            <p className="text-stone-500 text-sm mt-1">
-              o{" "}
-              <span className="text-lime-400 underline underline-offset-2">
-                haz clic para seleccionar
-              </span>
-            </p>
-            <p className="text-stone-600 text-xs mt-2">
-              CSV, XLS, XLSX · máximo 2 MB
-            </p>
-          </div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,.xls,.xlsx"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
+        <div className="flex flex-col gap-3">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setArrastrando(true);
             }}
-          />
+            onDragLeave={() => setArrastrando(false)}
+            onDrop={handleDrop}
+            onClick={() => inputRef.current?.click()}
+            className={cn(
+              "flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed p-12 cursor-pointer transition-all",
+              arrastrando
+                ? "border-lime-500/60 bg-lime-500/5"
+                : "border-white/15 bg-white/4 hover:border-white/25 hover:bg-white/6",
+            )}
+          >
+            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-white/8">
+              <Upload className="w-7 h-7 text-stone-400" />
+            </div>
+            <div className="text-center">
+              <p className="text-stone-200 font-medium">
+                Arrastra tu archivo aquí
+              </p>
+              <p className="text-stone-500 text-sm mt-1">
+                o{" "}
+                <span className="text-lime-400 underline underline-offset-2">
+                  haz clic para seleccionar
+                </span>
+              </p>
+              <p className="text-stone-600 text-xs mt-2">
+                CSV, XLS, XLSX · máximo 2 MB
+              </p>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv,.xls,.xlsx"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFile(file);
+              }}
+            />
+          </div>
+
+          <a
+            href={obtenerPlantilla(entidad).url}
+            download={obtenerPlantilla(entidad).nombreDescarga}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center justify-center gap-2 self-center rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs text-stone-400 transition-all hover:border-lime-500/30 hover:bg-lime-500/5 hover:text-lime-400"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Descargar archivo modelo ({ETIQUETAS_ENTIDAD[entidad]})
+          </a>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
