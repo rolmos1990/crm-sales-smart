@@ -103,7 +103,8 @@
       "Bash(Select-String -Path \"src\\\\generated\\\\prisma\\\\internal\\\\class.ts\" -Pattern \"esSecuencial\" -SimpleMatch)",
       "Bash(Select-Object -First 3)",
       "Bash(Format-List)",
-      "Bash(node -e \"console.log\\(require\\('dotenv'\\).config\\({ path: '.env' }\\)\\)\")"
+      "Bash(node -e \"console.log\\(require\\('dotenv'\\).config\\({ path: '.env' }\\)\\)\")",
+      "Bash(node -e \"const z = require\\('c:/Users/ramon.olmos/source/repos/Vento/crm-sales-smart/node_modules/zod'\\); console.log\\(typeof z.array\\([]\\).min, typeof z.array\\([]\\).max\\)\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

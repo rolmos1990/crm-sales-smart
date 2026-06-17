@@ -161,6 +161,13 @@ enum EstadoConversacion {
   EN_ESPERA
 }
 
+enum EstadoImportacion {
+  EN_PROCESO
+  COMPLETADO
+  COMPLETADO_CON_ERRORES
+  FALLIDO
+}
+
 enum TipoMensaje {
   TEXTO
   IMAGEN
@@ -232,6 +239,7 @@ model Instancia {
   jobsMensaje          JobMensaje[]
   jobsSistema          JobSistema[]
   flujosVenta          FlujoVenta[]
+  importaciones        HistorialImportacion[]
 
   @@index([slug])
   @@index([estado])
@@ -886,6 +894,32 @@ model EventoLog {
   @@index([entidadTipo, entidadId])
   @@index([tipo])
   @@index([ocurridoEn])
+}
+
+// =====================
+// HISTORIAL DE IMPORTACIONES
+// =====================
+
+model HistorialImportacion {
+  id                 String            @id @default(cuid())
+  entidad            String
+  archivoNombre      String
+  archivoTipo        String
+  archivoPeso        Int
+  totalRegistros     Int
+  registrosExitosos  Int
+  registrosConError  Int
+  errores            Json
+  estado             EstadoImportacion @default(EN_PROCESO)
+  fechaCreacion      DateTime          @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+
+  @@index([instanciaId])
+  @@index([fechaCreacion])
 }
 
 // =====================

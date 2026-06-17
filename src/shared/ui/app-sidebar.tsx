@@ -21,6 +21,7 @@ import {
   LogOut,
   ChevronUp,
   GitBranch,
+  Database,
 } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,7 @@ const NAVEGACION = [
     items: [
       { href: "/integraciones", etiqueta: "Integraciones", Icono: Puzzle },
       { href: "/configuracion", etiqueta: "Configuración", Icono: Settings },
+      { href: "/datos", etiqueta: "Datos", Icono: Database },
     ],
   },
 ];
