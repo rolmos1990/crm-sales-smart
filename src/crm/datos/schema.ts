@@ -42,6 +42,7 @@ export const SchemaImportarRegistros = z.object({
     .max(2 * 1024 * 1024, "El archivo no puede superar 2 MB"),
   registros: z.array(z.record(z.string(), z.unknown())).min(1),
   mapeos: z.array(SchemaMapeoColumna),
+  estrategiaContacto: z.enum(["email", "telefono", "email_o_telefono"]).optional(),
 });
 
 export type ImportarRegistrosInput = z.infer<typeof SchemaImportarRegistros>;

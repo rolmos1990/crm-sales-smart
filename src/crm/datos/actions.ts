@@ -158,20 +158,65 @@ async function insertar(
       });
       break;
 
-    case "OPORTUNIDAD":
-      await tx.oportunidad.create({
+    case "OPORTUNIDAD": {
+      const estrategia = String(datos._estrategiaContacto ?? "email_o_telefono");
+      const email = datos.contactoEmail ? String(datos.contactoEmail).toLowerCase() : null;
+      const telefono = datos.contactoTelefono ? String(datos.contactoTelefono) : null;
+
+      let contactoId: string | null = null;
+
+      // Buscar contacto existente según estrategia
+      if (email && (estrategia === "email" || estrategia === "email_o_telefono")) {
+        const c = await tx.contacto.findFirst({
+          where: { instanciaId, email: { equals: email, mode: "insensitive" } },
+          select: { id: true },
+        });
+        if (c) contactoId = c.id;
+      }
+      if (!contactoId && telefono && (estrategia === "telefono" || estrategia === "email_o_telefono")) {
+        const c = await tx.contacto.findFirst({
+          where: { instanciaId, telefonoPrincipal: telefono },
+          select: { id: true },
+        });
+        if (c) contactoId = c.id;
+      }
+
+      // Crear contacto nuevo si hay datos pero no hay match
+      if (!contactoId && (email || telefono)) {
+        const nuevo = await tx.contacto.create({
+          data: {
+            nombre: datos.contactoNombre ? String(datos.contactoNombre) : "Sin nombre",
+            apellido: datos.contactoApellido ? String(datos.contactoApellido) : "",
+            email,
+            telefonoPrincipal: telefono,
+            instanciaId,
+          },
+          select: { id: true },
+        });
+        contactoId = nuevo.id;
+      }
+
+      // Crear Oportunidad
+      const oportunidad = await tx.oportunidad.create({
         data: {
           titulo: String(datos.titulo ?? ""),
           valor: Number(datos.valor ?? 0),
           probabilidad: Number(datos.probabilidad ?? 20),
-          fechaCierre: datos.fechaCierre
-            ? new Date(String(datos.fechaCierre))
-            : null,
+          fechaCierre: datos.fechaCierre ? new Date(String(datos.fechaCierre)) : null,
           notas: datos.notas ? String(datos.notas) : null,
           instanciaId,
         },
+        select: { id: true },
       });
+
+      // Vincular contacto
+      if (contactoId) {
+        await tx.oportunidadContacto.create({
+          data: { oportunidadId: oportunidad.id, contactoId, principal: true },
+        });
+      }
       break;
+    }
 
     case "PEDIDO":
       // Los pedidos se insertan en lote agrupado via insertarPedidosAgrupados

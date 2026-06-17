@@ -37,6 +37,7 @@ const ESTADO_INICIAL: EstadoWizard = {
   validacion: null,
   resultado: null,
   cargando: false,
+  estrategiaContacto: "email_o_telefono",
 };
 
 interface WizardImportacionProps {
@@ -77,7 +78,7 @@ export function WizardImportacion({
     setEstado((e) => ({ ...e, paso: "mapeo" }));
   };
 
-  const confirmarMapeo = (mapeos: MapeoColumna[]) => {
+  const confirmarMapeo = (mapeos: MapeoColumna[], estrategiaContacto: string) => {
     const camposStd = obtenerCamposEntidad(estado.entidad!);
     const validacion = validarRegistros(
       estado.archivo!.filas,
@@ -85,7 +86,13 @@ export function WizardImportacion({
       camposStd,
       estado.entidad!,
     );
-    setEstado((e) => ({ ...e, mapeos, validacion, paso: "validacion" }));
+    setEstado((e) => ({
+      ...e,
+      mapeos,
+      validacion,
+      paso: "validacion",
+      estrategiaContacto: estrategiaContacto as EstadoWizard["estrategiaContacto"],
+    }));
   };
 
   const confirmarValidacion = (soloValidos: boolean) => {
@@ -96,12 +103,18 @@ export function WizardImportacion({
     startTransition(async () => {
       setEstado((e) => ({ ...e, cargando: true }));
 
-      const filasParaImportar = estado.soloValidos
+      const filasBase = estado.soloValidos
         ? estado.validacion!.filasValidas
         : [
             ...estado.validacion!.filasValidas,
             ...estado.validacion!.filasConError,
           ];
+
+      // Inyectar estrategia de contacto como campo sintético para que el server action la lea
+      const filasParaImportar =
+        estado.entidad === "OPORTUNIDAD"
+          ? filasBase.map((f) => ({ ...f, _estrategiaContacto: estado.estrategiaContacto }))
+          : filasBase;
 
       const resultado = await importarRegistrosAction({
         entidad: estado.entidad!,
@@ -110,6 +123,7 @@ export function WizardImportacion({
         archivoPeso: estado.archivo!.peso,
         registros: filasParaImportar,
         mapeos: estado.mapeos,
+        estrategiaContacto: estado.estrategiaContacto,
       });
 
       if (resultado.exito) {
@@ -188,6 +202,7 @@ export function WizardImportacion({
         {estado.paso === "validacion" && estado.validacion && (
           <PasoValidacion
             validacion={estado.validacion}
+            entidad={estado.entidad ?? undefined}
             onConfirmar={confirmarValidacion}
             onAtras={() => setEstado((e) => ({ ...e, paso: "mapeo" }))}
           />

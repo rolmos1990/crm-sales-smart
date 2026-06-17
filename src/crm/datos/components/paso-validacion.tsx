@@ -1,22 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, XCircle, AlertTriangle, Download, ChevronRight } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Download, ChevronRight, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { ResultadoValidacion } from "../types";
+import type { EntidadImportable, ResultadoValidacion } from "../types";
 
 interface PasoValidacionProps {
   validacion: ResultadoValidacion;
+  entidad?: EntidadImportable;
   onConfirmar: (soloValidos: boolean) => void;
   onAtras: () => void;
 }
 
 export function PasoValidacion({
   validacion,
+  entidad,
   onConfirmar,
   onAtras,
 }: PasoValidacionProps) {
@@ -122,6 +124,27 @@ export function PasoValidacion({
           </p>
         </div>
       </div>
+
+      {entidad === "OPORTUNIDAD" && (() => {
+        const conContacto = validacion.filasValidas.filter(
+          (f) =>
+            (f as Record<string, unknown>).contactoEmail ||
+            (f as Record<string, unknown>).contactoTelefono,
+        ).length;
+        return conContacto > 0 ? (
+          <div className="flex items-center gap-3 rounded-xl border border-blue-400/20 bg-blue-400/5 p-4">
+            <Users className="w-5 h-5 text-blue-400 flex-shrink-0" />
+            <div>
+              <p className="text-stone-200 text-sm font-medium">
+                {conContacto} {conContacto === 1 ? "registro" : "registros"} con datos de contacto
+              </p>
+              <p className="text-stone-500 text-xs mt-0.5">
+                Se vincularán a un contacto existente o se creará uno nuevo.
+              </p>
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {validacion.errores.length > 0 && (
         <div className="flex flex-col gap-3">

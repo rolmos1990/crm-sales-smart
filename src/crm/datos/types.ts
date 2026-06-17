@@ -90,4 +90,5 @@ export interface EstadoWizard {
   validacion: ResultadoValidacion | null;
   resultado: ResultadoImportacion | null;
   cargando: boolean;
+  estrategiaContacto: "email" | "telefono" | "email_o_telefono";
 }

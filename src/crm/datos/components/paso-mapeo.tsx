@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { ChevronRight, Plus, AlertCircle, Check } from "lucide-react";
+import { ChevronRight, Plus, AlertCircle, Check, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -44,12 +44,14 @@ const TIPOS_CAMPO = [
   { valor: "URL", etiqueta: "URL" },
 ] as const;
 
+type EstrategiaContacto = "email" | "telefono" | "email_o_telefono";
+
 interface PasoMapeoProps {
   entidad: EntidadImportable;
   encabezados: string[];
   camposPersonalizados: CampoPersonalizadoResumen[];
   mapeoInicial: MapeoColumna[];
-  onConfirmar: (mapeos: MapeoColumna[]) => void;
+  onConfirmar: (mapeos: MapeoColumna[], estrategiaContacto: EstrategiaContacto) => void;
   onAtras: () => void;
 }
 
@@ -93,6 +95,7 @@ export function PasoMapeo({
     });
   });
 
+  const [estrategiaContacto, setEstrategiaContacto] = useState<EstrategiaContacto>("email_o_telefono");
   const [dialogColumna, setDialogColumna] = useState<string | null>(null);
   const [formNombre, setFormNombre] = useState("");
   const [formTipo, setFormTipo] = useState("TEXTO");
@@ -196,6 +199,12 @@ export function PasoMapeo({
   );
   const todosRequeridosMapeados =
     camposRequeridos.length === camposRequeridosMapeados.length;
+
+  const tieneContactoMapeado =
+    entidad === "OPORTUNIDAD" &&
+    mapeosActivos.some(
+      (m) => m.campoDestino === "contactoEmail" || m.campoDestino === "contactoTelefono",
+    );
 
   return (
     <div className="flex flex-col gap-6">
@@ -356,6 +365,52 @@ export function PasoMapeo({
         </div>
       </div>
 
+      {tieneContactoMapeado && (
+        <div className="rounded-xl border border-lime-500/20 bg-lime-500/5 p-4 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-lime-400 flex-shrink-0" />
+            <p className="text-stone-200 text-sm font-medium">Vincular contacto</p>
+          </div>
+          <p className="text-stone-400 text-xs">
+            ¿Cómo buscar el contacto en el CRM? Si no existe, se creará automáticamente.
+          </p>
+          <div className="flex flex-col gap-2">
+            {(
+              [
+                { valor: "email_o_telefono", etiqueta: "Email o Teléfono", desc: "Busca por email primero, luego por teléfono (recomendado)" },
+                { valor: "email", etiqueta: "Solo Email", desc: "Relaciona únicamente usando el email del contacto" },
+                { valor: "telefono", etiqueta: "Solo Teléfono", desc: "Relaciona únicamente usando el teléfono del contacto" },
+              ] as const
+            ).map(({ valor, etiqueta, desc }) => (
+              <label
+                key={valor}
+                className={cn(
+                  "flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all",
+                  estrategiaContacto === valor
+                    ? "border-lime-500/40 bg-lime-500/8"
+                    : "border-white/8 bg-white/4 hover:border-white/15",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="estrategia-contacto"
+                  value={valor}
+                  checked={estrategiaContacto === valor}
+                  onChange={() => setEstrategiaContacto(valor)}
+                  className="mt-0.5 accent-lime-400"
+                />
+                <div>
+                  <p className={cn("text-sm font-medium", estrategiaContacto === valor ? "text-lime-300" : "text-stone-300")}>
+                    {etiqueta}
+                  </p>
+                  <p className="text-xs text-stone-500 mt-0.5">{desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-2">
         <Button
           variant="ghost"
@@ -365,7 +420,7 @@ export function PasoMapeo({
           ← Volver
         </Button>
         <Button
-          onClick={() => onConfirmar(mapeos)}
+          onClick={() => onConfirmar(mapeos, estrategiaContacto)}
           disabled={!todosRequeridosMapeados}
           className="bg-lime-500/90 text-stone-950 rounded-xl hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
         >

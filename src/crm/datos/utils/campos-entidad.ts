@@ -128,6 +128,30 @@ export const CAMPOS_POR_ENTIDAD: Record<EntidadImportable, DefinicionCampo[]> =
         requerido: false,
         tipo: "texto",
       },
+      {
+        clave: "contactoNombre",
+        etiqueta: "Contacto: Nombre",
+        requerido: false,
+        tipo: "texto",
+      },
+      {
+        clave: "contactoApellido",
+        etiqueta: "Contacto: Apellido",
+        requerido: false,
+        tipo: "texto",
+      },
+      {
+        clave: "contactoEmail",
+        etiqueta: "Contacto: Email",
+        requerido: false,
+        tipo: "email",
+      },
+      {
+        clave: "contactoTelefono",
+        etiqueta: "Contacto: Teléfono",
+        requerido: false,
+        tipo: "telefono",
+      },
     ],
     PEDIDO: [
       {
