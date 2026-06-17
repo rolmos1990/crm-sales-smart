@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { procesarCambioEtapaPedido } from "./disparadores/motor";
 
 interface ContextoPedido {
   total: number;
@@ -77,13 +78,14 @@ export async function moverPedidoAEtapa(
 ): Promise<{ exito: true } | { exito: false; error: string }> {
   const etapa = await prisma.flujoVentaEtapa.findFirst({
     where: { id: etapaDestinoId, activo: true },
-    select: { id: true, nombre: true },
+    select: { id: true, nombre: true, flujoVentaId: true },
   });
 
   if (!etapa) return { exito: false, error: "Etapa no encontrada" };
 
   try {
     await _moverInterno(pedidoId, etapa.id, etapa.nombre, "MANUAL", usuarioId, notas);
+    await procesarCambioEtapaPedido(pedidoId, etapa.id, etapa.flujoVentaId);
     revalidatePath(`/sales/pedidos/${pedidoId}`);
     return { exito: true };
   } catch {

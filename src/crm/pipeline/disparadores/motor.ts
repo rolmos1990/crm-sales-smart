@@ -29,7 +29,7 @@ export async function procesarCambioStage(
 
   const oportunidad = await prisma.oportunidad.findUnique({
     where: { id: oportunidadId },
-    select: { titulo: true, valor: true, moneda: true },
+    select: { titulo: true, valor: true, moneda: true, instanciaId: true },
   });
 
   const ahora = new Date();
@@ -48,6 +48,7 @@ export async function procesarCambioStage(
         tipo: d.tipo,
         config: d.config,
         oportunidad: oportunidad ?? { titulo: "—", valor: 0, moneda: "PEN" },
+        instanciaId: oportunidad?.instanciaId ?? null,
       },
     })),
   });

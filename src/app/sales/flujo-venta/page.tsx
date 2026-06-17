@@ -4,6 +4,7 @@ import { requireSesion } from "@/shared/auth/sesion";
 import { obtenerFlujoVentaCompleto, inicializarFlujoVentaPorDefecto } from "@/sales/flujo-venta/queries";
 import { PanelConfigEtapas } from "@/sales/flujo-venta/components/panel-config-etapas";
 import { PanelConfigReglas } from "@/sales/flujo-venta/components/panel-config-reglas";
+import { PanelConfigDisparadoresFlujo } from "@/sales/flujo-venta/components/panel-config-disparadores-flujo";
 
 export default async function FlujoVentaPage() {
   const sesion = await requireSesion();
@@ -50,6 +51,12 @@ export default async function FlujoVentaPage() {
           >
             Reglas de transición
           </TabsTrigger>
+          <TabsTrigger
+            value="disparadores"
+            className="rounded-none px-4 py-2 text-sm font-medium border-b-2 border-transparent data-active:border-lime-500 dark:data-active:border-lime-400 data-active:text-stone-900 dark:data-active:text-stone-50"
+          >
+            Disparadores
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="etapas" className="pt-5">
@@ -58,6 +65,10 @@ export default async function FlujoVentaPage() {
 
         <TabsContent value="reglas" className="pt-5">
           <PanelConfigReglas etapas={etapas} reglasIniciales={todasLasReglas} />
+        </TabsContent>
+
+        <TabsContent value="disparadores" className="pt-5">
+          <PanelConfigDisparadoresFlujo flujoVenta={{ id: flujo.id, etapas }} />
         </TabsContent>
       </Tabs>
     </div>

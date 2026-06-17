@@ -820,6 +820,7 @@ model Pedido {
   lineas          PedidoLinea[]
   campos          CampoPersonalizadoValor[]
   historialEtapas PedidoHistorialEtapa[]
+  disparadorJobs  DisparadorJob[]
 
   @@index([instanciaId])
   @@index([estado])
@@ -884,16 +885,26 @@ model Disparador {
   creadoEn      DateTime             @default(now())
   actualizadoEn DateTime             @updatedAt
 
-  stageId String
-  stage   PipelineStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  // Pipeline CRM (oportunidades) — opcionales
+  stageId String?
+  stage   PipelineStage? @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
-  pipelineId String
-  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  pipelineId String?
+  pipeline   Pipeline? @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  // Flujo de Venta (pedidos) — opcionales
+  flujoVentaEtapaId String?
+  flujoVentaEtapa   FlujoVentaEtapa? @relation(fields: [flujoVentaEtapaId], references: [id], onDelete: Cascade)
+
+  flujoVentaId String?
+  flujoVenta   FlujoVenta? @relation(fields: [flujoVentaId], references: [id], onDelete: Cascade)
 
   jobs DisparadorJob[]
 
   @@index([stageId])
   @@index([pipelineId])
+  @@index([flujoVentaEtapaId, activo])
+  @@index([flujoVentaId])
 }
 
 model DisparadorJob {
@@ -909,14 +920,23 @@ model DisparadorJob {
   disparadorId String
   disparador   Disparador @relation(fields: [disparadorId], references: [id])
 
-  oportunidadId String
-  oportunidad   Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  // Oportunidad (CRM) — opcional
+  oportunidadId String?
+  oportunidad   Oportunidad? @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
 
-  stageId    String
-  pipelineId String
+  // Pedido (Ventas) — opcional
+  pedidoId String?
+  pedido   Pedido? @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  // Denormalizados para búsqueda rápida
+  stageId           String?
+  pipelineId        String?
+  flujoVentaEtapaId String?
+  flujoVentaId      String?
 
   @@index([estado, ejecutarEn])
   @@index([oportunidadId, stageId])
+  @@index([pedidoId, flujoVentaEtapaId])
   @@index([disparadorId])
 }
 
@@ -936,8 +956,9 @@ model FlujoVenta {
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  etapas  FlujoVentaEtapa[]
-  pedidos Pedido[]
+  etapas       FlujoVentaEtapa[]
+  pedidos      Pedido[]
+  disparadores Disparador[]
 
   @@index([instanciaId])
 }
@@ -963,9 +984,10 @@ model FlujoVentaEtapa {
   parent   FlujoVentaEtapa?  @relation("EtapaTree", fields: [parentId], references: [id])
   children FlujoVentaEtapa[] @relation("EtapaTree")
 
-  pedidos   Pedido[]
-  reglas    FlujoVentaRegla[]
-  historial PedidoHistorialEtapa[]
+  pedidos      Pedido[]
+  reglas       FlujoVentaRegla[]
+  historial    PedidoHistorialEtapa[]
+  disparadores Disparador[]
 
   @@index([flujoVentaId, orden])
   @@index([flujoVentaId])

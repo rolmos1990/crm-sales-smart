@@ -8,6 +8,8 @@ export async function obtenerDisparadores(stageId: string, instanciaId: string):
   });
   return rows.map((r) => ({
     ...r,
+    stageId: r.stageId!,
+    pipelineId: r.pipelineId!,
     config: r.config as unknown as Disparador["config"],
   }));
 }
@@ -28,6 +30,8 @@ export async function obtenerDisparadoresPorPipeline(pipelineId: string, instanc
   });
   return rows.map((r) => ({
     ...r,
+    stageId: r.stageId!,
+    pipelineId: r.pipelineId!,
     config: r.config as unknown as Disparador["config"],
     jobs: r.jobs.map((j) => ({
       ...j,
@@ -39,12 +43,15 @@ export async function obtenerDisparadoresPorPipeline(pipelineId: string, instanc
 // Usado por el worker interno — NO filtrar por instanciaId (procesa todas las instancias)
 export async function obtenerJobsPendientes(): Promise<DisparadorJob[]> {
   const rows = await prisma.disparadorJob.findMany({
-    where: { estado: "PENDIENTE", ejecutarEn: { lte: new Date() } },
+    where: { oportunidadId: { not: null }, estado: "PENDIENTE", ejecutarEn: { lte: new Date() } },
     orderBy: { ejecutarEn: "asc" },
     take: 50,
   });
   return rows.map((r) => ({
     ...r,
+    oportunidadId: r.oportunidadId!,
+    stageId: r.stageId!,
+    pipelineId: r.pipelineId!,
     estado: r.estado as DisparadorJob["estado"],
     payload: r.payload as DisparadorJob["payload"],
     resultado: r.resultado as DisparadorJob["resultado"],

@@ -32,6 +32,10 @@ export async function obtenerFlujoVentaCompleto(instanciaId: string) {
             orderBy: { prioridad: "asc" },
             include: { condiciones: true },
           },
+          disparadores: {
+            where: { activo: true },
+            orderBy: { orden: "asc" },
+          },
         },
       },
     },
