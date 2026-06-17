@@ -1,17 +1,22 @@
-import { Users } from "lucide-react";
+import { obtenerUsuariosInstancia } from "@/configuracion/usuarios/queries";
+import { ListaUsuarios } from "./lista-usuarios";
 
-export function TabUsuarios() {
+interface TabUsuariosProps {
+  instanciaId: string;
+}
+
+export async function TabUsuarios({ instanciaId }: TabUsuariosProps) {
+  const usuarios = await obtenerUsuariosInstancia(instanciaId);
+
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-      <div className="p-4 rounded-2xl bg-stone-100 dark:bg-white/5">
-        <Users className="h-8 w-8 text-stone-400 dark:text-stone-500" />
-      </div>
-      <div>
-        <p className="font-semibold text-stone-700 dark:text-stone-300">Usuarios y Agentes</p>
-        <p className="text-sm text-stone-400 dark:text-stone-500 mt-1">
-          Gestión de usuarios del equipo. Estará disponible próximamente.
+    <div className="flex flex-col gap-2">
+      <div className="mb-2">
+        <h2 className="text-lg font-semibold text-stone-50 tracking-tight">Usuarios y Agentes</h2>
+        <p className="text-sm text-stone-400">
+          Gestiona los miembros de tu equipo y los agentes del sistema.
         </p>
       </div>
+      <ListaUsuarios usuarios={usuarios} />
     </div>
   );
 }

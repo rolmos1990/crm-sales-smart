@@ -57,7 +57,7 @@ export default async function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="usuarios">
-            <TabUsuarios />
+            <TabUsuarios instanciaId={sesion.instanciaId} />
           </TabsContent>
 
           <TabsContent value="plantillas">

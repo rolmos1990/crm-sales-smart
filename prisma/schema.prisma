@@ -102,6 +102,11 @@ enum EstadoUsuario {
   BLOQUEADO
 }
 
+enum TipoUsuario {
+  USUARIO
+  AGENTE
+}
+
 enum EstadoIntegracion {
   INSTALADA
   ACTIVA
@@ -257,6 +262,10 @@ model Usuario {
   rol          Rol      @default(AGENTE)
   activo       Boolean  @default(true)
   creadoEn     DateTime @default(now())
+
+  tipo     TipoUsuario   @default(USUARIO)
+  telefono String?
+  cargo    String?
 
   // Autenticación (proveedor externo, ej. Supabase)
   authUserId       String?       @unique
