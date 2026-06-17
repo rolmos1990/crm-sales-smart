@@ -1,16 +1,17 @@
 import { z } from "zod";
 
 export const EtapaSchema = z.object({
-  nombre:        z.string().min(1, "El nombre es requerido").max(80),
-  descripcion:   z.string().max(300).optional().or(z.literal("")),
-  color:         z.string().optional().or(z.literal("")),
-  orden:         z.number().int().min(0),
-  esInicial:     z.boolean().optional(),
-  esFinal:       z.boolean().optional(),
-  esCancelacion: z.boolean().optional(),
-  esSecuencial:  z.boolean().optional(),
-  activo:        z.boolean().optional(),
-  parentId:      z.string().nullable().optional(),
+  nombre:              z.string().min(1, "El nombre es requerido").max(80),
+  descripcion:         z.string().max(300).optional().or(z.literal("")),
+  color:               z.string().optional().or(z.literal("")),
+  orden:               z.number().int().min(0),
+  esInicial:           z.boolean().optional(),
+  esFinal:             z.boolean().optional(),
+  esCancelacion:       z.boolean().optional(),
+  esSecuencial:        z.boolean().optional(),
+  permiteEditarPedido: z.boolean().optional(),
+  activo:              z.boolean().optional(),
+  parentId:            z.string().nullable().optional(),
 });
 
 export const CondicionSchema = z.object({

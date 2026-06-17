@@ -46,13 +46,23 @@ export async function crearEtapa(flujoVentaId: string, datos: unknown): Promise<
   if (!flujo) return { exito: false, error: "Flujo no encontrado" };
 
   try {
+    const esInicial = validado.data.esInicial ?? false;
+    const esFinal = validado.data.esFinal ?? false;
+    const esCancelacion = validado.data.esCancelacion ?? false;
+    const permiteEditarPedido = (esFinal || esCancelacion)
+      ? false
+      : esInicial
+        ? true
+        : (validado.data.permiteEditarPedido ?? true);
+
     const etapa = await prisma.flujoVentaEtapa.create({
       data: {
         ...validado.data,
         flujoVentaId,
-        esInicial: validado.data.esInicial ?? false,
-        esFinal: validado.data.esFinal ?? false,
-        esCancelacion: validado.data.esCancelacion ?? false,
+        esInicial,
+        esFinal,
+        esCancelacion,
+        permiteEditarPedido,
         activo: validado.data.activo ?? true,
         parentId: validado.data.parentId ?? null,
       },
@@ -76,7 +86,19 @@ export async function actualizarEtapa(etapaId: string, datos: unknown): Promise<
   if (!etapa) return { exito: false, error: "Etapa no encontrada" };
 
   try {
-    await prisma.flujoVentaEtapa.update({ where: { id: etapaId }, data: validado.data });
+    const esInicial = validado.data.esInicial ?? etapa.esInicial;
+    const esFinal = validado.data.esFinal ?? etapa.esFinal;
+    const esCancelacion = validado.data.esCancelacion ?? etapa.esCancelacion;
+    const permiteEditarPedido = (esFinal || esCancelacion)
+      ? false
+      : esInicial
+        ? true
+        : (validado.data.permiteEditarPedido ?? etapa.permiteEditarPedido);
+
+    await prisma.flujoVentaEtapa.update({
+      where: { id: etapaId },
+      data: { ...validado.data, permiteEditarPedido },
+    });
     revalidatePath("/sales/flujo-venta");
     return { exito: true, datos: undefined };
   } catch {

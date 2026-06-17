@@ -820,6 +820,7 @@ model Pedido {
   lineas          PedidoLinea[]
   campos          CampoPersonalizadoValor[]
   historialEtapas PedidoHistorialEtapa[]
+  historial       PedidoHistorial[]
   disparadorJobs  DisparadorJob[]
 
   @@index([instanciaId])
@@ -969,11 +970,12 @@ model FlujoVentaEtapa {
   descripcion   String?
   color         String?
   orden         Int      @default(0)
-  esInicial     Boolean  @default(false)
-  esFinal       Boolean  @default(false)
-  esCancelacion Boolean  @default(false)
-  esSecuencial  Boolean  @default(true)
-  activo        Boolean  @default(true)
+  esInicial           Boolean  @default(false)
+  esFinal             Boolean  @default(false)
+  esCancelacion       Boolean  @default(false)
+  esSecuencial        Boolean  @default(true)
+  permiteEditarPedido Boolean  @default(true)
+  activo              Boolean  @default(true)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
@@ -1040,6 +1042,21 @@ model PedidoHistorialEtapa {
 
   @@index([pedidoId])
   @@index([etapaId])
+}
+
+model PedidoHistorial {
+  id            String   @id @default(cuid())
+  accion        String
+  valorAnterior Json?
+  valorNuevo    Json?
+  creadoEn      DateTime @default(now())
+
+  pedidoId  String
+  pedido    Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  usuarioId String?
+
+  @@index([pedidoId])
 }
 
 // =====================

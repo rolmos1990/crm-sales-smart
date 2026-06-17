@@ -1,10 +1,16 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, User } from "lucide-react";
+import {
+  Plus, Trash2, Pencil, ChevronDown, ChevronUp,
+  ShoppingCart, User, Loader2,
+} from "lucide-react";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -12,47 +18,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
+import { PhoneInput } from "@/components/ui/phone-input";
 import type { ProductoCatalogo } from "@/shared/productos/types";
-import { crearPedido, editarPedido } from "../actions";
+import { editarPedido } from "../actions";
 import { EditarPedidoSchema, type EditarPedidoInput } from "../schema";
+import type { PedidoParaEdicion } from "./form-pedido";
 
-export interface PedidoParaEdicion {
-  id: string;
-  moneda: string | null;
-  impuesto: number | null;
-  notas: string | null;
-  fechaEntrega: Date | null;
-  contactoId: string | null;
-  empresaId: string | null;
-  nombre: string | null;
-  apellido: string | null;
-  telefono: string | null;
-  email: string | null;
-  ruc: string | null;
-  empresaNombre: string | null;
-  lineas: Array<{
-    id: string;
-    productoId: string | null;
-    descripcion: string | null;
-    cantidad: number;
-    precioUnitario: number;
-    descuento: number;
-  }>;
-}
-
-interface FormPedidoProps {
+interface SheetEditarPedidoProps {
+  pedido: PedidoParaEdicion;
   contactos: OpcionCombobox[];
   empresas: OpcionCombobox[];
   productos?: ProductoCatalogo[];
-  monedaDefault?: string;
-  pedidoExistente?: PedidoParaEdicion;
-  onGuardado?: () => void;
 }
 
 const nv = (v: number | undefined | null): number | string =>
@@ -61,54 +43,43 @@ const nv = (v: number | undefined | null): number | string =>
 const parseNum = (e: React.ChangeEvent<HTMLInputElement>): number =>
   Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber;
 
-export function FormPedido({
-  contactos, empresas, productos = [], monedaDefault = "PEN",
-  pedidoExistente, onGuardado,
-}: FormPedidoProps) {
-  const router = useRouter();
-  const esEdicion = Boolean(pedidoExistente);
+function FormEditarPedido({
+  pedido,
+  contactos,
+  empresas,
+  productos = [],
+  onGuardado,
+}: SheetEditarPedidoProps & { onGuardado: () => void }) {
+  const [mostrarDatosFacturacion, setMostrarDatosFacturacion] = useState(
+    !!(pedido.nombre || pedido.apellido || pedido.telefono || pedido.email || pedido.ruc || pedido.empresaNombre)
+  );
+  const [isPending, startTransition] = useTransition();
 
   const form = useForm<EditarPedidoInput>({
     resolver: zodResolver(EditarPedidoSchema),
-    defaultValues: pedidoExistente
-      ? {
-          estado: "PENDIENTE",
-          moneda: pedidoExistente.moneda ?? monedaDefault,
-          impuesto: pedidoExistente.impuesto ?? 18,
-          notas: pedidoExistente.notas ?? "",
-          fechaEntrega: pedidoExistente.fechaEntrega ?? undefined,
-          contactoId: pedidoExistente.contactoId ?? "",
-          empresaId: pedidoExistente.empresaId ?? "",
-          nombre: pedidoExistente.nombre ?? "",
-          apellido: pedidoExistente.apellido ?? "",
-          telefono: pedidoExistente.telefono ?? "",
-          email: pedidoExistente.email ?? "",
-          ruc: pedidoExistente.ruc ?? "",
-          empresaNombre: pedidoExistente.empresaNombre ?? "",
-          lineas: pedidoExistente.lineas.map(l => ({
-            id: l.id,
-            productoId: l.productoId ?? "",
-            descripcion: l.descripcion ?? "",
-            cantidad: l.cantidad,
-            precioUnitario: l.precioUnitario,
-            descuento: l.descuento,
-          })),
-        }
-      : {
-          estado: "PENDIENTE" as const,
-          moneda: monedaDefault,
-          impuesto: 18,
-          notas: "",
-          contactoId: "",
-          empresaId: "",
-          nombre: "",
-          apellido: "",
-          telefono: "",
-          email: "",
-          ruc: "",
-          empresaNombre: "",
-          lineas: [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
-        },
+    defaultValues: {
+      estado: "PENDIENTE" as const,
+      moneda: pedido.moneda ?? "PEN",
+      impuesto: pedido.impuesto ?? 18,
+      notas: pedido.notas ?? "",
+      fechaEntrega: pedido.fechaEntrega ?? undefined,
+      contactoId: pedido.contactoId ?? "",
+      empresaId: pedido.empresaId ?? "",
+      nombre: pedido.nombre ?? "",
+      apellido: pedido.apellido ?? "",
+      telefono: pedido.telefono ?? "",
+      email: pedido.email ?? "",
+      ruc: pedido.ruc ?? "",
+      empresaNombre: pedido.empresaNombre ?? "",
+      lineas: pedido.lineas.map(l => ({
+        id: l.id,
+        productoId: l.productoId ?? "",
+        descripcion: l.descripcion ?? "",
+        cantidad: l.cantidad,
+        precioUnitario: l.precioUnitario,
+        descuento: l.descuento,
+      })),
+    },
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "lineas" });
@@ -116,6 +87,7 @@ export function FormPedido({
   const lineas = form.watch("lineas");
   const impuesto = form.watch("impuesto") ?? 18;
   const moneda = form.watch("moneda") ?? "PEN";
+  const simbolo = moneda === "USD" ? "$" : "S/";
 
   const subtotal = lineas.reduce((acc, l) => {
     const base = (l.cantidad ?? 0) * (l.precioUnitario ?? 0);
@@ -124,24 +96,16 @@ export function FormPedido({
   const impuestoMonto = subtotal * (impuesto / 100);
   const total = subtotal + impuestoMonto;
 
-  const onSubmit = async (datos: EditarPedidoInput) => {
-    if (esEdicion && pedidoExistente) {
-      const resultado = await editarPedido(pedidoExistente.id, datos);
+  const onSubmit = (datos: EditarPedidoInput) => {
+    startTransition(async () => {
+      const resultado = await editarPedido(pedido.id, datos);
       if (resultado.exito) {
         toast.success("Pedido actualizado correctamente");
-        onGuardado?.();
+        onGuardado();
       } else {
         toast.error(resultado.error);
       }
-    } else {
-      const resultado = await crearPedido(datos);
-      if (resultado.exito) {
-        toast.success("Pedido creado correctamente");
-        router.push("/sales/pedidos");
-      } else {
-        toast.error(resultado.error);
-      }
-    }
+    });
   };
 
   return (
@@ -206,66 +170,78 @@ export function FormPedido({
           )} />
         </div>
 
-        {/* Datos del comprador — pedido manual */}
-        <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4 space-y-4">
-          <p className="text-sm font-medium flex items-center gap-2 text-stone-700 dark:text-stone-300">
-            <User className="h-4 w-4 text-stone-400" />
-            Datos del comprador
-            <span className="text-xs font-normal text-stone-400 dark:text-stone-500">(opcional — para pedidos sin contacto en CRM)</span>
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="nombre" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nombre</FormLabel>
-                <FormControl>
-                  <Input placeholder="Juan" {...field} value={field.value ?? ""} />
-                </FormControl>
-              </FormItem>
-            )} />
-            <FormField control={form.control} name="apellido" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Apellido</FormLabel>
-                <FormControl>
-                  <Input placeholder="Pérez" {...field} value={field.value ?? ""} />
-                </FormControl>
-              </FormItem>
-            )} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <FormField control={form.control} name="telefono" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Teléfono</FormLabel>
-                <FormControl>
-                  <Input placeholder="+51 999 888 777" {...field} value={field.value ?? ""} />
-                </FormControl>
-              </FormItem>
-            )} />
-            <FormField control={form.control} name="email" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input type="email" placeholder="correo@ejemplo.com" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <FormField control={form.control} name="ruc" render={({ field }) => (
-              <FormItem>
-                <FormLabel>RUC</FormLabel>
-                <FormControl>
-                  <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
-                </FormControl>
-              </FormItem>
-            )} />
-          </div>
-          <FormField control={form.control} name="empresaNombre" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Razón social / Empresa</FormLabel>
-              <FormControl>
-                <Input placeholder="Empresa SAC" {...field} value={field.value ?? ""} />
-              </FormControl>
-            </FormItem>
-          )} />
+        {/* Datos de facturación (colapsable) */}
+        <div className="rounded-lg border border-border">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left hover:bg-muted/40 transition-colors rounded-lg"
+            onClick={() => setMostrarDatosFacturacion(!mostrarDatosFacturacion)}
+          >
+            <span className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              Datos de facturación
+              <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+            </span>
+            {mostrarDatosFacturacion
+              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+
+          {mostrarDatosFacturacion && (
+            <div className="px-4 pb-4 pt-1 border-t border-border space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="nombre" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Juan" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="apellido" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Apellido</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Pérez" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="telefono" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl>
+                      <PhoneInput value={field.value ?? ""} onChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="email" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="correo@ejemplo.com" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="ruc" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>RUC</FormLabel>
+                    <FormControl>
+                      <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="empresaNombre" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Razón social / Empresa</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Empresa SAC" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -310,9 +286,7 @@ export function FormPedido({
                               form.setValue(`lineas.${idx}.descripcion`, p.nombre);
                               form.setValue(`lineas.${idx}.precioUnitario`, p.precio);
                             }}
-                            onLimpiar={() => {
-                              form.setValue(`lineas.${idx}.productoId`, "");
-                            }}
+                            onLimpiar={() => form.setValue(`lineas.${idx}.productoId`, "")}
                           />
                         )}
                         <Input
@@ -343,7 +317,7 @@ export function FormPedido({
                         />
                       </td>
                       <td className="px-3 py-1.5 text-right font-medium tabular-nums">
-                        {moneda} {subLinea.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+                        {simbolo} {subLinea.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-1.5">
                         <Button
@@ -364,16 +338,16 @@ export function FormPedido({
             <div className="border-t bg-muted/30 px-3 py-3 flex flex-col items-end gap-1">
               <div className="flex gap-8 text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span className="tabular-nums">{moneda} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="tabular-nums">{simbolo} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex gap-8 text-sm">
                 <span className="text-muted-foreground">IGV ({impuesto}%)</span>
-                <span className="tabular-nums">{moneda} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="tabular-nums">{simbolo} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
               <Separator className="my-1 w-52" />
               <div className="flex gap-8 text-base font-semibold">
                 <span>Total</span>
-                <span className="tabular-nums">{moneda} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="tabular-nums">{simbolo} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -383,22 +357,77 @@ export function FormPedido({
           <FormItem>
             <FormLabel>Notas</FormLabel>
             <FormControl>
-              <Textarea placeholder="Instrucciones especiales, condiciones de entrega..." rows={3} className="resize-none" {...field} />
+              <Textarea
+                placeholder="Instrucciones especiales, condiciones de entrega..."
+                rows={3}
+                className="resize-none"
+                {...field}
+                value={field.value ?? ""}
+              />
             </FormControl>
           </FormItem>
         )} />
 
         <div className="flex gap-3 justify-end pt-2">
-          <Button type="button" variant="outline" onClick={() => onGuardado ? onGuardado() : router.back()}>
+          <Button type="button" variant="outline" onClick={onGuardado}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting
-              ? (esEdicion ? "Guardando..." : "Creando...")
-              : (esEdicion ? "Guardar cambios" : "Crear pedido")}
+          <Button type="submit" disabled={isPending}>
+            {isPending
+              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Guardando...</>
+              : "Guardar cambios"}
           </Button>
         </div>
       </form>
     </Form>
+  );
+}
+
+export function DialogEditarPedido({ pedido, contactos, empresas, productos = [] }: SheetEditarPedidoProps) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
+        <Pencil className="h-3.5 w-3.5" />
+        Editar pedido
+      </Button>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side="right"
+          className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-5xl bg-white dark:bg-stone-950 border-l border-stone-200 dark:border-white/10 shadow-2xl"
+          showCloseButton={false}
+        >
+          <SheetHeader className="border-b border-stone-100 dark:border-white/10 px-6 py-4 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-lime-500/10 dark:bg-lime-400/10 p-1.5">
+                <ShoppingCart className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400" />
+              </div>
+              <div>
+                <SheetTitle className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                  Editar pedido
+                </SheetTitle>
+                <p className="text-xs text-stone-400 dark:text-stone-500 font-mono mt-0.5">
+                  {pedido.id.slice(0, 8).toUpperCase()}
+                </p>
+              </div>
+            </div>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-6 py-6">
+              <FormEditarPedido
+                pedido={pedido}
+                contactos={contactos}
+                empresas={empresas}
+                productos={productos}
+                onGuardado={() => setOpen(false)}
+              />
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

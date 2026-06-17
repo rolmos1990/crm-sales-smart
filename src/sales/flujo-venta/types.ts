@@ -12,6 +12,7 @@ export interface FlujoVentaEtapa {
   esFinal: boolean;
   esCancelacion: boolean;
   esSecuencial: boolean;
+  permiteEditarPedido: boolean;
   activo: boolean;
   flujoVentaId: string;
   parentId: string | null;

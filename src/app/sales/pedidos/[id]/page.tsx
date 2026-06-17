@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   ArrowLeft, ShoppingCart, Building2, User, FileText,
-  Mail, Phone, Hash, Briefcase, Globe, ExternalLink, History,
+  Mail, Phone, Hash, Briefcase, Globe, ExternalLink, History, Lock,
 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,10 @@ import { requireSesion } from "@/shared/auth/sesion";
 import { actualizarEstadoPedido } from "@/sales/pedidos/actions";
 import { ESTADO_PEDIDO_CONFIG } from "@/sales/pedidos/types";
 import { BotonesTransicion } from "@/sales/pedidos/components/botones-transicion";
+import { DialogEditarPedido } from "@/sales/pedidos/components/dialog-editar-pedido";
+import { buscarEmpresas } from "@/crm/empresas/queries";
+import { buscarContactos } from "@/crm/contactos/queries";
+import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { cn } from "@/lib/utils";
 
 const TRANSICIONES: Record<string, string[]> = {
@@ -45,10 +49,18 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
 
   let pedido = null;
   let sesion = null;
+  let opcionesEmpresas: { valor: string; etiqueta: string }[] = [];
+  let opcionesContactos: { valor: string; etiqueta: string }[] = [];
+  let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
 
   try {
     sesion = await requireSesion();
-    pedido = await obtenerPedidoPorId(id, sesion.instanciaId);
+    [pedido, opcionesEmpresas, opcionesContactos, productos] = await Promise.all([
+      obtenerPedidoPorId(id, sesion.instanciaId),
+      buscarEmpresas("", sesion.instanciaId).then(r => r.map((e: any) => ({ valor: e.id, etiqueta: e.nombre }))),
+      buscarContactos("", sesion.instanciaId).then(r => r.map((c: any) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }))),
+      obtenerProductosCatalogo(sesion.instanciaId),
+    ]);
   } catch {
     // DB not configured
   }
@@ -99,6 +111,32 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
 
   const historial: any[] = (pedido as any).historialEtapas ?? [];
   const usandoFlujo = todasLasEtapas.length > 0;
+  const permiteEditar: boolean = etapaActual ? (etapaActual.permiteEditarPedido ?? true) : true;
+
+  const impuestoPorcentaje = subtotal > 0 ? Math.round((impuesto / subtotal) * 1000) / 10 : 18;
+  const pedidoParaEdicion = {
+    id: pedido.id,
+    moneda: pedido.moneda,
+    impuesto: impuestoPorcentaje,
+    notas: pedido.notas,
+    fechaEntrega: pedido.fechaEntrega ? new Date(pedido.fechaEntrega) : null,
+    contactoId: pedido.contactoId,
+    empresaId: pedido.empresaId,
+    nombre: pedido.nombre,
+    apellido: pedido.apellido,
+    telefono: pedido.telefono,
+    email: pedido.email,
+    ruc: pedido.ruc,
+    empresaNombre: pedido.empresaNombre,
+    lineas: lineas.map((l: any) => ({
+      id: l.id,
+      productoId: l.productoId ?? null,
+      descripcion: l.descripcion ?? null,
+      cantidad: Number(l.cantidad),
+      precioUnitario: Number(l.precioUnitario),
+      descuento: Number(l.descuento),
+    })),
+  };
   const siguientesEtapas = usandoFlujo
     ? calcularSiguientesEtapas(todasLasEtapas, etapaActual?.id ?? null)
     : [];
@@ -141,37 +179,55 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* Botones de transición */}
-        {usandoFlujo ? (
-          <BotonesTransicion
-            pedidoId={id}
-            etapas={siguientesEtapas.map((e) => ({
-              id: e.id,
-              nombre: e.nombre,
-              color: e.color ?? null,
-              esCancelacion: e.esCancelacion,
-            }))}
-          />
-        ) : (
-          <div className="flex gap-2 flex-wrap">
-            {siguientesEstado.map((sig) => {
-              const conf = ESTADO_PEDIDO_CONFIG[sig as keyof typeof ESTADO_PEDIDO_CONFIG];
-              return (
-                <form key={sig} action={async () => { "use server"; await actualizarEstadoPedido(id, sig); }}>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    size="sm"
-                    className={sig === "CANCELADO" ? "text-destructive border-destructive hover:bg-destructive/10" : ""}
-                  >
-                    {conf.etiqueta}
-                  </Button>
-                </form>
-              );
-            })}
-          </div>
-        )}
+        {/* Botones de transición + edición */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {permiteEditar && (
+            <DialogEditarPedido
+              pedido={pedidoParaEdicion}
+              contactos={opcionesContactos}
+              empresas={opcionesEmpresas}
+              productos={productos}
+            />
+          )}
+          {usandoFlujo ? (
+            <BotonesTransicion
+              pedidoId={id}
+              etapas={siguientesEtapas.map((e) => ({
+                id: e.id,
+                nombre: e.nombre,
+                color: e.color ?? null,
+                esCancelacion: e.esCancelacion,
+              }))}
+            />
+          ) : (
+            <>
+              {siguientesEstado.map((sig) => {
+                const conf = ESTADO_PEDIDO_CONFIG[sig as keyof typeof ESTADO_PEDIDO_CONFIG];
+                return (
+                  <form key={sig} action={async () => { "use server"; await actualizarEstadoPedido(id, sig); }}>
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="sm"
+                      className={sig === "CANCELADO" ? "text-destructive border-destructive hover:bg-destructive/10" : ""}
+                    >
+                      {conf.etiqueta}
+                    </Button>
+                  </form>
+                );
+              })}
+            </>
+          )}
+        </div>
       </div>
+
+      {/* ── Banner de edición bloqueada ──────────────────────────── */}
+      {!permiteEditar && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-amber-700 dark:text-amber-400">
+          <Lock className="h-4 w-4 flex-shrink-0" />
+          <p className="text-sm">Este pedido se encuentra en una etapa donde no se permiten modificaciones.</p>
+        </div>
+      )}
 
       {/* ── Cotización vinculada ──────────────────────────────────── */}
       {cotizacion && (

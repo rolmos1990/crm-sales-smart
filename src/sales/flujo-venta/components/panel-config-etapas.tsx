@@ -10,7 +10,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical, Pencil, Trash2, Plus, Check, X, Loader2, Flag, XCircle, Circle, Shuffle,
+  GripVertical, Pencil, Trash2, Plus, Check, X, Loader2, Flag, XCircle, Circle, Shuffle, Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,9 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { crearEtapa, actualizarEtapa, eliminarEtapa, reordenarEtapas } from "../actions";
 import type { FlujoVentaEtapa } from "../types";
@@ -212,9 +215,12 @@ function DialogEditarEtapa({
   const [esFinal, setEsFinal] = useState(etapa?.esFinal ?? false);
   const [esCancelacion, setEsCancelacion] = useState(etapa?.esCancelacion ?? false);
   const [esSecuencial, setEsSecuencial] = useState(etapa?.esSecuencial ?? true);
+  const [permiteEditar, setPermiteEditar] = useState(etapa?.permiteEditarPedido ?? true);
   const [isPending, startTransition] = useTransition();
 
   const tipoFlujoLocked = esInicial || esFinal || esCancelacion;
+  const permiteLocked = esInicial || esFinal || esCancelacion;
+  const permiteEfectivo = (esFinal || esCancelacion) ? false : esInicial ? true : permiteEditar;
 
   const handleGuardar = () => {
     if (!etapa || !nombre.trim()) return;
@@ -222,11 +228,12 @@ function DialogEditarEtapa({
       const secuencialFinal = tipoFlujoLocked ? true : esSecuencial;
       const resultado = await actualizarEtapa(etapa.id, {
         nombre: nombre.trim(), color, orden: etapa.orden,
-        esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal, activo: true, parentId: etapa.parentId,
+        esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal,
+        permiteEditarPedido: permiteEfectivo, activo: true, parentId: etapa.parentId,
       });
       if (resultado.exito) {
         toast.success("Etapa actualizada");
-        onGuardado({ ...etapa, nombre: nombre.trim(), color, esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal });
+        onGuardado({ ...etapa, nombre: nombre.trim(), color, esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal, permiteEditarPedido: permiteEfectivo });
         onOpenChange(false);
       } else {
         toast.error(resultado.error);
@@ -324,6 +331,57 @@ function DialogEditarEtapa({
               </div>
             </button>
           </div>
+          {/* Permitir edición de pedidos */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger className="w-full text-left">
+                <div className={cn(
+                  "rounded-xl border p-3 transition-all",
+                  permiteLocked
+                    ? "opacity-50 cursor-not-allowed border-stone-200 dark:border-white/10"
+                    : "border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20"
+                )}>
+                  <button
+                    type="button"
+                    disabled={permiteLocked}
+                    onClick={() => !permiteLocked && setPermiteEditar(!permiteEditar)}
+                    className="w-full flex items-center justify-between gap-3 disabled:cursor-not-allowed"
+                  >
+                    <div className="text-left flex items-start gap-2">
+                      <Lock className="h-3.5 w-3.5 mt-0.5 text-stone-400 flex-shrink-0" />
+                      <div>
+                        <p className={cn(
+                          "text-xs font-medium",
+                          permiteEfectivo ? "text-stone-800 dark:text-stone-200" : "text-red-600 dark:text-red-400"
+                        )}>
+                          {permiteEfectivo ? "Edición permitida" : "Edición bloqueada"}
+                        </p>
+                        <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+                          Permite modificar pedidos en esta etapa.
+                        </p>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "relative flex-shrink-0 h-5 w-9 rounded-full transition-colors",
+                      permiteEfectivo ? "bg-lime-500" : "bg-stone-300 dark:bg-white/20"
+                    )}>
+                      <span className={cn(
+                        "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                        permiteEfectivo ? "translate-x-4" : "translate-x-0"
+                      )} />
+                    </div>
+                  </button>
+                </div>
+              </TooltipTrigger>
+              {permiteLocked && (
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  {(esFinal || esCancelacion)
+                    ? "Los pedidos en etapas finales o canceladas no pueden ser editados."
+                    : "Las etapas iniciales siempre permiten editar pedidos."}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl">Cancelar</Button>
@@ -440,7 +498,7 @@ export function PanelConfigEtapas({ flujoVentaId, etapasIniciales }: PanelConfig
       if (r.exito) {
         const nueva: EtapaFlat = {
           id: r.datos.id, nombre: nuevaNombre.trim(), color: nuevaColor, orden: items.length,
-          esInicial: false, esFinal: false, esCancelacion: false, esSecuencial: true, activo: true,
+          esInicial: false, esFinal: false, esCancelacion: false, esSecuencial: true, permiteEditarPedido: true, activo: true,
           descripcion: null, flujoVentaId, parentId: null, depth: 0,
         };
         setItems((prev) => [...prev, nueva]);
