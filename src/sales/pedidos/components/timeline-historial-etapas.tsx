@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
@@ -184,32 +184,83 @@ function DiffExpandido({ accion, valorAnterior, valorNuevo }: { accion: string; 
 
   if (accion === "PEDIDO_EDITADO") {
     const ETIQUETAS: Record<string, string> = {
-      nombre: "Nombre",
-      apellido: "Apellido",
-      telefono: "Teléfono",
-      email: "Email",
-      ruc: "RUC",
-      empresaNombre: "Empresa (facturación)",
-      moneda: "Moneda",
-      fechaEntrega: "Fecha de entrega",
-      notas: "Notas",
-      contactoId: "Contacto",
-      empresaId: "Empresa (CRM)",
-      estado: "Estado",
+      nombre: "Nombre", apellido: "Apellido", telefono: "Teléfono", email: "Email",
+      ruc: "RUC", empresaNombre: "Empresa (facturación)", moneda: "Moneda",
+      fechaEntrega: "Fecha de entrega", notas: "Notas",
+      contactoId: "Contacto", empresaId: "Empresa (CRM)", estado: "Estado",
     };
-    const claves = [...new Set([...Object.keys(ant), ...Object.keys(nvo)])];
-    if (claves.length === 0) return <p className="text-sm text-muted-foreground">Sin cambios registrados.</p>;
+    const KEYS_LINEA = new Set(["lineasEliminadas", "lineasAgregadas", "lineasModificadas"]);
+    type LineaData = { descripcion?: string; productoId?: string; cantidad?: number; precioUnitario?: number; descuento?: number };
+    type ModifMap = Record<string, { cantidad?: number; descuento?: number }>;
+
+    const eliminadas = (ant.lineasEliminadas ?? []) as LineaData[];
+    const agregadas = (nvo.lineasAgregadas ?? []) as LineaData[];
+    const modifAnt = (ant.lineasModificadas ?? {}) as ModifMap;
+    const modifNvo = (nvo.lineasModificadas ?? {}) as ModifMap;
+    const camposEscalares = [...new Set([...Object.keys(ant), ...Object.keys(nvo)])].filter(k => !KEYS_LINEA.has(k));
+
+    const hayAlgo = eliminadas.length > 0 || agregadas.length > 0 || Object.keys(modifAnt).length > 0 || camposEscalares.length > 0;
+    if (!hayAlgo) return <p className="text-sm text-muted-foreground">Sin cambios registrados.</p>;
+
+    const Fila = ({ label, children }: { label: string; children: React.ReactNode }) => (
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">{label}</p>
+        {children}
+      </div>
+    );
+
     return (
-      <div className="space-y-2.5 text-sm">
-        {claves.map(clave => (
-          <div key={clave}>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">{ETIQUETAS[clave] ?? clave}</p>
+      <div className="space-y-3 text-sm">
+        {eliminadas.map((l, i) => (
+          <Fila key={`eli-${i}`} label="Producto eliminado">
+            <p className="text-muted-foreground line-through">
+              {l.descripcion || l.productoId || "—"} · {l.cantidad} u · S/ {l.precioUnitario}
+              {l.descuento ? ` · ${l.descuento}% desc.` : ""}
+            </p>
+          </Fila>
+        ))}
+        {agregadas.map((l, i) => (
+          <Fila key={`agr-${i}`} label="Producto agregado">
+            <p className="font-medium">
+              {l.descripcion || l.productoId || "—"} · {l.cantidad} u · S/ {l.precioUnitario}
+              {l.descuento ? ` · ${l.descuento}% desc.` : ""}
+            </p>
+          </Fila>
+        ))}
+        {Object.keys(modifAnt).map(lineaId => {
+          const a = modifAnt[lineaId]!;
+          const n = modifNvo[lineaId] ?? {};
+          return (
+            <div key={lineaId} className="space-y-1">
+              {a.cantidad !== undefined && (
+                <Fila label="Cantidad modificada">
+                  <p className="flex items-center gap-1.5">
+                    <span className="line-through text-muted-foreground">{a.cantidad}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="font-medium">{n.cantidad}</span>
+                  </p>
+                </Fila>
+              )}
+              {a.descuento !== undefined && (
+                <Fila label="Descuento modificado">
+                  <p className="flex items-center gap-1.5">
+                    <span className="line-through text-muted-foreground">{a.descuento}%</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="font-medium">{n.descuento}%</span>
+                  </p>
+                </Fila>
+              )}
+            </div>
+          );
+        })}
+        {camposEscalares.map(clave => (
+          <Fila key={clave} label={ETIQUETAS[clave] ?? clave}>
             <p className="flex items-center gap-1.5 flex-wrap">
               <span className="line-through text-muted-foreground">{ant[clave] != null ? String(ant[clave]) : "—"}</span>
               <span className="text-muted-foreground">→</span>
               <span className="font-medium">{nvo[clave] != null ? String(nvo[clave]) : "—"}</span>
             </p>
-          </div>
+          </Fila>
         ))}
       </div>
     );
@@ -334,10 +385,13 @@ function CambioItem({ evento, esUltimo, expandidoInicial }: { evento: EventoCamb
   );
 }
 
+const PAGE_SIZE = 20;
+
 // ── Componente principal ─────────────────────────────────────────────────
 
 export function TimelineHistorialEtapas({ historial, historialCambios = [] }: TimelineHistorialEtapasProps) {
   const [soloManuales, setSoloManuales] = useState(false);
+  const [pagina, setPagina] = useState(1);
 
   const entradasUnificadas: EntradaTimeline[] = [
     ...historial.map(e => ({ tipo: "ETAPA" as const, data: e })),
@@ -348,8 +402,26 @@ export function TimelineHistorialEtapas({ historial, historialCambios = [] }: Ti
     ? entradasUnificadas.filter(e => e.tipo === "ETAPA" && (e.data.tipo === "MANUAL" || e.data.origen === "USUARIO"))
     : entradasUnificadas;
 
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const inicio = (paginaActual - 1) * PAGE_SIZE;
+  const visibles = filtradas.slice(inicio, inicio + PAGE_SIZE);
+
   const total = entradasUnificadas.length;
   const manuales = entradasUnificadas.filter(e => e.tipo === "ETAPA" && (e.data.tipo === "MANUAL" || e.data.origen === "USUARIO")).length;
+
+  const handleFiltro = (valor: boolean) => {
+    setSoloManuales(valor);
+    setPagina(1);
+  };
+
+  // Genera el rango de números de página a mostrar (máx 5 botones)
+  const paginasVisibles = (() => {
+    const delta = 2;
+    const izq = Math.max(1, paginaActual - delta);
+    const der = Math.min(totalPaginas, paginaActual + delta);
+    return Array.from({ length: der - izq + 1 }, (_, i) => izq + i);
+  })();
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -357,13 +429,14 @@ export function TimelineHistorialEtapas({ historial, historialCambios = [] }: Ti
         <div>
           <h3 className="text-sm font-semibold text-foreground">Historial de etapas</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {total} {total === 1 ? "evento registrado" : "eventos registrados"}
+            {filtradas.length} {filtradas.length === 1 ? "evento" : "eventos"}
+            {filtradas.length !== total && ` de ${total}`}
           </p>
         </div>
         <Button
           variant="outline" size="sm"
           className={cn("gap-1.5 text-xs h-8 rounded-lg", soloManuales && "bg-stone-100 dark:bg-white/10 border-stone-300 dark:border-white/20")}
-          onClick={() => setSoloManuales(!soloManuales)}
+          onClick={() => handleFiltro(!soloManuales)}
           disabled={manuales === 0}
         >
           <Filter className="h-3.5 w-3.5" />
@@ -375,23 +448,88 @@ export function TimelineHistorialEtapas({ historial, historialCambios = [] }: Ti
         {filtradas.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No hay cambios manuales registrados.</p>
         ) : (
-          filtradas.map((entrada, idx) =>
-            entrada.tipo === "ETAPA" ? (
-              <EtapaItem
-                key={`etapa-${entrada.data.id}`}
-                evento={entrada.data}
-                esUltimo={idx === filtradas.length - 1}
-                expandidoInicial={idx === 0}
-              />
-            ) : (
-              <CambioItem
-                key={`cambio-${entrada.data.id}`}
-                evento={entrada.data}
-                esUltimo={idx === filtradas.length - 1}
-                expandidoInicial={idx === 0}
-              />
-            )
-          )
+          <>
+            {visibles.map((entrada, idx) =>
+              entrada.tipo === "ETAPA" ? (
+                <EtapaItem
+                  key={`etapa-${entrada.data.id}`}
+                  evento={entrada.data}
+                  esUltimo={idx === visibles.length - 1}
+                  expandidoInicial={idx === 0 && paginaActual === 1}
+                />
+              ) : (
+                <CambioItem
+                  key={`cambio-${entrada.data.id}`}
+                  evento={entrada.data}
+                  esUltimo={idx === visibles.length - 1}
+                  expandidoInicial={idx === 0 && paginaActual === 1}
+                />
+              )
+            )}
+
+            {totalPaginas > 1 && (
+              <div className="flex items-center justify-between pt-4 mt-2 border-t border-border">
+                <p className="text-xs text-muted-foreground">
+                  {inicio + 1}–{Math.min(inicio + PAGE_SIZE, filtradas.length)} de {filtradas.length}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPagina(p => Math.max(1, p - 1))}
+                    disabled={paginaActual === 1}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5 -rotate-90" />
+                  </button>
+
+                  {paginasVisibles[0]! > 1 && (
+                    <>
+                      <button type="button" onClick={() => setPagina(1)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                        1
+                      </button>
+                      {paginasVisibles[0]! > 2 && <span className="px-0.5 text-xs text-muted-foreground">…</span>}
+                    </>
+                  )}
+
+                  {paginasVisibles.map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setPagina(n)}
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-lg border text-xs transition-colors",
+                        n === paginaActual
+                          ? "border-lime-500/40 bg-lime-500/10 text-lime-600 dark:text-lime-400 font-semibold"
+                          : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+
+                  {paginasVisibles[paginasVisibles.length - 1]! < totalPaginas && (
+                    <>
+                      {paginasVisibles[paginasVisibles.length - 1]! < totalPaginas - 1 && <span className="px-0.5 text-xs text-muted-foreground">…</span>}
+                      <button type="button" onClick={() => setPagina(totalPaginas)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                        {totalPaginas}
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                    disabled={paginaActual === totalPaginas}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5 rotate-90" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

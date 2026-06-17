@@ -4,7 +4,12 @@ import type { PedidoCreadoPayload, PedidoActualizadoPayload } from "@/shared/eve
 import { prisma } from "@/shared/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 
+const g = globalThis as unknown as { handlersPedidosRegistrados?: boolean };
+
 export function registrarHandlersPedidos() {
+  if (g.handlersPedidosRegistrados) return;
+  g.handlersPedidosRegistrados = true;
+
   busEventos.suscribir<PedidoCreadoPayload>(TIPOS_EVENTO.PEDIDO_CREADO, async (evento) => {
     try {
       const { pedidoId, numero, total, usuarioId, usuarioNombre } = evento.payload;

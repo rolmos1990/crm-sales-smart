@@ -254,53 +254,50 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     const impuestoMonto = subtotal * (impuesto / 100);
     const total = subtotal + impuestoMonto;
 
-    // Entradas de auditoría
-    const entradasHistorial: { accion: string; valorAnterior?: object; valorNuevo?: object }[] = [];
+    // Consolidar todos los cambios en una sola entrada de historial
+    const valorAnt: Record<string, unknown> = {};
+    const valorNvo: Record<string, unknown> = {};
 
-    for (const linea of lineasEliminadas) {
-      entradasHistorial.push({
-        accion: "PRODUCTO_ELIMINADO",
-        valorAnterior: { productoId: linea.productoId, descripcion: linea.descripcion, cantidad: Number(linea.cantidad), precioUnitario: Number(linea.precioUnitario), descuento: Number(linea.descuento) },
-      });
+    // Líneas eliminadas
+    if (lineasEliminadas.length > 0) {
+      valorAnt.lineasEliminadas = lineasEliminadas.map(l => ({
+        descripcion: l.descripcion, productoId: l.productoId,
+        cantidad: Number(l.cantidad), precioUnitario: Number(l.precioUnitario), descuento: Number(l.descuento),
+      }));
     }
 
-    for (const linea of lineasSinId) {
-      entradasHistorial.push({
-        accion: "PRODUCTO_AGREGADO",
-        valorNuevo: { productoId: linea.productoId, descripcion: linea.descripcion, cantidad: linea.cantidad, precioUnitario: linea.precioUnitario, descuento: linea.descuento },
-      });
+    // Líneas agregadas
+    if (lineasSinId.length > 0) {
+      valorNvo.lineasAgregadas = lineasSinId.map(l => ({
+        descripcion: l.descripcion, productoId: l.productoId,
+        cantidad: l.cantidad, precioUnitario: l.precioUnitario, descuento: l.descuento,
+      }));
     }
 
+    // Líneas modificadas (cantidad o descuento)
+    const modifAnt: Record<string, { cantidad?: number; descuento?: number }> = {};
+    const modifNvo: Record<string, { cantidad?: number; descuento?: number }> = {};
     for (const linea of lineasConId) {
       const lineaActual = lineasActuales.find(l => l.id === linea.id);
       if (!lineaActual) continue;
-      if (Number(lineaActual.cantidad) !== linea.cantidad) {
-        entradasHistorial.push({
-          accion: "CANTIDAD_MODIFICADA",
-          valorAnterior: { lineaId: linea.id, cantidad: Number(lineaActual.cantidad) },
-          valorNuevo: { lineaId: linea.id, cantidad: linea.cantidad },
-        });
-      }
-      if (Number(lineaActual.descuento) !== linea.descuento) {
-        entradasHistorial.push({
-          accion: "DESCUENTO_ACTUALIZADO",
-          valorAnterior: { lineaId: linea.id, descuento: Number(lineaActual.descuento) },
-          valorNuevo: { lineaId: linea.id, descuento: linea.descuento },
-        });
-      }
+      const ant: { cantidad?: number; descuento?: number } = {};
+      const nvo: { cantidad?: number; descuento?: number } = {};
+      if (Number(lineaActual.cantidad) !== linea.cantidad) { ant.cantidad = Number(lineaActual.cantidad); nvo.cantidad = linea.cantidad; }
+      if (Number(lineaActual.descuento) !== linea.descuento) { ant.descuento = Number(lineaActual.descuento); nvo.descuento = linea.descuento; }
+      if (Object.keys(ant).length > 0) { modifAnt[linea.id!] = ant; modifNvo[linea.id!] = nvo; }
+    }
+    if (Object.keys(modifAnt).length > 0) {
+      valorAnt.lineasModificadas = modifAnt;
+      valorNvo.lineasModificadas = modifNvo;
     }
 
-    // Diff de todos los campos escalares del pedido
-    const camposAnt: Record<string, unknown> = {};
-    const camposNvo: Record<string, unknown> = {};
-
+    // Campos escalares
     const diffCampo = (key: string, anterior: unknown, nuevo: unknown) => {
       if (String(anterior ?? "") !== String(nuevo ?? "")) {
-        camposAnt[key] = anterior ?? null;
-        camposNvo[key] = nuevo ?? null;
+        valorAnt[key] = anterior ?? null;
+        valorNvo[key] = nuevo ?? null;
       }
     };
-
     diffCampo("nombre", pedidoActual.nombre, nombre || null);
     diffCampo("apellido", pedidoActual.apellido, apellido || null);
     diffCampo("telefono", pedidoActual.telefono, telefono || null);
@@ -314,8 +311,9 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     diffCampo("empresaId", pedidoActual.empresaId, empresaId || null);
     diffCampo("estado", pedidoActual.estado, estado ?? null);
 
-    if (Object.keys(camposAnt).length > 0) {
-      entradasHistorial.push({ accion: "PEDIDO_EDITADO", valorAnterior: camposAnt, valorNuevo: camposNvo });
+    const entradasHistorial: { accion: string; valorAnterior?: object; valorNuevo?: object }[] = [];
+    if (Object.keys(valorAnt).length > 0 || Object.keys(valorNvo).length > 0) {
+      entradasHistorial.push({ accion: "PEDIDO_EDITADO", valorAnterior: valorAnt, valorNuevo: valorNvo });
     }
 
     await prisma.$transaction(async (tx) => {
