@@ -113,14 +113,15 @@ export function WizardImportacion({
           ];
 
       // Inyectar estrategias como campos sintéticos para que el server action las lea
-      const filasParaImportar =
-        estado.entidad === "OPORTUNIDAD"
-          ? filasBase.map((f) => ({
-              ...f,
-              _estrategiaContacto: estado.estrategiaContacto,
-              _estrategiaEmpresa: estado.estrategiaEmpresa,
-            }))
-          : filasBase;
+      const necesitaVinculos =
+        estado.entidad === "OPORTUNIDAD" || estado.entidad === "ACTIVIDAD" || estado.entidad === "PEDIDO";
+      const filasParaImportar = necesitaVinculos
+        ? filasBase.map((f) => ({
+            ...f,
+            _estrategiaContacto: estado.estrategiaContacto,
+            _estrategiaEmpresa: estado.estrategiaEmpresa,
+          }))
+        : filasBase;
 
       const resultado = await importarRegistrosAction({
         entidad: estado.entidad!,

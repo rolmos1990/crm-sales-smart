@@ -202,14 +202,16 @@ export function PasoMapeo({
   const todosRequeridosMapeados =
     camposRequeridos.length === camposRequeridosMapeados.length;
 
+  const esEntidadConVinculos = entidad === "OPORTUNIDAD" || entidad === "ACTIVIDAD" || entidad === "PEDIDO";
+
   const tieneContactoMapeado =
-    entidad === "OPORTUNIDAD" &&
+    esEntidadConVinculos &&
     mapeosActivos.some(
       (m) => m.campoDestino === "contactoEmail" || m.campoDestino === "contactoTelefono",
     );
 
   const tieneEmpresaMapeada =
-    entidad === "OPORTUNIDAD" &&
+    esEntidadConVinculos &&
     mapeosActivos.some(
       (m) =>
         m.campoDestino === "empresaRuc" ||

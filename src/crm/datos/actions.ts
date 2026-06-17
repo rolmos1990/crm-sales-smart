@@ -269,7 +269,72 @@ async function insertar(
       throw new Error("Use insertarPedidosAgrupados para la entidad PEDIDO");
 
 
-    case "ACTIVIDAD":
+    case "ACTIVIDAD": {
+      // Contacto — mismo patrón que OPORTUNIDAD
+      const estrategiaAct = String(datos._estrategiaContacto ?? "email_o_telefono");
+      const actEmail    = datos.contactoEmail    ? String(datos.contactoEmail).toLowerCase() : null;
+      const actTelefono = datos.contactoTelefono ? String(datos.contactoTelefono)            : null;
+
+      let actContactoId: string | null = null;
+      if (actEmail && (estrategiaAct === "email" || estrategiaAct === "email_o_telefono")) {
+        const c = await tx.contacto.findFirst({
+          where: { instanciaId, email: { equals: actEmail, mode: "insensitive" } },
+          select: { id: true },
+        });
+        if (c) actContactoId = c.id;
+      }
+      if (!actContactoId && actTelefono && (estrategiaAct === "telefono" || estrategiaAct === "email_o_telefono")) {
+        const c = await tx.contacto.findFirst({
+          where: { instanciaId, telefonoPrincipal: actTelefono },
+          select: { id: true },
+        });
+        if (c) actContactoId = c.id;
+      }
+      if (!actContactoId && (actEmail || actTelefono)) {
+        const nuevo = await tx.contacto.create({
+          data: {
+            nombre: datos.contactoNombre ? String(datos.contactoNombre) : "Sin nombre",
+            apellido: datos.contactoApellido ? String(datos.contactoApellido) : "",
+            email: actEmail,
+            telefonoPrincipal: actTelefono,
+            instanciaId,
+          },
+          select: { id: true },
+        });
+        actContactoId = nuevo.id;
+      }
+
+      // Empresa — mismo patrón que OPORTUNIDAD
+      const estrategiaActEmp = String(datos._estrategiaEmpresa ?? "ruc_o_email");
+      const actEmpRuc      = datos.empresaRuc      ? String(datos.empresaRuc).trim()          : null;
+      const actEmpEmail    = datos.empresaEmail    ? String(datos.empresaEmail).toLowerCase() : null;
+      const actEmpTelefono = datos.empresaTelefono ? String(datos.empresaTelefono).trim()     : null;
+      const actEmpNombre   = datos.empresaNombre   ? String(datos.empresaNombre).trim()       : null;
+
+      let actEmpresaId: string | null = null;
+      if (actEmpRuc && (estrategiaActEmp === "ruc" || estrategiaActEmp === "ruc_o_email")) {
+        const e = await tx.empresa.findFirst({ where: { instanciaId, ruc: actEmpRuc }, select: { id: true } });
+        if (e) actEmpresaId = e.id;
+      }
+      if (!actEmpresaId && actEmpEmail && (estrategiaActEmp === "email" || estrategiaActEmp === "ruc_o_email")) {
+        const e = await tx.empresa.findFirst({
+          where: { instanciaId, email: { equals: actEmpEmail, mode: "insensitive" } },
+          select: { id: true },
+        });
+        if (e) actEmpresaId = e.id;
+      }
+      if (!actEmpresaId && actEmpTelefono && estrategiaActEmp === "telefono") {
+        const e = await tx.empresa.findFirst({ where: { instanciaId, telefono: actEmpTelefono }, select: { id: true } });
+        if (e) actEmpresaId = e.id;
+      }
+      if (!actEmpresaId && actEmpNombre) {
+        const nueva = await tx.empresa.create({
+          data: { nombre: actEmpNombre, ruc: actEmpRuc, email: actEmpEmail, telefono: actEmpTelefono, instanciaId },
+          select: { id: true },
+        });
+        actEmpresaId = nueva.id;
+      }
+
       await tx.actividad.create({
         data: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -279,10 +344,13 @@ async function insertar(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           prioridad: (datos.prioridad as any) ?? "MEDIA",
           descripcion: datos.descripcion ? String(datos.descripcion) : null,
+          contactoId: actContactoId,
+          empresaId: actEmpresaId,
           instanciaId,
         },
       });
       break;
+    }
   }
 }
 
@@ -293,6 +361,9 @@ async function insertarPedidosAgrupados(
   contadorBase: number,
 ): Promise<number> {
   const año = new Date().getFullYear();
+
+  const estrategiaContacto = String(filas[0]?._estrategiaContacto ?? "email_o_telefono");
+  const estrategiaEmpresa = String(filas[0]?._estrategiaEmpresa ?? "ruc_o_email");
 
   // Agrupar filas por idPedido preservando orden de aparición
   const grupos = new Map<string, Record<string, unknown>[]>();
@@ -310,6 +381,70 @@ async function insertarPedidosAgrupados(
     offset++;
 
     const impuestoPct = Number(header.impuesto ?? 0);
+
+    // --- Lookup/create contacto ---
+    const cEmail = header.contactoEmail ? String(header.contactoEmail).toLowerCase().trim() : null;
+    const cTelefono = header.contactoTelefono ? String(header.contactoTelefono).trim() : null;
+
+    let contactoId: string | null = null;
+    if (cEmail && (estrategiaContacto === "email" || estrategiaContacto === "email_o_telefono")) {
+      const c = await tx.contacto.findFirst({
+        where: { instanciaId, email: { equals: cEmail, mode: "insensitive" } },
+        select: { id: true },
+      });
+      if (c) contactoId = c.id;
+    }
+    if (!contactoId && cTelefono && (estrategiaContacto === "telefono" || estrategiaContacto === "email_o_telefono")) {
+      const c = await tx.contacto.findFirst({
+        where: { instanciaId, telefonoPrincipal: cTelefono },
+        select: { id: true },
+      });
+      if (c) contactoId = c.id;
+    }
+    if (!contactoId && (cEmail || cTelefono)) {
+      const nombreContacto = header.contactoNombre
+        ? String(header.contactoNombre)
+        : header.nombre
+          ? String(header.nombre)
+          : "Sin nombre";
+      const apellidoContacto = header.contactoApellido
+        ? String(header.contactoApellido)
+        : header.apellido
+          ? String(header.apellido)
+          : "";
+      const nuevo = await tx.contacto.create({
+        data: { nombre: nombreContacto, apellido: apellidoContacto, email: cEmail, telefonoPrincipal: cTelefono, instanciaId },
+        select: { id: true },
+      });
+      contactoId = nuevo.id;
+    }
+
+    // --- Lookup/create empresa ---
+    const eRuc = header.empresaRuc ? String(header.empresaRuc).trim() : null;
+    const eEmail = header.empresaEmail ? String(header.empresaEmail).toLowerCase().trim() : null;
+    const eTelefono = header.empresaTelefono ? String(header.empresaTelefono).trim() : null;
+    const eNombre = header.empresaNombre ? String(header.empresaNombre).trim() : null;
+
+    let empresaId: string | null = null;
+    if (eRuc && (estrategiaEmpresa === "ruc" || estrategiaEmpresa === "ruc_o_email")) {
+      const e = await tx.empresa.findFirst({ where: { instanciaId, ruc: eRuc }, select: { id: true } });
+      if (e) empresaId = e.id;
+    }
+    if (!empresaId && eEmail && (estrategiaEmpresa === "email" || estrategiaEmpresa === "ruc_o_email")) {
+      const e = await tx.empresa.findFirst({ where: { instanciaId, email: { equals: eEmail, mode: "insensitive" } }, select: { id: true } });
+      if (e) empresaId = e.id;
+    }
+    if (!empresaId && eTelefono && estrategiaEmpresa === "telefono") {
+      const e = await tx.empresa.findFirst({ where: { instanciaId, telefono: eTelefono }, select: { id: true } });
+      if (e) empresaId = e.id;
+    }
+    if (!empresaId && eNombre) {
+      const nueva = await tx.empresa.create({
+        data: { nombre: eNombre, ruc: eRuc, email: eEmail, telefono: eTelefono, instanciaId },
+        select: { id: true },
+      });
+      empresaId = nueva.id;
+    }
 
     const lineasData: Array<{
       descripcion: string | null;
@@ -362,7 +497,7 @@ async function insertarPedidosAgrupados(
         ruc: header.ruc ? String(header.ruc) : null,
         email: header.email ? String(header.email) : null,
         telefono: header.telefono ? String(header.telefono) : null,
-        empresaNombre: header.empresaNombre ? String(header.empresaNombre) : null,
+        empresaNombre: eNombre,
         fechaEntrega: header.fechaEntrega ? new Date(String(header.fechaEntrega)) : null,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         estado: (header.estado as any) ?? "PENDIENTE",
@@ -371,6 +506,8 @@ async function insertarPedidosAgrupados(
         total,
         moneda: header.moneda ? String(header.moneda) : "PEN",
         notas: header.notas ? String(header.notas) : null,
+        contactoId,
+        empresaId,
         instanciaId,
         lineas: {
           createMany: { data: lineasData },

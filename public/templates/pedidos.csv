@@ -1,6 +1,6 @@
-ID Pedido,Nombre,Apellido,RUC,Email,Telefono,Empresa,Fecha Entrega,Estado,Impuesto %,Moneda,Notas,Descripcion Producto,Cantidad,Precio Unitario,Descuento %,SKU Producto
-P001,Juan,Pérez,20123456789,juan.perez@empresa.com,60000000,Empresa SAC,2025-07-01,PENDIENTE,18,PEN,Pedido urgente,Laptop HP 15",2,2500,0,LAP-HP-15
-P001,,,,,,,,,,,,Mouse Inalámbrico,3,45,10,MOU-001
-P001,,,,,,,,,,,,Cable HDMI 2m,5,25,0,
-P002,María,García,,maria.garcia@techcorp.com,70112233,TechCorp SRL,,CONFIRMADO,18,PEN,,Monitor 24" Full HD,1,650,5,MON-24-FHD
-P003,Carlos,López,20456789123,carlos.lopez@dist.pe,60987654,Distribuidora Norte,,,18,PEN,,Servicio de Soporte Mensual,1,350,0,SVC-SOP-01
+ID Pedido,Nombre,Apellido,RUC,Email,Telefono,Empresa,Fecha Entrega,Estado,Impuesto %,Moneda,Notas,Descripcion Producto,Cantidad,Precio Unitario,Descuento %,SKU Producto,Contacto Nombre,Contacto Apellido,Contacto Email,Contacto Telefono,Empresa RUC,Empresa Email,Empresa Telefono
+P001,Juan,Pérez,20123456789,juan.perez@empresa.com,60000000,Empresa SAC,2025-07-01,PENDIENTE,18,PEN,Pedido urgente,Laptop HP 15",2,2500,0,LAP-HP-15,Juan,Pérez,juan.perez@empresa.com,60000000,20123456789,,
+P001,,,,,,,,,,,,Mouse Inalámbrico,3,45,10,MOU-001,,,,,,,,
+P001,,,,,,,,,,,,Cable HDMI 2m,5,25,0,,,,,,,,,
+P002,María,García,,maria.garcia@techcorp.com,70112233,TechCorp SRL,,CONFIRMADO,18,PEN,,Monitor 24" Full HD,1,650,5,MON-24-FHD,María,García,maria.garcia@techcorp.com,70112233,,maria.garcia@techcorp.com,
+P003,Carlos,López,20456789123,carlos.lopez@dist.pe,60987654,Distribuidora Norte,,,18,PEN,,Servicio de Soporte Mensual,1,350,0,SVC-SOP-01,Carlos,López,carlos.lopez@dist.pe,60987654,20456789123,,

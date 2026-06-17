@@ -1,6 +1,6 @@
-Tipo,Titulo,Fecha,Prioridad,Descripción
-LLAMADA,Llamada de seguimiento a Juan Pérez,2025-06-20,ALTA,Confirmar reunión de demostración
-REUNION,Presentación de propuesta a TechCorp,2025-06-25,ALTA,Llevar demo del sistema
-TAREA,Enviar cotización a Empresa SAC,2025-06-18,MEDIA,Incluir descuento por volumen
-EMAIL,Responder consulta cliente Norte,2025-06-17,BAJA,
-NOTA,Nota de seguimiento post-reunión,2025-06-15,BAJA,El cliente solicita referencias
+Tipo,Titulo,Fecha,Prioridad,Descripcion,Contacto Nombre,Contacto Apellido,Contacto Email,Contacto Telefono,Empresa Nombre,Empresa RUC,Empresa Email,Empresa Telefono
+LLAMADA,Llamada de seguimiento,2025-06-20,ALTA,Confirmar reunión de demostración,Juan,Pérez,juan.perez@empresa.com,60000000,Empresa SAC,20123456789,,
+REUNION,Presentación de propuesta,2025-06-25,ALTA,Llevar demo del sistema,María,García,maria.garcia@techcorp.com,,TechCorp SRL,20456789123,,70112233
+TAREA,Enviar cotización,2025-06-18,MEDIA,Incluir descuento por volumen,Carlos,López,,60987654,,,,
+EMAIL,Responder consulta cliente,2025-06-17,BAJA,,,,consultas@norte.com,,Norte Distribuciones,,norte@dist.pe,
+NOTA,Nota post-reunión,2025-06-15,BAJA,El cliente solicita referencias,,,,,,,,

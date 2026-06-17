@@ -125,7 +125,7 @@ export function PasoValidacion({
         </div>
       </div>
 
-      {entidad === "OPORTUNIDAD" && (() => {
+      {(entidad === "OPORTUNIDAD" || entidad === "ACTIVIDAD" || entidad === "PEDIDO") && (() => {
         const conContacto = validacion.filasValidas.filter(
           (f) =>
             (f as Record<string, unknown>).contactoEmail ||
@@ -146,7 +146,7 @@ export function PasoValidacion({
         ) : null;
       })()}
 
-      {entidad === "OPORTUNIDAD" && (() => {
+      {(entidad === "OPORTUNIDAD" || entidad === "ACTIVIDAD" || entidad === "PEDIDO") && (() => {
         const conEmpresa = validacion.filasValidas.filter(
           (f) => {
             const r = f as Record<string, unknown>;
