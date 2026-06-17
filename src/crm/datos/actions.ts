@@ -196,6 +196,51 @@ async function insertar(
         contactoId = nuevo.id;
       }
 
+      // Buscar o crear Empresa
+      const estrategiaEmpresa = String(datos._estrategiaEmpresa ?? "ruc_o_email");
+      const empresaRuc = datos.empresaRuc ? String(datos.empresaRuc).trim() : null;
+      const empresaEmail = datos.empresaEmail ? String(datos.empresaEmail).toLowerCase() : null;
+      const empresaTelefono = datos.empresaTelefono ? String(datos.empresaTelefono).trim() : null;
+      const empresaNombre = datos.empresaNombre ? String(datos.empresaNombre).trim() : null;
+
+      let empresaId: string | null = null;
+
+      if (empresaRuc && (estrategiaEmpresa === "ruc" || estrategiaEmpresa === "ruc_o_email")) {
+        const e = await tx.empresa.findFirst({
+          where: { instanciaId, ruc: empresaRuc },
+          select: { id: true },
+        });
+        if (e) empresaId = e.id;
+      }
+      if (!empresaId && empresaEmail && (estrategiaEmpresa === "email" || estrategiaEmpresa === "ruc_o_email")) {
+        const e = await tx.empresa.findFirst({
+          where: { instanciaId, email: { equals: empresaEmail, mode: "insensitive" } },
+          select: { id: true },
+        });
+        if (e) empresaId = e.id;
+      }
+      if (!empresaId && empresaTelefono && estrategiaEmpresa === "telefono") {
+        const e = await tx.empresa.findFirst({
+          where: { instanciaId, telefono: empresaTelefono },
+          select: { id: true },
+        });
+        if (e) empresaId = e.id;
+      }
+
+      if (!empresaId && empresaNombre) {
+        const nueva = await tx.empresa.create({
+          data: {
+            nombre: empresaNombre,
+            ruc: empresaRuc,
+            email: empresaEmail,
+            telefono: empresaTelefono,
+            instanciaId,
+          },
+          select: { id: true },
+        });
+        empresaId = nueva.id;
+      }
+
       // Crear Oportunidad
       const oportunidad = await tx.oportunidad.create({
         data: {
@@ -204,6 +249,7 @@ async function insertar(
           probabilidad: Number(datos.probabilidad ?? 20),
           fechaCierre: datos.fechaCierre ? new Date(String(datos.fechaCierre)) : null,
           notas: datos.notas ? String(datos.notas) : null,
+          empresaId,
           instanciaId,
         },
         select: { id: true },

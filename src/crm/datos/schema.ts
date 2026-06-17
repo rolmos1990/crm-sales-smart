@@ -43,6 +43,7 @@ export const SchemaImportarRegistros = z.object({
   registros: z.array(z.record(z.string(), z.unknown())).min(1),
   mapeos: z.array(SchemaMapeoColumna),
   estrategiaContacto: z.enum(["email", "telefono", "email_o_telefono"]).optional(),
+  estrategiaEmpresa: z.enum(["ruc", "email", "telefono", "ruc_o_email"]).optional(),
 });
 
 export type ImportarRegistrosInput = z.infer<typeof SchemaImportarRegistros>;

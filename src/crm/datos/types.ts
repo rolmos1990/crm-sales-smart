@@ -91,4 +91,5 @@ export interface EstadoWizard {
   resultado: ResultadoImportacion | null;
   cargando: boolean;
   estrategiaContacto: "email" | "telefono" | "email_o_telefono";
+  estrategiaEmpresa: "ruc" | "email" | "telefono" | "ruc_o_email";
 }

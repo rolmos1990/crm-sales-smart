@@ -38,6 +38,7 @@ const ESTADO_INICIAL: EstadoWizard = {
   resultado: null,
   cargando: false,
   estrategiaContacto: "email_o_telefono",
+  estrategiaEmpresa: "ruc_o_email",
 };
 
 interface WizardImportacionProps {
@@ -78,7 +79,7 @@ export function WizardImportacion({
     setEstado((e) => ({ ...e, paso: "mapeo" }));
   };
 
-  const confirmarMapeo = (mapeos: MapeoColumna[], estrategiaContacto: string) => {
+  const confirmarMapeo = (mapeos: MapeoColumna[], estrategiaContacto: string, estrategiaEmpresa: string) => {
     const camposStd = obtenerCamposEntidad(estado.entidad!);
     const validacion = validarRegistros(
       estado.archivo!.filas,
@@ -92,6 +93,7 @@ export function WizardImportacion({
       validacion,
       paso: "validacion",
       estrategiaContacto: estrategiaContacto as EstadoWizard["estrategiaContacto"],
+      estrategiaEmpresa: estrategiaEmpresa as EstadoWizard["estrategiaEmpresa"],
     }));
   };
 
@@ -110,10 +112,14 @@ export function WizardImportacion({
             ...estado.validacion!.filasConError,
           ];
 
-      // Inyectar estrategia de contacto como campo sintético para que el server action la lea
+      // Inyectar estrategias como campos sintéticos para que el server action las lea
       const filasParaImportar =
         estado.entidad === "OPORTUNIDAD"
-          ? filasBase.map((f) => ({ ...f, _estrategiaContacto: estado.estrategiaContacto }))
+          ? filasBase.map((f) => ({
+              ...f,
+              _estrategiaContacto: estado.estrategiaContacto,
+              _estrategiaEmpresa: estado.estrategiaEmpresa,
+            }))
           : filasBase;
 
       const resultado = await importarRegistrosAction({
@@ -124,6 +130,7 @@ export function WizardImportacion({
         registros: filasParaImportar,
         mapeos: estado.mapeos,
         estrategiaContacto: estado.estrategiaContacto,
+        estrategiaEmpresa: estado.estrategiaEmpresa,
       });
 
       if (resultado.exito) {

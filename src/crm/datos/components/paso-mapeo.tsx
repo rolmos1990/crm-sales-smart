@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { ChevronRight, Plus, AlertCircle, Check, Link2 } from "lucide-react";
+import { ChevronRight, Plus, AlertCircle, Check, Link2, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -45,13 +45,14 @@ const TIPOS_CAMPO = [
 ] as const;
 
 type EstrategiaContacto = "email" | "telefono" | "email_o_telefono";
+type EstrategiaEmpresa = "ruc" | "email" | "telefono" | "ruc_o_email";
 
 interface PasoMapeoProps {
   entidad: EntidadImportable;
   encabezados: string[];
   camposPersonalizados: CampoPersonalizadoResumen[];
   mapeoInicial: MapeoColumna[];
-  onConfirmar: (mapeos: MapeoColumna[], estrategiaContacto: EstrategiaContacto) => void;
+  onConfirmar: (mapeos: MapeoColumna[], estrategiaContacto: EstrategiaContacto, estrategiaEmpresa: EstrategiaEmpresa) => void;
   onAtras: () => void;
 }
 
@@ -96,6 +97,7 @@ export function PasoMapeo({
   });
 
   const [estrategiaContacto, setEstrategiaContacto] = useState<EstrategiaContacto>("email_o_telefono");
+  const [estrategiaEmpresa, setEstrategiaEmpresa] = useState<EstrategiaEmpresa>("ruc_o_email");
   const [dialogColumna, setDialogColumna] = useState<string | null>(null);
   const [formNombre, setFormNombre] = useState("");
   const [formTipo, setFormTipo] = useState("TEXTO");
@@ -204,6 +206,15 @@ export function PasoMapeo({
     entidad === "OPORTUNIDAD" &&
     mapeosActivos.some(
       (m) => m.campoDestino === "contactoEmail" || m.campoDestino === "contactoTelefono",
+    );
+
+  const tieneEmpresaMapeada =
+    entidad === "OPORTUNIDAD" &&
+    mapeosActivos.some(
+      (m) =>
+        m.campoDestino === "empresaRuc" ||
+        m.campoDestino === "empresaEmail" ||
+        m.campoDestino === "empresaTelefono",
     );
 
   return (
@@ -411,6 +422,53 @@ export function PasoMapeo({
         </div>
       )}
 
+      {tieneEmpresaMapeada && (
+        <div className="rounded-xl border border-lime-500/20 bg-lime-500/5 p-4 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-lime-400 flex-shrink-0" />
+            <p className="text-stone-200 text-sm font-medium">Vincular empresa</p>
+          </div>
+          <p className="text-stone-400 text-xs">
+            ¿Cómo buscar la empresa en el CRM? Si no existe y tiene nombre, se creará automáticamente.
+          </p>
+          <div className="flex flex-col gap-2">
+            {(
+              [
+                { valor: "ruc_o_email", etiqueta: "RUC o Email", desc: "Busca por RUC primero, luego por email (recomendado)" },
+                { valor: "ruc", etiqueta: "Solo RUC", desc: "Relaciona únicamente usando el RUC de la empresa" },
+                { valor: "email", etiqueta: "Solo Email", desc: "Relaciona únicamente usando el email de la empresa" },
+                { valor: "telefono", etiqueta: "Solo Teléfono", desc: "Relaciona únicamente usando el teléfono de la empresa" },
+              ] as const
+            ).map(({ valor, etiqueta, desc }) => (
+              <label
+                key={valor}
+                className={cn(
+                  "flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all",
+                  estrategiaEmpresa === valor
+                    ? "border-lime-500/40 bg-lime-500/8"
+                    : "border-white/8 bg-white/4 hover:border-white/15",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="estrategia-empresa"
+                  value={valor}
+                  checked={estrategiaEmpresa === valor}
+                  onChange={() => setEstrategiaEmpresa(valor)}
+                  className="mt-0.5 accent-lime-400"
+                />
+                <div>
+                  <p className={cn("text-sm font-medium", estrategiaEmpresa === valor ? "text-lime-300" : "text-stone-300")}>
+                    {etiqueta}
+                  </p>
+                  <p className="text-xs text-stone-500 mt-0.5">{desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between pt-2">
         <Button
           variant="ghost"
@@ -420,7 +478,7 @@ export function PasoMapeo({
           ← Volver
         </Button>
         <Button
-          onClick={() => onConfirmar(mapeos, estrategiaContacto)}
+          onClick={() => onConfirmar(mapeos, estrategiaContacto, estrategiaEmpresa)}
           disabled={!todosRequeridosMapeados}
           className="bg-lime-500/90 text-stone-950 rounded-xl hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
         >
