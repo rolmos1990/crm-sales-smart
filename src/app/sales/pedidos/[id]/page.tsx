@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   ArrowLeft, ShoppingCart, Building2, User, FileText,
-  Mail, Phone, Hash, Briefcase, Globe, ExternalLink, History, Lock,
+  Mail, Phone, Hash, Briefcase, Globe, ExternalLink, Lock,
 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import { actualizarEstadoPedido } from "@/sales/pedidos/actions";
 import { ESTADO_PEDIDO_CONFIG } from "@/sales/pedidos/types";
 import { BotonesTransicion } from "@/sales/pedidos/components/botones-transicion";
 import { DialogEditarPedido } from "@/sales/pedidos/components/dialog-editar-pedido";
+import { TimelineHistorialEtapas } from "@/sales/pedidos/components/timeline-historial-etapas";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
@@ -110,6 +111,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
   }
 
   const historial: any[] = (pedido as any).historialEtapas ?? [];
+  const historialCambios: any[] = (pedido as any).historial ?? [];
   const usandoFlujo = todasLasEtapas.length > 0;
   const permiteEditar: boolean = etapaActual ? (etapaActual.permiteEditarPedido ?? true) : true;
 
@@ -397,37 +399,8 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
       )}
 
       {/* ── Historial de etapas ───────────────────────────────────── */}
-      {historial.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2 pt-4">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <History className="h-4 w-4 text-muted-foreground" />
-              Historial de etapas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-4">
-            <ol className="relative border-l border-border ml-2 space-y-3">
-              {historial.map((h: any) => (
-                <li key={h.id} className="ml-4">
-                  <div
-                    className="absolute -left-1.5 mt-0.5 h-3 w-3 rounded-full border-2 border-background"
-                    style={{ backgroundColor: h.etapa?.color ?? "#6b7280" }}
-                  />
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-foreground">{h.etapaNombre}</span>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                      {h.tipo === "MANUAL" ? "Manual" : "Automático"}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(h.creadoEn), "dd MMM yyyy HH:mm", { locale: es })}
-                    </span>
-                  </div>
-                  {h.notas && <p className="text-xs text-muted-foreground mt-0.5">{h.notas}</p>}
-                </li>
-              ))}
-            </ol>
-          </CardContent>
-        </Card>
+      {(historial.length > 0 || historialCambios.length > 0) && (
+        <TimelineHistorialEtapas historial={historial} historialCambios={historialCambios} />
       )}
     </div>
   );

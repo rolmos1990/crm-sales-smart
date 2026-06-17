@@ -100,14 +100,46 @@ async function _moverInterno(
   tipo: "MANUAL" | "AUTOMATICO",
   usuarioId: string | null,
   notas?: string,
+  origen?: string,
+  referencia?: string,
 ) {
+  // Capture current stage name before moving
+  const pedidoActual = await prisma.pedido.findFirst({
+    where: { id: pedidoId },
+    select: { flujoVentaEtapa: { select: { nombre: true } } },
+  });
+
+  // Resolve user display name
+  let usuarioNombre: string | null = null;
+  if (usuarioId) {
+    const usuario = await prisma.usuario.findFirst({
+      where: { id: usuarioId },
+      select: { nombre: true },
+    });
+    if (usuario) usuarioNombre = usuario.nombre;
+  }
+
+  const etapaAnteriorNombre = pedidoActual?.flujoVentaEtapa?.nombre ?? null;
+  const origenFinal = origen ?? (tipo === "MANUAL" ? "USUARIO" : "SISTEMA");
+
   await prisma.$transaction([
     prisma.pedido.update({
       where: { id: pedidoId },
       data: { flujoVentaEtapaId: etapaId },
     }),
     prisma.pedidoHistorialEtapa.create({
-      data: { pedidoId, etapaId, etapaNombre, tipo, usuarioId: usuarioId ?? null, notas: notas ?? null },
+      data: {
+        pedidoId,
+        etapaId,
+        etapaNombre,
+        etapaAnteriorNombre,
+        tipo,
+        origen: origenFinal,
+        usuarioId: usuarioId ?? null,
+        usuarioNombre,
+        notas: notas ?? null,
+        referencia: referencia ?? null,
+      },
     }),
   ]);
 }

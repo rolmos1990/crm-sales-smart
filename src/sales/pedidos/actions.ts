@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
@@ -124,7 +123,16 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
       ]);
     }
 
-    busEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, { pedidoId: pedido.id, numero: pedido.numero, total });
+    const usuarioNombre = sesion.usuarioId
+      ? await prisma.usuario.findFirst({ where: { id: sesion.usuarioId }, select: { nombre: true } }).then(u => u?.nombre ?? null)
+      : null;
+    busEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, {
+      pedidoId: pedido.id,
+      numero: pedido.numero,
+      total,
+      usuarioId: sesion.usuarioId,
+      usuarioNombre,
+    });
     revalidatePath("/sales/pedidos");
     return { exito: true, datos: { ...pedido, subtotal, total, impuesto: impuestoMonto } as unknown as Pedido };
   } catch {
@@ -142,7 +150,7 @@ export async function actualizarEstadoPedido(id: string, datos: unknown): Promis
     if (validado.data.estado === "ENTREGADO") {
       busEventos.publicar(TIPOS_EVENTO.PEDIDO_ENTREGADO, { pedidoId: id, numero: "" });
     } else {
-      busEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, { pedidoId: id, cambios: validado.data });
+      busEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, { pedidoId: id, usuarioId: null, usuarioNombre: null, cambios: [] });
     }
 
     revalidatePath("/sales/pedidos");
@@ -170,6 +178,10 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
   try {
     const sesion = await requireSesion();
 
+    const usuarioNombre = sesion.usuarioId
+      ? await prisma.usuario.findFirst({ where: { id: sesion.usuarioId }, select: { nombre: true } }).then(u => u?.nombre ?? null)
+      : null;
+
     const pedidoActual = await prisma.pedido.findFirst({
       where: { id, instanciaId: sesion.instanciaId },
       include: {
@@ -184,7 +196,22 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
       return { exito: false, error: "Este pedido no puede ser modificado en la etapa actual." };
     }
 
-    const { lineas: lineasNuevas, impuesto, notas, contactoId, empresaId, ...camposDirectos } = validado.data;
+    const {
+      lineas: lineasNuevas,
+      impuesto,
+      notas,
+      contactoId,
+      empresaId,
+      nombre,
+      apellido,
+      telefono,
+      email,
+      ruc,
+      empresaNombre,
+      moneda,
+      fechaEntrega,
+      estado,
+    } = validado.data;
     const lineasActuales = pedidoActual.lineas;
 
     const idsNuevas = new Set(lineasNuevas.filter(l => l.id).map(l => l.id!));
@@ -263,22 +290,50 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
       }
     }
 
-    if (String(pedidoActual.notas ?? "") !== String(notas ?? "") || String(pedidoActual.contactoId ?? "") !== String(contactoId ?? "") || String(pedidoActual.empresaId ?? "") !== String(empresaId ?? "")) {
-      entradasHistorial.push({
-        accion: "PEDIDO_EDITADO",
-        valorAnterior: { notas: pedidoActual.notas, contactoId: pedidoActual.contactoId, empresaId: pedidoActual.empresaId },
-        valorNuevo: { notas: notas || null, contactoId: contactoId || null, empresaId: empresaId || null },
-      });
+    // Diff de todos los campos escalares del pedido
+    const camposAnt: Record<string, unknown> = {};
+    const camposNvo: Record<string, unknown> = {};
+
+    const diffCampo = (key: string, anterior: unknown, nuevo: unknown) => {
+      if (String(anterior ?? "") !== String(nuevo ?? "")) {
+        camposAnt[key] = anterior ?? null;
+        camposNvo[key] = nuevo ?? null;
+      }
+    };
+
+    diffCampo("nombre", pedidoActual.nombre, nombre || null);
+    diffCampo("apellido", pedidoActual.apellido, apellido || null);
+    diffCampo("telefono", pedidoActual.telefono, telefono || null);
+    diffCampo("email", pedidoActual.email, email || null);
+    diffCampo("ruc", pedidoActual.ruc, ruc || null);
+    diffCampo("empresaNombre", pedidoActual.empresaNombre, empresaNombre || null);
+    diffCampo("moneda", pedidoActual.moneda, moneda ?? null);
+    diffCampo("fechaEntrega", pedidoActual.fechaEntrega?.toISOString() ?? null, fechaEntrega?.toISOString() ?? null);
+    diffCampo("notas", pedidoActual.notas, notas || null);
+    diffCampo("contactoId", pedidoActual.contactoId, contactoId || null);
+    diffCampo("empresaId", pedidoActual.empresaId, empresaId || null);
+    diffCampo("estado", pedidoActual.estado, estado ?? null);
+
+    if (Object.keys(camposAnt).length > 0) {
+      entradasHistorial.push({ accion: "PEDIDO_EDITADO", valorAnterior: camposAnt, valorNuevo: camposNvo });
     }
 
     await prisma.$transaction(async (tx) => {
       await tx.pedido.update({
         where: { id },
         data: {
-          ...camposDirectos,
           notas: notas || null,
           contactoId: contactoId || null,
           empresaId: empresaId || null,
+          nombre: nombre || null,
+          apellido: apellido || null,
+          telefono: telefono || null,
+          email: email || null,
+          ruc: ruc || null,
+          empresaNombre: empresaNombre || null,
+          moneda: moneda ?? undefined,
+          fechaEntrega: fechaEntrega ?? null,
+          estado: estado ?? undefined,
           subtotal,
           impuesto: impuestoMonto,
           total,
@@ -317,17 +372,6 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
         });
       }
 
-      if (entradasHistorial.length > 0) {
-        await tx.pedidoHistorial.createMany({
-          data: entradasHistorial.map(e => ({
-            pedidoId: id,
-            usuarioId: sesion.usuarioId,
-            accion: e.accion,
-            ...(e.valorAnterior !== undefined && { valorAnterior: e.valorAnterior as unknown as Prisma.InputJsonValue }),
-            ...(e.valorNuevo !== undefined && { valorNuevo: e.valorNuevo as unknown as Prisma.InputJsonValue }),
-          })),
-        });
-      }
     });
 
     // Ajustar stock fuera de la transacción principal
@@ -357,7 +401,12 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     }
     if (ajustesStock.length > 0) await Promise.all(ajustesStock);
 
-    busEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, { pedidoId: id, cambios: camposDirectos });
+    busEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, {
+      pedidoId: id,
+      usuarioId: sesion.usuarioId,
+      usuarioNombre,
+      cambios: entradasHistorial,
+    });
     revalidatePath("/sales/pedidos");
     revalidatePath(`/sales/pedidos/${id}`);
     return { exito: true, datos: undefined };

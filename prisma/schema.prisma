@@ -1026,11 +1026,15 @@ model FlujoVentaReglaCondicion {
 }
 
 model PedidoHistorialEtapa {
-  id          String              @id @default(cuid())
-  etapaNombre String
-  tipo        TipoMovimientoEtapa
-  notas       String?
-  creadoEn    DateTime            @default(now())
+  id                  String              @id @default(cuid())
+  etapaNombre         String
+  etapaAnteriorNombre String?
+  tipo                TipoMovimientoEtapa
+  origen              String              @default("SISTEMA")
+  notas               String?
+  referencia          String?
+  usuarioNombre       String?
+  creadoEn            DateTime            @default(now())
 
   pedidoId String
   pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
@@ -1049,6 +1053,7 @@ model PedidoHistorial {
   accion        String
   valorAnterior Json?
   valorNuevo    Json?
+  usuarioNombre String?
   creadoEn      DateTime @default(now())
 
   pedidoId  String

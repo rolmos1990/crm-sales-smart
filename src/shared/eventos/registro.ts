@@ -25,8 +25,27 @@ export interface CotizacionCreadaPayload { cotizacionId: string; numero: string;
 export interface CotizacionActualizadaPayload { cotizacionId: string; cambios: Record<string, unknown> }
 export interface CotizacionEnviadaPayload { cotizacionId: string; numero: string; contactoId?: string }
 
-export interface PedidoCreadoPayload { pedidoId: string; numero: string; total: number }
-export interface PedidoActualizadoPayload { pedidoId: string; cambios: Record<string, unknown> }
+export interface PedidoCreadoPayload extends Record<string, unknown> {
+  pedidoId: string;
+  numero: string;
+  total: number;
+  usuarioId: string | null;
+  usuarioNombre: string | null;
+}
+
+export interface EntradaHistorialPedido {
+  accion: string;
+  valorAnterior?: Record<string, unknown>;
+  valorNuevo?: Record<string, unknown>;
+}
+
+export interface PedidoActualizadoPayload extends Record<string, unknown> {
+  pedidoId: string;
+  usuarioId: string | null;
+  usuarioNombre: string | null;
+  cambios: EntradaHistorialPedido[];
+}
+
 export interface PedidoEntregadoPayload { pedidoId: string; numero: string }
 
 export interface MensajeRecibidoPayload extends Record<string, unknown> { mensajeId: string; conversacionId: string; instanciaId: string; oportunidadId?: string | null }
