@@ -7,13 +7,22 @@ import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearActividadSchema, ActualizarActividadSchema } from "./schema";
 import type { ResultadoAccion, Actividad } from "./types";
 
+const incluirRelaciones = {
+  contacto: { select: { id: true, nombre: true, apellido: true } },
+  empresa: { select: { id: true, nombre: true } },
+  oportunidad: { select: { id: true, titulo: true } },
+  pedido: { select: { id: true, numero: true } },
+  cotizacion: { select: { id: true, numero: true } },
+  usuario: { select: { id: true, nombre: true } },
+};
+
 export async function crearActividad(datos: unknown): Promise<ResultadoAccion<Actividad>> {
   const validado = CrearActividadSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
     const sesion = await requireSesion();
-    const { contactoId, empresaId, oportunidadId, descripcion, ...resto } = validado.data;
+    const { contactoId, empresaId, oportunidadId, pedidoId, cotizacionId, descripcion, ...resto } = validado.data;
     const actividad = await prisma.actividad.create({
       data: {
         ...resto,
@@ -22,12 +31,10 @@ export async function crearActividad(datos: unknown): Promise<ResultadoAccion<Ac
         contactoId: contactoId || null,
         empresaId: empresaId || null,
         oportunidadId: oportunidadId || null,
+        pedidoId: pedidoId || null,
+        cotizacionId: cotizacionId || null,
       },
-      include: {
-        contacto: { select: { id: true, nombre: true, apellido: true } },
-        empresa: { select: { id: true, nombre: true } },
-        oportunidad: { select: { id: true, titulo: true } },
-      },
+      include: incluirRelaciones,
     });
 
     busEventos.publicar(TIPOS_EVENTO.ACTIVIDAD_CREADA, {
@@ -48,14 +55,37 @@ export async function crearActividad(datos: unknown): Promise<ResultadoAccion<Ac
   }
 }
 
+export async function actualizarActividad(id: string, datos: unknown): Promise<ResultadoAccion<Actividad>> {
+  const validado = ActualizarActividadSchema.safeParse(datos);
+  if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
+
+  try {
+    const { contactoId, empresaId, oportunidadId, pedidoId, cotizacionId, descripcion, ...resto } = validado.data;
+    const actividad = await prisma.actividad.update({
+      where: { id },
+      data: {
+        ...resto,
+        ...(descripcion !== undefined && { descripcion: descripcion || null }),
+        ...(contactoId !== undefined && { contactoId: contactoId || null }),
+        ...(empresaId !== undefined && { empresaId: empresaId || null }),
+        ...(oportunidadId !== undefined && { oportunidadId: oportunidadId || null }),
+        ...(pedidoId !== undefined && { pedidoId: pedidoId || null }),
+        ...(cotizacionId !== undefined && { cotizacionId: cotizacionId || null }),
+      },
+      include: incluirRelaciones,
+    });
+
+    revalidatePath("/crm/actividades");
+    return { exito: true, datos: actividad as unknown as Actividad };
+  } catch {
+    return { exito: false, error: "Error al actualizar la actividad" };
+  }
+}
+
 export async function completarActividad(id: string): Promise<ResultadoAccion> {
   try {
     const completadaEn = new Date();
-    await prisma.actividad.update({
-      where: { id },
-      data: { completada: true, completadaEn },
-    });
-
+    await prisma.actividad.update({ where: { id }, data: { completada: true, completadaEn } });
     busEventos.publicar(TIPOS_EVENTO.ACTIVIDAD_COMPLETADA, { actividadId: id, completadaEn });
     revalidatePath("/crm/actividades");
     return { exito: true, datos: undefined };

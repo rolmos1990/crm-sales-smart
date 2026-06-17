@@ -20,14 +20,18 @@ interface FormActividadProps {
   contactos: OpcionCombobox[];
   empresas: OpcionCombobox[];
   oportunidades: OpcionCombobox[];
+  pedidos?: OpcionCombobox[];
+  cotizaciones?: OpcionCombobox[];
   preseleccion?: {
     contactoId?: string;
     empresaId?: string;
     oportunidadId?: string;
+    pedidoId?: string;
+    cotizacionId?: string;
   };
 }
 
-export function FormActividad({ contactos, empresas, oportunidades, preseleccion }: FormActividadProps) {
+export function FormActividad({ contactos, empresas, oportunidades, pedidos = [], cotizaciones = [], preseleccion }: FormActividadProps) {
   const router = useRouter();
   const mutation = useCrearActividadMutation();
   const ahora = new Date();
@@ -37,25 +41,26 @@ export function FormActividad({ contactos, empresas, oportunidades, preseleccion
     resolver: zodResolver(CrearActividadSchema),
     defaultValues: {
       tipo: "TAREA",
+      prioridad: "MEDIA",
       titulo: "",
       descripcion: "",
       fecha: ahora,
       contactoId: preseleccion?.contactoId ?? "",
       empresaId: preseleccion?.empresaId ?? "",
       oportunidadId: preseleccion?.oportunidadId ?? "",
+      pedidoId: preseleccion?.pedidoId ?? "",
+      cotizacionId: preseleccion?.cotizacionId ?? "",
     },
   });
 
   const onSubmit = (datos: CrearActividadInput) => {
-    mutation.mutate(datos, {
-      onSuccess: () => router.back(),
-    });
+    mutation.mutate(datos, { onSuccess: () => router.back() });
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormField control={form.control} name="tipo" render={({ field }) => (
             <FormItem>
               <FormLabel>Tipo de actividad</FormLabel>
@@ -67,6 +72,20 @@ export function FormActividad({ contactos, empresas, oportunidades, preseleccion
                   <SelectItem value="EMAIL">✉️ Email</SelectItem>
                   <SelectItem value="REUNION">🤝 Reunión</SelectItem>
                   <SelectItem value="NOTA">📝 Nota</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="prioridad" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Prioridad</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                <SelectContent>
+                  <SelectItem value="ALTA">🔴 Alta</SelectItem>
+                  <SelectItem value="MEDIA">🟡 Media</SelectItem>
+                  <SelectItem value="BAJA">⚪ Baja</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -105,34 +124,59 @@ export function FormActividad({ contactos, empresas, oportunidades, preseleccion
           </FormItem>
         )} />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <FormField control={form.control} name="contactoId" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Contacto</FormLabel>
-              <FormControl>
-                <Combobox opciones={contactos} valor={field.value} onChange={field.onChange} placeholder="Seleccionar contacto..." />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
-          <FormField control={form.control} name="empresaId" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Empresa</FormLabel>
-              <FormControl>
-                <Combobox opciones={empresas} valor={field.value} onChange={field.onChange} placeholder="Seleccionar empresa..." />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
-          <FormField control={form.control} name="oportunidadId" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Oportunidad</FormLabel>
-              <FormControl>
-                <Combobox opciones={oportunidades} valor={field.value} onChange={field.onChange} placeholder="Seleccionar oportunidad..." />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
+        <div>
+          <p className="text-sm font-medium text-foreground mb-3">Vincular a</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <FormField control={form.control} name="contactoId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Contacto</FormLabel>
+                <FormControl>
+                  <Combobox opciones={contactos} valor={field.value} onChange={field.onChange} placeholder="Seleccionar..." />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="empresaId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Empresa</FormLabel>
+                <FormControl>
+                  <Combobox opciones={empresas} valor={field.value} onChange={field.onChange} placeholder="Seleccionar..." />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="oportunidadId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Oportunidad</FormLabel>
+                <FormControl>
+                  <Combobox opciones={oportunidades} valor={field.value} onChange={field.onChange} placeholder="Seleccionar..." />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            {pedidos.length > 0 && (
+              <FormField control={form.control} name="pedidoId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pedido</FormLabel>
+                  <FormControl>
+                    <Combobox opciones={pedidos} valor={field.value} onChange={field.onChange} placeholder="Seleccionar..." />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            )}
+            {cotizaciones.length > 0 && (
+              <FormField control={form.control} name="cotizacionId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cotización</FormLabel>
+                  <FormControl>
+                    <Combobox opciones={cotizaciones} valor={field.value} onChange={field.onChange} placeholder="Seleccionar..." />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            )}
+          </div>
         </div>
 
         <div className="flex gap-3 justify-end pt-2">

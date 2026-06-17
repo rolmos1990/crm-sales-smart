@@ -4,6 +4,9 @@ const incluirRelaciones = {
   contacto: { select: { id: true, nombre: true, apellido: true } },
   empresa: { select: { id: true, nombre: true } },
   oportunidad: { select: { id: true, titulo: true } },
+  pedido: { select: { id: true, numero: true } },
+  cotizacion: { select: { id: true, numero: true } },
+  usuario: { select: { id: true, nombre: true } },
 } as const;
 
 export async function obtenerActividades(instanciaId: string) {

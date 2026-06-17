@@ -42,6 +42,12 @@ enum TipoActividad {
   WHATSAPP
 }
 
+enum PrioridadActividad {
+  ALTA
+  MEDIA
+  BAJA
+}
+
 enum EstadoCotizacion {
   BORRADOR
   ENVIADA
@@ -661,16 +667,17 @@ model Producto {
 // =====================
 
 model Actividad {
-  id            String        @id @default(cuid())
-  tipo          TipoActividad @default(TAREA)
+  id            String             @id @default(cuid())
+  tipo          TipoActividad      @default(TAREA)
+  prioridad     PrioridadActividad @default(MEDIA)
   titulo        String
   descripcion   String?
   fecha         DateTime
-  completada    Boolean       @default(false)
+  completada    Boolean            @default(false)
   completadaEn  DateTime?
   metadata      Json?
-  creadoEn      DateTime      @default(now())
-  actualizadoEn DateTime      @updatedAt
+  creadoEn      DateTime           @default(now())
+  actualizadoEn DateTime           @updatedAt
 
   contactoId String?
   contacto   Contacto? @relation(fields: [contactoId], references: [id])
@@ -680,6 +687,12 @@ model Actividad {
 
   oportunidadId String?
   oportunidad   Oportunidad? @relation(fields: [oportunidadId], references: [id])
+
+  pedidoId String?
+  pedido   Pedido? @relation(fields: [pedidoId], references: [id])
+
+  cotizacionId String?
+  cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
 
   usuarioId String?
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
@@ -693,6 +706,8 @@ model Actividad {
   @@index([instanciaId])
   @@index([fecha])
   @@index([completada])
+  @@index([pedidoId])
+  @@index([cotizacionId])
 }
 
 // =====================
@@ -733,9 +748,10 @@ model Cotizacion {
   usuarioInstanciaId String?
   usuarioInstancia   UsuarioInstancia? @relation(fields: [usuarioInstanciaId], references: [id])
 
-  lineas  CotizacionLinea[]
-  pedidos Pedido[]
-  campos  CampoPersonalizadoValor[]
+  lineas      CotizacionLinea[]
+  pedidos     Pedido[]
+  campos      CampoPersonalizadoValor[]
+  actividades Actividad[]
 
   @@index([instanciaId])
   @@index([estado])
@@ -822,6 +838,7 @@ model Pedido {
   historialEtapas PedidoHistorialEtapa[]
   historial       PedidoHistorial[]
   disparadorJobs  DisparadorJob[]
+  actividades     Actividad[]
 
   @@index([instanciaId])
   @@index([estado])

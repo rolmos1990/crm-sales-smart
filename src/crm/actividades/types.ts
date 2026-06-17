@@ -1,10 +1,11 @@
-import type { TipoActividad } from "@/generated/prisma/enums";
+import type { TipoActividad, PrioridadActividad } from "@/generated/prisma/enums";
 
-export type { TipoActividad };
+export type { TipoActividad, PrioridadActividad };
 
 export interface Actividad {
   id: string;
   tipo: TipoActividad;
+  prioridad: PrioridadActividad;
   titulo: string;
   descripcion: string | null;
   fecha: Date;
@@ -17,7 +18,12 @@ export interface Actividad {
   empresa: { id: string; nombre: string } | null;
   oportunidadId: string | null;
   oportunidad: { id: string; titulo: string } | null;
+  pedidoId: string | null;
+  pedido: { id: string; numero: string } | null;
+  cotizacionId: string | null;
+  cotizacion: { id: string; numero: string } | null;
   usuarioId: string | null;
+  usuario: { id: string; nombre: string } | null;
 }
 
 export const TIPOS_ACTIVIDAD: { valor: TipoActividad; etiqueta: string; icono: string }[] = [
