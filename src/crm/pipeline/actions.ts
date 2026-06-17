@@ -3,9 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { SchemaPipeline, SchemaStage, SchemaCampoPersonalizado } from "./schema";
 import { obtenerPipelines } from "./queries";
 import { procesarCambioStage } from "./disparadores/motor";
+
+async function requireAdminPipeline() {
+  const sesion = await requireSesion();
+  const acceso = verificarAcceso(sesion, "pipeline", "modificar");
+  return { sesion, acceso };
+}
 
 export async function obtenerPipelinesAction() {
   const sesion = await requireSesion();
@@ -25,8 +32,10 @@ export async function crearPipeline(datos: unknown) {
   const parsed = SchemaPipeline.safeParse(datos);
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const { sesion, acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
-    const sesion = await requireSesion();
     const pipeline = await prisma.pipeline.create({
       data: {
         nombre: parsed.data.nombre,
@@ -46,6 +55,9 @@ export async function actualizarNombrePipeline(id: string, datos: unknown) {
   const parsed = SchemaPipeline.safeParse(datos);
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.pipeline.update({
       where: { id },
@@ -59,6 +71,9 @@ export async function actualizarNombrePipeline(id: string, datos: unknown) {
 }
 
 export async function eliminarPipeline(id: string) {
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.pipeline.update({ where: { id }, data: { activo: false } });
     revalidatePath("/crm/pipeline");
@@ -71,6 +86,9 @@ export async function eliminarPipeline(id: string) {
 export async function crearStage(pipelineId: string, datos: unknown) {
   const parsed = SchemaStage.safeParse(datos);
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
 
   try {
     const last = await prisma.pipelineStage.findFirst({
@@ -92,6 +110,9 @@ export async function actualizarStage(id: string, datos: unknown) {
   const parsed = SchemaStage.partial().safeParse(datos);
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.pipelineStage.update({
       where: { id },
@@ -105,6 +126,9 @@ export async function actualizarStage(id: string, datos: unknown) {
 }
 
 export async function eliminarStage(id: string) {
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.pipelineStage.update({ where: { id }, data: { activo: false } });
     revalidatePath("/crm/pipeline");
@@ -115,6 +139,9 @@ export async function eliminarStage(id: string) {
 }
 
 export async function reordenarStages(pipelineId: string, stageIds: string[]) {
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.$transaction(
       stageIds.map((id, index) =>
@@ -211,6 +238,9 @@ export async function crearCampoPipeline(pipelineId: string, datos: unknown) {
   const parsed = SchemaCampoPersonalizado.safeParse(datos);
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     const existe = await prisma.campoPersonalizado.findFirst({
       where: { pipelineId, clave: parsed.data.clave, activo: true },
@@ -253,6 +283,9 @@ export async function actualizarCampoPipeline(id: string, datos: unknown) {
   const parsed = SchemaCampoPersonalizado.partial().safeParse(datos);
   if (!parsed.success) return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.campoPersonalizado.update({
       where: { id },
@@ -279,6 +312,9 @@ export async function actualizarCampoPipeline(id: string, datos: unknown) {
 }
 
 export async function eliminarCampo(id: string) {
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.campoPersonalizado.update({ where: { id }, data: { activo: false } });
     revalidatePath("/crm/pipeline");
@@ -289,6 +325,9 @@ export async function eliminarCampo(id: string) {
 }
 
 export async function toggleEstadoCampo(id: string, activo: boolean) {
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.campoPersonalizado.update({ where: { id }, data: { activo } });
     revalidatePath("/crm/pipeline");
@@ -299,6 +338,9 @@ export async function toggleEstadoCampo(id: string, activo: boolean) {
 }
 
 export async function reordenarCamposPipeline(pipelineId: string, campoIds: string[]) {
+  const { acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
   try {
     await prisma.$transaction(
       campoIds.map((id, index) =>

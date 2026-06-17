@@ -5,7 +5,7 @@ import { obtenerSesionActual } from "@/shared/auth/sesion";
 export default async function ProductosLayout({ children }: { children: ReactNode }) {
   const sesion = await obtenerSesionActual();
   return (
-    <AppLayout usuario={sesion ? { nombre: sesion.nombre, email: sesion.email } : null}>
+    <AppLayout usuario={sesion ? { nombre: sesion.nombre, email: sesion.email } : null} rol={sesion?.rol}>
       {children}
     </AppLayout>
   );

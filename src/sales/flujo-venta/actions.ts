@@ -3,10 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { EtapaSchema, ReglaSchema, FlujoVentaSchema } from "./schema";
 import { moverPedidoAEtapa, validarTransicion } from "./motor";
 
 type Resultado<T = void> = { exito: true; datos: T } | { exito: false; error: string };
+
+async function requireAdminFlujo() {
+  const sesion = await requireSesion();
+  const acceso = verificarAcceso(sesion, "flujo-venta", "modificar");
+  return { sesion, acceso };
+}
 
 // ── Flujo ─────────────────────────────────────────────────────────
 
@@ -14,7 +21,8 @@ export async function crearOActualizarFlujoVenta(datos: unknown): Promise<Result
   const validado = FlujoVentaSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
-  const sesion = await requireSesion();
+  const { sesion, acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
 
   const existente = await prisma.flujoVenta.findFirst({ where: { instanciaId: sesion.instanciaId } });
 
@@ -41,7 +49,9 @@ export async function crearEtapa(flujoVentaId: string, datos: unknown): Promise<
   const validado = EtapaSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
-  const sesion = await requireSesion();
+  const { sesion, acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   const flujo = await prisma.flujoVenta.findFirst({ where: { id: flujoVentaId, instanciaId: sesion.instanciaId } });
   if (!flujo) return { exito: false, error: "Flujo no encontrado" };
 
@@ -79,7 +89,9 @@ export async function actualizarEtapa(etapaId: string, datos: unknown): Promise<
   const validado = EtapaSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
-  const sesion = await requireSesion();
+  const { sesion, acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   const etapa = await prisma.flujoVentaEtapa.findFirst({
     where: { id: etapaId, flujoVenta: { instanciaId: sesion.instanciaId } },
   });
@@ -107,7 +119,9 @@ export async function actualizarEtapa(etapaId: string, datos: unknown): Promise<
 }
 
 export async function eliminarEtapa(etapaId: string): Promise<Resultado> {
-  const sesion = await requireSesion();
+  const { sesion, acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   const etapa = await prisma.flujoVentaEtapa.findFirst({
     where: { id: etapaId, flujoVenta: { instanciaId: sesion.instanciaId } },
     include: { _count: { select: { pedidos: true } } },
@@ -123,6 +137,9 @@ export async function eliminarEtapa(etapaId: string): Promise<Resultado> {
 export async function reordenarEtapas(
   items: { id: string; parentId: string | null; orden: number }[]
 ): Promise<Resultado> {
+  const { acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   await prisma.$transaction(
     items.map(({ id, parentId, orden }) =>
       prisma.flujoVentaEtapa.update({ where: { id }, data: { parentId, orden } })
@@ -137,6 +154,9 @@ export async function reordenarEtapas(
 export async function crearRegla(datos: unknown): Promise<Resultado<{ id: string }>> {
   const validado = ReglaSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
+
+  const { acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
 
   const { condiciones, ...resto } = validado.data;
 
@@ -159,6 +179,9 @@ export async function actualizarRegla(reglaId: string, datos: unknown): Promise<
   const validado = ReglaSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const { acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   const { condiciones, ...resto } = validado.data;
 
   try {
@@ -180,12 +203,18 @@ export async function actualizarRegla(reglaId: string, datos: unknown): Promise<
 }
 
 export async function eliminarRegla(reglaId: string): Promise<Resultado> {
+  const { acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   await prisma.flujoVentaRegla.delete({ where: { id: reglaId } });
   revalidatePath("/sales/flujo-venta");
   return { exito: true, datos: undefined };
 }
 
 export async function toggleRegla(reglaId: string, activo: boolean): Promise<Resultado> {
+  const { acceso } = await requireAdminFlujo();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   await prisma.flujoVentaRegla.update({ where: { id: reglaId }, data: { activo } });
   revalidatePath("/sales/flujo-venta");
   return { exito: true, datos: undefined };

@@ -39,7 +39,7 @@ export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAge
       nombre: "",
       email: "",
       tipo: "AGENTE",
-      rol: "AGENTE",
+      rol: "AGENTE" as CrearUsuarioInput["rol"],
       cargo: "",
       telefono: "",
     },

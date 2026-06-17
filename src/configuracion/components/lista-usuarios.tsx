@@ -1,5 +1,6 @@
 "use client";
 
+import type { JSX } from "react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
@@ -81,12 +82,18 @@ function badgeEstado(estado: string, activo: boolean) {
   return <Badge className="bg-green-500/20 text-green-300 border-green-500/30">Activo</Badge>;
 }
 
+const ROL_BADGE: Record<string, JSX.Element> = {
+  OWNER: <Badge className="bg-lime-500/20 text-lime-300 border-lime-500/30">Owner</Badge>,
+  ADMIN: <Badge className="bg-stone-300/20 text-stone-200 border-stone-400/30">Admin</Badge>,
+  SUPERVISOR: <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">Supervisor</Badge>,
+  AGENTE_VENTAS: <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Agente Ventas</Badge>,
+  AGENTE_SOPORTE: <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/30">Agente Soporte</Badge>,
+  INVITADO: <Badge className="bg-stone-500/20 text-stone-400 border-stone-500/30">Invitado</Badge>,
+  AGENTE: <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30">Bot</Badge>,
+};
+
 function badgeRol(rol: string) {
-  if (rol === "OWNER")
-    return <Badge className="bg-lime-500/20 text-lime-300 border-lime-500/30">Owner</Badge>;
-  if (rol === "ADMIN")
-    return <Badge className="bg-stone-400/20 text-stone-300 border-stone-400/30">Admin</Badge>;
-  return <Badge variant="outline" className="text-stone-400 border-stone-600">Agente</Badge>;
+  return ROL_BADGE[rol] ?? <Badge variant="outline" className="text-stone-400 border-stone-600">{rol}</Badge>;
 }
 
 function iniciales(nombre: string) {

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { editarUsuario } from "@/configuracion/usuarios/actions";
 import { EditarUsuarioSchema, type EditarUsuarioInput } from "@/configuracion/usuarios/schema";
+import { ROL_LABELS, ROL_DESCRIPCION, ROLES_HUMANOS } from "@/shared/auth/permisos";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 
 interface DialogEditarUsuarioProps {
@@ -46,7 +47,7 @@ export function DialogEditarUsuario({ usuario, onCerrar, onExito }: DialogEditar
     resolver: zodResolver(EditarUsuarioSchema),
     values: {
       nombre: usuario?.nombre ?? "",
-      rol: (usuario?.rol as "ADMIN" | "AGENTE") ?? "AGENTE",
+      rol: (usuario?.rol as EditarUsuarioInput["rol"]) ?? "AGENTE_VENTAS",
       cargo: usuario?.cargo ?? "",
       telefono: usuario?.telefono ?? "",
     },
@@ -118,8 +119,16 @@ export function DialogEditarUsuario({ usuario, onCerrar, onExito }: DialogEditar
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="AGENTE">Agente</SelectItem>
-                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        {ROLES_HUMANOS.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            <div className="flex flex-col">
+                              <span>{ROL_LABELS[r]}</span>
+                              {ROL_DESCRIPCION[r] && (
+                                <span className="text-xs text-stone-400">{ROL_DESCRIPCION[r]}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

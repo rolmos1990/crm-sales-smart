@@ -19,8 +19,8 @@ export async function crearUsuario(
   datos: unknown,
 ): Promise<ResultadoAccion<ResultadoCrearUsuario>> {
   const sesion = await requireSesion();
-  if (sesion.rol !== "OWNER") {
-    return { exito: false, error: "Solo el Owner puede gestionar usuarios" };
+  if (sesion.rol !== "OWNER" && sesion.rol !== "ADMIN") {
+    return { exito: false, error: "Solo el Owner o Admin pueden gestionar usuarios" };
   }
 
   const validado = CrearUsuarioSchema.safeParse(datos);
@@ -130,8 +130,8 @@ export async function editarUsuario(
   datos: unknown,
 ): Promise<ResultadoAccion<void>> {
   const sesion = await requireSesion();
-  if (sesion.rol !== "OWNER") {
-    return { exito: false, error: "Solo el Owner puede gestionar usuarios" };
+  if (sesion.rol !== "OWNER" && sesion.rol !== "ADMIN") {
+    return { exito: false, error: "Solo el Owner o Admin pueden gestionar usuarios" };
   }
 
   const validado = EditarUsuarioSchema.safeParse(datos);
@@ -170,8 +170,8 @@ export async function cambiarEstadoUsuario(
   activar: boolean,
 ): Promise<ResultadoAccion<void>> {
   const sesion = await requireSesion();
-  if (sesion.rol !== "OWNER") {
-    return { exito: false, error: "Solo el Owner puede gestionar usuarios" };
+  if (sesion.rol !== "OWNER" && sesion.rol !== "ADMIN") {
+    return { exito: false, error: "Solo el Owner o Admin pueden gestionar usuarios" };
   }
 
   const ui = await prisma.usuarioInstancia.findFirst({
@@ -200,8 +200,8 @@ export async function cambiarEstadoUsuario(
 
 export async function resetearPassword(email: string): Promise<ResultadoAccion<void>> {
   const sesion = await requireSesion();
-  if (sesion.rol !== "OWNER") {
-    return { exito: false, error: "Solo el Owner puede gestionar usuarios" };
+  if (sesion.rol !== "OWNER" && sesion.rol !== "ADMIN") {
+    return { exito: false, error: "Solo el Owner o Admin pueden gestionar usuarios" };
   }
 
   const ui = await prisma.usuarioInstancia.findFirst({
@@ -227,8 +227,8 @@ export async function generarLinkAcceso(
   usuarioInstanciaId: string,
 ): Promise<ResultadoAccion<{ link: string }>> {
   const sesion = await requireSesion();
-  if (sesion.rol !== "OWNER") {
-    return { exito: false, error: "Solo el Owner puede gestionar usuarios" };
+  if (sesion.rol !== "OWNER" && sesion.rol !== "ADMIN") {
+    return { exito: false, error: "Solo el Owner o Admin pueden gestionar usuarios" };
   }
 
   const ui = await prisma.usuarioInstancia.findFirst({

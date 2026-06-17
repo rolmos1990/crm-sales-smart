@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { crearUsuario } from "@/configuracion/usuarios/actions";
 import { CrearUsuarioSchema, type CrearUsuarioInput } from "@/configuracion/usuarios/schema";
+import { ROL_LABELS, ROL_DESCRIPCION, ROLES_HUMANOS } from "@/shared/auth/permisos";
 
 interface DialogInvitarUsuarioProps {
   abierto: boolean;
@@ -48,7 +49,7 @@ export function DialogInvitarUsuario({ abierto, onCerrar, onExito }: DialogInvit
       nombre: "",
       email: "",
       tipo: "USUARIO",
-      rol: "AGENTE",
+      rol: "AGENTE_VENTAS",
       cargo: "",
       telefono: "",
     },
@@ -165,35 +166,43 @@ export function DialogInvitarUsuario({ abierto, onCerrar, onExito }: DialogInvit
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name="rol"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-stone-300">Rol</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-white/5 border-white/10 text-stone-50">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="AGENTE">Agente</SelectItem>
-                          <SelectItem value="ADMIN">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <FormField
+                control={form.control}
+                name="rol"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-stone-300">Rol</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="bg-white/5 border-white/10 text-stone-50">
+                          <SelectValue placeholder="Seleccionar rol..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {ROLES_HUMANOS.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            <div className="flex flex-col">
+                              <span>{ROL_LABELS[r]}</span>
+                              {ROL_DESCRIPCION[r] && (
+                                <span className="text-xs text-stone-400">{ROL_DESCRIPCION[r]}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="cargo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-stone-300">Cargo</FormLabel>
+                      <FormLabel className="text-stone-300">Cargo <span className="text-stone-500">(opcional)</span></FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -205,25 +214,24 @@ export function DialogInvitarUsuario({ abierto, onCerrar, onExito }: DialogInvit
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="telefono"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-stone-300">Teléfono <span className="text-stone-500">(opcional)</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="+51 999 000 000"
+                          className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-
-              <FormField
-                control={form.control}
-                name="telefono"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-stone-300">Teléfono <span className="text-stone-500">(opcional)</span></FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="+51 999 000 000"
-                        className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <div className="flex gap-3 pt-2">
                 <Button

@@ -33,39 +33,41 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cerrarSesion } from "@/shared/auth/auth-service";
+import { puedeVerModulo } from "@/shared/auth/permisos";
+import type { Rol } from "@/generated/prisma/enums";
 
 const NAVEGACION = [
   {
     grupo: "CRM",
     items: [
-      { href: "/crm", etiqueta: "Dashboard", Icono: LayoutDashboard, exact: true },
-      { href: "/crm/pipeline", etiqueta: "Pipeline", Icono: KanbanSquare },
-      { href: "/crm/inbox", etiqueta: "Inbox", Icono: MessageSquare },
-      { href: "/crm/contactos", etiqueta: "Contactos", Icono: Users },
-      { href: "/crm/empresas", etiqueta: "Empresas", Icono: Building2 },
-      { href: "/crm/oportunidades", etiqueta: "Oportunidades", Icono: TrendingUp },
-      { href: "/crm/actividades", etiqueta: "Actividades", Icono: CalendarCheck },
-      { href: "/crm/etiquetas", etiqueta: "Etiquetas", Icono: Tag },
+      { href: "/crm", etiqueta: "Dashboard", Icono: LayoutDashboard, exact: true, modulo: "dashboard" },
+      { href: "/crm/pipeline", etiqueta: "Pipeline", Icono: KanbanSquare, modulo: "pipeline" },
+      { href: "/crm/inbox", etiqueta: "Inbox", Icono: MessageSquare, modulo: "inbox" },
+      { href: "/crm/contactos", etiqueta: "Contactos", Icono: Users, modulo: "contactos" },
+      { href: "/crm/empresas", etiqueta: "Empresas", Icono: Building2, modulo: "empresas" },
+      { href: "/crm/oportunidades", etiqueta: "Oportunidades", Icono: TrendingUp, modulo: "oportunidades" },
+      { href: "/crm/actividades", etiqueta: "Actividades", Icono: CalendarCheck, modulo: "actividades" },
+      { href: "/crm/etiquetas", etiqueta: "Etiquetas", Icono: Tag, modulo: "etiquetas" },
     ],
   },
   {
     grupo: "Ventas",
     items: [
-      { href: "/sales/cotizaciones", etiqueta: "Cotizaciones", Icono: FileText },
-      { href: "/sales/pedidos", etiqueta: "Pedidos", Icono: ShoppingCart },
-      { href: "/sales/flujo-venta", etiqueta: "Flujo de venta", Icono: GitBranch },
+      { href: "/sales/cotizaciones", etiqueta: "Cotizaciones", Icono: FileText, modulo: "cotizaciones" },
+      { href: "/sales/pedidos", etiqueta: "Pedidos", Icono: ShoppingCart, modulo: "pedidos" },
+      { href: "/sales/flujo-venta", etiqueta: "Flujo de venta", Icono: GitBranch, modulo: "flujo-venta" },
     ],
   },
   {
     grupo: "Catálogo",
-    items: [{ href: "/productos", etiqueta: "Productos", Icono: Package }],
+    items: [{ href: "/productos", etiqueta: "Productos", Icono: Package, modulo: "productos" }],
   },
   {
     grupo: "Sistema",
     items: [
-      { href: "/integraciones", etiqueta: "Integraciones", Icono: Puzzle },
-      { href: "/configuracion", etiqueta: "Configuración", Icono: Settings },
-      { href: "/datos", etiqueta: "Datos", Icono: Database },
+      { href: "/integraciones", etiqueta: "Integraciones", Icono: Puzzle, modulo: "integraciones" },
+      { href: "/configuracion", etiqueta: "Configuración", Icono: Settings, modulo: "configuracion" },
+      { href: "/datos", etiqueta: "Datos", Icono: Database, modulo: "datos" },
     ],
   },
 ];
@@ -162,7 +164,22 @@ function UserMenuDropdown({ usuario }: { usuario: UsuarioMenu }) {
   );
 }
 
-export function AppLayout({ children, usuario }: { children: ReactNode; usuario?: UsuarioMenu }) {
+export function AppLayout({
+  children,
+  usuario,
+  rol,
+}: {
+  children: ReactNode;
+  usuario?: UsuarioMenu;
+  rol?: Rol;
+}) {
+  const navFiltrado = NAVEGACION.map((grupo) => ({
+    ...grupo,
+    items: grupo.items.filter((item) =>
+      rol ? puedeVerModulo(rol, item.modulo) : true,
+    ),
+  })).filter((grupo) => grupo.items.length > 0);
+
   return (
     <div className="app-gradient-bg flex h-screen overflow-hidden bg-stone-50 dark:bg-[oklch(0.063_0.002_264)]">
       {/* Sidebar */}
@@ -186,7 +203,7 @@ export function AppLayout({ children, usuario }: { children: ReactNode; usuario?
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-4">
-          {NAVEGACION.map((grupo) => (
+          {navFiltrado.map((grupo) => (
             <div key={grupo.grupo}>
               <p className="px-2.5 mb-1 text-[10px] font-semibold text-stone-400 dark:text-white/25 uppercase tracking-[0.08em]">
                 {grupo.grupo}

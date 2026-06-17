@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { ConfiguracionEmpresaSchema } from "./schema";
 import type { ResultadoAccion, ConfigEmpresa } from "./types";
 
@@ -9,6 +11,10 @@ export async function guardarConfiguracionEmpresa(
   instanciaId: string,
   datos: unknown
 ): Promise<ResultadoAccion<ConfigEmpresa>> {
+  const sesion = await requireSesion();
+  const acceso = verificarAcceso(sesion, "configuracion", "modificar");
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   const validado = ConfiguracionEmpresaSchema.safeParse(datos);
   if (!validado.success) {
     return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };

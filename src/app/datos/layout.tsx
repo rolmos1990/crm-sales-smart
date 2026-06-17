@@ -11,6 +11,7 @@ export default async function DatosLayout({
   return (
     <AppLayout
       usuario={sesion ? { nombre: sesion.nombre, email: sesion.email } : null}
+      rol={sesion?.rol}
     >
       {children}
     </AppLayout>

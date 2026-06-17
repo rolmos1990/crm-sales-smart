@@ -2,14 +2,25 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { CrearPlantillaSchema, ActualizarPlantillaSchema, normalizarAlias } from "./schema";
 import type { ResultadoAccion, Plantilla } from "./types";
+
+async function requireAdminConfig() {
+  const sesion = await requireSesion();
+  const acceso = verificarAcceso(sesion, "configuracion", "modificar");
+  return { acceso };
+}
 
 export async function crearPlantilla(datos: unknown): Promise<ResultadoAccion<Plantilla>> {
   const validado = CrearPlantillaSchema.safeParse(datos);
   if (!validado.success) {
     return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
   }
+
+  const { acceso } = await requireAdminConfig();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
 
   try {
     const plantilla = await prisma.plantillaCRM.create({
@@ -42,6 +53,9 @@ export async function actualizarPlantilla(
     return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
   }
 
+  const { acceso } = await requireAdminConfig();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   try {
     const plantilla = await prisma.plantillaCRM.update({
       where: { id },
@@ -66,6 +80,9 @@ export async function togglePlantillaActiva(
   id: string,
   activo: boolean
 ): Promise<ResultadoAccion> {
+  const { acceso } = await requireAdminConfig();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   try {
     await prisma.plantillaCRM.update({ where: { id }, data: { activo } });
     revalidatePath("/configuracion");
@@ -76,6 +93,9 @@ export async function togglePlantillaActiva(
 }
 
 export async function eliminarPlantilla(id: string): Promise<ResultadoAccion> {
+  const { acceso } = await requireAdminConfig();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   try {
     await prisma.plantillaCRM.delete({ where: { id } });
     revalidatePath("/configuracion");

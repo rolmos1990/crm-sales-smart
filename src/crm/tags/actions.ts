@@ -3,8 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { CrearTagSchema, ActualizarTagSchema } from "./schema";
 import type { ResultadoAccion, Tag } from "./types";
+
+async function requireAdminEtiquetas() {
+  const sesion = await requireSesion();
+  const acceso = verificarAcceso(sesion, "etiquetas", "modificar");
+  return { sesion, acceso };
+}
 
 export async function obtenerTagsAction(): Promise<Tag[]> {
   const sesion = await requireSesion();
@@ -18,8 +25,10 @@ export async function crearTag(datos: unknown): Promise<ResultadoAccion<Tag>> {
   const validado = CrearTagSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const { sesion, acceso } = await requireAdminEtiquetas();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   try {
-    const sesion = await requireSesion();
     const tag = await prisma.tag.create({
       data: {
         nombre: validado.data.nombre,
@@ -38,6 +47,9 @@ export async function actualizarTag(id: string, datos: unknown): Promise<Resulta
   const validado = ActualizarTagSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const { acceso } = await requireAdminEtiquetas();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   try {
     const tag = await prisma.tag.update({
       where: { id },
@@ -54,6 +66,9 @@ export async function actualizarTag(id: string, datos: unknown): Promise<Resulta
 }
 
 export async function eliminarTag(id: string): Promise<ResultadoAccion> {
+  const { acceso } = await requireAdminEtiquetas();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
   try {
     await prisma.tag.update({ where: { id }, data: { activo: false } });
     revalidatePath("/crm/etiquetas");
