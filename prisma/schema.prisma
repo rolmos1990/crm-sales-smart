@@ -249,6 +249,7 @@ model Instancia {
   identificadoresCanal ContactoIdentificadorCanal[]
   jobsMensaje          JobMensaje[]
   jobsSistema          JobSistema[]
+  jobsEmail            JobEmail[]
   flujosVenta          FlujoVenta[]
   importaciones        HistorialImportacion[]
 
@@ -1507,6 +1508,41 @@ model JobSistema {
 
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id])
+
+  @@index([estado, creadoEn])
+  @@index([instanciaId])
+}
+
+// =====================
+// JOB QUEUE - EMAIL
+// =====================
+
+enum TipoJobEmail {
+  BIENVENIDA
+  NOTIFICACION
+}
+
+enum EstadoJobEmail {
+  PENDIENTE
+  PROCESANDO
+  COMPLETADO
+  FALLIDO
+}
+
+// Cola de jobs para envío asíncrono de emails transaccionales del sistema
+model JobEmail {
+  id          String         @id @default(cuid())
+  tipo        TipoJobEmail
+  estado      EstadoJobEmail @default(PENDIENTE)
+  payload     Json
+  intentos    Int            @default(0)
+  maxIntentos Int            @default(3)
+  error       String?
+  creadoEn    DateTime       @default(now())
+  procesadoEn DateTime?
+
+  instanciaId String?
+  instancia   Instancia? @relation(fields: [instanciaId], references: [id])
 
   @@index([estado, creadoEn])
   @@index([instanciaId])

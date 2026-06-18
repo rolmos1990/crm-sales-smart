@@ -2,6 +2,7 @@ import "dotenv/config";
 import { ejecutarJobsPendientes } from "../crm/pipeline/disparadores/ejecutor";
 import { workerMensajes } from "../shared/workers/worker-mensajes";
 import { workerSistema } from "../shared/workers/worker-sistema";
+import { workerEmail } from "../shared/workers/worker-email";
 import { busEventos } from "../shared/eventos/bus";
 import { TIPOS_EVENTO } from "../shared/eventos/registro";
 import type { MensajeEnviadoPayload, MensajeRecibidoPayload, ConversacionCreadaPayload } from "../shared/eventos/registro";
@@ -45,6 +46,7 @@ busEventos.suscribir<ConversacionCreadaPayload>(
 // también está corriendo. Los eventos MENSAJE_ENVIADO que genere se loguean arriba.
 workerMensajes.iniciar();
 workerSistema.iniciar();
+workerEmail.iniciar();
 
 // ── Loop principal: disparadores de pipeline CRM ─────────────────────────────
 async function run() {
