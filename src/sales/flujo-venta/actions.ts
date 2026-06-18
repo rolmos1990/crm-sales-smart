@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { EtapaSchema, ReglaSchema, FlujoVentaSchema } from "./schema";
 import { moverPedidoAEtapa, validarTransicion } from "./motor";
 
@@ -223,7 +224,9 @@ export async function toggleRegla(reglaId: string, activo: boolean): Promise<Res
 // ── Movimiento de pedido ──────────────────────────────────────────
 
 export async function moverPedidoAction(pedidoId: string, etapaDestinoId: string): Promise<Resultado<void>> {
-  const sesion = await requireSesion();
+  const auth = await requirePermisoAction("pedidos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+  const sesion = auth.sesion;
 
   const validacion = await validarTransicion(pedidoId, etapaDestinoId);
   if (!validacion.permitido) {

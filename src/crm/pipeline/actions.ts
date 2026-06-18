@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { SchemaPipeline, SchemaStage, SchemaCampoPersonalizado } from "./schema";
 import { obtenerPipelines } from "./queries";
 import { procesarCambioStage } from "./disparadores/motor";
@@ -156,6 +157,9 @@ export async function reordenarStages(pipelineId: string, stageIds: string[]) {
 }
 
 export async function moverAStage(oportunidadId: string, stageId: string, pipelineId: string) {
+  const auth = await requirePermisoAction("oportunidades", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
     const [stage, todosCampos, oportunidad] = await Promise.all([
       prisma.pipelineStage.findUnique({

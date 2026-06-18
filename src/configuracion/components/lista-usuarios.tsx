@@ -7,11 +7,12 @@ import {
   MoreHorizontal,
   Pencil,
   KeyRound,
-  Link2,
+  RefreshCw,
   UserCheck,
   UserX,
   Copy,
   Check,
+  Link2,
   Bot,
   User,
   UserPlus,
@@ -302,7 +303,7 @@ export function ListaUsuarios({ usuarios: usuariosIniciales }: ListaUsuariosProp
                                 onClick={() => handleGenerarLink(u)}
                                 className="text-stone-200 focus:bg-white/8 cursor-pointer gap-2"
                               >
-                                <Link2 className="h-4 w-4" /> Copiar link de acceso
+                                <RefreshCw className="h-4 w-4" /> Regenerar link de acceso
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleResetPassword(u)}
@@ -384,8 +385,8 @@ export function ListaUsuarios({ usuarios: usuariosIniciales }: ListaUsuariosProp
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-stone-400">
-            Este link permite al usuario iniciar sesión directamente (expira en 24h). Compártelo
-            por WhatsApp, email u otro canal.
+            Se generó un nuevo link de acceso (expira en 24h). El link anterior queda invalidado.
+            Compártelo por WhatsApp, email u otro canal.
           </p>
           <div className="flex gap-2">
             <Input

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
 import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad } from "./queries";
@@ -20,8 +21,11 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
   const validado = CrearCotizacionSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, ...resto } = validado.data;
     const numero = await generarNumeroCotizacion(sesion.instanciaId);
 
@@ -74,8 +78,11 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
   const validado = ActualizarCotizacionSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const cotizacionExistente = await prisma.cotizacion.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
     if (!cotizacionExistente) return { exito: false, error: "Cotización no encontrada" };
 
@@ -142,7 +149,10 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
 }
 
 export async function cambiarEstadoCotizacion(id: string, estado: string): Promise<ResultadoAccion> {
-  const sesion = await requireSesion();
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+  const sesion = auth.sesion;
+
   try {
     await prisma.cotizacion.update({
       where: { id, instanciaId: sesion.instanciaId },
@@ -168,8 +178,11 @@ export async function obtenerCotizacionesPorOportunidadAction(oportunidadId: str
 }
 
 export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ pedidoId: string; numeroPedido: string }>> {
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const cotizacion = await prisma.cotizacion.findFirst({
       where: { id, instanciaId: sesion.instanciaId },
       include: {
@@ -294,6 +307,9 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
 }
 
 export async function eliminarCotizacion(id: string): Promise<ResultadoAccion> {
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
     await prisma.cotizacion.delete({ where: { id } });
     revalidatePath("/sales/cotizaciones");

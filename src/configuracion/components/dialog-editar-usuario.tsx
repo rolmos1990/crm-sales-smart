@@ -30,7 +30,9 @@ import {
 } from "@/components/ui/select";
 import { editarUsuario } from "@/configuracion/usuarios/actions";
 import { EditarUsuarioSchema, type EditarUsuarioInput } from "@/configuracion/usuarios/schema";
-import { ROL_LABELS, ROL_DESCRIPCION, ROLES_HUMANOS } from "@/shared/auth/permisos";
+import { ROL_LABELS, ROLES_HUMANOS } from "@/shared/auth/permisos";
+import type { Rol } from "@/generated/prisma/enums";
+import { RolInfoCard } from "@/configuracion/components/rol-info-card";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 
 interface DialogEditarUsuarioProps {
@@ -53,6 +55,8 @@ export function DialogEditarUsuario({ usuario, onCerrar, onExito }: DialogEditar
     },
   });
 
+  const rolActual = form.watch("rol");
+
   function handleCerrar() {
     form.reset();
     onCerrar();
@@ -73,7 +77,7 @@ export function DialogEditarUsuario({ usuario, onCerrar, onExito }: DialogEditar
 
   return (
     <Dialog open={!!usuario} onOpenChange={handleCerrar}>
-      <DialogContent className="bg-stone-950/95 backdrop-blur-xl border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] max-w-md">
+      <DialogContent className="bg-stone-950/95 backdrop-blur-xl border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-stone-50">
             <Pencil className="h-5 w-5 text-lime-400" />
@@ -115,22 +119,20 @@ export function DialogEditarUsuario({ usuario, onCerrar, onExito }: DialogEditar
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger className="bg-white/5 border-white/10 text-stone-50">
-                          <SelectValue />
+                          <SelectValue>
+                            {(value: string) => ROL_LABELS[value as Rol] ?? value}
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {ROLES_HUMANOS.map((r) => (
                           <SelectItem key={r} value={r}>
-                            <div className="flex flex-col">
-                              <span>{ROL_LABELS[r]}</span>
-                              {ROL_DESCRIPCION[r] && (
-                                <span className="text-xs text-stone-400">{ROL_DESCRIPCION[r]}</span>
-                              )}
-                            </div>
+                            {ROL_LABELS[r]}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {!esAgente && rolActual && <RolInfoCard rol={rolActual} />}
                     <FormMessage />
                   </FormItem>
                 )}

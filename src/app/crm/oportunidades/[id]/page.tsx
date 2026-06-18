@@ -24,6 +24,7 @@ import { obtenerConversacionesPorOportunidad, obtenerCuentasCanal } from "@/conv
 import { obtenerCotizacionesPorOportunidad } from "@/sales/cotizaciones/queries";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
 import { requireSesion } from "@/shared/auth/sesion";
+import { puedeModificar } from "@/shared/auth/permisos";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag } from "@/crm/tags/types";
@@ -36,6 +37,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   let actividades: Actividad[] = [];
   let todosLosTags: Tag[] = [];
   const sesion = await requireSesion();
+  const puedeMod = puedeModificar(sesion.rol, "oportunidades");
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesPorOportunidad>> = [];
   let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];
   let cotizaciones: Awaited<ReturnType<typeof obtenerCotizacionesPorOportunidad>> = [];
@@ -109,6 +111,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
           nombreContacto={contactoPrincipal ? `${contactoPrincipal.nombre} ${contactoPrincipal.apellido}`.trim() : "Sin contacto"}
           cuentas={cuentasCanal}
           conversacionesIniciales={conversaciones}
+          puedeMod={puedeMod}
         />
       </div>
 
@@ -136,9 +139,11 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
                 )}
               </div>
             </div>
-            <ButtonLink href={`/crm/oportunidades/${id}/editar`}>
-              <Pencil className="h-4 w-4" />Editar
-            </ButtonLink>
+            {puedeMod && (
+              <ButtonLink href={`/crm/oportunidades/${id}/editar`}>
+                <Pencil className="h-4 w-4" />Editar
+              </ButtonLink>
+            )}
           </div>
 
           {/* KPI cards */}
@@ -202,6 +207,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
                       tipo="oportunidad"
                       tagIdsActuales={tagIdsActuales}
                       todosLosTags={todosLosTags}
+                      puedeMod={puedeMod}
                     />
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -419,24 +425,28 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
 
             {/* ── Tab Actividades ───────────────────────────────── */}
             <TabsContent value="actividades" className="mt-4">
-              <div className="flex justify-end mb-4">
-                <ButtonLink size="sm" href={`/crm/actividades/nueva?oportunidadId=${id}`}>
-                  <Plus className="h-4 w-4" />Nueva actividad
-                </ButtonLink>
-              </div>
-              <TimelineActividades actividades={actividades} />
+              {puedeMod && (
+                <div className="flex justify-end mb-4">
+                  <ButtonLink size="sm" href={`/crm/actividades/nueva?oportunidadId=${id}`}>
+                    <Plus className="h-4 w-4" />Nueva actividad
+                  </ButtonLink>
+                </div>
+              )}
+              <TimelineActividades actividades={actividades} puedeMod={puedeMod} />
             </TabsContent>
 
             {/* ── Tab Cotizaciones ──────────────────────────────── */}
             <TabsContent value="cotizaciones" className="mt-4">
-              <div className="flex justify-end mb-4">
-                <ButtonLink
-                  size="sm"
-                  href={`/sales/cotizaciones/nueva?oportunidadId=${id}${contactoPrincipal ? `&contactoId=${contactoPrincipal.id}` : ""}`}
-                >
-                  <Plus className="h-4 w-4" />Nueva cotización
-                </ButtonLink>
-              </div>
+              {puedeMod && (
+                <div className="flex justify-end mb-4">
+                  <ButtonLink
+                    size="sm"
+                    href={`/sales/cotizaciones/nueva?oportunidadId=${id}${contactoPrincipal ? `&contactoId=${contactoPrincipal.id}` : ""}`}
+                  >
+                    <Plus className="h-4 w-4" />Nueva cotización
+                  </ButtonLink>
+                </div>
+              )}
               {cotizaciones.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border p-8 text-center">
                   <FileCheck className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />

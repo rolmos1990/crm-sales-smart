@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DataTable } from "@/shared/ui/data-table";
+import { useSesion } from "@/shared/auth/sesion-context";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -164,12 +165,15 @@ interface ListaPedidosProps {
 
 
 export function ListaPedidos({ pedidos, etapasFlujo }: ListaPedidosProps) {
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("pedidos");
+
   const columnas: ColumnDef<Pedido>[] = [
     ...columnasFijas,
-    {
-      id: "acciones",
-      cell: ({ row }) => <AccionesPedido pedido={row.original} etapasFlujo={etapasFlujo} />,
-    },
+    ...(puedeMod
+      ? [{ id: "acciones", cell: ({ row }: { row: { original: Pedido } }) => <AccionesPedido pedido={row.original} etapasFlujo={etapasFlujo} /> }]
+      : []),
   ];
+
   return <DataTable columnas={columnas} datos={pedidos} filtroPor="numero" placeholderFiltro="Buscar pedido..." />;
 }

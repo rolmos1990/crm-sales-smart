@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DataTable } from "@/shared/ui/data-table";
+import { useSesion } from "@/shared/auth/sesion-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,7 +104,7 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
   );
 }
 
-const columnas: ColumnDef<Cotizacion>[] = [
+const columnasFijas: ColumnDef<Cotizacion>[] = [
   {
     accessorKey: "numero",
     header: ({ column }) => (
@@ -155,12 +156,18 @@ const columnas: ColumnDef<Cotizacion>[] = [
       </span>
     ),
   },
-  {
-    id: "acciones",
-    cell: ({ row }) => <AccionesCotizacion cotizacion={row.original} />,
-  },
 ];
 
 export function ListaCotizaciones({ cotizaciones }: { cotizaciones: Cotizacion[] }) {
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("cotizaciones");
+
+  const columnas: ColumnDef<Cotizacion>[] = [
+    ...columnasFijas,
+    ...(puedeMod
+      ? [{ id: "acciones", cell: ({ row }: { row: { original: Cotizacion } }) => <AccionesCotizacion cotizacion={row.original} /> }]
+      : []),
+  ];
+
   return <DataTable columnas={columnas} datos={cotizaciones} filtroPor="numero" placeholderFiltro="Buscar cotización..." />;
 }

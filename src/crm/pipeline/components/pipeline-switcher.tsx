@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { crearPipeline } from "../actions";
 import type { PipelineConStages } from "../types";
+import { useSesion } from "@/shared/auth/sesion-context";
 
 interface PipelineSwitcherProps {
   pipelines: PipelineConStages[];
@@ -37,6 +38,8 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
   const [nombre, setNombre] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("oportunidades");
   const pipelineActual = pipelines.find((p) => p.id === pipelineActualId);
 
   const handleSwitch = (id: string | null) => {
@@ -121,13 +124,15 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
               </button>
             )}
 
-            <button
-              onClick={() => { setOpen(false); setDialogCrear(true); }}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/[0.05] transition-colors text-left"
-            >
-              <Plus className="h-4 w-4 flex-shrink-0" />
-              Crear nuevo pipeline
-            </button>
+            {puedeMod && (
+              <button
+                onClick={() => { setOpen(false); setDialogCrear(true); }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/[0.05] transition-colors text-left"
+              >
+                <Plus className="h-4 w-4 flex-shrink-0" />
+                Crear nuevo pipeline
+              </button>
+            )}
           </div>
         </PopoverContent>
       </Popover>

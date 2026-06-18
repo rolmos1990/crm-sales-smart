@@ -37,7 +37,7 @@ function formatearFecha(fecha: Date) {
   return format(f, "dd MMM yyyy, HH:mm", { locale: es });
 }
 
-export function TimelineActividades({ actividades }: { actividades: Actividad[] }) {
+export function TimelineActividades({ actividades, puedeMod = true }: { actividades: Actividad[]; puedeMod?: boolean }) {
   const [procesando, setProcesando] = useState<string | null>(null);
 
   const handleCompletar = async (id: string) => {
@@ -93,34 +93,36 @@ export function TimelineActividades({ actividades }: { actividades: Actividad[] 
                     {vencida && " · Vencida"}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {!actividad.completada && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      disabled={procesando === actividad.id}
-                      onClick={() => handleCompletar(actividad.id)}
-                      title="Marcar como completada"
-                    >
-                      {procesando === actividad.id ? (
-                        <Circle className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-4 w-4 text-muted-foreground hover:text-green-500" />
-                      )}
-                    </Button>
-                  )}
-                  <ConfirmacionDialog
-                    trigger={
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
-                        <Trash2 className="h-3.5 w-3.5" />
+                {puedeMod && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {!actividad.completada && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={procesando === actividad.id}
+                        onClick={() => handleCompletar(actividad.id)}
+                        title="Marcar como completada"
+                      >
+                        {procesando === actividad.id ? (
+                          <Circle className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4 text-muted-foreground hover:text-green-500" />
+                        )}
                       </Button>
-                    }
-                    titulo="¿Eliminar actividad?"
-                    descripcion={`Se eliminará "${actividad.titulo}".`}
-                    onConfirmar={() => handleEliminar(actividad.id)}
-                  />
-                </div>
+                    )}
+                    <ConfirmacionDialog
+                      trigger={
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      }
+                      titulo="¿Eliminar actividad?"
+                      descripcion={`Se eliminará "${actividad.titulo}".`}
+                      onConfirmar={() => handleEliminar(actividad.id)}
+                    />
+                  </div>
+                )}
               </div>
               {actividad.completada && actividad.completadaEn && (
                 <Badge variant="outline" className="mt-1 text-xs text-green-600 border-green-200">

@@ -50,9 +50,11 @@ const formatearMoneda = (valor: number, moneda: string) =>
 function TarjetaOportunidad({
   oportunidad,
   onClick,
+  puedeMod = true,
 }: {
   oportunidad: Oportunidad;
   onClick: () => void;
+  puedeMod?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: oportunidad.id,
@@ -64,8 +66,8 @@ function TarjetaOportunidad({
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn("mb-2 touch-none", isDragging && "opacity-20")}
-      {...attributes}
-      {...listeners}
+      {...(puedeMod ? attributes : {})}
+      {...(puedeMod ? listeners : {})}
     >
       <div
         className={cn(
@@ -196,10 +198,12 @@ function ColumnaKanban({
   etapaConfig,
   items,
   onCardClick,
+  puedeMod = true,
 }: {
   etapaConfig: (typeof ETAPAS_ACTIVAS)[number];
   items: Oportunidad[];
   onCardClick: (op: Oportunidad) => void;
+  puedeMod?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapaConfig.valor });
   const totalValor = items.reduce((sum, o) => sum + o.valor, 0);
@@ -230,15 +234,17 @@ function ColumnaKanban({
                 {items.length}
               </span>
             </div>
-            <Link href={`/crm/oportunidades/nueva?etapa=${etapaConfig.valor}`}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </Link>
+            {puedeMod && (
+              <Link href={`/crm/oportunidades/nueva?etapa=${etapaConfig.valor}`}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </Link>
+            )}
           </div>
           {items.length > 0 && (
             <p className="mt-1.5 text-[11px] font-semibold text-lime-600 dark:text-lime-400/80 tabular-nums">
@@ -267,6 +273,7 @@ function ColumnaKanban({
                   key={op.id}
                   oportunidad={op}
                   onClick={() => onCardClick(op)}
+                  puedeMod={puedeMod}
                 />
               ))
             )}
@@ -284,6 +291,7 @@ interface PipelineKanbanProps {
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
+  puedeMod?: boolean;
 }
 
 export function PipelineKanban({
@@ -291,6 +299,7 @@ export function PipelineKanban({
   empresas,
   contactos,
   defaultCountryCode = "PA",
+  puedeMod = true,
 }: PipelineKanbanProps) {
   const [localOps, setLocalOps] = useState<Map<Etapa, Oportunidad[]>>(oportunidades);
   const [selected, setSelected] = useState<Oportunidad | null>(null);
@@ -306,7 +315,7 @@ export function PipelineKanban({
 
   const handleDragEnd = async ({ over, active }: DragEndEvent) => {
     setActiveCard(null);
-    if (!over) return;
+    if (!puedeMod || !over) return;
 
     const oportunidad = active.data.current as Oportunidad;
     const nuevaEtapa = over.id as Etapa;
@@ -382,6 +391,7 @@ export function PipelineKanban({
               etapaConfig={etapaConfig}
               items={localOps.get(etapaConfig.valor) ?? []}
               onCardClick={setSelected}
+              puedeMod={puedeMod}
             />
           ))}
         </KanbanScrollContainer>

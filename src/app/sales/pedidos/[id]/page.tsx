@@ -15,6 +15,7 @@ import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { moverPedidoAEtapa } from "@/sales/flujo-venta/motor";
 import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
 import { requireSesion } from "@/shared/auth/sesion";
+import { puedeModificar } from "@/shared/auth/permisos";
 import { actualizarEstadoPedido } from "@/sales/pedidos/actions";
 import { ESTADO_PEDIDO_CONFIG } from "@/sales/pedidos/types";
 import { BotonesTransicion } from "@/sales/pedidos/components/botones-transicion";
@@ -50,12 +51,14 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
 
   let pedido = null;
   let sesion = null;
+  let puedeMod = false;
   let opcionesEmpresas: { valor: string; etiqueta: string }[] = [];
   let opcionesContactos: { valor: string; etiqueta: string }[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
 
   try {
     sesion = await requireSesion();
+    puedeMod = puedeModificar(sesion.rol, "pedidos");
     [pedido, opcionesEmpresas, opcionesContactos, productos] = await Promise.all([
       obtenerPedidoPorId(id, sesion.instanciaId),
       buscarEmpresas("", sesion.instanciaId).then(r => r.map((e: any) => ({ valor: e.id, etiqueta: e.nombre }))),
@@ -183,7 +186,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
 
         {/* Botones de transición + edición */}
         <div className="flex items-center gap-2 flex-wrap">
-          {permiteEditar && (
+          {permiteEditar && puedeMod && (
             <DialogEditarPedido
               pedido={pedidoParaEdicion}
               contactos={opcionesContactos}
@@ -191,7 +194,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
               productos={productos}
             />
           )}
-          {usandoFlujo ? (
+          {puedeMod && usandoFlujo ? (
             <BotonesTransicion
               pedidoId={id}
               etapas={siguientesEtapas.map((e) => ({
@@ -201,7 +204,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
                 esCancelacion: e.esCancelacion,
               }))}
             />
-          ) : (
+          ) : puedeMod ? (
             <>
               {siguientesEstado.map((sig) => {
                 const conf = ESTADO_PEDIDO_CONFIG[sig as keyof typeof ESTADO_PEDIDO_CONFIG];
@@ -219,7 +222,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
                 );
               })}
             </>
-          )}
+          ) : null}
         </div>
       </div>
 

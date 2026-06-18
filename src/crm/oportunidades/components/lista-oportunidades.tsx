@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DataTable } from "@/shared/ui/data-table";
+import { useSesion } from "@/shared/auth/sesion-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,7 +67,7 @@ function AccionesOportunidad({ oportunidad }: { oportunidad: Oportunidad }) {
 const formatearMoneda = (valor: number, moneda: string) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: moneda }).format(valor);
 
-const columnas: ColumnDef<Oportunidad>[] = [
+const columnasFijas: ColumnDef<Oportunidad>[] = [
   {
     accessorKey: "titulo",
     header: ({ column }) => (
@@ -120,12 +121,18 @@ const columnas: ColumnDef<Oportunidad>[] = [
       ) : <span className="text-muted-foreground text-sm">—</span>;
     },
   },
-  {
-    id: "acciones",
-    cell: ({ row }) => <AccionesOportunidad oportunidad={row.original} />,
-  },
 ];
 
 export function ListaOportunidades({ oportunidades }: { oportunidades: Oportunidad[] }) {
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("oportunidades");
+
+  const columnas: ColumnDef<Oportunidad>[] = [
+    ...columnasFijas,
+    ...(puedeMod
+      ? [{ id: "acciones", cell: ({ row }: { row: { original: Oportunidad } }) => <AccionesOportunidad oportunidad={row.original} /> }]
+      : []),
+  ];
+
   return <DataTable columnas={columnas} datos={oportunidades} filtroPor="titulo" placeholderFiltro="Buscar oportunidad..." />;
 }

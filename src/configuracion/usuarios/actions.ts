@@ -79,11 +79,11 @@ export async function crearUsuario(
       authUserId = inviteData.user.id;
       inviteLink = inviteData.properties.action_link;
     } else {
-      // Usuario ya existe y confirmado — generar magic link
+      // Usuario ya existe y confirmado — magic link usa flujo implícito (hash), necesita /auth/magiclink
       const { data: magicData, error: magicError } = await admin.auth.admin.generateLink({
         type: "magiclink",
         email,
-        options: { redirectTo: `${origin}/auth/callback` },
+        options: { redirectTo: `${origin}/auth/magiclink` },
       });
       if (magicError || !magicData?.properties?.action_link) {
         return { exito: false, error: "No se pudo generar el link de acceso" };
@@ -245,7 +245,7 @@ export async function generarLinkAcceso(
   const { data, error } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email: ui.usuario.email,
-    options: { redirectTo: `${origin}/auth/callback` },
+    options: { redirectTo: `${origin}/auth/magiclink` },
   });
 
   if (error || !data?.properties?.action_link) {

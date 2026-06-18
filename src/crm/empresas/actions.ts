@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearEmpresaSchema, ActualizarEmpresaSchema } from "./schema";
 import type { ResultadoAccion, Empresa } from "./types";
@@ -11,8 +12,11 @@ export async function crearEmpresa(datos: unknown): Promise<ResultadoAccion<Empr
   const validado = CrearEmpresaSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("empresas", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const { ruc, industria, tamano, sitioWeb, telefono, email, notas, ...resto } = validado.data;
     const empresa = await prisma.empresa.create({
       data: {
@@ -40,8 +44,11 @@ export async function actualizarEmpresa(id: string, datos: unknown): Promise<Res
   const validado = ActualizarEmpresaSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("empresas", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const existe = await prisma.empresa.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
     if (!existe) return { exito: false, error: "Empresa no encontrada" };
 
@@ -88,8 +95,11 @@ export async function obtenerEmpresaAction(id: string) {
 }
 
 export async function eliminarEmpresa(id: string): Promise<ResultadoAccion> {
+  const auth = await requirePermisoAction("empresas", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const existe = await prisma.empresa.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
     if (!existe) return { exito: false, error: "Empresa no encontrada" };
 

@@ -13,6 +13,7 @@ import { PipelineKanban } from "./pipeline-kanban";
 import type { PipelineConStages, OportunidadEnStage } from "../types";
 import type { Oportunidad, Etapa } from "@/crm/oportunidades/types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
+import { useSesion } from "@/shared/auth/sesion-context";
 
 interface PipelineWrapperProps {
   pipelines: PipelineConStages[];
@@ -34,6 +35,8 @@ export function PipelineWrapper({
   defaultCountryCode = "PA",
 }: PipelineWrapperProps) {
   const router = useRouter();
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("oportunidades");
   const [modoConfig, setModoConfig] = useState(false);
   const [pipelines, setPipelines] = useState<PipelineConStages[]>(pipelinesIniciales);
 
@@ -64,7 +67,7 @@ export function PipelineWrapper({
           pipelines={pipelines}
           pipelineActualId={pipelineActualId}
           onSwitch={handleSwitch}
-          onConfigurar={esDinamico ? () => setModoConfig(true) : undefined}
+          onConfigurar={esDinamico && puedeMod ? () => setModoConfig(true) : undefined}
         />
 
         <div className="flex-1" />
@@ -85,23 +88,25 @@ export function PipelineWrapper({
         )}
 
         {/* Nueva oportunidad */}
-        <ButtonLink
-          href={
-            esDinamico && pipelineActual?.stages[0]
-              ? `/crm/oportunidades/nueva?pipelineId=${pipelineActual.id}&stageId=${pipelineActual.stages[0].id}`
-              : "/crm/oportunidades/nueva"
-          }
-          className="h-8 px-3 rounded-lg bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-[0_0_14px_rgba(132,204,22,0.3)] hover:shadow-[0_0_20px_rgba(132,204,22,0.45)] gap-1.5 text-[12.5px] font-semibold transition-all"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Nueva oportunidad
-        </ButtonLink>
+        {puedeMod && (
+          <ButtonLink
+            href={
+              esDinamico && pipelineActual?.stages[0]
+                ? `/crm/oportunidades/nueva?pipelineId=${pipelineActual.id}&stageId=${pipelineActual.stages[0].id}`
+                : "/crm/oportunidades/nueva"
+            }
+            className="h-8 px-3 rounded-lg bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-[0_0_14px_rgba(132,204,22,0.3)] hover:shadow-[0_0_20px_rgba(132,204,22,0.45)] gap-1.5 text-[12.5px] font-semibold transition-all"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nueva oportunidad
+          </ButtonLink>
+        )}
       </div>
 
       {/* ── Cuerpo ─────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden">
         {/* Modo configuración */}
-        {modoConfig && pipelineActual && (
+        {modoConfig && pipelineActual && puedeMod && (
           <div className="h-full overflow-y-auto">
             <div className="rounded-xl border border-stone-200 dark:border-white/[0.07] bg-white dark:bg-[oklch(0.110_0.003_264)] p-6">
               <div className="flex items-center gap-2 mb-6">
@@ -132,15 +137,17 @@ export function PipelineWrapper({
               <p className="text-[13px] font-medium text-stone-500 dark:text-white/35">
                 Este pipeline no tiene etapas todavía
               </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setModoConfig(true)}
-                className="rounded-lg border border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70 gap-1.5 text-[12px]"
-              >
-                <Settings2 className="h-3.5 w-3.5" />
-                Configurar etapas
-              </Button>
+              {puedeMod && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setModoConfig(true)}
+                  className="rounded-lg border border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70 gap-1.5 text-[12px]"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  Configurar etapas
+                </Button>
+              )}
             </div>
           ) : (
             <PipelineKanbanDinamico
@@ -149,6 +156,7 @@ export function PipelineWrapper({
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}
+              puedeMod={puedeMod}
             />
           )
         )}
@@ -161,6 +169,7 @@ export function PipelineWrapper({
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}
+              puedeMod={puedeMod}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3">

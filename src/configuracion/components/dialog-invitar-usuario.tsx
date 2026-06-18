@@ -21,6 +21,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import {
   Select,
   SelectContent,
@@ -30,7 +31,9 @@ import {
 } from "@/components/ui/select";
 import { crearUsuario } from "@/configuracion/usuarios/actions";
 import { CrearUsuarioSchema, type CrearUsuarioInput } from "@/configuracion/usuarios/schema";
-import { ROL_LABELS, ROL_DESCRIPCION, ROLES_HUMANOS } from "@/shared/auth/permisos";
+import { ROL_LABELS, ROLES_HUMANOS } from "@/shared/auth/permisos";
+import type { Rol } from "@/generated/prisma/enums";
+import { RolInfoCard } from "@/configuracion/components/rol-info-card";
 
 interface DialogInvitarUsuarioProps {
   abierto: boolean;
@@ -54,6 +57,8 @@ export function DialogInvitarUsuario({ abierto, onCerrar, onExito }: DialogInvit
       telefono: "",
     },
   });
+
+  const rolActual = form.watch("rol");
 
   function handleCerrar() {
     form.reset();
@@ -86,7 +91,7 @@ export function DialogInvitarUsuario({ abierto, onCerrar, onExito }: DialogInvit
 
   return (
     <Dialog open={abierto} onOpenChange={handleCerrar}>
-      <DialogContent className="bg-stone-950/95 backdrop-blur-xl border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] max-w-md">
+      <DialogContent className="bg-stone-950/95 backdrop-blur-xl border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-stone-50">
             <UserPlus className="h-5 w-5 text-lime-400" />
@@ -175,63 +180,60 @@ export function DialogInvitarUsuario({ abierto, onCerrar, onExito }: DialogInvit
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger className="bg-white/5 border-white/10 text-stone-50">
-                          <SelectValue placeholder="Seleccionar rol..." />
+                          <SelectValue placeholder="Seleccionar rol...">
+                            {(value: string) => value ? ROL_LABELS[value as Rol] : undefined}
+                          </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {ROLES_HUMANOS.map((r) => (
                           <SelectItem key={r} value={r}>
-                            <div className="flex flex-col">
-                              <span>{ROL_LABELS[r]}</span>
-                              {ROL_DESCRIPCION[r] && (
-                                <span className="text-xs text-stone-400">{ROL_DESCRIPCION[r]}</span>
-                              )}
-                            </div>
+                            {ROL_LABELS[r]}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {rolActual && <RolInfoCard rol={rolActual} />}
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name="cargo"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-stone-300">Cargo <span className="text-stone-500">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="Ej: Vendedor"
-                          className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="telefono"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-stone-300">Teléfono <span className="text-stone-500">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="+51 999 000 000"
-                          className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="cargo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-stone-300">Cargo <span className="text-stone-500">(opcional)</span></FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="Ej: Vendedor"
+                        className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="telefono"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-stone-300">Teléfono <span className="text-stone-500">(opcional)</span></FormLabel>
+                    <FormControl>
+                      <PhoneInput
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        defaultCountryCode="PE"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <div className="flex gap-3 pt-2">
                 <Button

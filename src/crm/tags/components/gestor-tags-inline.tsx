@@ -12,9 +12,10 @@ interface GestorTagsInlineProps {
   tipo: "contacto" | "oportunidad";
   tagIdsActuales: string[];
   todosLosTags: Tag[];
+  puedeMod?: boolean;
 }
 
-export function GestorTagsInline({ entidadId, tipo, tagIdsActuales, todosLosTags }: GestorTagsInlineProps) {
+export function GestorTagsInline({ entidadId, tipo, tagIdsActuales, todosLosTags, puedeMod = true }: GestorTagsInlineProps) {
   const queryClient = useQueryClient();
   const queryKey = tipo === "contacto"
     ? queryKeys.contactos.detail(entidadId)
@@ -47,6 +48,32 @@ export function GestorTagsInline({ entidadId, tipo, tagIdsActuales, todosLosTags
   const handleChange = (nuevosTagIds: string[]) => {
     mutation.mutate(nuevosTagIds);
   };
+
+  if (!puedeMod) {
+    const tagsSeleccionados = todosLosTags.filter((t) => tagIdsActuales.includes(t.id));
+    if (tagsSeleccionados.length === 0) {
+      return <p className="text-xs text-stone-400 dark:text-stone-600">Sin etiquetas</p>;
+    }
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {tagsSeleccionados.map((tag) => (
+          <span
+            key={tag.id}
+            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border"
+            style={tag.color
+              ? { backgroundColor: `${tag.color}20`, borderColor: `${tag.color}50`, color: tag.color }
+              : undefined}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full flex-shrink-0"
+              style={tag.color ? { backgroundColor: tag.color } : { backgroundColor: "#a8a29e" }}
+            />
+            {tag.nombre}
+          </span>
+        ))}
+      </div>
+    );
+  }
 
   if (todosLosTags.length === 0) {
     return (

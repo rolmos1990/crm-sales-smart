@@ -5,10 +5,12 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaCotizaciones } from "@/sales/cotizaciones/components/lista-cotizaciones";
 import { obtenerCotizaciones } from "@/sales/cotizaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { puedeModificar } from "@/shared/auth/permisos";
 import type { Cotizacion } from "@/sales/cotizaciones/types";
 
 export default async function CotizacionesPage() {
   const sesion = await requireSesion();
+  const puedeMod = puedeModificar(sesion.rol, "cotizaciones");
   let cotizaciones: Cotizacion[] = [];
   try {
     const datos = await obtenerCotizaciones(sesion.instanciaId);
@@ -28,24 +30,24 @@ export default async function CotizacionesPage() {
       <PageHeader
         titulo="Cotizaciones"
         descripcion="Gestiona todas tus cotizaciones"
-        accion={
+        accion={puedeMod ? (
           <ButtonLink href="/sales/cotizaciones/nueva">
             <Plus className="mr-2 h-4 w-4" />
             Nueva cotización
           </ButtonLink>
-        }
+        ) : undefined}
       />
       {cotizaciones.length === 0 ? (
         <EmptyState
           Icono={FileText}
           titulo="Sin cotizaciones todavía"
           descripcion="Crea tu primera cotización para empezar a gestionar tus ventas."
-          accion={
+          accion={puedeMod ? (
             <ButtonLink href="/sales/cotizaciones/nueva">
               <Plus className="mr-2 h-4 w-4" />
               Crear primera cotización
             </ButtonLink>
-          }
+          ) : undefined}
         />
       ) : (
         <ListaCotizaciones cotizaciones={cotizaciones} />

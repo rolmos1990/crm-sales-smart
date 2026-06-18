@@ -41,10 +41,12 @@ function TarjetaOportunidad({
   oportunidad,
   stageColor,
   onCardClick,
+  puedeMod = true,
 }: {
   oportunidad: OportunidadEnStage;
   stageColor: string;
   onCardClick: (op: OportunidadEnStage) => void;
+  puedeMod?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: oportunidad.id,
@@ -56,8 +58,8 @@ function TarjetaOportunidad({
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn("mb-2 touch-none", isDragging && "opacity-20")}
-      {...attributes}
-      {...listeners}
+      {...(puedeMod ? attributes : {})}
+      {...(puedeMod ? listeners : {})}
       onClick={() => onCardClick(oportunidad)}
     >
       <div
@@ -171,11 +173,13 @@ function ColumnaStage({
   items,
   pipelineId,
   onCardClick,
+  puedeMod = true,
 }: {
   stage: PipelineStage;
   items: OportunidadEnStage[];
   pipelineId: string;
   onCardClick: (op: OportunidadEnStage) => void;
+  puedeMod?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const totalValor = items.reduce((sum, o) => sum + o.valor, 0);
@@ -211,18 +215,20 @@ function ColumnaStage({
                 {items.length}
               </span>
             </div>
-            <Link
-              href={`/crm/oportunidades/nueva?pipelineId=${pipelineId}&stageId=${stage.id}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
+            {puedeMod && (
+              <Link
+                href={`/crm/oportunidades/nueva?pipelineId=${pipelineId}&stageId=${stage.id}`}
+                onClick={(e) => e.stopPropagation()}
               >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </Link>
+            )}
           </div>
 
           {items.length > 0 && (
@@ -251,6 +257,7 @@ function ColumnaStage({
                   oportunidad={op}
                   stageColor={color}
                   onCardClick={onCardClick}
+                  puedeMod={puedeMod}
                 />
               ))
             )}
@@ -269,6 +276,7 @@ interface PipelineKanbanDinamicoProps {
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
+  puedeMod?: boolean;
 }
 
 export function PipelineKanbanDinamico({
@@ -277,6 +285,7 @@ export function PipelineKanbanDinamico({
   empresas,
   contactos,
   defaultCountryCode = "PA",
+  puedeMod = true,
 }: PipelineKanbanDinamicoProps) {
   const [localOps, setLocalOps] = useState(oportunidadesPorStage);
   const [activeCard, setActiveCard] = useState<OportunidadEnStage | null>(null);
@@ -293,7 +302,7 @@ export function PipelineKanbanDinamico({
 
   const handleDragEnd = ({ over, active }: DragEndEvent) => {
     setActiveCard(null);
-    if (!over) return;
+    if (!puedeMod || !over) return;
 
     const oportunidad = active.data.current as OportunidadEnStage;
     const nuevoStageId = over.id as string;
@@ -390,6 +399,7 @@ export function PipelineKanbanDinamico({
               pipelineId={pipeline.id}
               items={localOps.get(stage.id) ?? []}
               onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
+              puedeMod={puedeMod}
             />
           ))}
         </KanbanScrollContainer>

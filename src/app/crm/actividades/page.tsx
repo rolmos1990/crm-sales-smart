@@ -5,10 +5,12 @@ import { Plus } from "lucide-react";
 import { DashboardActividades } from "@/crm/actividades/components/dashboard-actividades";
 import { obtenerActividades } from "@/crm/actividades/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { puedeModificar } from "@/shared/auth/permisos";
 import type { Actividad } from "@/crm/actividades/types";
 
 export default async function ActividadesPage() {
   const sesion = await requireSesion();
+  const puedeMod = puedeModificar(sesion.rol, "actividades");
   let actividades: Actividad[] = [];
   try {
     const datos = await obtenerActividades(sesion.instanciaId);
@@ -25,17 +27,17 @@ export default async function ActividadesPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Actividades</h1>
             <p className="text-sm text-muted-foreground mt-1">Seguimiento de llamadas, emails, reuniones y tareas</p>
           </div>
-          <ButtonLink href="/crm/actividades/nueva"><Plus className="mr-2 h-4 w-4" />Nueva actividad</ButtonLink>
+          {puedeMod && <ButtonLink href="/crm/actividades/nueva"><Plus className="mr-2 h-4 w-4" />Nueva actividad</ButtonLink>}
         </div>
         <EmptyState
           Icono={CalendarCheck}
           titulo="Sin actividades todavía"
           descripcion="Registra llamadas, reuniones, emails y tareas para hacer seguimiento."
-          accion={
+          accion={puedeMod ? (
             <ButtonLink href="/crm/actividades/nueva">
               <Plus className="mr-2 h-4 w-4" />Crear primera actividad
             </ButtonLink>
-          }
+          ) : undefined}
         />
       </div>
     );

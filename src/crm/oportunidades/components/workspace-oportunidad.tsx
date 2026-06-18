@@ -61,6 +61,7 @@ import {
   obtenerCotizacionesPorOportunidadAction,
 } from "@/sales/cotizaciones/actions";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
+import { useSesion } from "@/shared/auth/sesion-context";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,7 @@ function Seccion({
   onToggle,
   children,
   badge,
+  bloqueado = false,
 }: {
   titulo: string;
   icono: React.ReactNode;
@@ -114,6 +116,7 @@ function Seccion({
   onToggle: () => void;
   children: React.ReactNode;
   badge?: number;
+  bloqueado?: boolean;
 }) {
   return (
     <div className="border-b border-white/8 last:border-0">
@@ -140,7 +143,11 @@ function Seccion({
           )}
         />
       </button>
-      {abierto && <div className="px-4 pb-4">{children}</div>}
+      {abierto && (
+        <fieldset disabled={bloqueado} className="contents">
+          <div className="px-4 pb-4">{children}</div>
+        </fieldset>
+      )}
     </div>
   );
 }
@@ -277,6 +284,9 @@ function WorkspaceContenido({
   onDelete,
 }: WorkspaceContenidoProps) {
   const { oportunidad, tagsDisponibles, todosPipelines, conversaciones, cuentasCanal } = data;
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("oportunidades");
+  const formBloqueado = !puedeMod;
 
   const [stageActualId, setStageActualId] = useState<string | null>(initialStageId);
   const [pipelineActualId, setPipelineActualId] = useState<string | null>(initialPipelineId);
@@ -491,16 +501,18 @@ function WorkspaceContenido({
           />
 
           {/* Selector de stage */}
-          <div className="shrink-0">
-            <SelectorPipelineStage
-              pipelineId={pipelineActualId}
-              stageId={stageActualId}
-              stageNombre={stageActual?.nombre}
-              stageColor={stageActual?.color}
-              onSelect={handleCambiarStage}
-              cargando={guardandoStage}
-            />
-          </div>
+          {puedeMod && (
+            <div className="shrink-0">
+              <SelectorPipelineStage
+                pipelineId={pipelineActualId}
+                stageId={stageActualId}
+                stageNombre={stageActual?.nombre}
+                stageColor={stageActual?.color}
+                onSelect={handleCambiarStage}
+                cargando={guardandoStage}
+              />
+            </div>
+          )}
 
           {/* Acciones rápidas */}
           <div className="flex items-center gap-1 shrink-0">
@@ -544,22 +556,24 @@ function WorkspaceContenido({
               <MoreHorizontal className="h-4 w-4" />
             </button>
             <div className="w-px h-5 bg-white/10 mx-1" />
-            <SheetNuevaCotizacion
-              oportunidadId={oportunidad.id}
-              oportunidadTitulo={oportunidad.titulo}
-              contactoId={contactoPrincipal?.id}
-              empresaId={(oportunidad as any).empresaId ?? undefined}
-              destinatario={{
-                nombre: contactoPrincipal?.nombre,
-                apellido: contactoPrincipal?.apellido,
-                telefono: (contactoPrincipal as any)?.telefonoPrincipal ?? undefined,
-                email: (contactoPrincipal as any)?.email ?? undefined,
-              }}
-              onCreada={() => {
-                refrescarCotizaciones();
-                setSecciones((prev) => ({ ...prev, cotizaciones: true }));
-              }}
-            />
+            {puedeMod && (
+              <SheetNuevaCotizacion
+                oportunidadId={oportunidad.id}
+                oportunidadTitulo={oportunidad.titulo}
+                contactoId={contactoPrincipal?.id}
+                empresaId={(oportunidad as any).empresaId ?? undefined}
+                destinatario={{
+                  nombre: contactoPrincipal?.nombre,
+                  apellido: contactoPrincipal?.apellido,
+                  telefono: (contactoPrincipal as any)?.telefonoPrincipal ?? undefined,
+                  email: (contactoPrincipal as any)?.email ?? undefined,
+                }}
+                onCreada={() => {
+                  refrescarCotizaciones();
+                  setSecciones((prev) => ({ ...prev, cotizaciones: true }));
+                }}
+              />
+            )}
             <div className="w-px h-5 bg-white/10 mx-1" />
             <button
               type="button"
@@ -597,6 +611,7 @@ function WorkspaceContenido({
               className="flex flex-col h-full"
             >
               {/* Título editable */}
+              <fieldset disabled={formBloqueado} className="contents">
               <div className="px-4 pt-4 pb-3 border-b border-white/8 shrink-0">
                 <FormField
                   control={form.control}
@@ -617,6 +632,7 @@ function WorkspaceContenido({
                   )}
                 />
               </div>
+              </fieldset>
 
               {/* Secciones acordeón — scrollables */}
               <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
@@ -624,6 +640,7 @@ function WorkspaceContenido({
                 {/* ── Información General ────────────────────────────── */}
                 <Seccion
                   titulo="Información General"
+                  bloqueado={formBloqueado}
                   icono={<svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
                   abierto={secciones.info}
                   onToggle={() => toggleSeccion("info")}
@@ -739,6 +756,7 @@ function WorkspaceContenido({
                 {/* ── Contactos ─────────────────────────────────────── */}
                 <Seccion
                   titulo="Contactos"
+                  bloqueado={formBloqueado}
                   icono={<User className="h-3 w-3" />}
                   abierto={secciones.contactos}
                   onToggle={() => toggleSeccion("contactos")}
@@ -758,6 +776,7 @@ function WorkspaceContenido({
                 {empresa && (
                   <Seccion
                     titulo="Empresa"
+                    bloqueado={formBloqueado}
                     icono={<Building2 className="h-3 w-3" />}
                     abierto={secciones.empresa}
                     onToggle={() => toggleSeccion("empresa")}
@@ -806,6 +825,7 @@ function WorkspaceContenido({
                 {tagsDisponibles.length > 0 && (
                   <Seccion
                     titulo="Etiquetas"
+                  bloqueado={formBloqueado}
                     icono={<TagIcon className="h-3 w-3" />}
                     abierto={secciones.etiquetas}
                     onToggle={() => toggleSeccion("etiquetas")}
@@ -824,6 +844,7 @@ function WorkspaceContenido({
                 {/* ── Cotizaciones ──────────────────────────────────── */}
                 <Seccion
                   titulo="Cotizaciones"
+                  bloqueado={formBloqueado}
                   icono={<FileText className="h-3 w-3" />}
                   abierto={secciones.cotizaciones}
                   onToggle={() => toggleSeccion("cotizaciones")}
@@ -911,6 +932,7 @@ function WorkspaceContenido({
                   <div ref={camposSeccionRef}>
                     <Seccion
                       titulo="Campos"
+                      bloqueado={formBloqueado}
                       icono={<Layers className="h-3 w-3" />}
                       abierto={secciones.campos}
                       onToggle={() => toggleSeccion("campos")}
@@ -931,36 +953,38 @@ function WorkspaceContenido({
               </div>
 
               {/* Footer: guardar / eliminar */}
-              <div className="shrink-0 border-t border-white/10 px-4 py-3 flex items-center justify-between gap-2 bg-stone-950/40">
-                <ConfirmacionDialog
-                  trigger={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg text-xs"
-                    >
-                      Eliminar
-                    </Button>
-                  }
-                  titulo="¿Eliminar oportunidad?"
-                  descripcion={`Se eliminará permanentemente "${oportunidad.titulo}".`}
-                  onConfirmar={handleDelete}
-                />
-                <Button
-                  type="submit"
-                  form="form-workspace"
-                  size="sm"
-                  disabled={form.formState.isSubmitting}
-                  className="bg-lime-500/90 text-stone-950 hover:bg-lime-400 rounded-xl px-5 font-semibold shadow-lg transition-all hover:scale-[1.02] text-xs gap-1.5"
-                >
-                  {form.formState.isSubmitting ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando…</>
-                  ) : (
-                    <><Save className="h-3.5 w-3.5" /> Guardar</>
-                  )}
-                </Button>
-              </div>
+              {puedeMod && (
+                <div className="shrink-0 border-t border-white/10 px-4 py-3 flex items-center justify-between gap-2 bg-stone-950/40">
+                  <ConfirmacionDialog
+                    trigger={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg text-xs"
+                      >
+                        Eliminar
+                      </Button>
+                    }
+                    titulo="¿Eliminar oportunidad?"
+                    descripcion={`Se eliminará permanentemente "${oportunidad.titulo}".`}
+                    onConfirmar={handleDelete}
+                  />
+                  <Button
+                    type="submit"
+                    form="form-workspace"
+                    size="sm"
+                    disabled={form.formState.isSubmitting}
+                    className="bg-lime-500/90 text-stone-950 hover:bg-lime-400 rounded-xl px-5 font-semibold shadow-lg transition-all hover:scale-[1.02] text-xs gap-1.5"
+                  >
+                    {form.formState.isSubmitting ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando…</>
+                    ) : (
+                      <><Save className="h-3.5 w-3.5" /> Guardar</>
+                    )}
+                  </Button>
+                </div>
+              )}
             </form>
           </Form>
         </div>

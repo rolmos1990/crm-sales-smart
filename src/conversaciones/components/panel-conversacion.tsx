@@ -22,6 +22,7 @@ interface PanelConversacionProps {
   telefonoContacto?: string | null;
   cuentas: CuentaCanalResumen[];
   conversacionesIniciales: ConversacionResumen[];
+  puedeMod?: boolean;
 }
 
 async function fetchMensajesRecientes(conversacionId: string): Promise<MensajeConMeta[]> {
@@ -48,6 +49,7 @@ export function PanelConversacion({
   telefonoContacto,
   cuentas,
   conversacionesIniciales,
+  puedeMod = true,
 }: PanelConversacionProps) {
   const queryClient = useQueryClient();
   const [conversaciones, setConversaciones] = useState<ConversacionResumen[]>(conversacionesIniciales);
@@ -155,6 +157,7 @@ export function PanelConversacion({
         cuentaCanalId: cuentaSeleccionadaId ?? null,
         asunto: null,
         estado: "ABIERTA",
+        clasificacion: "NINGUNA",
         creadoEn: new Date(),
         actualizadoEn: new Date(),
         contacto: {
@@ -258,7 +261,7 @@ export function PanelConversacion({
             </p>
           </div>
 
-          <div className="w-full space-y-3">
+          {puedeMod && <div className="w-full space-y-3">
             {cuentas.length > 0 && (
               <div className="rounded-xl border border-white/10 bg-white/3 p-3 space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Canal (opcional)</p>
@@ -288,7 +291,7 @@ export function PanelConversacion({
                 Sin canales. Ve a Integraciones para conectar WhatsApp u otro canal.
               </p>
             )}
-          </div>
+          </div>}
         </div>
       )}
 

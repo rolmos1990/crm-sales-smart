@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { DataTable } from "@/shared/ui/data-table";
+import { useSesion } from "@/shared/auth/sesion-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,7 +78,7 @@ function AccionesEmpresa({ empresa }: { empresa: EmpresaConRelaciones }) {
   );
 }
 
-const columnas: ColumnDef<EmpresaConRelaciones>[] = [
+const columnasFijas: ColumnDef<EmpresaConRelaciones>[] = [
   {
     accessorKey: "nombre",
     header: ({ column }) => (
@@ -124,12 +125,18 @@ const columnas: ColumnDef<EmpresaConRelaciones>[] = [
       <span className="text-sm text-muted-foreground">{row.original._count?.oportunidades ?? 0}</span>
     ),
   },
-  {
-    id: "acciones",
-    cell: ({ row }) => <AccionesEmpresa empresa={row.original} />,
-  },
 ];
 
 export function ListaEmpresas({ empresas }: { empresas: EmpresaConRelaciones[] }) {
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("empresas");
+
+  const columnas: ColumnDef<EmpresaConRelaciones>[] = [
+    ...columnasFijas,
+    ...(puedeMod
+      ? [{ id: "acciones", cell: ({ row }: { row: { original: EmpresaConRelaciones } }) => <AccionesEmpresa empresa={row.original} /> }]
+      : []),
+  ];
+
   return <DataTable columnas={columnas} datos={empresas} filtroPor="nombre" placeholderFiltro="Buscar empresa..." />;
 }

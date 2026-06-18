@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
-import { requireSesion } from "@/shared/auth/sesion";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearActividadSchema, ActualizarActividadSchema } from "./schema";
 import type { ResultadoAccion, Actividad } from "./types";
@@ -20,8 +20,11 @@ export async function crearActividad(datos: unknown): Promise<ResultadoAccion<Ac
   const validado = CrearActividadSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("actividades", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const { contactoId, empresaId, oportunidadId, pedidoId, cotizacionId, descripcion, ...resto } = validado.data;
     const actividad = await prisma.actividad.create({
       data: {
@@ -59,6 +62,9 @@ export async function actualizarActividad(id: string, datos: unknown): Promise<R
   const validado = ActualizarActividadSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("actividades", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
     const { contactoId, empresaId, oportunidadId, pedidoId, cotizacionId, descripcion, ...resto } = validado.data;
     const actividad = await prisma.actividad.update({
@@ -83,6 +89,9 @@ export async function actualizarActividad(id: string, datos: unknown): Promise<R
 }
 
 export async function completarActividad(id: string): Promise<ResultadoAccion> {
+  const auth = await requirePermisoAction("actividades", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
     const completadaEn = new Date();
     await prisma.actividad.update({ where: { id }, data: { completada: true, completadaEn } });
@@ -95,6 +104,9 @@ export async function completarActividad(id: string): Promise<ResultadoAccion> {
 }
 
 export async function eliminarActividad(id: string): Promise<ResultadoAccion> {
+  const auth = await requirePermisoAction("actividades", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
     await prisma.actividad.delete({ where: { id } });
     revalidatePath("/crm/actividades");

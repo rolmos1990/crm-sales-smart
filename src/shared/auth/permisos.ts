@@ -6,8 +6,10 @@ import type { SesionActual } from "./sesion";
 export const ROL_LABELS: Record<Rol, string> = {
   OWNER: "Owner",
   ADMIN: "Admin",
+  GERENTE_VENTAS: "Gerente Ventas",
   SUPERVISOR: "Supervisor",
   AGENTE_VENTAS: "Agente Ventas",
+  EJECUTIVO_VENTAS: "Ejecutivo Ventas",
   AGENTE_SOPORTE: "Agente Soporte",
   INVITADO: "Invitado",
   AGENTE: "Agente",
@@ -15,8 +17,10 @@ export const ROL_LABELS: Record<Rol, string> = {
 
 export const ROL_DESCRIPCION: Partial<Record<Rol, string>> = {
   ADMIN: "Acceso total a todos los módulos",
+  GERENTE_VENTAS: "Control comercial completo: pipeline, productos y equipo de ventas",
   SUPERVISOR: "Ve todo, no puede modificar configuración ni pipelines",
   AGENTE_VENTAS: "Gestión comercial: contactos, oportunidades, cotizaciones y pedidos",
+  EJECUTIVO_VENTAS: "Ventas operativas: cotizaciones, pedidos y actividades",
   AGENTE_SOPORTE: "Atención: conversaciones, contactos y actividades",
   INVITADO: "Solo lectura en módulos operativos",
 };
@@ -24,19 +28,21 @@ export const ROL_DESCRIPCION: Partial<Record<Rol, string>> = {
 // Roles asignables a humanos (excluye OWNER que se asigna solo en registro y AGENTE para bots)
 export const ROLES_HUMANOS: Rol[] = [
   "ADMIN",
+  "GERENTE_VENTAS",
   "SUPERVISOR",
   "AGENTE_VENTAS",
+  "EJECUTIVO_VENTAS",
   "AGENTE_SOPORTE",
   "INVITADO",
 ];
 
 // ─── Mapa de módulos a permisos ────────────────────────────────────────────────
 
-type NivelAcceso = "rw" | "r" | "none";
+export type NivelAcceso = "rw" | "r" | "none";
 
 // dashboard, pipeline, inbox, contactos, empresas, oportunidades, actividades
 // cotizaciones, pedidos, flujo-venta, etiquetas, productos, integraciones, configuracion, datos
-type Modulo =
+export type Modulo =
   | "dashboard"
   | "pipeline"
   | "inbox"
@@ -66,6 +72,12 @@ const PERMISOS: Record<Rol, Record<Modulo, NivelAcceso>> = {
     "flujo-venta": "rw", etiquetas: "rw", productos: "rw", integraciones: "rw",
     configuracion: "rw", datos: "rw",
   },
+  GERENTE_VENTAS: {
+    dashboard: "rw", pipeline: "rw", inbox: "rw", contactos: "rw", empresas: "rw",
+    oportunidades: "rw", actividades: "rw", cotizaciones: "rw", pedidos: "rw",
+    "flujo-venta": "rw", etiquetas: "rw", productos: "rw", integraciones: "none",
+    configuracion: "none", datos: "r",
+  },
   SUPERVISOR: {
     dashboard: "r", pipeline: "r", inbox: "r", contactos: "r", empresas: "r",
     oportunidades: "r", actividades: "r", cotizaciones: "r", pedidos: "r",
@@ -75,6 +87,12 @@ const PERMISOS: Record<Rol, Record<Modulo, NivelAcceso>> = {
   AGENTE_VENTAS: {
     dashboard: "rw", pipeline: "rw", inbox: "rw", contactos: "rw", empresas: "rw",
     oportunidades: "rw", actividades: "rw", cotizaciones: "rw", pedidos: "rw",
+    "flujo-venta": "none", etiquetas: "none", productos: "r", integraciones: "none",
+    configuracion: "none", datos: "none",
+  },
+  EJECUTIVO_VENTAS: {
+    dashboard: "rw", pipeline: "none", inbox: "none", contactos: "r", empresas: "none",
+    oportunidades: "none", actividades: "rw", cotizaciones: "rw", pedidos: "rw",
     "flujo-venta": "none", etiquetas: "none", productos: "r", integraciones: "none",
     configuracion: "none", datos: "none",
   },
@@ -98,6 +116,8 @@ const PERMISOS: Record<Rol, Record<Modulo, NivelAcceso>> = {
     configuracion: "none", datos: "none",
   },
 };
+
+export const ROL_PERMISOS = PERMISOS;
 
 function nivel(rol: Rol, modulo: string): NivelAcceso {
   const mapa = PERMISOS[rol];

@@ -11,6 +11,7 @@ import { TimelineActividades } from "@/crm/actividades/components/timeline-activ
 import { obtenerEmpresaPorId } from "@/crm/empresas/queries";
 import { obtenerActividadesPorEmpresa } from "@/crm/actividades/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { puedeModificar } from "@/shared/auth/permisos";
 import type { Actividad } from "@/crm/actividades/types";
 import { cn } from "@/lib/utils";
 
@@ -28,9 +29,11 @@ export default async function EmpresaDetallePage({ params }: { params: Promise<{
 
   let empresa = null;
   let actividades: Actividad[] = [];
+  let puedeMod = false;
 
   try {
     const sesion = await requireSesion();
+    puedeMod = puedeModificar(sesion.rol, "empresas");
     [empresa, actividades] = await Promise.all([
       obtenerEmpresaPorId(id, sesion.instanciaId),
       obtenerActividadesPorEmpresa(id, sesion.instanciaId),
@@ -73,9 +76,11 @@ export default async function EmpresaDetallePage({ params }: { params: Promise<{
             {empresa.tamano && <Badge variant="outline">{empresa.tamano}</Badge>}
           </div>
         </div>
-        <ButtonLink href={`/crm/empresas/${id}/editar`}>
+        {puedeMod && (
+          <ButtonLink href={`/crm/empresas/${id}/editar`}>
             <Pencil className="h-4 w-4" />Editar
           </ButtonLink>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -159,11 +164,13 @@ export default async function EmpresaDetallePage({ params }: { params: Promise<{
         </TabsContent>
 
         <TabsContent value="contactos" className="mt-4">
-          <div className="flex justify-end mb-3">
-            <ButtonLink size="sm" href={`/crm/contactos/nuevo?empresaId=${id}`}>
+          {puedeMod && (
+            <div className="flex justify-end mb-3">
+              <ButtonLink size="sm" href={`/crm/contactos/nuevo?empresaId=${id}`}>
                 <Plus className="h-4 w-4" />Nuevo contacto
               </ButtonLink>
-          </div>
+            </div>
+          )}
           <div className="space-y-2">
             {contactos.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Sin contactos vinculados.</p>
@@ -186,11 +193,13 @@ export default async function EmpresaDetallePage({ params }: { params: Promise<{
         </TabsContent>
 
         <TabsContent value="oportunidades" className="mt-4">
-          <div className="flex justify-end mb-3">
-            <ButtonLink size="sm" href={`/crm/oportunidades/nueva?empresaId=${id}`}>
+          {puedeMod && (
+            <div className="flex justify-end mb-3">
+              <ButtonLink size="sm" href={`/crm/oportunidades/nueva?empresaId=${id}`}>
                 <Plus className="h-4 w-4" />Nueva oportunidad
               </ButtonLink>
-          </div>
+            </div>
+          )}
           <div className="space-y-2">
             {oportunidades.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Sin oportunidades vinculadas.</p>
@@ -215,12 +224,14 @@ export default async function EmpresaDetallePage({ params }: { params: Promise<{
         </TabsContent>
 
         <TabsContent value="actividades" className="mt-4">
-          <div className="flex justify-end mb-4">
-            <ButtonLink size="sm" href={`/crm/actividades/nueva?empresaId=${id}`}>
+          {puedeMod && (
+            <div className="flex justify-end mb-4">
+              <ButtonLink size="sm" href={`/crm/actividades/nueva?empresaId=${id}`}>
                 <Plus className="h-4 w-4" />Nueva actividad
               </ButtonLink>
-          </div>
-          <TimelineActividades actividades={actividades} />
+            </div>
+          )}
+          <TimelineActividades actividades={actividades} puedeMod={puedeMod} />
         </TabsContent>
       </Tabs>
     </div>

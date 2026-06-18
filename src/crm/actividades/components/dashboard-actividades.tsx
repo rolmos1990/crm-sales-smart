@@ -14,6 +14,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { completarActividad, eliminarActividad } from "../actions";
+import { useSesion } from "@/shared/auth/sesion-context";
 import type { Actividad, TipoActividad, PrioridadActividad } from "../types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -66,8 +67,8 @@ function clientePrincipal(a: Actividad): string | null {
 function CardActividad({ actividad, esVencida = false, onCompletar, onEliminar }: {
   actividad: Actividad;
   esVencida?: boolean;
-  onCompletar: (id: string) => void;
-  onEliminar: (id: string) => void;
+  onCompletar?: (id: string) => void;
+  onEliminar?: (id: string) => void;
 }) {
   const cfg = TIPO_CONFIG[actividad.tipo];
   const Icono = cfg.icon;
@@ -111,22 +112,26 @@ function CardActividad({ actividad, esVencida = false, onCompletar, onEliminar }
         <span className={cn("hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold border", prioridad.clase)}>
           {prioridad.label}
         </span>
-        <button
-          type="button"
-          title="Completar"
-          onClick={() => onCompletar(actividad.id)}
-          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:border-lime-500/40 hover:text-lime-500 transition-colors"
-        >
-          <Circle className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          title="Eliminar"
-          onClick={() => onEliminar(actividad.id)}
-          className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:border-red-500/40 hover:text-red-500 transition-colors"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
+        {onCompletar && (
+          <button
+            type="button"
+            title="Completar"
+            onClick={() => onCompletar(actividad.id)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:border-lime-500/40 hover:text-lime-500 transition-colors"
+          >
+            <Circle className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {onEliminar && (
+          <button
+            type="button"
+            title="Eliminar"
+            onClick={() => onEliminar(actividad.id)}
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted-foreground hover:border-red-500/40 hover:text-red-500 transition-colors"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
       </div>
 
       {/* Badge prioridad (siempre visible en mobile) */}
@@ -195,7 +200,7 @@ function SeccionActividades({
   titulo: string; color: string; icono: typeof AlertCircle;
   actividades: Actividad[]; esVencida?: boolean;
   limite: number; onVerMas?: () => void;
-  onCompletar: (id: string) => void; onEliminar: (id: string) => void;
+  onCompletar?: (id: string) => void; onEliminar?: (id: string) => void;
 }) {
   if (actividades.length === 0) return null;
   const visibles = actividades.slice(0, limite);
@@ -268,6 +273,8 @@ const LIMITE_INICIAL = 5;
 const PASO_LIMITE = 5;
 
 export function DashboardActividades({ actividades }: DashboardActividadesProps) {
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("actividades");
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<TipoActividad | "">("");
   const [filtroPrioridad, setFiltroPrioridad] = useState<PrioridadActividad | "">("");
@@ -366,10 +373,12 @@ export function DashboardActividades({ actividades }: DashboardActividadesProps)
             Filtros
             {hayFiltrosActivos && <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-lime-500 text-[9px] font-bold text-black">{[busqueda, filtroTipo, filtroPrioridad].filter(Boolean).length}</span>}
           </Button>
-          <ButtonLink href="/crm/actividades/nueva" className="h-9 gap-1.5">
-            <Plus className="h-4 w-4" />
-            Nueva actividad
-          </ButtonLink>
+          {puedeMod && (
+            <ButtonLink href="/crm/actividades/nueva" className="h-9 gap-1.5">
+              <Plus className="h-4 w-4" />
+              Nueva actividad
+            </ButtonLink>
+          )}
         </div>
       </div>
 
@@ -441,19 +450,19 @@ export function DashboardActividades({ actividades }: DashboardActividadesProps)
               titulo="Vencidas" color="#ef4444" icono={AlertCircle}
               actividades={vencidas} esVencida
               limite={limiteVencidas} onVerMas={() => setLimiteVencidas(l => l + PASO_LIMITE)}
-              onCompletar={handleCompletar} onEliminar={handleEliminar}
+              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeMod ? handleEliminar : undefined}
             />
             <SeccionActividades
               titulo="Hoy" color="#f59e0b" icono={Sun}
               actividades={hoyActividades}
               limite={limiteHoy} onVerMas={() => setLimiteHoy(l => l + PASO_LIMITE)}
-              onCompletar={handleCompletar} onEliminar={handleEliminar}
+              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeMod ? handleEliminar : undefined}
             />
             <SeccionActividades
               titulo="Próximas" color="#3b82f6" icono={Clock}
               actividades={proximas}
               limite={limiteProximas} onVerMas={() => setLimiteProximas(l => l + PASO_LIMITE)}
-              onCompletar={handleCompletar} onEliminar={handleEliminar}
+              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeMod ? handleEliminar : undefined}
             />
             {totalPendientesFiltrado === 0 && (
               <div className="rounded-xl border border-dashed border-border py-10 text-center">

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cerrarSesion } from "@/shared/auth/auth-service";
 import { puedeVerModulo } from "@/shared/auth/permisos";
+import { SesionProvider } from "@/shared/auth/sesion-context";
 import type { Rol } from "@/generated/prisma/enums";
 
 const NAVEGACION = [
@@ -237,7 +238,9 @@ export function AppLayout({
           </div>
         </header>
         <main className="flex-1 overflow-y-auto bg-stone-50/90 dark:bg-transparent">
-          {children}
+          <SesionProvider rol={rol ?? "INVITADO"}>
+            {children}
+          </SesionProvider>
         </main>
       </div>
 

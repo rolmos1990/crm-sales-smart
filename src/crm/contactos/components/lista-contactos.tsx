@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { DataTable } from "@/shared/ui/data-table";
+import { useSesion } from "@/shared/auth/sesion-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,7 +97,7 @@ function AccionesContacto({ contacto }: { contacto: Contacto }) {
   );
 }
 
-const columnas: ColumnDef<Contacto>[] = [
+const columnasFijas: ColumnDef<Contacto>[] = [
   {
     accessorKey: "nombre",
     header: ({ column }) => (
@@ -155,13 +156,19 @@ const columnas: ColumnDef<Contacto>[] = [
       return <Badge variant={config.variante}>{config.etiqueta}</Badge>;
     },
   },
-  {
-    id: "acciones",
-    cell: ({ row }) => <AccionesContacto contacto={row.original} />,
-  },
 ];
 
 export function ListaContactos({ contactos }: { contactos: Contacto[] }) {
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("contactos");
+
+  const columnas: ColumnDef<Contacto>[] = [
+    ...columnasFijas,
+    ...(puedeMod
+      ? [{ id: "acciones", cell: ({ row }: { row: { original: Contacto } }) => <AccionesContacto contacto={row.original} /> }]
+      : []),
+  ];
+
   return (
     <DataTable
       columnas={columnas}

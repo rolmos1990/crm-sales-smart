@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const ROLES_ASIGNABLES = ["ADMIN", "SUPERVISOR", "AGENTE_VENTAS", "AGENTE_SOPORTE", "INVITADO"] as const;
+export const ROLES_ASIGNABLES = ["ADMIN", "GERENTE_VENTAS", "SUPERVISOR", "AGENTE_VENTAS", "EJECUTIVO_VENTAS", "AGENTE_SOPORTE", "INVITADO"] as const;
 
 export const CrearUsuarioSchema = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres").max(100),

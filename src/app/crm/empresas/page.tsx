@@ -5,10 +5,12 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaEmpresas } from "@/crm/empresas/components/lista-empresas";
 import { obtenerEmpresas } from "@/crm/empresas/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { puedeModificar } from "@/shared/auth/permisos";
 import type { EmpresaConRelaciones } from "@/crm/empresas/types";
 
 export default async function EmpresasPage() {
   const sesion = await requireSesion();
+  const puedeMod = puedeModificar(sesion.rol, "empresas");
   let empresas: EmpresaConRelaciones[] = [];
   try {
     const datos = await obtenerEmpresas(sesion.instanciaId);
@@ -22,24 +24,24 @@ export default async function EmpresasPage() {
       <PageHeader
         titulo="Empresas"
         descripcion="Gestiona las empresas y organizaciones de tu CRM"
-        accion={
+        accion={puedeMod ? (
           <ButtonLink href="/crm/empresas/nueva">
             <Plus className="mr-2 h-4 w-4" />
             Nueva empresa
           </ButtonLink>
-        }
+        ) : undefined}
       />
       {empresas.length === 0 ? (
         <EmptyState
           Icono={Building2}
           titulo="Sin empresas todavía"
           descripcion="Agrega tu primera empresa para organizar tus contactos y oportunidades."
-          accion={
+          accion={puedeMod ? (
             <ButtonLink href="/crm/empresas/nueva">
               <Plus className="mr-2 h-4 w-4" />
               Crear primera empresa
             </ButtonLink>
-          }
+          ) : undefined}
         />
       ) : (
         <ListaEmpresas empresas={empresas} />

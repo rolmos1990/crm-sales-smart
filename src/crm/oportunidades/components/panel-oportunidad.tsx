@@ -50,6 +50,7 @@ import { obtenerTagsAction } from "@/crm/tags/actions";
 import type { Tag } from "@/crm/tags/types";
 import { GestorContactosPanel, type ContactoEnPanel } from "./gestor-contactos-panel";
 import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
+import { useSesion } from "@/shared/auth/sesion-context";
 
 // ── Props ─────────────────────────────────────────────────────────
 
@@ -74,6 +75,8 @@ export function PanelOportunidad({
   onUpdate,
   onDelete,
 }: PanelOportunidadProps) {
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("oportunidades");
   const [activeTab, setActiveTab] = useState<"info" | "contacto">("info");
   const [tagsDisponibles, setTagsDisponibles] = useState<Tag[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
@@ -164,7 +167,7 @@ export function PanelOportunidad({
               Editar oportunidad
             </SheetTitle>
             <span className="flex-1" />
-            {oportunidad && (
+            {oportunidad && puedeMod && (
               <MoverPipelinePopover
                 oportunidadId={oportunidad.id}
                 etapaActual={oportunidad.etapa}
@@ -377,16 +380,18 @@ export function PanelOportunidad({
                   {/* Footer */}
                   <SheetFooter className="flex-row items-center justify-between gap-2 border-t border-stone-100 dark:border-white/10 px-6 py-4 flex-shrink-0">
                     <div className="flex items-center gap-1 flex-wrap">
-                      <ConfirmacionDialog
-                        trigger={
-                          <Button type="button" variant="ghost" size="sm" className="text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 rounded-lg">
-                            Eliminar
-                          </Button>
-                        }
-                        titulo="¿Eliminar oportunidad?"
-                        descripcion={`Se eliminará permanentemente "${oportunidad.titulo}".`}
-                        onConfirmar={handleDelete}
-                      />
+                      {puedeMod && (
+                        <ConfirmacionDialog
+                          trigger={
+                            <Button type="button" variant="ghost" size="sm" className="text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-300 rounded-lg">
+                              Eliminar
+                            </Button>
+                          }
+                          titulo="¿Eliminar oportunidad?"
+                          descripcion={`Se eliminará permanentemente "${oportunidad.titulo}".`}
+                          onConfirmar={handleDelete}
+                        />
+                      )}
                       <ButtonLink
                         href={`/crm/oportunidades/${oportunidad.id}`}
                         variant="ghost"
@@ -396,27 +401,31 @@ export function PanelOportunidad({
                         <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                         Ver completo
                       </ButtonLink>
-                      <SheetNuevaCotizacion
-                        oportunidadId={oportunidad.id}
-                        oportunidadTitulo={oportunidad.titulo}
-                        contactoId={contactosIniciales.find((r) => r.principal)?.contactoId ?? contactosIniciales[0]?.contactoId}
-                        empresaId={oportunidad.empresaId ?? undefined}
-                        destinatario={{
-                          nombre: (contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto)?.nombre,
-                          apellido: (contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto)?.apellido,
-                          telefono: ((contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto) as any)?.telefonoPrincipal ?? undefined,
-                          email: ((contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto) as any)?.email ?? undefined,
-                        }}
-                      />
+                      {puedeMod && (
+                        <SheetNuevaCotizacion
+                          oportunidadId={oportunidad.id}
+                          oportunidadTitulo={oportunidad.titulo}
+                          contactoId={contactosIniciales.find((r) => r.principal)?.contactoId ?? contactosIniciales[0]?.contactoId}
+                          empresaId={oportunidad.empresaId ?? undefined}
+                          destinatario={{
+                            nombre: (contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto)?.nombre,
+                            apellido: (contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto)?.apellido,
+                            telefono: ((contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto) as any)?.telefonoPrincipal ?? undefined,
+                            email: ((contactosIniciales.find((r) => r.principal)?.contacto ?? contactosIniciales[0]?.contacto) as any)?.email ?? undefined,
+                          }}
+                        />
+                      )}
                     </div>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      disabled={form.formState.isSubmitting}
-                      className="bg-lime-500 dark:bg-lime-500 text-stone-950 hover:bg-lime-400 dark:hover:bg-lime-400 rounded-xl px-5 font-semibold shadow-sm transition-all hover:scale-[1.02]"
-                    >
-                      {form.formState.isSubmitting ? "Guardando..." : "Guardar"}
-                    </Button>
+                    {puedeMod && (
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={form.formState.isSubmitting}
+                        className="bg-lime-500 dark:bg-lime-500 text-stone-950 hover:bg-lime-400 dark:hover:bg-lime-400 rounded-xl px-5 font-semibold shadow-sm transition-all hover:scale-[1.02]"
+                      >
+                        {form.formState.isSubmitting ? "Guardando..." : "Guardar"}
+                      </Button>
+                    )}
                   </SheetFooter>
                 </form>
               </Form>

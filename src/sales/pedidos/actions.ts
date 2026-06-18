@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
-import { requireSesion } from "@/shared/auth/sesion";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { CrearPedidoSchema, ActualizarEstadoPedidoSchema, EditarPedidoSchema } from "./schema";
 import { generarNumeroPedido } from "./queries";
@@ -13,8 +13,11 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
   const validado = CrearPedidoSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("pedidos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const {
       lineas, contactoId, empresaId, cotizacionId, notas, impuesto,
       nombre, apellido, telefono, email, ruc, empresaNombre,
@@ -144,6 +147,9 @@ export async function actualizarEstadoPedido(id: string, datos: unknown): Promis
   const validado = ActualizarEstadoPedidoSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("pedidos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
     await prisma.pedido.update({ where: { id }, data: { estado: validado.data.estado } });
 
@@ -162,6 +168,9 @@ export async function actualizarEstadoPedido(id: string, datos: unknown): Promis
 }
 
 export async function eliminarPedido(id: string): Promise<ResultadoAccion> {
+  const auth = await requirePermisoAction("pedidos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
     await prisma.pedido.delete({ where: { id } });
     revalidatePath("/sales/pedidos");
@@ -175,8 +184,11 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
   const validado = EditarPedidoSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
+  const auth = await requirePermisoAction("pedidos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
 
     const usuarioNombre = sesion.usuarioId
       ? await prisma.usuario.findFirst({ where: { id: sesion.usuarioId }, select: { nombre: true } }).then(u => u?.nombre ?? null)

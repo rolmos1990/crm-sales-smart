@@ -17,6 +17,7 @@ import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
 import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
 import { obtenerConversacionesResumenPorContacto, obtenerCuentasCanal } from "@/conversaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { puedeModificar } from "@/shared/auth/permisos";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag as TagType } from "@/crm/tags/types";
@@ -53,6 +54,7 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
   let actividades: Actividad[] = [];
   let todosLosTags: TagType[] = [];
   const sesion = await requireSesion();
+  const puedeMod = puedeModificar(sesion.rol, "contactos");
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesResumenPorContacto>> = [];
   let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];
 
@@ -109,6 +111,7 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
           telefonoContacto={contacto.telefonoPrincipal}
           cuentas={cuentasCanal}
           conversacionesIniciales={conversaciones}
+          puedeMod={puedeMod}
         />
       </div>
 
@@ -163,14 +166,16 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                 </div>
               </div>
 
-              <ButtonLink
-                href={`/crm/contactos/${id}/editar`}
-                className="h-9 px-3.5 rounded-xl bg-stone-100 dark:bg-white/8 hover:bg-stone-200 dark:hover:bg-white/12 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-white/10 gap-2 text-sm font-medium mb-0.5"
-                variant="ghost"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Editar
-              </ButtonLink>
+              {puedeMod && (
+                <ButtonLink
+                  href={`/crm/contactos/${id}/editar`}
+                  className="h-9 px-3.5 rounded-xl bg-stone-100 dark:bg-white/8 hover:bg-stone-200 dark:hover:bg-white/12 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-white/10 gap-2 text-sm font-medium mb-0.5"
+                  variant="ghost"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Editar
+                </ButtonLink>
+              )}
             </div>
 
             {tieneContacto && (
@@ -345,6 +350,7 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                     tipo="contacto"
                     tagIdsActuales={tagIdsActuales}
                     todosLosTags={todosLosTags}
+                    puedeMod={puedeMod}
                   />
                 </div>
               </div>
@@ -405,16 +411,18 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
 
             {/* ── Tab: Actividades ────────────────────────────────── */}
             <TabsContent value="actividades" className="mt-5">
-              <div className="flex justify-end mb-5">
-                <ButtonLink
-                  size="sm"
-                  href={`/crm/actividades/nueva?contactoId=${id}`}
-                  className="h-9 px-3.5 rounded-xl bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-sm gap-2 text-sm font-semibold"
-                >
-                  <Plus className="h-4 w-4" />
-                  Nueva actividad
-                </ButtonLink>
-              </div>
+              {puedeMod && (
+                <div className="flex justify-end mb-5">
+                  <ButtonLink
+                    size="sm"
+                    href={`/crm/actividades/nueva?contactoId=${id}`}
+                    className="h-9 px-3.5 rounded-xl bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-sm gap-2 text-sm font-semibold"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Nueva actividad
+                  </ButtonLink>
+                </div>
+              )}
               {actividades.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center gap-3 rounded-2xl border border-dashed border-stone-200 dark:border-white/10">
                   <div className="h-12 w-12 rounded-2xl bg-stone-100 dark:bg-white/5 flex items-center justify-center">
@@ -426,7 +434,7 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                   </div>
                 </div>
               ) : (
-                <TimelineActividades actividades={actividades} />
+                <TimelineActividades actividades={actividades} puedeMod={puedeMod} />
               )}
             </TabsContent>
           </Tabs>

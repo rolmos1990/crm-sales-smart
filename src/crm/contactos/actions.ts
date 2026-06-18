@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { CrearContactoSchema, ActualizarContactoSchema } from "./schema";
@@ -21,8 +22,11 @@ export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Con
     return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
   }
 
+  const auth = await requirePermisoAction("contactos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const { empresaId, email, telefonoPrincipal, telefonoSecundario, cargo, notas, tagIds, ...resto } = validado.data;
     const contacto = await prisma.contacto.create({
       data: {
@@ -62,8 +66,11 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
     return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
   }
 
+  const auth = await requirePermisoAction("contactos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const existe = await prisma.contacto.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
     if (!existe) return { exito: false, error: "Contacto no encontrado" };
 
@@ -130,8 +137,11 @@ export async function obtenerContactoAction(id: string) {
 }
 
 export async function eliminarContacto(id: string): Promise<ResultadoAccion> {
+  const auth = await requirePermisoAction("contactos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
   try {
-    const sesion = await requireSesion();
+    const sesion = auth.sesion;
     const existe = await prisma.contacto.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
     if (!existe) return { exito: false, error: "Contacto no encontrado" };
 
