@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
-import { requireSesion } from "@/shared/auth/sesion";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { CrearProductoSchema, ActualizarProductoSchema } from "./schema";
 import type { ResultadoAccion, Producto } from "./types";
 
 export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Producto>> {
-  const sesion = await requireSesion();
+  const auth = await requirePermisoAction("productos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+  const sesion = auth.sesion;
   const validado = CrearProductoSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
@@ -46,7 +48,9 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
 }
 
 export async function actualizarProducto(id: string, datos: unknown): Promise<ResultadoAccion<Producto>> {
-  const sesion = await requireSesion();
+  const auth = await requirePermisoAction("productos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+  const sesion = auth.sesion;
   const validado = ActualizarProductoSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
@@ -89,7 +93,9 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
 }
 
 export async function eliminarProducto(id: string): Promise<ResultadoAccion> {
-  const sesion = await requireSesion();
+  const auth = await requirePermisoAction("productos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+  const sesion = auth.sesion;
   try {
     await prisma.producto.update({ where: { id, instanciaId: sesion.instanciaId }, data: { activo: false } });
     revalidatePath("/productos");

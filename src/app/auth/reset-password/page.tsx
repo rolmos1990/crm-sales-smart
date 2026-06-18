@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { Button } from "@/components/ui/button";
@@ -9,17 +9,50 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, KeyRound } from "lucide-react";
 
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [verificando, setVerificando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+  useEffect(() => {
+    async function procesarToken() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tokenHash = urlParams.get("token_hash");
+      const type = urlParams.get("type");
+
+      // El link de reset envía ?token_hash=...&type=recovery — hay que verificarlo
+      // antes de que updateUser pueda operar; sin esta llamada no hay sesión activa.
+      if (tokenHash && type === "recovery") {
+        const { error: otpError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (otpError) {
+          setError("El link ha expirado o es inválido. Solicita uno nuevo al administrador.");
+          setVerificando(false);
+          return;
+        }
+      }
+
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        setError("Sesión inválida. El link puede haber expirado.");
+        setVerificando(false);
+        return;
+      }
+
+      setVerificando(false);
+    }
+    procesarToken();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,11 +72,19 @@ export default function ResetPasswordPage() {
     setCargando(false);
 
     if (updateError) {
-      setError("No se pudo actualizar la contraseña. El link puede haber expirado.");
+      setError(updateError.message || "No se pudo actualizar la contraseña.");
       return;
     }
 
     router.push("/crm");
+  }
+
+  if (verificando) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-stone-950 via-neutral-950 to-black">
+        <Loader2 className="h-6 w-6 animate-spin text-lime-400" />
+      </div>
+    );
   }
 
   return (

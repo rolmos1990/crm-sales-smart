@@ -9,6 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, ShieldCheck } from "lucide-react";
 
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
+
 export default function ConfigurarCuentaPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -17,11 +22,6 @@ export default function ConfigurarCuentaPage() {
   const [verificando, setVerificando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [esOAuth, setEsOAuth] = useState(false);
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
 
   useEffect(() => {
     async function verificarSesion() {
@@ -35,7 +35,7 @@ export default function ConfigurarCuentaPage() {
       setVerificando(false);
     }
     verificarSesion();
-  }, [router, supabase]);
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,7 +55,7 @@ export default function ConfigurarCuentaPage() {
     setCargando(false);
 
     if (updateError) {
-      setError("No se pudo guardar la contraseña. Intenta de nuevo.");
+      setError(updateError.message || "No se pudo guardar la contraseña. Intenta de nuevo.");
       return;
     }
 

@@ -104,7 +104,10 @@
       "Bash(Select-Object -First 3)",
       "Bash(Format-List)",
       "Bash(node -e \"console.log\\(require\\('dotenv'\\).config\\({ path: '.env' }\\)\\)\")",
-      "Bash(node -e \"const z = require\\('c:/Users/ramon.olmos/source/repos/Vento/crm-sales-smart/node_modules/zod'\\); console.log\\(typeof z.array\\([]\\).min, typeof z.array\\([]\\).max\\)\")"
+      "Bash(node -e \"const z = require\\('c:/Users/ramon.olmos/source/repos/Vento/crm-sales-smart/node_modules/zod'\\); console.log\\(typeof z.array\\([]\\).min, typeof z.array\\([]\\).max\\)\")",
+      "Bash(npm show *)",
+      "Bash(xargs grep -l \"passwordHash\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\RAMON~1.OLM\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ramon-olmos-source-repos-Vento-crm-sales-smart\\\\90667fe1-e6f2-40e2-822d-538286cf2061\\\\tasks\\\\bcr6a62is.output\" -Raw)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

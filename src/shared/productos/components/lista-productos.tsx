@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
+import { useSesion } from "@/shared/auth/sesion-context";
 import { eliminarProducto } from "../actions";
 import type { Producto } from "../types";
 
@@ -77,7 +78,7 @@ function AccionesProducto({ producto }: { producto: Producto }) {
   );
 }
 
-const columnas: ColumnDef<Producto>[] = [
+const columnasFijas: ColumnDef<Producto>[] = [
   {
     accessorKey: "nombre",
     header: ({ column }) => (
@@ -89,9 +90,9 @@ const columnas: ColumnDef<Producto>[] = [
       <div className="flex items-center gap-2.5">
         <ImagenProducto src={row.original.imagenUrl} nombre={row.original.nombre} />
         <div className="min-w-0">
-          <Link href={`/productos/${row.original.id}/editar`} className="font-medium hover:text-lime-600 dark:hover:text-lime-400 transition-colors block leading-tight truncate">
+          <span className="font-medium leading-tight truncate block">
             {row.original.nombre}
-          </Link>
+          </span>
           {row.original.descripcion && (
             <p className="text-xs text-stone-400 dark:text-stone-500 truncate max-w-xs">
               {row.original.descripcion}
@@ -140,10 +141,6 @@ const columnas: ColumnDef<Producto>[] = [
       </Badge>
     ),
   },
-  {
-    id: "acciones",
-    cell: ({ row }) => <AccionesProducto producto={row.original} />,
-  },
 ];
 
 interface ListaProductosProps {
@@ -151,6 +148,16 @@ interface ListaProductosProps {
 }
 
 export function ListaProductos({ productos }: ListaProductosProps) {
+  const { puedeModificar } = useSesion();
+  const puedeMod = puedeModificar("productos");
+
+  const columnas: ColumnDef<Producto>[] = [
+    ...columnasFijas,
+    ...(puedeMod
+      ? [{ id: "acciones", cell: ({ row }: { row: { original: Producto } }) => <AccionesProducto producto={row.original} /> }]
+      : []),
+  ];
+
   return (
     <DataTable
       columnas={columnas}
