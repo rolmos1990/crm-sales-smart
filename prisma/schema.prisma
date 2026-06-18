@@ -247,9 +247,7 @@ model Instancia {
   cuentasCanal         CuentaCanal[]
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
-  jobsMensaje          JobMensaje[]
-  jobsSistema          JobSistema[]
-  jobsEmail            JobEmail[]
+
   flujosVenta          FlujoVenta[]
   importaciones        HistorialImportacion[]
 
@@ -1436,23 +1434,6 @@ model OportunidadConversacion {
   @@index([conversacionId])
 }
 
-// =====================
-// JOB QUEUE - MENSAJES
-// =====================
-
-enum TipoJobMensaje {
-  ENVIAR_MENSAJE
-  PROCESAR_ENTRANTE
-  MARCAR_LEIDO
-}
-
-enum EstadoJobMensaje {
-  PENDIENTE
-  PROCESANDO
-  COMPLETADO
-  FALLIDO
-}
-
 enum ClasificacionConversacion {
   NINGUNA
   POSTVENTA
@@ -1460,90 +1441,3 @@ enum ClasificacionConversacion {
   COMERCIAL
 }
 
-// Cola de jobs para envío/recepción asíncrona de mensajes por cualquier canal
-model JobMensaje {
-  id          String           @id @default(cuid())
-  tipo        TipoJobMensaje
-  estado      EstadoJobMensaje @default(PENDIENTE)
-  payload     Json
-  intentos    Int              @default(0)
-  maxIntentos Int              @default(3)
-  error       String?
-  creadoEn    DateTime         @default(now())
-  procesadoEn DateTime?
-
-  instanciaId String
-  instancia   Instancia @relation(fields: [instanciaId], references: [id])
-
-  @@index([estado, creadoEn])
-  @@index([instanciaId])
-}
-
-// =====================
-// JOB QUEUE - SISTEMA
-// =====================
-
-enum TipoJobSistema {
-  INICIALIZAR_INSTANCIA
-}
-
-enum EstadoJobSistema {
-  PENDIENTE
-  PROCESANDO
-  COMPLETADO
-  FALLIDO
-}
-
-// Cola de jobs para tareas de inicialización y configuración de instancias
-model JobSistema {
-  id          String           @id @default(cuid())
-  tipo        TipoJobSistema
-  estado      EstadoJobSistema @default(PENDIENTE)
-  payload     Json
-  intentos    Int              @default(0)
-  maxIntentos Int              @default(3)
-  error       String?
-  creadoEn    DateTime         @default(now())
-  procesadoEn DateTime?
-
-  instanciaId String
-  instancia   Instancia @relation(fields: [instanciaId], references: [id])
-
-  @@index([estado, creadoEn])
-  @@index([instanciaId])
-}
-
-// =====================
-// JOB QUEUE - EMAIL
-// =====================
-
-enum TipoJobEmail {
-  BIENVENIDA
-  NOTIFICACION
-}
-
-enum EstadoJobEmail {
-  PENDIENTE
-  PROCESANDO
-  COMPLETADO
-  FALLIDO
-}
-
-// Cola de jobs para envío asíncrono de emails transaccionales del sistema
-model JobEmail {
-  id          String         @id @default(cuid())
-  tipo        TipoJobEmail
-  estado      EstadoJobEmail @default(PENDIENTE)
-  payload     Json
-  intentos    Int            @default(0)
-  maxIntentos Int            @default(3)
-  error       String?
-  creadoEn    DateTime       @default(now())
-  procesadoEn DateTime?
-
-  instanciaId String?
-  instancia   Instancia? @relation(fields: [instanciaId], references: [id])
-
-  @@index([estado, creadoEn])
-  @@index([instanciaId])
-}

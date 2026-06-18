@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
+import { TIPOS_EVENTO } from "@/shared/eventos";
+import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearPedidoSchema, ActualizarEstadoPedidoSchema, EditarPedidoSchema } from "./schema";
 import { generarNumeroPedido } from "./queries";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
@@ -129,7 +130,8 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     const usuarioNombre = sesion.usuarioId
       ? await prisma.usuario.findFirst({ where: { id: sesion.usuarioId }, select: { nombre: true } }).then(u => u?.nombre ?? null)
       : null;
-    busEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, {
+    await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, sesion.instanciaId, {
+      instanciaId: sesion.instanciaId,
       pedidoId: pedido.id,
       numero: pedido.numero,
       total,
@@ -153,10 +155,11 @@ export async function actualizarEstadoPedido(id: string, datos: unknown): Promis
   try {
     await prisma.pedido.update({ where: { id }, data: { estado: validado.data.estado } });
 
+    const instanciaId = auth.sesion.instanciaId;
     if (validado.data.estado === "ENTREGADO") {
-      busEventos.publicar(TIPOS_EVENTO.PEDIDO_ENTREGADO, { pedidoId: id, numero: "" });
+      await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_ENTREGADO, instanciaId, { instanciaId, pedidoId: id, numero: "" });
     } else {
-      busEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, { pedidoId: id, usuarioId: null, usuarioNombre: null, cambios: [] });
+      await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, instanciaId, { instanciaId, pedidoId: id, usuarioId: null, usuarioNombre: null, cambios: [] });
     }
 
     revalidatePath("/sales/pedidos");
@@ -411,7 +414,8 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     }
     if (ajustesStock.length > 0) await Promise.all(ajustesStock);
 
-    busEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, {
+    await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, sesion.instanciaId, {
+      instanciaId: sesion.instanciaId,
       pedidoId: id,
       usuarioId: sesion.usuarioId,
       usuarioNombre,

@@ -23,25 +23,9 @@ async function main() {
     console.log(`      instanciaId: ${c.instanciaId ?? '⚠️  NULL — este es un problema'}`)
   })
 
-  // 2. Jobs en la cola
-  const jobs = await prisma.jobMensaje.findMany({
-    orderBy: { creadoEn: 'desc' },
-    take: 10,
-    select: { id: true, tipo: true, estado: true, error: true, intentos: true, creadoEn: true, instanciaId: true, payload: true },
-  })
-  console.log(`\n📬 JOBS RECIENTES (${jobs.length}):`)
-  if (jobs.length === 0) {
-    console.log('   ⚠️  No hay jobs — el webhook no está llegando o no se están creando jobs')
-  }
-  jobs.forEach(j => {
-    const icono = j.estado === 'COMPLETADO' ? '✅' : j.estado === 'FALLIDO' ? '❌' : j.estado === 'PROCESANDO' ? '🔄' : '⏳'
-    console.log(`   ${icono} [${j.estado}] ${j.tipo} — ${j.creadoEn.toISOString()}`)
-    if (j.error) console.log(`      error: ${j.error}`)
-    if (j.instanciaId === null) console.log(`      ⚠️  instanciaId es NULL en este job`)
-    const p = j.payload as Record<string, unknown>
-    if (p?.identificadorContacto) console.log(`      sender: ${p.identificadorContacto}`)
-    if (p?.canal) console.log(`      canal:  ${p.canal}`)
-  })
+  // 2. Cola de mensajes (ahora via RabbitMQ — revisar management UI en :15672)
+  console.log('\n📬 COLA DE MENSAJES: Los jobs ahora van a RabbitMQ (crm.comando.mensaje.entrante)')
+  console.log('   Revisar en http://localhost:15672 (management UI)')
 
   // 3. Instancias
   const instancias = await prisma.instancia.findMany({
@@ -77,8 +61,6 @@ async function main() {
   const cuentaSinInstancia = cuentas.find(c => !c.instanciaId)
   if (cuentaSinInstancia) problemas.push('CuentaCanal de Instagram sin instanciaId — los mensajes no se pueden asociar a ninguna instancia')
   if (instancias.length === 0) problemas.push('No existe ninguna Instancia en la BD — la app necesita al menos una')
-  if (jobs.some(j => j.estado === 'FALLIDO')) problemas.push('Hay jobs FALLIDOS — revisa los errores arriba')
-  if (jobs.filter(j => j.estado === 'PENDIENTE').length > 0) problemas.push('Hay jobs PENDIENTES sin procesar — el worker no está corriendo (abre la página de Conversaciones)')
 
   if (problemas.length > 0) {
     console.log('\n🚨 PROBLEMAS DETECTADOS:')

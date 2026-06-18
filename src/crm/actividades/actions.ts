@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
+import { TIPOS_EVENTO } from "@/shared/eventos";
+import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearActividadSchema, ActualizarActividadSchema } from "./schema";
 import type { ResultadoAccion, Actividad } from "./types";
 
@@ -40,7 +41,8 @@ export async function crearActividad(datos: unknown): Promise<ResultadoAccion<Ac
       include: incluirRelaciones,
     });
 
-    busEventos.publicar(TIPOS_EVENTO.ACTIVIDAD_CREADA, {
+    await publicadorEventos.publicar(TIPOS_EVENTO.ACTIVIDAD_CREADA, sesion.instanciaId, {
+      instanciaId: sesion.instanciaId,
       actividadId: actividad.id,
       tipo: actividad.tipo,
       fecha: actividad.fecha,
@@ -95,7 +97,7 @@ export async function completarActividad(id: string): Promise<ResultadoAccion> {
   try {
     const completadaEn = new Date();
     await prisma.actividad.update({ where: { id }, data: { completada: true, completadaEn } });
-    busEventos.publicar(TIPOS_EVENTO.ACTIVIDAD_COMPLETADA, { actividadId: id, completadaEn });
+    await publicadorEventos.publicar(TIPOS_EVENTO.ACTIVIDAD_COMPLETADA, auth.sesion.instanciaId, { instanciaId: auth.sesion.instanciaId, actividadId: id, completadaEn });
     revalidatePath("/crm/actividades");
     return { exito: true, datos: undefined };
   } catch {

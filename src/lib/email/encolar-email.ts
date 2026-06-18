@@ -1,10 +1,10 @@
-import { prisma } from "@/shared/db/prisma"
+import { publicadorEventos } from "@/shared/rabbitmq"
+import { TIPOS_COMANDO } from "@/shared/eventos/registro"
 import type { TemplatePayload } from "./templates/types"
 
 export interface EncolarEmailOpciones {
   destinatario: string | string[]
   instanciaId?: string
-  maxIntentos?: number
 }
 
 export async function encolarEmail(
@@ -15,15 +15,10 @@ export async function encolarEmail(
     ? opts.destinatario
     : [opts.destinatario]
 
-  await prisma.jobEmail.create({
-    data: {
-      tipo: template.tipo,
-      ...(opts.instanciaId ? { instanciaId: opts.instanciaId } : {}),
-      maxIntentos: opts.maxIntentos ?? 3,
-      payload: {
-        destinatario: destinatarios,
-        data: template.data,
-      },
-    },
+  await publicadorEventos.publicar(TIPOS_COMANDO.ENVIAR_EMAIL, opts.instanciaId ?? "", {
+    instanciaId: opts.instanciaId ?? "",
+    tipo: template.tipo,
+    destinatario: destinatarios,
+    data: template.data,
   })
 }

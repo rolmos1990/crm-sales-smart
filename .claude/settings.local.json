@@ -107,7 +107,13 @@
       "Bash(node -e \"const z = require\\('c:/Users/ramon.olmos/source/repos/Vento/crm-sales-smart/node_modules/zod'\\); console.log\\(typeof z.array\\([]\\).min, typeof z.array\\([]\\).max\\)\")",
       "Bash(npm show *)",
       "Bash(xargs grep -l \"passwordHash\")",
-      "Bash(Get-Content \"C:\\\\Users\\\\RAMON~1.OLM\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ramon-olmos-source-repos-Vento-crm-sales-smart\\\\90667fe1-e6f2-40e2-822d-538286cf2061\\\\tasks\\\\bcr6a62is.output\" -Raw)"
+      "Bash(Get-Content \"C:\\\\Users\\\\RAMON~1.OLM\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ramon-olmos-source-repos-Vento-crm-sales-smart\\\\90667fe1-e6f2-40e2-822d-538286cf2061\\\\tasks\\\\bcr6a62is.output\" -Raw)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\\\\src\\\\shared\\\\workers\\\\worker-mensajes.ts\" -Force)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\\\\src\\\\shared\\\\workers\\\\worker-sistema.ts\" -Force)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\\\\src\\\\shared\\\\workers\\\\worker-email.ts\" -Force)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\\\\src\\\\sales\\\\pedidos\\\\handlers.ts\" -Force)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; $env:FORCE_COLOR = \"0\"; npx prisma migrate dev --name remove_job_tables --skip-seed 2>&1 | Out-String)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; $env:PRISMA_MIGRATE_SKIP_GENERATE = \"false\"; echo \"y\" | npx prisma migrate dev --name remove_job_tables 2>&1 | Out-String)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

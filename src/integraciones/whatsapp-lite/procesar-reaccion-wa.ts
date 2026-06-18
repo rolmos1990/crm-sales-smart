@@ -1,6 +1,6 @@
 import { prisma } from "@/shared/db/prisma";
-import { busEventos } from "@/shared/eventos/bus";
 import { TIPOS_EVENTO } from "@/shared/eventos/registro";
+import { publicadorEventos } from "@/shared/rabbitmq";
 
 /**
  * Procesa una reacción entrante de WhatsApp (del contacto hacia un mensaje).
@@ -75,7 +75,7 @@ export async function procesarReaccionEntranteWA(
     });
   }
 
-  busEventos.publicar(TIPOS_EVENTO.REACCION_ACTUALIZADA, {
+  void publicadorEventos.publicar(TIPOS_EVENTO.REACCION_ACTUALIZADA, instanciaId, {
     mensajeId: mensajeEnBD.id,
     conversacionId: mensajeEnBD.conversacionId,
     instanciaId,

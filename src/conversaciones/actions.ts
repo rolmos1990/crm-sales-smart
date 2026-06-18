@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
-import { busEventos } from "@/shared/eventos/bus";
-import { TIPOS_EVENTO } from "@/shared/eventos/registro";
+import { TIPOS_EVENTO, TIPOS_COMANDO } from "@/shared/eventos/registro";
+import { publicadorEventos } from "@/shared/rabbitmq";
 import { EnviarMensajeSchema } from "./schema";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { obtenerProvider } from "./providers/registry";
@@ -124,7 +124,7 @@ export async function procesarMensajeEntrante(
       data: { contactoId, cuentaCanalId, instanciaId, estado: "ABIERTA" },
     });
 
-    busEventos.publicar(TIPOS_EVENTO.CONVERSACION_CREADA, {
+    void publicadorEventos.publicar(TIPOS_EVENTO.CONVERSACION_CREADA, instanciaId, {
       conversacionId: conversacion.id,
       instanciaId,
       contactoId,
@@ -280,7 +280,7 @@ export async function procesarMensajeEntrante(
   });
 
   // 9. Publicar evento para SSE
-  busEventos.publicar(TIPOS_EVENTO.MENSAJE_RECIBIDO, {
+  void publicadorEventos.publicar(TIPOS_EVENTO.MENSAJE_RECIBIDO, instanciaId, {
     mensajeId: mensaje.id,
     conversacionId: conversacion.id,
     instanciaId,
@@ -354,7 +354,7 @@ export async function iniciarConversacion(input: {
     }
 
     if (!existente) {
-      busEventos.publicar(TIPOS_EVENTO.CONVERSACION_CREADA, {
+      void publicadorEventos.publicar(TIPOS_EVENTO.CONVERSACION_CREADA, instanciaId ?? "", {
         conversacionId: conversacion.id,
         instanciaId: instanciaId ?? "",
         contactoId: input.contactoId,
@@ -406,7 +406,7 @@ export async function enviarMensaje(input: {
 
     // Notificar SSE de inmediato para que el panel lo muestre sin esperar al worker
     if (conversacion.instanciaId) {
-      busEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, {
+      void publicadorEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, conversacion.instanciaId, {
         mensajeId: mensaje.id,
         conversacionId: validado.conversacionId,
         instanciaId: conversacion.instanciaId,
@@ -432,22 +432,16 @@ export async function enviarMensaje(input: {
         conversacion.contacto.email ??
         "";
 
-      await prisma.jobMensaje.create({
-        data: {
-          tipo: "ENVIAR_MENSAJE",
-          instanciaId: conversacion.instanciaId,
-          payload: {
-            mensajeId: mensaje.id,
-            conversacionId: validado.conversacionId,
-            contenido: validado.contenido,
-            tipo: validado.tipo,
-            mediaUrl: input.mediaUrl ?? null,
-            destinatario,
-            canal: conversacion.cuentaCanal.canal,
-            cuentaCanalId: conversacion.cuentaCanalId,
-            instanciaId: conversacion.instanciaId,
-          },
-        },
+      await publicadorEventos.publicar(TIPOS_COMANDO.ENVIAR_MENSAJE, conversacion.instanciaId, {
+        instanciaId: conversacion.instanciaId,
+        mensajeId: mensaje.id,
+        conversacionId: validado.conversacionId,
+        contenido: validado.contenido,
+        tipo: validado.tipo,
+        mediaUrl: input.mediaUrl ?? null,
+        destinatario,
+        canal: conversacion.cuentaCanal.canal,
+        cuentaCanalId: conversacion.cuentaCanalId,
       });
     }
 
@@ -639,12 +633,10 @@ export async function marcarMensajesLeidos(
     if (conv?.instanciaId && conv.cuentaCanal) {
       const provider = obtenerProvider(conv.cuentaCanal.canal);
       if (provider?.marcarLeido) {
-        await prisma.jobMensaje.create({
-          data: {
-            tipo: "MARCAR_LEIDO",
-            instanciaId: conv.instanciaId,
-            payload: { mensajeIds, conversacionId },
-          },
+        await publicadorEventos.publicar(TIPOS_COMANDO.MARCAR_LEIDO, conv.instanciaId, {
+          instanciaId: conv.instanciaId,
+          mensajeIds,
+          conversacionId,
         });
       }
     }
@@ -846,7 +838,7 @@ export async function toggleReaccion(
       });
     }
 
-    busEventos.publicar(TIPOS_EVENTO.REACCION_ACTUALIZADA, {
+    void publicadorEventos.publicar(TIPOS_EVENTO.REACCION_ACTUALIZADA, mensaje.conversacion?.instanciaId ?? "", {
       mensajeId,
       conversacionId: mensaje.conversacionId,
       instanciaId: mensaje.conversacion?.instanciaId ?? "",

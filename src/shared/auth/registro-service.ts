@@ -3,8 +3,9 @@
 import { prisma } from "@/shared/db/prisma";
 import { obtenerAuthProvider } from "@/shared/auth/provider";
 import { generarSlug } from "@/shared/lib/slug";
-import { busEventos } from "@/shared/eventos/bus";
 import { TIPOS_EVENTO } from "@/shared/eventos/registro";
+import { publicadorEventos } from "@/shared/rabbitmq";
+import { TIPOS_COMANDO } from "@/shared/eventos/registro";
 import {
   RegistroSchema,
   MENSAJE_REGISTRO_INVALIDO,
@@ -81,15 +82,9 @@ export async function registrarEmpresa(input: RegistroInput): Promise<ResultadoR
     instanciaNombre = resultado.nombre;
     instanciaSlug = resultado.slug;
 
-    await prisma.jobSistema.create({
-      data: {
-        tipo: "INICIALIZAR_INSTANCIA",
-        instanciaId,
-        payload: { instanciaId, nombre: instanciaNombre, slug: instanciaSlug },
-      },
-    });
+    await publicadorEventos.publicar(TIPOS_COMANDO.INICIALIZAR_INSTANCIA, instanciaId, { instanciaId });
 
-    busEventos.publicar(TIPOS_EVENTO.INSTANCIA_CREADA, {
+    await publicadorEventos.publicar(TIPOS_EVENTO.INSTANCIA_CREADA, instanciaId, {
       instanciaId,
       nombre: instanciaNombre,
       slug: instanciaSlug,

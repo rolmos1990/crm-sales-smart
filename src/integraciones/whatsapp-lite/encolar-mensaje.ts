@@ -1,5 +1,7 @@
 import { prisma } from "@/shared/db/prisma";
 import { sesionManagerWA } from "./sesion-manager";
+import { publicadorEventos } from "@/shared/rabbitmq";
+import { TIPOS_COMANDO } from "@/shared/eventos/registro";
 
 export async function encolarMensajeEntrante(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -9,19 +11,10 @@ export async function encolarMensajeEntrante(
 ): Promise<void> {
   const idExterno = msg.key.id as string | undefined;
 
-  // Idempotencia: no encolar si ya existe el mensaje o ya hay un job pendiente/procesado
+  // Idempotencia: no encolar si ya existe el mensaje en BD
   if (idExterno) {
-    const [yaExiste, yaEncolado] = await Promise.all([
-      prisma.mensajeConversacion.findFirst({ where: { idExterno }, select: { id: true } }),
-      prisma.jobMensaje.findFirst({
-        where: {
-          tipo: "PROCESAR_ENTRANTE",
-          payload: { path: ["idExterno"], equals: idExterno },
-        },
-        select: { id: true },
-      }),
-    ]);
-    if (yaExiste || yaEncolado) return;
+    const yaExiste = await prisma.mensajeConversacion.findFirst({ where: { idExterno }, select: { id: true } });
+    if (yaExiste) return;
   }
 
   const jid = msg.key.remoteJid ?? "";
@@ -130,25 +123,19 @@ export async function encolarMensajeEntrante(
     }
   }
 
-  await prisma.jobMensaje.create({
-    data: {
-      tipo: "PROCESAR_ENTRANTE",
-      instanciaId,
-      payload: {
-        canal: "whatsapp_lite",
-        identificadorContacto,
-        cuentaCanalId,
-        instanciaId,
-        contenido,
-        tipo,
-        idExterno,
-        pushName,
-        ...(avatarUrl ? { avatarUrl } : {}),
-        ...(mediaUrl ? { mediaUrl } : {}),
-        ...(mediaMimeType ? { mediaMimeType } : {}),
-        ...(mediaDuracion !== undefined ? { mediaDuracion } : {}),
-        ...(mediaArchivoId ? { mediaArchivoId } : {}),
-      },
-    },
+  await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, instanciaId, {
+    instanciaId,
+    canal: "whatsapp_lite",
+    identificadorContacto,
+    cuentaCanalId,
+    contenido,
+    tipo,
+    idExterno,
+    pushName,
+    ...(avatarUrl ? { avatarUrl } : {}),
+    ...(mediaUrl ? { mediaUrl } : {}),
+    ...(mediaMimeType ? { mediaMimeType } : {}),
+    ...(mediaDuracion !== undefined ? { mediaDuracion } : {}),
+    ...(mediaArchivoId ? { mediaArchivoId } : {}),
   });
 }

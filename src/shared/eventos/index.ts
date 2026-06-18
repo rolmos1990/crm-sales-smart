@@ -1,5 +1,4 @@
-export { busEventos } from "./bus";
-export { TIPOS_EVENTO } from "./registro";
+export { TIPOS_EVENTO, TIPOS_COMANDO } from "./registro";
 export type {
   EventoDominio,
   HandlerEvento,
@@ -22,5 +21,11 @@ export type {
   CotizacionCreadaPayload,
   CotizacionEnviadaPayload,
   PedidoCreadoPayload,
+  PedidoActualizadoPayload,
   PedidoEntregadoPayload,
+  ComandoEnviarMensajePayload,
+  ComandoProcesarEntrantePayload,
+  ComandoMarcarLeidoPayload,
+  ComandoEnviarEmailPayload,
+  ComandoInicializarInstanciaPayload,
 } from "./registro";

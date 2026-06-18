@@ -16,9 +16,7 @@ async function main() {
   const results: Record<string, number> = {}
 
   await prisma.$transaction(async (tx) => {
-    // --- Cola de jobs ---
-    results.JobMensaje = (await tx.jobMensaje.deleteMany()).count
-    results.JobSistema = (await tx.jobSistema.deleteMany()).count
+    // --- DisparadorJob (scheduled jobs — se mantienen en Postgres) ---
     results.DisparadorJob = (await tx.disparadorJob.deleteMany()).count
 
     // --- Conversaciones y mensajes ---

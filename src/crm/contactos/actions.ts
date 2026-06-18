@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { busEventos, TIPOS_EVENTO } from "@/shared/eventos";
+import { TIPOS_EVENTO } from "@/shared/eventos";
+import { publicadorEventos } from "@/shared/rabbitmq";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { CrearContactoSchema, ActualizarContactoSchema } from "./schema";
 import type { ResultadoAccion, Contacto } from "./types";
@@ -45,7 +46,8 @@ export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Con
       include: { empresa: { select: { id: true, nombre: true } } },
     });
 
-    busEventos.publicar(TIPOS_EVENTO.CONTACTO_CREADO, {
+    await publicadorEventos.publicar(TIPOS_EVENTO.CONTACTO_CREADO, sesion.instanciaId, {
+      instanciaId: sesion.instanciaId,
       contactoId: contacto.id,
       nombre: contacto.nombre,
       apellido: contacto.apellido,
@@ -98,7 +100,8 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
       ]);
     }
 
-    busEventos.publicar(TIPOS_EVENTO.CONTACTO_ACTUALIZADO, {
+    await publicadorEventos.publicar(TIPOS_EVENTO.CONTACTO_ACTUALIZADO, sesion.instanciaId, {
+      instanciaId: sesion.instanciaId,
       contactoId: id,
       cambios: validado.data as Record<string, unknown>,
     });
@@ -172,7 +175,7 @@ export async function eliminarContacto(id: string): Promise<ResultadoAccion> {
       prisma.pedido.updateMany({ where: { contactoId: id }, data: { contactoId: null } }),
       prisma.contacto.delete({ where: { id } }),
     ]);
-    busEventos.publicar(TIPOS_EVENTO.CONTACTO_ELIMINADO, { contactoId: id });
+    await publicadorEventos.publicar(TIPOS_EVENTO.CONTACTO_ELIMINADO, sesion.instanciaId, { instanciaId: sesion.instanciaId, contactoId: id });
     revalidatePath("/crm/contactos");
     return { exito: true, datos: undefined };
   } catch (e) {

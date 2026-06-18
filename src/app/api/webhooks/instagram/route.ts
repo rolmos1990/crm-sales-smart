@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/db/prisma";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
-import { busEventos } from "@/shared/eventos/bus";
-import { TIPOS_EVENTO } from "@/shared/eventos/registro";
+import { TIPOS_EVENTO, TIPOS_COMANDO } from "@/shared/eventos/registro";
+import { publicadorEventos } from "@/shared/rabbitmq";
 
 export const runtime = "nodejs";
 
@@ -133,28 +133,19 @@ export async function POST(req: NextRequest) {
 
       // Idempotencia: evitar duplicados si Meta reenvía el mismo webhook
       if (mid) {
-        const [yaExiste, yaEncolado] = await Promise.all([
-          prisma.mensajeConversacion.findFirst({ where: { idExterno: mid }, select: { id: true } }),
-          prisma.jobMensaje.findFirst({
-            where: { tipo: "PROCESAR_ENTRANTE", payload: { path: ["idExterno"], equals: mid } },
-            select: { id: true },
-          }),
-        ]);
-        if (yaExiste || yaEncolado) continue;
+        const yaExiste = await prisma.mensajeConversacion.findFirst({ where: { idExterno: mid }, select: { id: true } });
+        if (yaExiste) continue;
       }
 
       // Normalizar el evento individual
       const normalizado = provider.mapearEntrante({ ...event, cuentaCanalId: cuentaCanal.id });
 
-      await prisma.jobMensaje.create({
-        data: {
-          tipo: "PROCESAR_ENTRANTE",
-          instanciaId: cuentaCanal.instanciaId,
-          payload: { ...normalizado, instanciaId: cuentaCanal.instanciaId },
-        },
+      await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, cuentaCanal.instanciaId, {
+        ...normalizado,
+        instanciaId: cuentaCanal.instanciaId,
       });
 
-      console.log(`[IG Webhook] Job encolado → mid: ${mid ?? "sin-id"} | from: ${event.sender.id}`);
+      console.log(`[IG Webhook] Mensaje encolado → mid: ${mid ?? "sin-id"} | from: ${event.sender.id}`);
     }
   }
 
@@ -213,7 +204,7 @@ async function procesarReaccionIG(event: IGMessagingEvent, instanciaId: string):
     });
   }
 
-  busEventos.publicar(TIPOS_EVENTO.REACCION_ACTUALIZADA, {
+  void publicadorEventos.publicar(TIPOS_EVENTO.REACCION_ACTUALIZADA, instanciaId, {
     mensajeId: mensajeEnBD.id,
     conversacionId: mensajeEnBD.conversacionId,
     instanciaId,

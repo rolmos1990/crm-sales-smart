@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
 import { prisma } from "@/shared/db/prisma";
+import { publicadorEventos } from "@/shared/rabbitmq";
+import { TIPOS_COMANDO } from "@/shared/eventos/registro";
 
 export async function POST(
   req: NextRequest,
@@ -26,22 +28,13 @@ export async function POST(
 
   const normalizado = provider.mapearEntrante(raw);
 
-  // Idempotencia: si ya procesamos este mensaje, responder OK sin crear job duplicado
+  // Idempotencia: si ya procesamos este mensaje, responder OK sin encolar de nuevo
   if (normalizado.idExterno) {
     const yaExiste = await prisma.mensajeConversacion.findFirst({
       where: { idExterno: normalizado.idExterno },
       select: { id: true },
     });
     if (yaExiste) return NextResponse.json({ ok: true });
-
-    const yaEncolado = await prisma.jobMensaje.findFirst({
-      where: {
-        tipo: "PROCESAR_ENTRANTE",
-        payload: { path: ["idExterno"], equals: normalizado.idExterno },
-      },
-      select: { id: true },
-    });
-    if (yaEncolado) return NextResponse.json({ ok: true });
   }
 
   const cuentaCanal = await prisma.cuentaCanal.findUnique({
@@ -53,12 +46,9 @@ export async function POST(
     return NextResponse.json({ error: "Cuenta de canal no encontrada" }, { status: 404 });
   }
 
-  await prisma.jobMensaje.create({
-    data: {
-      tipo: "PROCESAR_ENTRANTE",
-      instanciaId: cuentaCanal.instanciaId,
-      payload: { ...normalizado, instanciaId: cuentaCanal.instanciaId },
-    },
+  await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, cuentaCanal.instanciaId, {
+    ...normalizado,
+    instanciaId: cuentaCanal.instanciaId,
   });
 
   return NextResponse.json({ ok: true });
