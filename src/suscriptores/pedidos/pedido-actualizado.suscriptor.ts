@@ -1,7 +1,7 @@
 import { ConsumidorBase } from "@/shared/rabbitmq/consumidor";
 import { QUEUES, RK } from "@/shared/rabbitmq/exchanges";
 import type { EventoEnvelope } from "@/shared/rabbitmq/tipos";
-import type { PedidoActualizadoPayload } from "@/shared/eventos/registro";
+import type { PedidoActualizadoPayload } from "@/eventos/contratos/pedido-actualizado.event";
 import { prisma } from "@/shared/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { TIPOS_EVENTO } from "@/shared/eventos";
+import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { CrearContactoSchema, ActualizarContactoSchema } from "./schema";
@@ -46,7 +46,7 @@ export async function crearContacto(datos: unknown): Promise<ResultadoAccion<Con
       include: { empresa: { select: { id: true, nombre: true } } },
     });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.CONTACTO_CREADO, sesion.instanciaId, {
+    await publicadorEventos.publicar(EventosSistema.ContactoCreado, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,
       contactoId: contacto.id,
       nombre: contacto.nombre,
@@ -100,7 +100,7 @@ export async function actualizarContacto(id: string, datos: unknown): Promise<Re
       ]);
     }
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.CONTACTO_ACTUALIZADO, sesion.instanciaId, {
+    await publicadorEventos.publicar(EventosSistema.ContactoActualizado, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,
       contactoId: id,
       cambios: validado.data as Record<string, unknown>,
@@ -175,7 +175,7 @@ export async function eliminarContacto(id: string): Promise<ResultadoAccion> {
       prisma.pedido.updateMany({ where: { contactoId: id }, data: { contactoId: null } }),
       prisma.contacto.delete({ where: { id } }),
     ]);
-    await publicadorEventos.publicar(TIPOS_EVENTO.CONTACTO_ELIMINADO, sesion.instanciaId, { instanciaId: sesion.instanciaId, contactoId: id });
+    await publicadorEventos.publicar(EventosSistema.ContactoEliminado, sesion.instanciaId, { instanciaId: sesion.instanciaId, contactoId: id });
     revalidatePath("/crm/contactos");
     return { exito: true, datos: undefined };
   } catch (e) {

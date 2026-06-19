@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
-import { TIPOS_EVENTO } from "@/shared/eventos";
+import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { CrearProductoSchema, ActualizarProductoSchema } from "./schema";
@@ -33,7 +33,7 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
       },
     });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.PRODUCTO_CREADO, sesion.instanciaId, {
+    await publicadorEventos.publicar(EventosSistema.ProductoCreado, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,
       productoId: producto.id,
       nombre: producto.nombre,
@@ -74,14 +74,14 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
     });
 
     if (productoAntes && validado.data.precio !== undefined && Number(productoAntes.precio) !== validado.data.precio) {
-      await publicadorEventos.publicar(TIPOS_EVENTO.PRECIO_ACTUALIZADO, sesion.instanciaId, {
+      await publicadorEventos.publicar(EventosSistema.PrecioActualizado, sesion.instanciaId, {
         instanciaId: sesion.instanciaId,
         productoId: id,
         precioAnterior: Number(productoAntes.precio),
         precioNuevo: validado.data.precio,
       });
     } else {
-      await publicadorEventos.publicar(TIPOS_EVENTO.PRODUCTO_ACTUALIZADO, sesion.instanciaId, { instanciaId: sesion.instanciaId, productoId: id, cambios: validado.data as Record<string, unknown> });
+      await publicadorEventos.publicar(EventosSistema.ProductoActualizado, sesion.instanciaId, { instanciaId: sesion.instanciaId, productoId: id, cambios: validado.data as Record<string, unknown> });
     }
 
     revalidatePath("/productos");

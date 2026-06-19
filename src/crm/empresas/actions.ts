@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { TIPOS_EVENTO } from "@/shared/eventos";
+import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearEmpresaSchema, ActualizarEmpresaSchema } from "./schema";
 import type { ResultadoAccion, Empresa } from "./types";
@@ -33,7 +33,7 @@ export async function crearEmpresa(datos: unknown): Promise<ResultadoAccion<Empr
       },
     });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.EMPRESA_CREADA, sesion.instanciaId, { instanciaId: sesion.instanciaId, empresaId: empresa.id, nombre: empresa.nombre });
+    await publicadorEventos.publicar(EventosSistema.EmpresaCreada, sesion.instanciaId, { instanciaId: sesion.instanciaId, empresaId: empresa.id, nombre: empresa.nombre });
     revalidatePath("/crm/empresas");
     return { exito: true, datos: empresa as Empresa };
   } catch {
@@ -67,7 +67,7 @@ export async function actualizarEmpresa(id: string, datos: unknown): Promise<Res
       },
     });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.EMPRESA_ACTUALIZADA, sesion.instanciaId, { instanciaId: sesion.instanciaId, empresaId: id, cambios: validado.data as Record<string, unknown> });
+    await publicadorEventos.publicar(EventosSistema.EmpresaActualizada, sesion.instanciaId, { instanciaId: sesion.instanciaId, empresaId: id, cambios: validado.data as Record<string, unknown> });
     revalidatePath("/crm/empresas");
     revalidatePath(`/crm/empresas/${id}`);
     return { exito: true, datos: empresa as Empresa };

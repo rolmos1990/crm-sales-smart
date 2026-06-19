@@ -22,6 +22,7 @@ import {
   ChevronUp,
   GitBranch,
   Database,
+  Truck,
 } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ const NAVEGACION = [
       { href: "/sales/cotizaciones", etiqueta: "Cotizaciones", Icono: FileText, modulo: "cotizaciones" },
       { href: "/sales/pedidos", etiqueta: "Pedidos", Icono: ShoppingCart, modulo: "pedidos" },
       { href: "/sales/flujo-venta", etiqueta: "Flujo de venta", Icono: GitBranch, modulo: "flujo-venta" },
+      { href: "/sales/transportistas", etiqueta: "Transportistas", Icono: Truck, modulo: "transportistas" },
     ],
   },
   {

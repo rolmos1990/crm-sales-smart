@@ -3,9 +3,8 @@
 import { prisma } from "@/shared/db/prisma";
 import { obtenerAuthProvider } from "@/shared/auth/provider";
 import { generarSlug } from "@/shared/lib/slug";
-import { TIPOS_EVENTO } from "@/shared/eventos/registro";
 import { publicadorEventos } from "@/shared/rabbitmq";
-import { TIPOS_COMANDO } from "@/shared/eventos/registro";
+import { EventosSistema, ComandosSistema } from "@/eventos/catalogo";
 import {
   RegistroSchema,
   MENSAJE_REGISTRO_INVALIDO,
@@ -82,9 +81,9 @@ export async function registrarEmpresa(input: RegistroInput): Promise<ResultadoR
     instanciaNombre = resultado.nombre;
     instanciaSlug = resultado.slug;
 
-    await publicadorEventos.publicar(TIPOS_COMANDO.INICIALIZAR_INSTANCIA, instanciaId, { instanciaId });
+    await publicadorEventos.publicar(ComandosSistema.InicializarInstancia, instanciaId, { instanciaId });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.INSTANCIA_CREADA, instanciaId, {
+    await publicadorEventos.publicar(EventosSistema.InstanciaCreada, instanciaId, {
       instanciaId,
       nombre: instanciaNombre,
       slug: instanciaSlug,

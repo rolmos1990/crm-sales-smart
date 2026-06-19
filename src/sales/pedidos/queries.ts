@@ -48,15 +48,20 @@ export async function obtenerPedidoPorId(id: string, instanciaId: string) {
         },
       },
       oportunidad: incluirOportunidadConCampos,
-      flujoVentaEtapa: { select: { id: true, nombre: true, color: true, esFinal: true, esCancelacion: true, esSecuencial: true, permiteEditarPedido: true, orden: true, parentId: true } },
+      flujoVentaEtapa: { select: { id: true, nombre: true, color: true, esFinal: true, esCancelacion: true, esSecuencial: true, permiteEditarPedido: true, permiteEditarEntrega: true, orden: true, parentId: true } },
       flujoVenta: {
         select: {
           id: true,
           etapas: {
             where: { activo: true },
             orderBy: { orden: "asc" as const },
-            select: { id: true, nombre: true, color: true, esFinal: true, esCancelacion: true, esInicial: true, esSecuencial: true, permiteEditarPedido: true, orden: true, parentId: true },
+            select: { id: true, nombre: true, color: true, esFinal: true, esCancelacion: true, esInicial: true, esSecuencial: true, permiteEditarPedido: true, permiteEditarEntrega: true, orden: true, parentId: true },
           },
+        },
+      },
+      entrega: {
+        include: {
+          transportista: { select: { id: true, nombre: true, tipo: true } },
         },
       },
       historialEtapas: {

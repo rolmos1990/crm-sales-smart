@@ -71,6 +71,32 @@ enum EstadoPedido {
   CANCELADO
 }
 
+enum TipoTransportista {
+  COURIER_EXTERNO
+  MENSAJERO_PROPIO
+  RETIRO_TIENDA
+  DIGITAL
+  INSTALACION_SERVICIO
+}
+
+enum MetodoEntrega {
+  COURIER_EXTERNO
+  MENSAJERO_PROPIO
+  RETIRO_TIENDA
+  DIGITAL
+  INSTALACION_SERVICIO
+}
+
+enum EstadoEntrega {
+  PENDIENTE
+  PREPARANDO
+  EN_CAMINO
+  ENTREGADO
+  FALLIDO
+  CANCELADO
+  DEVUELTO
+}
+
 enum TipoCampoPersonalizado {
   TEXTO
   TEXTO_LARGO
@@ -250,6 +276,7 @@ model Instancia {
 
   flujosVenta          FlujoVenta[]
   importaciones        HistorialImportacion[]
+  transportistas       Transportista[]
 
   @@index([slug])
   @@index([estado])
@@ -861,6 +888,7 @@ model Pedido {
   historial       PedidoHistorial[]
   disparadorJobs  DisparadorJob[]
   actividades     Actividad[]
+  entrega         EntregaPedido?
 
   @@index([instanciaId])
   @@index([estado])
@@ -886,6 +914,46 @@ model PedidoLinea {
 
   productoId String?
   producto   Producto? @relation(fields: [productoId], references: [id])
+}
+
+// =====================
+// ENTREGA Y TRANSPORTISTAS
+// =====================
+
+model Transportista {
+  id     String            @id @default(cuid())
+  nombre String
+  tipo   TipoTransportista @default(COURIER_EXTERNO)
+  activo Boolean           @default(true)
+  creadoEn      DateTime   @default(now())
+  actualizadoEn DateTime   @updatedAt
+
+  instanciaId String?
+  instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  entregas EntregaPedido[]
+
+  @@index([instanciaId])
+}
+
+model EntregaPedido {
+  id             String        @id @default(cuid())
+  metodoEntrega  MetodoEntrega @default(COURIER_EXTERNO)
+  estadoEntrega  EstadoEntrega @default(PENDIENTE)
+  numeroGuia     String?
+  urlSeguimiento String?
+  fechaEstimada  DateTime?
+  observaciones  String?
+  creadoEn       DateTime      @default(now())
+  actualizadoEn  DateTime      @updatedAt
+
+  pedidoId String  @unique
+  pedido   Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  transportistaId String?
+  transportista   Transportista? @relation(fields: [transportistaId], references: [id])
+
+  @@index([pedidoId])
 }
 
 // =====================
@@ -1038,9 +1106,10 @@ model FlujoVentaEtapa {
   esInicial           Boolean  @default(false)
   esFinal             Boolean  @default(false)
   esCancelacion       Boolean  @default(false)
-  esSecuencial        Boolean  @default(true)
-  permiteEditarPedido Boolean  @default(true)
-  activo              Boolean  @default(true)
+  esSecuencial         Boolean  @default(true)
+  permiteEditarPedido  Boolean  @default(true)
+  permiteEditarEntrega Boolean  @default(false)
+  activo               Boolean  @default(true)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 

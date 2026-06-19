@@ -1,7 +1,7 @@
 import { ConsumidorBase } from "@/shared/rabbitmq/consumidor";
 import { QUEUES, RK } from "@/shared/rabbitmq/exchanges";
 import type { EventoEnvelope } from "@/shared/rabbitmq/tipos";
-import type { ComandoInicializarInstanciaPayload } from "@/shared/eventos/registro";
+import type { ComandoInicializarInstanciaPayload } from "@/eventos/contratos/inicializar-instancia.comando";
 import { crearPipelineDefault } from "@/shared/inicializacion/pipeline-default";
 
 export class InicializarInstanciaSuscriptor extends ConsumidorBase {

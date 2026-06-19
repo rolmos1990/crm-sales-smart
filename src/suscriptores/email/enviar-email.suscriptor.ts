@@ -1,7 +1,7 @@
 import { ConsumidorBase } from "@/shared/rabbitmq/consumidor";
 import { QUEUES, RK } from "@/shared/rabbitmq/exchanges";
 import type { EventoEnvelope } from "@/shared/rabbitmq/tipos";
-import type { ComandoEnviarEmailPayload } from "@/shared/eventos/registro";
+import type { ComandoEnviarEmailPayload } from "@/eventos/contratos/enviar-email.comando";
 import { getEmailProvider } from "@/lib/email/providers/factory";
 import { renderTemplate } from "@/lib/email/templates/index";
 import type { TemplatePayload } from "@/lib/email/templates/types";

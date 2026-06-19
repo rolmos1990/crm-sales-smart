@@ -1,7 +1,7 @@
 import { ConsumidorBase } from "@/shared/rabbitmq/consumidor";
 import { QUEUES, RK } from "@/shared/rabbitmq/exchanges";
 import type { EventoEnvelope } from "@/shared/rabbitmq/tipos";
-import type { ComandoProcesarEntrantePayload } from "@/shared/eventos/registro";
+import type { ComandoProcesarEntrantePayload } from "@/eventos/contratos/procesar-entrante.comando";
 
 export class ProcesarEntranteSuscriptor extends ConsumidorBase {
   readonly queue = QUEUES.MENSAJE_ENTRANTE;

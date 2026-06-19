@@ -1,7 +1,7 @@
 import { ConsumidorBase } from "@/shared/rabbitmq/consumidor";
 import { QUEUES, RK } from "@/shared/rabbitmq/exchanges";
 import type { EventoEnvelope } from "@/shared/rabbitmq/tipos";
-import type { ComandoMarcarLeidoPayload } from "@/shared/eventos/registro";
+import type { ComandoMarcarLeidoPayload } from "@/eventos/contratos/marcar-leido.comando";
 import { prisma } from "@/shared/db/prisma";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
 

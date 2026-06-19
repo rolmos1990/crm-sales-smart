@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { TIPOS_EVENTO } from "@/shared/eventos";
+import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
 import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad } from "./queries";
@@ -64,7 +64,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
       include: { contacto: { select: { id: true, nombre: true, apellido: true } }, empresa: { select: { id: true, nombre: true } } },
     });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.COTIZACION_CREADA, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: cotizacion.id, numero: cotizacion.numero, total });
+    await publicadorEventos.publicar(EventosSistema.CotizacionCreada, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: cotizacion.id, numero: cotizacion.numero, total });
     revalidatePath("/sales/cotizaciones");
     if (oportunidadId) revalidatePath(`/crm/oportunidades/${oportunidadId}`);
     return { exito: true, datos: { ...cotizacion, subtotal, total, impuesto: impuestoMonto } as unknown as Cotizacion };
@@ -161,7 +161,7 @@ export async function cambiarEstadoCotizacion(id: string, estado: string): Promi
     });
 
     if (estado === "ENVIADA") {
-      await publicadorEventos.publicar(TIPOS_EVENTO.COTIZACION_ENVIADA, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: id, numero: "" });
+      await publicadorEventos.publicar(EventosSistema.CotizacionEnviada, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: id, numero: "" });
     }
 
     revalidatePath("/sales/cotizaciones");
@@ -293,8 +293,8 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
       return nuevoPedido;
     });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.COTIZACION_ENVIADA, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: id, numero: cotizacion.numero });
-    await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, sesion.instanciaId, { instanciaId: sesion.instanciaId, pedidoId: pedido.id, numero: numeroPedido, total: Number(cotizacion.total), usuarioId: sesion.usuarioId, usuarioNombre: null });
+    await publicadorEventos.publicar(EventosSistema.CotizacionEnviada, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: id, numero: cotizacion.numero });
+    await publicadorEventos.publicar(EventosSistema.PedidoCreado, sesion.instanciaId, { instanciaId: sesion.instanciaId, pedidoId: pedido.id, numero: numeroPedido, total: Number(cotizacion.total), usuarioId: sesion.usuarioId, usuarioNombre: null });
 
     revalidatePath("/sales/cotizaciones");
     revalidatePath("/sales/pedidos");

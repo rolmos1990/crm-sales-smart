@@ -21,6 +21,7 @@ import { ESTADO_PEDIDO_CONFIG } from "@/sales/pedidos/types";
 import { BotonesTransicion } from "@/sales/pedidos/components/botones-transicion";
 import { DialogEditarPedido } from "@/sales/pedidos/components/dialog-editar-pedido";
 import { TimelineHistorialEtapas } from "@/sales/pedidos/components/timeline-historial-etapas";
+import { SeccionEntrega } from "@/sales/pedidos/components/seccion-entrega";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
@@ -367,6 +368,15 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
           </CardContent>
         </Card>
       )}
+
+      {/* ── Entrega y seguimiento ────────────────────────────────── */}
+      <SeccionEntrega
+        pedidoId={pedido.id}
+        instanciaId={sesion.instanciaId}
+        rol={sesion.rol}
+        flujoVentaEtapa={etapaActual}
+        entrega={(pedido as any).entrega ?? null}
+      />
 
       {/* ── Campos adicionales de la oportunidad ─────────────────── */}
       {camposOportunidad.length > 0 && (

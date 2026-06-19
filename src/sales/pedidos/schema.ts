@@ -53,8 +53,38 @@ export const EditarPedidoSchema = z.object({
   lineas: z.array(LineaPedidoEditSchema).min(1, "Debe agregar al menos un producto"),
 });
 
+export const MetodoEntregaEnum = z.enum([
+  "COURIER_EXTERNO",
+  "MENSAJERO_PROPIO",
+  "RETIRO_TIENDA",
+  "DIGITAL",
+  "INSTALACION_SERVICIO",
+]);
+
+export const EstadoEntregaEnum = z.enum([
+  "PENDIENTE",
+  "PREPARANDO",
+  "EN_CAMINO",
+  "ENTREGADO",
+  "FALLIDO",
+  "CANCELADO",
+  "DEVUELTO",
+]);
+
+export const ActualizarEntregaPedidoSchema = z.object({
+  pedidoId:        z.string().min(1),
+  metodoEntrega:   MetodoEntregaEnum,
+  estadoEntrega:   EstadoEntregaEnum,
+  transportistaId: z.string().nullable().optional(),
+  numeroGuia:      z.string().max(120).optional().or(z.literal("")),
+  urlSeguimiento:  z.string().url("URL de seguimiento inválida").optional().or(z.literal("")),
+  fechaEstimada:   z.string().datetime({ offset: true }).optional().nullable(),
+  observaciones:   z.string().max(500).optional().or(z.literal("")),
+});
+
 export type CrearPedidoInput = z.infer<typeof CrearPedidoSchema>;
 export type EditarPedidoInput = z.infer<typeof EditarPedidoSchema>;
 export type ActualizarEstadoPedidoInput = z.infer<typeof ActualizarEstadoPedidoSchema>;
+export type ActualizarEntregaPedidoInput = z.infer<typeof ActualizarEntregaPedidoSchema>;
 export type LineaPedidoInput = z.infer<typeof LineaPedidoSchema>;
 export type LineaPedidoEditInput = z.infer<typeof LineaPedidoEditSchema>;

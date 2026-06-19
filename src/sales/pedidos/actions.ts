@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { TIPOS_EVENTO } from "@/shared/eventos";
+import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
-import { CrearPedidoSchema, ActualizarEstadoPedidoSchema, EditarPedidoSchema } from "./schema";
+import { CrearPedidoSchema, ActualizarEstadoPedidoSchema, EditarPedidoSchema, ActualizarEntregaPedidoSchema } from "./schema";
 import { generarNumeroPedido } from "./queries";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import type { ResultadoAccion, Pedido } from "./types";
@@ -130,7 +130,7 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     const usuarioNombre = sesion.usuarioId
       ? await prisma.usuario.findFirst({ where: { id: sesion.usuarioId }, select: { nombre: true } }).then(u => u?.nombre ?? null)
       : null;
-    await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_CREADO, sesion.instanciaId, {
+    await publicadorEventos.publicar(EventosSistema.PedidoCreado, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,
       pedidoId: pedido.id,
       numero: pedido.numero,
@@ -157,9 +157,9 @@ export async function actualizarEstadoPedido(id: string, datos: unknown): Promis
 
     const instanciaId = auth.sesion.instanciaId;
     if (validado.data.estado === "ENTREGADO") {
-      await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_ENTREGADO, instanciaId, { instanciaId, pedidoId: id, numero: "" });
+      await publicadorEventos.publicar(EventosSistema.PedidoEntregado, instanciaId, { instanciaId, pedidoId: id, numero: "" });
     } else {
-      await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, instanciaId, { instanciaId, pedidoId: id, usuarioId: null, usuarioNombre: null, cambios: [] });
+      await publicadorEventos.publicar(EventosSistema.PedidoActualizado, instanciaId, { instanciaId, pedidoId: id, usuarioId: null, usuarioNombre: null, cambios: [] });
     }
 
     revalidatePath("/sales/pedidos");
@@ -414,7 +414,7 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     }
     if (ajustesStock.length > 0) await Promise.all(ajustesStock);
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.PEDIDO_ACTUALIZADO, sesion.instanciaId, {
+    await publicadorEventos.publicar(EventosSistema.PedidoActualizado, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,
       pedidoId: id,
       usuarioId: sesion.usuarioId,
@@ -427,4 +427,88 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
   } catch {
     return { exito: false, error: "Error al editar el pedido" };
   }
+}
+
+export async function actualizarEntregaPedido(datos: unknown): Promise<ResultadoAccion<undefined>> {
+  const validado = ActualizarEntregaPedidoSchema.safeParse(datos);
+  if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
+
+  const auth = await requirePermisoAction("configuracion", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  const { pedidoId, transportistaId, fechaEstimada, ...campos } = validado.data;
+
+  const [pedido, usuarioNombre, nuevoTransportista] = await Promise.all([
+    prisma.pedido.findFirst({
+      where: { id: pedidoId, instanciaId: auth.sesion.instanciaId },
+      select: {
+        flujoVentaEtapa: { select: { permiteEditarEntrega: true } },
+        entrega: {
+          select: {
+            metodoEntrega: true, estadoEntrega: true, numeroGuia: true,
+            fechaEstimada: true,
+            transportista: { select: { nombre: true } },
+          },
+        },
+      },
+    }),
+    auth.sesion.usuarioId
+      ? prisma.usuario.findFirst({ where: { id: auth.sesion.usuarioId }, select: { nombre: true } }).then(u => u?.nombre ?? null)
+      : Promise.resolve(null),
+    transportistaId
+      ? prisma.transportista.findUnique({ where: { id: transportistaId }, select: { nombre: true } }).then(t => t?.nombre ?? null)
+      : Promise.resolve(null),
+  ]);
+
+  if (!pedido) return { exito: false, error: "Pedido no encontrado" };
+  if (!pedido.flujoVentaEtapa?.permiteEditarEntrega) {
+    return { exito: false, error: "La etapa actual del pedido no permite editar la entrega" };
+  }
+
+  const esNueva = !pedido.entrega;
+
+  await prisma.entregaPedido.upsert({
+    where: { pedidoId },
+    create: {
+      pedidoId,
+      ...campos,
+      transportistaId: transportistaId ?? null,
+      fechaEstimada: fechaEstimada ? new Date(fechaEstimada) : null,
+    },
+    update: {
+      ...campos,
+      transportistaId: transportistaId ?? null,
+      fechaEstimada: fechaEstimada ? new Date(fechaEstimada) : null,
+    },
+  });
+
+  const valorAnterior = esNueva ? undefined : {
+    estadoEntrega:  pedido.entrega!.estadoEntrega,
+    metodoEntrega:  pedido.entrega!.metodoEntrega,
+    transportista:  pedido.entrega!.transportista?.nombre ?? null,
+    numeroGuia:     pedido.entrega!.numeroGuia ?? null,
+    fechaEstimada:  pedido.entrega!.fechaEstimada?.toISOString() ?? null,
+  };
+
+  const valorNuevo = {
+    estadoEntrega:  campos.estadoEntrega,
+    metodoEntrega:  campos.metodoEntrega,
+    transportista:  nuevoTransportista ?? null,
+    numeroGuia:     campos.numeroGuia ?? null,
+    fechaEstimada:  fechaEstimada ?? null,
+  };
+
+  await prisma.pedidoHistorial.create({
+    data: {
+      pedidoId,
+      accion: esNueva ? "ENTREGA_REGISTRADA" : "ENTREGA_ACTUALIZADA",
+      usuarioId:     auth.sesion.usuarioId ?? null,
+      usuarioNombre: usuarioNombre ?? null,
+      ...(valorAnterior && { valorAnterior }),
+      valorNuevo,
+    },
+  });
+
+  revalidatePath(`/sales/pedidos/${pedidoId}`);
+  return { exito: true, datos: undefined };
 }

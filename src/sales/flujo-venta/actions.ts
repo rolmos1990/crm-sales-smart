@@ -66,6 +66,10 @@ export async function crearEtapa(flujoVentaId: string, datos: unknown): Promise<
         ? true
         : (validado.data.permiteEditarPedido ?? true);
 
+    const permiteEditarEntrega = (esFinal || esCancelacion)
+      ? false
+      : (validado.data.permiteEditarEntrega ?? false);
+
     const etapa = await prisma.flujoVentaEtapa.create({
       data: {
         ...validado.data,
@@ -74,6 +78,7 @@ export async function crearEtapa(flujoVentaId: string, datos: unknown): Promise<
         esFinal,
         esCancelacion,
         permiteEditarPedido,
+        permiteEditarEntrega,
         activo: validado.data.activo ?? true,
         parentId: validado.data.parentId ?? null,
       },
@@ -108,9 +113,13 @@ export async function actualizarEtapa(etapaId: string, datos: unknown): Promise<
         ? true
         : (validado.data.permiteEditarPedido ?? etapa.permiteEditarPedido);
 
+    const permiteEditarEntrega = (esFinal || esCancelacion)
+      ? false
+      : (validado.data.permiteEditarEntrega ?? etapa.permiteEditarEntrega);
+
     await prisma.flujoVentaEtapa.update({
       where: { id: etapaId },
-      data: { ...validado.data, permiteEditarPedido },
+      data: { ...validado.data, permiteEditarPedido, permiteEditarEntrega },
     });
     revalidatePath("/sales/flujo-venta");
     return { exito: true, datos: undefined };

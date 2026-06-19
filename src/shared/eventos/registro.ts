@@ -1,144 +1,85 @@
-// Tipos de payload para cada evento de dominio del sistema.
-// Todos los payloads incluyen instanciaId — requerido para procesamiento stateless.
+// Re-exports de compatibilidad — los contratos viven en src/eventos/
+// Importar directamente desde "@/eventos" en código nuevo.
 
-export interface ContactoCreadoPayload { instanciaId: string; contactoId: string; nombre: string; apellido: string; email?: string; empresaId?: string }
-export interface ContactoActualizadoPayload { instanciaId: string; contactoId: string; cambios: Record<string, unknown> }
-export interface ContactoEliminadoPayload { instanciaId: string; contactoId: string }
-export interface ContactoAsignadoPayload { instanciaId: string; contactoId: string; usuarioId: string }
+export type { ContactoCreadoPayload }      from "@/eventos/contratos/contacto-creado.event";
+export type { ContactoActualizadoPayload } from "@/eventos/contratos/contacto-actualizado.event";
+export type { ContactoEliminadoPayload }   from "@/eventos/contratos/contacto-eliminado.event";
+export type { ContactoAsignadoPayload }    from "@/eventos/contratos/contacto-asignado.event";
 
-export interface EmpresaCreadaPayload { instanciaId: string; empresaId: string; nombre: string }
-export interface EmpresaActualizadaPayload { instanciaId: string; empresaId: string; cambios: Record<string, unknown> }
+export type { EmpresaCreadaPayload }       from "@/eventos/contratos/empresa-creada.event";
+export type { EmpresaActualizadaPayload }  from "@/eventos/contratos/empresa-actualizada.event";
 
-export interface OportunidadCreadaPayload { instanciaId: string; oportunidadId: string; titulo: string; valor: number; contactoId?: string; empresaId?: string }
-export interface OportunidadActualizadaPayload { instanciaId: string; oportunidadId: string; cambios: Record<string, unknown> }
-export interface EtapaCambiadaPayload { instanciaId: string; oportunidadId: string; etapaAnterior: string; etapaNueva: string }
-export interface OportunidadGanadaPayload { instanciaId: string; oportunidadId: string; valor: number; contactoId?: string }
-export interface OportunidadPerdidaPayload { instanciaId: string; oportunidadId: string; motivo?: string }
+export type { OportunidadCreadaPayload }      from "@/eventos/contratos/oportunidad-creada.event";
+export type { OportunidadActualizadaPayload } from "@/eventos/contratos/oportunidad-actualizada.event";
+export type { EtapaCambiadaPayload }          from "@/eventos/contratos/etapa-cambiada.event";
+export type { OportunidadGanadaPayload }      from "@/eventos/contratos/oportunidad-ganada.event";
+export type { OportunidadPerdidaPayload }     from "@/eventos/contratos/oportunidad-perdida.event";
 
-export interface ActividadCreadaPayload { instanciaId: string; actividadId: string; tipo: string; fecha: Date; entidadId?: string; entidadTipo?: string }
-export interface ActividadCompletadaPayload { instanciaId: string; actividadId: string; completadaEn: Date }
+export type { ActividadCreadaPayload }     from "@/eventos/contratos/actividad-creada.event";
+export type { ActividadCompletadaPayload } from "@/eventos/contratos/actividad-completada.event";
 
-export interface ProductoCreadoPayload { instanciaId: string; productoId: string; nombre: string; precio: number }
-export interface ProductoActualizadoPayload { instanciaId: string; productoId: string; cambios: Record<string, unknown> }
-export interface PrecioActualizadoPayload { instanciaId: string; productoId: string; precioAnterior: number; precioNuevo: number }
+export type { ProductoCreadoPayload }      from "@/eventos/contratos/producto-creado.event";
+export type { ProductoActualizadoPayload } from "@/eventos/contratos/producto-actualizado.event";
+export type { PrecioActualizadoPayload }   from "@/eventos/contratos/precio-actualizado.event";
 
-export interface CotizacionCreadaPayload { instanciaId: string; cotizacionId: string; numero: string; total: number }
-export interface CotizacionActualizadaPayload { instanciaId: string; cotizacionId: string; cambios: Record<string, unknown> }
-export interface CotizacionEnviadaPayload { instanciaId: string; cotizacionId: string; numero: string; contactoId?: string }
+export type { CotizacionCreadaPayload }     from "@/eventos/contratos/cotizacion-creada.event";
+export type { CotizacionActualizadaPayload } from "@/eventos/contratos/cotizacion-actualizada.event";
+export type { CotizacionEnviadaPayload }    from "@/eventos/contratos/cotizacion-enviada.event";
 
-export interface PedidoCreadoPayload extends Record<string, unknown> {
-  instanciaId: string;
-  pedidoId: string;
-  numero: string;
-  total: number;
-  usuarioId: string | null;
-  usuarioNombre: string | null;
-}
+export type { PedidoCreadoPayload }      from "@/eventos/contratos/pedido-creado.event";
+export type { PedidoActualizadoPayload, EntradaHistorialPedido } from "@/eventos/contratos/pedido-actualizado.event";
+export type { PedidoEntregadoPayload }   from "@/eventos/contratos/pedido-entregado.event";
 
-export interface EntradaHistorialPedido {
-  accion: string;
-  valorAnterior?: Record<string, unknown>;
-  valorNuevo?: Record<string, unknown>;
-}
+export type { MensajeRecibidoPayload }    from "@/eventos/contratos/mensaje-recibido.event";
+export type { MensajeEnviadoPayload }     from "@/eventos/contratos/mensaje-enviado.event";
+export type { ConversacionCreadaPayload } from "@/eventos/contratos/conversacion-creada.event";
+export type { ReaccionActualizadaPayload } from "@/eventos/contratos/reaccion-actualizada.event";
 
-export interface PedidoActualizadoPayload extends Record<string, unknown> {
-  instanciaId: string;
-  pedidoId: string;
-  usuarioId: string | null;
-  usuarioNombre: string | null;
-  cambios: EntradaHistorialPedido[];
-}
+export type { InstanciaCreadaPayload } from "@/eventos/contratos/instancia-creada.event";
 
-export interface PedidoEntregadoPayload extends Record<string, unknown> { instanciaId: string; pedidoId: string; numero: string }
+export type { ComandoEnviarMensajePayload }        from "@/eventos/contratos/enviar-mensaje.comando";
+export type { ComandoProcesarEntrantePayload }     from "@/eventos/contratos/procesar-entrante.comando";
+export type { ComandoMarcarLeidoPayload }          from "@/eventos/contratos/marcar-leido.comando";
+export type { ComandoEnviarEmailPayload }          from "@/eventos/contratos/enviar-email.comando";
+export type { ComandoInicializarInstanciaPayload } from "@/eventos/contratos/inicializar-instancia.comando";
 
-export interface MensajeRecibidoPayload extends Record<string, unknown> { mensajeId: string; conversacionId: string; instanciaId: string; oportunidadId?: string | null }
-export interface MensajeEnviadoPayload extends Record<string, unknown> { mensajeId: string; conversacionId: string; instanciaId: string }
-export interface ConversacionCreadaPayload extends Record<string, unknown> { conversacionId: string; instanciaId: string; contactoId: string }
-export interface ReaccionActualizadaPayload extends Record<string, unknown> { mensajeId: string; conversacionId: string; instanciaId: string }
-
-export interface InstanciaCreadaPayload extends Record<string, unknown> { instanciaId: string; nombre: string; slug: string }
-
-// ── Payloads de comandos (async operations via RabbitMQ) ─────────────────────
-
-export interface ComandoEnviarMensajePayload extends Record<string, unknown> {
-  instanciaId: string;
-  mensajeId: string;
-  conversacionId: string;
-  cuentaCanalId: string;
-  tipo: string;
-  destinatario: string;
-  contenido?: string;
-  mediaUrl?: string;
-}
-
-export interface ComandoProcesarEntrantePayload extends Record<string, unknown> {
-  instanciaId: string;
-  canal: string;
-  identificadorContacto: string;
-  cuentaCanalId: string;
-  contenido?: string;
-  tipo: string;
-  idExterno?: string;
-  pushName?: string;
-  avatarUrl?: string;
-  mediaUrl?: string;
-  mediaMimeType?: string;
-  mediaDuracion?: number;
-  mediaArchivoId?: string;
-}
-
-export interface ComandoMarcarLeidoPayload extends Record<string, unknown> {
-  instanciaId: string;
-  mensajeIds: string[];
-  conversacionId: string;
-}
-
-export interface ComandoEnviarEmailPayload extends Record<string, unknown> {
-  instanciaId: string;
-  tipo: string;
-  destinatario: string[];
-  data: unknown;
-}
-
-export interface ComandoInicializarInstanciaPayload extends Record<string, unknown> {
-  instanciaId: string;
-}
-
+// Constantes de tipos de evento (SNAKE_UPPER) — mantener para compatibilidad.
+// Usar EventosSistema / ComandosSistema de "@/eventos" en código nuevo.
 export const TIPOS_EVENTO = {
-  CONTACTO_CREADO: "CONTACTO_CREADO",
-  CONTACTO_ACTUALIZADO: "CONTACTO_ACTUALIZADO",
-  CONTACTO_ELIMINADO: "CONTACTO_ELIMINADO",
-  CONTACTO_ASIGNADO: "CONTACTO_ASIGNADO",
-  EMPRESA_CREADA: "EMPRESA_CREADA",
-  EMPRESA_ACTUALIZADA: "EMPRESA_ACTUALIZADA",
-  OPORTUNIDAD_CREADA: "OPORTUNIDAD_CREADA",
+  CONTACTO_CREADO:         "CONTACTO_CREADO",
+  CONTACTO_ACTUALIZADO:    "CONTACTO_ACTUALIZADO",
+  CONTACTO_ELIMINADO:      "CONTACTO_ELIMINADO",
+  CONTACTO_ASIGNADO:       "CONTACTO_ASIGNADO",
+  EMPRESA_CREADA:          "EMPRESA_CREADA",
+  EMPRESA_ACTUALIZADA:     "EMPRESA_ACTUALIZADA",
+  OPORTUNIDAD_CREADA:      "OPORTUNIDAD_CREADA",
   OPORTUNIDAD_ACTUALIZADA: "OPORTUNIDAD_ACTUALIZADA",
-  ETAPA_CAMBIADA: "ETAPA_CAMBIADA",
-  OPORTUNIDAD_GANADA: "OPORTUNIDAD_GANADA",
-  OPORTUNIDAD_PERDIDA: "OPORTUNIDAD_PERDIDA",
-  ACTIVIDAD_CREADA: "ACTIVIDAD_CREADA",
-  ACTIVIDAD_COMPLETADA: "ACTIVIDAD_COMPLETADA",
-  PRODUCTO_CREADO: "PRODUCTO_CREADO",
-  PRODUCTO_ACTUALIZADO: "PRODUCTO_ACTUALIZADO",
-  PRECIO_ACTUALIZADO: "PRECIO_ACTUALIZADO",
-  COTIZACION_CREADA: "COTIZACION_CREADA",
-  COTIZACION_ACTUALIZADA: "COTIZACION_ACTUALIZADA",
-  COTIZACION_ENVIADA: "COTIZACION_ENVIADA",
-  PEDIDO_CREADO: "PEDIDO_CREADO",
-  PEDIDO_ACTUALIZADO: "PEDIDO_ACTUALIZADO",
-  PEDIDO_ENTREGADO: "PEDIDO_ENTREGADO",
-  MENSAJE_RECIBIDO: "MENSAJE_RECIBIDO",
-  MENSAJE_ENVIADO: "MENSAJE_ENVIADO",
-  CONVERSACION_CREADA: "CONVERSACION_CREADA",
-  REACCION_ACTUALIZADA: "REACCION_ACTUALIZADA",
-  INSTANCIA_CREADA: "INSTANCIA_CREADA",
+  ETAPA_CAMBIADA:          "ETAPA_CAMBIADA",
+  OPORTUNIDAD_GANADA:      "OPORTUNIDAD_GANADA",
+  OPORTUNIDAD_PERDIDA:     "OPORTUNIDAD_PERDIDA",
+  ACTIVIDAD_CREADA:        "ACTIVIDAD_CREADA",
+  ACTIVIDAD_COMPLETADA:    "ACTIVIDAD_COMPLETADA",
+  PRODUCTO_CREADO:         "PRODUCTO_CREADO",
+  PRODUCTO_ACTUALIZADO:    "PRODUCTO_ACTUALIZADO",
+  PRECIO_ACTUALIZADO:      "PRECIO_ACTUALIZADO",
+  COTIZACION_CREADA:       "COTIZACION_CREADA",
+  COTIZACION_ACTUALIZADA:  "COTIZACION_ACTUALIZADA",
+  COTIZACION_ENVIADA:      "COTIZACION_ENVIADA",
+  PEDIDO_CREADO:           "PEDIDO_CREADO",
+  PEDIDO_ACTUALIZADO:      "PEDIDO_ACTUALIZADO",
+  PEDIDO_ENTREGADO:        "PEDIDO_ENTREGADO",
+  MENSAJE_RECIBIDO:        "MENSAJE_RECIBIDO",
+  MENSAJE_ENVIADO:         "MENSAJE_ENVIADO",
+  CONVERSACION_CREADA:     "CONVERSACION_CREADA",
+  REACCION_ACTUALIZADA:    "REACCION_ACTUALIZADA",
+  INSTANCIA_CREADA:        "INSTANCIA_CREADA",
 } as const;
 
 export const TIPOS_COMANDO = {
-  ENVIAR_MENSAJE: "ENVIAR_MENSAJE",
-  PROCESAR_ENTRANTE: "PROCESAR_ENTRANTE",
-  MARCAR_LEIDO: "MARCAR_LEIDO",
-  ENVIAR_EMAIL: "ENVIAR_EMAIL",
+  ENVIAR_MENSAJE:        "ENVIAR_MENSAJE",
+  PROCESAR_ENTRANTE:     "PROCESAR_ENTRANTE",
+  MARCAR_LEIDO:          "MARCAR_LEIDO",
+  ENVIAR_EMAIL:          "ENVIAR_EMAIL",
   INICIALIZAR_INSTANCIA: "INICIALIZAR_INSTANCIA",
 } as const;
 

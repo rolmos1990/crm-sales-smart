@@ -68,6 +68,8 @@ const ACCION_CONFIG: Record<string, { label: string; icon: typeof Plus; color: s
   CANTIDAD_MODIFICADA:  { label: "Cantidad modificada",      icon: Hash,     color: "#2563eb", bg: "#2563eb22" },
   DESCUENTO_ACTUALIZADO:{ label: "Descuento actualizado",    icon: Percent,  color: "#ea580c", bg: "#ea580c22" },
   PEDIDO_EDITADO:       { label: "Datos del pedido editados",icon: Pencil,   color: "#6b7280", bg: "#6b728022" },
+  ENTREGA_REGISTRADA:   { label: "Entrega registrada",       icon: Truck,    color: "#65a30d", bg: "#65a30d22" },
+  ENTREGA_ACTUALIZADA:  { label: "Entrega actualizada",      icon: Truck,    color: "#2563eb", bg: "#2563eb22" },
 };
 
 const ORIGEN_CONFIG: Record<string, { label: string; icon: typeof Settings; clase: string }> = {
@@ -262,6 +264,90 @@ function DiffExpandido({ accion, valorAnterior, valorNuevo }: { accion: string; 
             </p>
           </Fila>
         ))}
+      </div>
+    );
+  }
+
+  if (accion === "ENTREGA_REGISTRADA" || accion === "ENTREGA_ACTUALIZADA") {
+    const METODO_LABELS: Record<string, string> = {
+      COURIER_EXTERNO:      "Courier externo",
+      MENSAJERO_PROPIO:     "Mensajero propio",
+      RETIRO_TIENDA:        "Retiro en tienda",
+      DIGITAL:              "Entrega digital",
+      INSTALACION_SERVICIO: "Instalación / Servicio",
+    };
+    const ESTADO_LABELS: Record<string, string> = {
+      PENDIENTE:  "Pendiente",
+      PREPARANDO: "Preparando",
+      EN_CAMINO:  "En camino",
+      ENTREGADO:  "Entregado",
+      FALLIDO:    "Fallido",
+      CANCELADO:  "Cancelado",
+      DEVUELTO:   "Devuelto",
+    };
+
+    const resolvLabel = (val: unknown, mapa: Record<string, string>) =>
+      val != null ? (mapa[String(val)] ?? String(val)) : "—";
+
+    const CAMPOS: { clave: string; label: string; mapa?: Record<string, string> }[] = [
+      { clave: "estadoEntrega",  label: "Estado",      mapa: ESTADO_LABELS },
+      { clave: "metodoEntrega",  label: "Método",      mapa: METODO_LABELS },
+      { clave: "transportista",  label: "Transportista" },
+      { clave: "numeroGuia",     label: "N° de guía" },
+      { clave: "fechaEstimada",  label: "Fecha estimada" },
+    ];
+
+    const Fila = ({ label, children }: { label: string; children: React.ReactNode }) => (
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">{label}</p>
+        {children}
+      </div>
+    );
+
+    if (accion === "ENTREGA_REGISTRADA") {
+      const campos = CAMPOS.filter(c => nvo[c.clave] != null && nvo[c.clave] !== "");
+      if (campos.length === 0) return null;
+      return (
+        <div className="space-y-2 text-sm">
+          {campos.map(c => (
+            <Fila key={c.clave} label={c.label}>
+              <p className="font-medium">
+                {c.clave === "fechaEstimada" && nvo[c.clave]
+                  ? (() => { try { return new Date(String(nvo[c.clave])).toLocaleDateString("es-PE", { dateStyle: "medium" }); } catch { return String(nvo[c.clave]); } })()
+                  : c.mapa ? resolvLabel(nvo[c.clave], c.mapa) : (nvo[c.clave] != null ? String(nvo[c.clave]) : "—")}
+              </p>
+            </Fila>
+          ))}
+        </div>
+      );
+    }
+
+    // ENTREGA_ACTUALIZADA — mostrar solo los campos que cambiaron
+    const camposModificados = CAMPOS.filter(c => {
+      const aVal = ant[c.clave] ?? null;
+      const nVal = nvo[c.clave] ?? null;
+      return String(aVal) !== String(nVal);
+    });
+    if (camposModificados.length === 0) return <p className="text-sm text-muted-foreground">Sin cambios detectados.</p>;
+    return (
+      <div className="space-y-2 text-sm">
+        {camposModificados.map(c => {
+          const fmtFecha = (v: unknown) => {
+            if (!v) return "—";
+            try { return new Date(String(v)).toLocaleDateString("es-PE", { dateStyle: "medium" }); } catch { return String(v); }
+          };
+          const fmt = (v: unknown) => c.clave === "fechaEstimada" ? fmtFecha(v)
+            : c.mapa ? resolvLabel(v, c.mapa) : (v != null ? String(v) : "—");
+          return (
+            <Fila key={c.clave} label={c.label}>
+              <p className="flex items-center gap-1.5 flex-wrap">
+                <span className="line-through text-muted-foreground">{fmt(ant[c.clave])}</span>
+                <span className="text-muted-foreground">→</span>
+                <span className="font-medium">{fmt(nvo[c.clave])}</span>
+              </p>
+            </Fila>
+          );
+        })}
       </div>
     );
   }

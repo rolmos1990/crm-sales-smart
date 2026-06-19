@@ -1,9 +1,9 @@
 import { ConsumidorBase } from "@/shared/rabbitmq/consumidor";
 import { QUEUES, RK } from "@/shared/rabbitmq/exchanges";
 import { publicadorEventos } from "@/shared/rabbitmq/publicador";
-import { TIPOS_EVENTO } from "@/shared/eventos/registro";
-import type { EventoEnvelope, } from "@/shared/rabbitmq/tipos";
-import type { ComandoEnviarMensajePayload } from "@/shared/eventos/registro";
+import { EventosSistema } from "@/eventos/catalogo";
+import type { EventoEnvelope } from "@/shared/rabbitmq/tipos";
+import type { ComandoEnviarMensajePayload } from "@/eventos/contratos/enviar-mensaje.comando";
 import { prisma } from "@/shared/db/prisma";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
 import { resolverUrlMedia } from "@/lib/resolve-media-url";
@@ -39,7 +39,7 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase {
       data: { estado: "ENTREGADO", idExterno: result.idExterno, enviadoEn: new Date() },
     });
 
-    void publicadorEventos.publicar(TIPOS_EVENTO.MENSAJE_ENVIADO, instanciaId, {
+    void publicadorEventos.publicar(EventosSistema.MensajeEnviado, instanciaId, {
       mensajeId,
       conversacionId,
       instanciaId,

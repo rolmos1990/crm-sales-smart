@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { TIPOS_EVENTO } from "@/shared/eventos";
+import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearOportunidadSchema, ActualizarOportunidadSchema, CambiarEtapaSchema } from "./schema";
 import type { ResultadoAccion, Oportunidad } from "./types";
@@ -64,7 +64,7 @@ export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<
       },
     });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.OPORTUNIDAD_CREADA, sesion.instanciaId, {
+    await publicadorEventos.publicar(EventosSistema.OportunidadCreada, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,
       oportunidadId: oportunidad.id,
       titulo: oportunidad.titulo,
@@ -101,7 +101,7 @@ export async function cambiarEtapa(id: string, datos: unknown): Promise<Resultad
       },
     });
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.ETAPA_CAMBIADA, sesion.instanciaId, {
+    await publicadorEventos.publicar(EventosSistema.EtapaCambiada, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,
       oportunidadId: id,
       etapaAnterior: actual.etapa,
@@ -109,10 +109,10 @@ export async function cambiarEtapa(id: string, datos: unknown): Promise<Resultad
     });
 
     if (validado.data.etapa === "GANADO") {
-      await publicadorEventos.publicar(TIPOS_EVENTO.OPORTUNIDAD_GANADA, sesion.instanciaId, { instanciaId: sesion.instanciaId, oportunidadId: id, valor: 0 });
+      await publicadorEventos.publicar(EventosSistema.OportunidadGanada, sesion.instanciaId, { instanciaId: sesion.instanciaId, oportunidadId: id, valor: 0 });
       await cerrarConversacionesDeOportunidad(id);
     } else if (validado.data.etapa === "PERDIDO") {
-      await publicadorEventos.publicar(TIPOS_EVENTO.OPORTUNIDAD_PERDIDA, sesion.instanciaId, { instanciaId: sesion.instanciaId, oportunidadId: id, motivo: validado.data.motivoPerdida });
+      await publicadorEventos.publicar(EventosSistema.OportunidadPerdida, sesion.instanciaId, { instanciaId: sesion.instanciaId, oportunidadId: id, motivo: validado.data.motivoPerdida });
       await cerrarConversacionesDeOportunidad(id);
     }
 
@@ -158,7 +158,7 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
       ]);
     }
 
-    await publicadorEventos.publicar(TIPOS_EVENTO.OPORTUNIDAD_ACTUALIZADA, sesion.instanciaId, { instanciaId: sesion.instanciaId, oportunidadId: id, cambios: validado.data as Record<string, unknown> });
+    await publicadorEventos.publicar(EventosSistema.OportunidadActualizada, sesion.instanciaId, { instanciaId: sesion.instanciaId, oportunidadId: id, cambios: validado.data as Record<string, unknown> });
     revalidatePath("/crm/oportunidades");
     revalidatePath(`/crm/oportunidades/${id}`);
     return { exito: true, datos: { ...oportunidad, valor: Number(oportunidad.valor) } as unknown as Oportunidad };
