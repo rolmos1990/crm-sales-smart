@@ -326,7 +326,7 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     diffCampo("empresaId", pedidoActual.empresaId, empresaId || null);
     diffCampo("estado", pedidoActual.estado, estado ?? null);
 
-    const entradasHistorial: { accion: string; valorAnterior?: object; valorNuevo?: object }[] = [];
+    const entradasHistorial: { accion: string; valorAnterior?: Record<string, unknown>; valorNuevo?: Record<string, unknown> }[] = [];
     if (Object.keys(valorAnt).length > 0 || Object.keys(valorNvo).length > 0) {
       entradasHistorial.push({ accion: "PEDIDO_EDITADO", valorAnterior: valorAnt, valorNuevo: valorNvo });
     }

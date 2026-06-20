@@ -5,7 +5,7 @@ import type { ComandoMarcarLeidoPayload } from "@/eventos/contratos/marcar-leido
 import { prisma } from "@/shared/db/prisma";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
 
-export class MarcarLeidoSuscriptor extends ConsumidorBase {
+export class MarcarLeidoSuscriptor extends ConsumidorBase<ComandoMarcarLeidoPayload> {
   readonly queue = QUEUES.MENSAJE_LEIDO;
   readonly routingKeys = [RK.COMANDO_MENSAJE_LEIDO];
 

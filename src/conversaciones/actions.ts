@@ -438,7 +438,7 @@ export async function enviarMensaje(input: {
         conversacionId: validado.conversacionId,
         contenido: validado.contenido,
         tipo: validado.tipo,
-        mediaUrl: input.mediaUrl ?? null,
+        mediaUrl: input.mediaUrl ?? undefined,
         destinatario,
         canal: conversacion.cuentaCanal.canal,
         cuentaCanalId: conversacion.cuentaCanalId,

@@ -4,7 +4,7 @@ import type { EventoEnvelope } from "@/shared/rabbitmq/tipos";
 import type { ComandoInicializarInstanciaPayload } from "@/eventos/contratos/inicializar-instancia.comando";
 import { crearPipelineDefault } from "@/shared/inicializacion/pipeline-default";
 
-export class InicializarInstanciaSuscriptor extends ConsumidorBase {
+export class InicializarInstanciaSuscriptor extends ConsumidorBase<ComandoInicializarInstanciaPayload> {
   readonly queue = QUEUES.SISTEMA_INICIALIZAR;
   readonly routingKeys = [RK.COMANDO_SISTEMA_INICIALIZAR];
 

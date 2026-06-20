@@ -3,7 +3,7 @@ import { QUEUES, RK } from "@/shared/rabbitmq/exchanges";
 import type { EventoEnvelope } from "@/shared/rabbitmq/tipos";
 import type { ComandoProcesarEntrantePayload } from "@/eventos/contratos/procesar-entrante.comando";
 
-export class ProcesarEntranteSuscriptor extends ConsumidorBase {
+export class ProcesarEntranteSuscriptor extends ConsumidorBase<ComandoProcesarEntrantePayload> {
   readonly queue = QUEUES.MENSAJE_ENTRANTE;
   readonly routingKeys = [RK.COMANDO_MENSAJE_ENTRANTE];
 

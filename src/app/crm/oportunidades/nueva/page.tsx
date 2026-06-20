@@ -21,12 +21,14 @@ export default async function NuevaOportunidadPage(props: {
   let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
   let monedaDefault = "PEN";
 
+  let pipelines: PipelineConStages[] = [];
+
   try {
     const sesion = await requireSesion();
-    const [e, c, pipelines, t, moneda] = await Promise.all([
+    const [e, c, pls, t, moneda] = await Promise.all([
       buscarEmpresas("", sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),
-      pipelineId ? obtenerPipelines(sesion.instanciaId) : Promise.resolve([]),
+      obtenerPipelines(sesion.instanciaId),
       obtenerTags(sesion.instanciaId),
       obtenerMonedaPrincipal(sesion.instanciaId),
     ]);
@@ -34,8 +36,9 @@ export default async function NuevaOportunidadPage(props: {
     empresas = e.map(x => ({ valor: x.id, etiqueta: x.nombre }));
     contactos = c.map(x => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
     tags = t;
+    pipelines = pls as unknown as PipelineConStages[];
     if (pipelineId) {
-      pipeline = (pipelines as unknown as PipelineConStages[]).find(p => p.id === pipelineId) ?? null;
+      pipeline = pipelines.find(p => p.id === pipelineId) ?? null;
     }
   } catch {
     // DB no configurada
@@ -63,6 +66,7 @@ export default async function NuevaOportunidadPage(props: {
             pipelineId={pipelineId}
             stageId={stageId}
             pipeline={pipeline}
+            pipelines={pipelines}
             monedaDefault={monedaDefault}
           />
         </CardContent>

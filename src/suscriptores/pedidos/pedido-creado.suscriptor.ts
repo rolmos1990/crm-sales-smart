@@ -5,7 +5,7 @@ import type { PedidoCreadoPayload } from "@/eventos/contratos/pedido-creado.even
 import { prisma } from "@/shared/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 
-export class PedidoCreadoSuscriptor extends ConsumidorBase {
+export class PedidoCreadoSuscriptor extends ConsumidorBase<PedidoCreadoPayload> {
   readonly queue = QUEUES.PEDIDO_HISTORIAL;
   readonly routingKeys = [RK.EVENTO_PEDIDO_CREADO];
 

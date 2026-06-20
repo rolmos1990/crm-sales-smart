@@ -6,7 +6,7 @@ import { getEmailProvider } from "@/lib/email/providers/factory";
 import { renderTemplate } from "@/lib/email/templates/index";
 import type { TemplatePayload } from "@/lib/email/templates/types";
 
-export class EnviarEmailSuscriptor extends ConsumidorBase {
+export class EnviarEmailSuscriptor extends ConsumidorBase<ComandoEnviarEmailPayload> {
   readonly queue = QUEUES.EMAIL_ENVIAR;
   readonly routingKeys = [RK.COMANDO_EMAIL_ENVIAR];
 

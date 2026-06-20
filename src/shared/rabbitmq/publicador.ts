@@ -2,16 +2,17 @@ import { randomUUID } from "crypto";
 import { obtenerCanal } from "./conexion";
 import { EXCHANGE, TIPO_EVENTO_A_RK } from "./exchanges";
 import type { EventoEnvelope } from "./tipos";
+import type { MapaPayloads, NombreEvento } from "@/eventos/mapa";
 
 class PublicadorEventos {
-  async publicar<P extends Record<string, unknown>>(
-    tipo: string,
+  async publicar<K extends NombreEvento>(
+    tipo: K,
     instanciaId: string,
-    payload: P
+    payload: MapaPayloads[K]
   ): Promise<void> {
     const routingKey = TIPO_EVENTO_A_RK[tipo] ?? tipo.toLowerCase().replace(/_/g, ".");
 
-    const envelope: EventoEnvelope<P> = {
+    const envelope: EventoEnvelope<MapaPayloads[K]> = {
       eventId: randomUUID(),
       instanciaId,
       tipo,

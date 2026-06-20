@@ -33,6 +33,7 @@ interface FormOportunidadProps {
   pipelineId?: string | null;
   stageId?: string | null;
   pipeline?: PipelineConStages | null;
+  pipelines?: PipelineConStages[];
   monedaDefault?: string;
 }
 
@@ -46,9 +47,11 @@ export function FormOportunidad({
   pipelineId,
   stageId,
   pipeline,
+  pipelines = [],
   monedaDefault = MONEDA_DEFAULT,
 }: FormOportunidadProps) {
   const router = useRouter();
+  // enModoPipeline: viene del Kanban con pipeline fijo en URL → solo selector de stage
   const enModoPipeline = !!pipeline && !!pipelineId;
   const crearMutation = useCrearOportunidadMutation();
   const actualizarMutation = useActualizarOportunidadMutation(inicial?.id ?? "");
@@ -65,11 +68,24 @@ export function FormOportunidad({
       notas: inicial?.notas ?? "",
       empresaId: inicial?.empresaId ?? "",
       contactoId: "",
-      pipelineId: pipelineId ?? "",
-      stageId: stageId ?? "",
+      pipelineId: inicial?.pipelineId ?? pipelineId ?? "",
+      stageId: inicial?.stageId ?? stageId ?? "",
       tagIds: tagIdsIniciales,
     },
   });
+
+  // Seguimiento reactivo del pipeline seleccionado en el formulario
+  const watchedPipelineId = form.watch("pipelineId");
+  const watchedStageId = form.watch("stageId");
+
+  // Pipeline activo en el selector libre (cuando no estamos en modo kanban)
+  const pipelineActivo = !enModoPipeline && pipelines.length > 0
+    ? (pipelines.find(p => p.id === watchedPipelineId) ?? null)
+    : null;
+
+  const stageActivo = pipelineActivo
+    ? (pipelineActivo.stages.find(s => s.id === watchedStageId) ?? null)
+    : (pipeline?.stages.find(s => s.id === watchedStageId) ?? null);
 
   const onSubmit = (datos: CrearOportunidadInput) => {
     mutation.mutate(datos, {
@@ -112,7 +128,11 @@ export function FormOportunidad({
             <FormItem>
               <FormLabel>Moneda</FormLabel>
               <Select onValueChange={field.onChange} value={field.value ?? monedaDefault}>
-                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue>{MONEDAS.find(m => m.valor === field.value)?.etiqueta ?? field.value}</SelectValue>
+                  </SelectTrigger>
+                </FormControl>
                 <SelectContent>
                   {MONEDAS.map((m) => (
                     <SelectItem key={m.valor} value={m.valor}>{m.etiqueta}</SelectItem>
@@ -124,65 +144,127 @@ export function FormOportunidad({
           )} />
         </div>
 
+        {/* ── Pipeline libre (solo cuando no viene del Kanban y hay pipelines disponibles) ── */}
+        {!enModoPipeline && pipelines.length > 0 && (
+          <FormField control={form.control} name="pipelineId" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Pipeline</FormLabel>
+              <Select
+                onValueChange={(v) => {
+                  field.onChange(v === "__ninguno__" ? "" : v);
+                  form.setValue("stageId", "");
+                }}
+                value={field.value || "__ninguno__"}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {field.value
+                        ? (pipelines.find(p => p.id === field.value)?.nombre ?? "Seleccionar pipeline...")
+                        : "Sin pipeline"}
+                    </SelectValue>
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="__ninguno__">Sin pipeline</SelectItem>
+                  {pipelines.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )} />
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Selector de etapa: stage del pipeline O etapa legacy */}
+          {/* Etapa: modo kanban (pipeline fijo) */}
           {enModoPipeline ? (
-            <FormField control={form.control} name="stageId" render={({ field }) => {
-              const stageSeleccionado = pipeline.stages.find(s => s.id === field.value);
-              return (
-                <FormItem>
-                  <FormLabel>Etapa del pipeline</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                    <FormControl>
-                      <SelectTrigger>
-                        {stageSeleccionado ? (
-                          <span className="flex flex-1 items-center gap-2">
-                            {stageSeleccionado.color && (
-                              <span
-                                className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: stageSeleccionado.color }}
-                              />
-                            )}
-                            <span>{stageSeleccionado.nombre}</span>
-                          </span>
-                        ) : (
-                          <SelectValue placeholder="Seleccionar etapa..." />
-                        )}
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {pipeline.stages.map((stage) => (
-                        <SelectItem key={stage.id} value={stage.id}>
+            <FormField control={form.control} name="stageId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Etapa del pipeline</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {stageActivo ? (
                           <span className="flex items-center gap-2">
-                            {stage.color && (
-                              <span
-                                className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                                style={{ backgroundColor: stage.color }}
-                              />
+                            {stageActivo.color && (
+                              <span className="inline-block h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: stageActivo.color }} />
                             )}
-                            {stage.nombre}
+                            {stageActivo.nombre}
                           </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              );
-            }} />
+                        ) : "Seleccionar etapa..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {pipeline!.stages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        <span className="flex items-center gap-2">
+                          {stage.color && <span className="inline-block h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />}
+                          {stage.nombre}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+          /* Etapa: pipeline seleccionado en selector libre */
+          ) : pipelineActivo ? (
+            <FormField control={form.control} name="stageId" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Etapa</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {stageActivo ? (
+                          <span className="flex items-center gap-2">
+                            {stageActivo.color && (
+                              <span className="inline-block h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: stageActivo.color }} />
+                            )}
+                            {stageActivo.nombre}
+                          </span>
+                        ) : "Seleccionar etapa..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {pipelineActivo.stages.map((stage) => (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        <span className="flex items-center gap-2">
+                          {stage.color && <span className="inline-block h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />}
+                          {stage.nombre}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+          /* Etapa: sin pipeline (legacy enum) */
           ) : (
             <FormField control={form.control} name="etapa" render={({ field }) => (
               <FormItem>
                 <FormLabel>Etapa</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                <Select onValueChange={field.onChange} value={field.value ?? "PROSPECTO"}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {ETAPA_LABELS[field.value ?? "PROSPECTO"] ?? field.value}
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
                   <SelectContent>
-                    <SelectItem value="PROSPECTO">Prospecto</SelectItem>
-                    <SelectItem value="CALIFICADO">Calificado</SelectItem>
-                    <SelectItem value="PROPUESTA">Propuesta</SelectItem>
-                    <SelectItem value="NEGOCIACION">Negociación</SelectItem>
-                    <SelectItem value="GANADO">Ganado</SelectItem>
-                    <SelectItem value="PERDIDO">Perdido</SelectItem>
+                    {Object.entries(ETAPA_LABELS).map(([v, l]) => (
+                      <SelectItem key={v} value={v}>{l}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -256,7 +338,6 @@ export function FormOportunidad({
           </FormItem>
         )} />
 
-        {/* Indicador visual cuando se crea en un pipeline específico */}
         {enModoPipeline && (
           <div className={cn(
             "flex items-center gap-2 rounded-xl px-3 py-2 text-xs",
@@ -264,13 +345,13 @@ export function FormOportunidad({
             "text-lime-700 dark:text-lime-400"
           )}>
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-lime-500 dark:bg-lime-400" />
-            Se creará en el pipeline <span className="font-semibold">{pipeline.nombre}</span>
+            Se creará en el pipeline <span className="font-semibold">{pipeline!.nombre}</span>
           </div>
         )}
 
         <div className="flex gap-3 justify-end pt-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button type="submit" disabled={mutation.isPending} className="rounded-xl bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02]">
             {mutation.isPending ? "Guardando..." : modo === "crear" ? "Crear oportunidad" : "Guardar cambios"}
           </Button>
         </div>
@@ -278,3 +359,12 @@ export function FormOportunidad({
     </Form>
   );
 }
+
+const ETAPA_LABELS: Record<string, string> = {
+  PROSPECTO:   "Prospecto",
+  CALIFICADO:  "Calificado",
+  PROPUESTA:   "Propuesta",
+  NEGOCIACION: "Negociación",
+  GANADO:      "Ganado",
+  PERDIDO:     "Perdido",
+};

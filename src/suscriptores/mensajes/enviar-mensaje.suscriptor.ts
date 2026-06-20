@@ -8,7 +8,7 @@ import { prisma } from "@/shared/db/prisma";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
 import { resolverUrlMedia } from "@/lib/resolve-media-url";
 
-export class EnviarMensajeSuscriptor extends ConsumidorBase {
+export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensajePayload> {
   readonly queue = QUEUES.MENSAJE_ENVIAR;
   readonly routingKeys = [RK.COMANDO_MENSAJE_ENVIAR];
 

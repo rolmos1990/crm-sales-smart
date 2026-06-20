@@ -138,13 +138,15 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
     const existe = await prisma.oportunidad.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
     if (!existe) return { exito: false, error: "Oportunidad no encontrada" };
 
-    const { empresaId, contactoId: _, notas, probabilidad: _prob, tagIds, ...resto } = validado.data;
+    const { empresaId, contactoId: _, notas, probabilidad: _prob, tagIds, pipelineId, stageId, ...resto } = validado.data;
     const oportunidad = await prisma.oportunidad.update({
       where: { id },
       data: {
         ...resto,
         ...(notas !== undefined && { notas: notas || null }),
         ...(empresaId !== undefined && { empresaId: empresaId || null }),
+        ...(pipelineId !== undefined && { pipelineId: pipelineId || null }),
+        ...(stageId !== undefined && { stageId: stageId || null }),
       },
       include: { empresa: { select: { id: true, nombre: true } }, contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } } },
     });

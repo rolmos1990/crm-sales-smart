@@ -6,11 +6,11 @@ import type { EventoEnvelope } from "./tipos";
 const MAX_INTENTOS = 3;
 const PREFETCH = 10;
 
-export abstract class ConsumidorBase {
+export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = Record<string, unknown>> {
   abstract readonly queue: string;
   abstract readonly routingKeys: string[];
 
-  abstract manejar(envelope: EventoEnvelope): Promise<void>;
+  abstract manejar(envelope: EventoEnvelope<TPayload>): Promise<void>;
 
   async iniciar(): Promise<void> {
     const ch = await obtenerCanal();
@@ -32,10 +32,10 @@ export abstract class ConsumidorBase {
     ch: amqplib.Channel,
     msg: amqplib.Message
   ): Promise<void> {
-    let envelope: EventoEnvelope;
+    let envelope: EventoEnvelope<TPayload>;
 
     try {
-      envelope = JSON.parse(msg.content.toString()) as EventoEnvelope;
+      envelope = JSON.parse(msg.content.toString()) as EventoEnvelope<TPayload>;
     } catch {
       console.error(`[${this.constructor.name}] Mensaje no es JSON válido — descartando`);
       ch.nack(msg, false, false);
