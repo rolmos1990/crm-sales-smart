@@ -79,6 +79,9 @@ npm install
 # Crear tablas en la base de datos
 npx prisma db push
 
+# Si es la primera vez (sin data)
+npx prisma migrate deploy
+
 # (Opcional) Poblar con datos de prueba
 npm run db:seed
 ```

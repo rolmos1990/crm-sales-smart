@@ -19,13 +19,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (usuario && pathname === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/crm";
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
-
   return response;
 }
 

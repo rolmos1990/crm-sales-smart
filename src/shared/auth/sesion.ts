@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { prisma } from "@/shared/db/prisma";
 import { obtenerAuthProvider } from "@/shared/auth/provider";
 import type { Rol } from "@/generated/prisma/enums";
@@ -56,6 +57,6 @@ export async function obtenerSesionActual(): Promise<SesionActual | null> {
 // Lanza si no hay sesión válida; usar obtenerSesionActual() cuando null sea un caso válido.
 export async function requireSesion(): Promise<SesionActual> {
   const sesion = await obtenerSesionActual();
-  if (!sesion) throw new Error("No autenticado");
+  if (!sesion) redirect("/login");
   return sesion;
 }

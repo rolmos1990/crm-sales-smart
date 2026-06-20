@@ -1,14 +1,19 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { FormLogin } from "@/shared/auth/components/form-login";
 import { AuthLayout } from "@/shared/auth/components/auth-layout";
+import { obtenerSesionActual } from "@/shared/auth/sesion";
 
 export const metadata: Metadata = {
   title: "Iniciar sesión — Vento",
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const sesion = await obtenerSesionActual();
+  if (sesion) redirect("/crm");
+
   return (
     <AuthLayout>
       <div className="mb-8 space-y-1 text-center lg:text-left">
