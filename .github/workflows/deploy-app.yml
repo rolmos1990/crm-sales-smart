@@ -15,6 +15,7 @@ jobs:
   build-app:
     name: App — Next.js
     runs-on: ubuntu-latest
+    environment: PRODUCTION
     permissions:
       contents: read
 
@@ -52,6 +53,7 @@ jobs:
   build-worker:
     name: Worker — RabbitMQ
     runs-on: ubuntu-latest
+    environment: PRODUCTION
     permissions:
       contents: read
 
@@ -84,6 +86,7 @@ jobs:
   deploy-coolify-app:
     name: Deploy Coolify — App
     runs-on: ubuntu-latest
+    environment: PRODUCTION
     needs: build-app
 
     steps:
@@ -117,6 +120,7 @@ jobs:
   deploy-coolify-worker:
     name: Deploy Coolify — Worker
     runs-on: ubuntu-latest
+    environment: PRODUCTION
     needs: build-worker
 
     steps:
