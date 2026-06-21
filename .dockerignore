@@ -1,0 +1,32 @@
+# Dependencias y build local
+node_modules
+.next
+out
+
+# Git
+.git
+.gitignore
+
+# Variables de entorno (nunca van en la imagen)
+.env
+.env.*
+!.env.example
+
+# Datos locales y sesiones de WhatsApp (se montan como volume en producción)
+data/
+*.log
+
+# Dev y docs
+docker
+.github
+tests
+docs
+plan-mejoras
+scripts
+*.md
+!README.md
+
+# IDE y OS
+.DS_Store
+.vscode
+*.pem
