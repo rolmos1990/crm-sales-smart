@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # permite lanzar manualmente desde GitHub
+  workflow_dispatch:  # permite lanzar manualmente desde GitHub.
 
 jobs:
   # ── App (Next.js) ──────────────────────────────────────────────────────────
