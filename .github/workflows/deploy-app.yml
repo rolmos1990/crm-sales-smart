@@ -6,10 +6,6 @@ on:
       - main
   workflow_dispatch:  # permite lanzar manualmente desde GitHub
 
-env:
-  APP_IMAGE: ${{ secrets.DOCKER_IMAGE }}
-  WORKER_IMAGE: ${{ secrets.DOCKER_IMAGE_WORKER }}
-
 jobs:
   # ── App (Next.js) ──────────────────────────────────────────────────────────
   build-app:
@@ -39,8 +35,8 @@ jobs:
           file: Dockerfile.app
           push: true
           tags: |
-            ${{ env.APP_IMAGE }}:latest
-            ${{ env.APP_IMAGE }}:${{ github.sha }}
+            ${{ vars.DOCKER_IMAGE }}:latest
+            ${{ vars.DOCKER_IMAGE }}:${{ github.sha }}
           # Variables NEXT_PUBLIC_* se compilan dentro de la imagen en next build
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -77,8 +73,8 @@ jobs:
           file: Dockerfile.worker
           push: true
           tags: |
-            ${{ env.WORKER_IMAGE }}:latest
-            ${{ env.WORKER_IMAGE }}:${{ github.sha }}
+            ${{ vars.DOCKER_IMAGE_WORKER }}:latest
+            ${{ vars.DOCKER_IMAGE_WORKER }}:${{ github.sha }}
           cache-from: type=gha,scope=worker
           cache-to:   type=gha,scope=worker,mode=max
 
@@ -93,9 +89,9 @@ jobs:
       - name: Update Coolify (image + tag)
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
-          COOLIFY_API_KEY: ${{ secrets.COOLIFY_API_KEY }}
-          COOLIFY_APPLICATION_UUID: ${{ secrets.COOLIFY_APPLICATION_UUID }}
-          DOCKER_IMAGE: ${{ secrets.DOCKER_IMAGE }}
+          COOLIFY_API_KEY: ${{ vars.COOLIFY_API_KEY }}
+          COOLIFY_APPLICATION_UUID: ${{ vars.COOLIFY_APPLICATION_UUID }}
+          DOCKER_IMAGE: ${{ vars.DOCKER_IMAGE }}
           BUILD_VERSION: ${{ github.sha }}
         run: |
           curl -sSf -X PATCH "${COOLIFY_URL}/api/v1/applications/${COOLIFY_APPLICATION_UUID}" \
@@ -109,8 +105,8 @@ jobs:
       - name: Deploy Coolify Application
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
-          COOLIFY_API_KEY: ${{ secrets.COOLIFY_API_KEY }}
-          COOLIFY_APPLICATION_UUID: ${{ secrets.COOLIFY_APPLICATION_UUID }}
+          COOLIFY_API_KEY: ${{ vars.COOLIFY_API_KEY }}
+          COOLIFY_APPLICATION_UUID: ${{ vars.COOLIFY_APPLICATION_UUID }}
         run: |
           curl -sSf \
             -H "Authorization: Bearer ${COOLIFY_API_KEY}" \
@@ -127,9 +123,9 @@ jobs:
       - name: Update Coolify (image + tag)
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
-          COOLIFY_API_KEY: ${{ secrets.COOLIFY_API_KEY }}
-          COOLIFY_APPLICATION_UUID_WORKER: ${{ secrets.COOLIFY_APPLICATION_UUID_WORKER }}
-          DOCKER_IMAGE: ${{ secrets.DOCKER_IMAGE_WORKER }}
+          COOLIFY_API_KEY: ${{ vars.COOLIFY_API_KEY }}
+          COOLIFY_APPLICATION_UUID_WORKER: ${{ vars.COOLIFY_APPLICATION_UUID_WORKER }}
+          DOCKER_IMAGE: ${{ vars.DOCKER_IMAGE_WORKER }}
           BUILD_VERSION: ${{ github.sha }}
         run: |
           curl -sSf -X PATCH "${COOLIFY_URL}/api/v1/applications/${COOLIFY_APPLICATION_UUID_WORKER}" \
@@ -143,8 +139,8 @@ jobs:
       - name: Deploy Coolify Application
         env:
           COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
-          COOLIFY_API_KEY: ${{ secrets.COOLIFY_API_KEY }}
-          COOLIFY_APPLICATION_UUID_WORKER: ${{ secrets.COOLIFY_APPLICATION_UUID_WORKER }}
+          COOLIFY_API_KEY: ${{ vars.COOLIFY_API_KEY }}
+          COOLIFY_APPLICATION_UUID_WORKER: ${{ vars.COOLIFY_APPLICATION_UUID_WORKER }}
         run: |
           curl -sSf \
             -H "Authorization: Bearer ${COOLIFY_API_KEY}" \
