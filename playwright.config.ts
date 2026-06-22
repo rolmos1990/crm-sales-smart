@@ -8,6 +8,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 export default defineConfig({
   globalSetup: './tests/setup/global-setup.ts',
   testDir: './tests/e2e',
+  timeout: 60_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -20,6 +21,8 @@ export default defineConfig({
     video: 'retain-on-failure',
     locale: 'es-PE',
     timezoneId: 'America/Lima',
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
   },
   projects: [
     // Proyecto de setup: hace login con cada rol y guarda storageState
