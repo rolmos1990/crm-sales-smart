@@ -531,6 +531,7 @@ model Oportunidad {
   conversacionesGanadas Conversacion[]            @relation("ConvOportunidadGanada")
 
   @@index([instanciaId])
+  @@index([instanciaId, id])
   @@index([pipelineId])
   @@index([stageId])
   @@index([empresaId])
@@ -546,6 +547,7 @@ model OportunidadContacto {
   contacto    Contacto    @relation(fields: [contactoId], references: [id], onDelete: Cascade)
 
   @@id([oportunidadId, contactoId])
+  @@index([oportunidadId, principal])
 }
 
 model OportunidadProducto {
