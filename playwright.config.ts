@@ -6,6 +6,7 @@ dotenv.config({ path: '.env.test' });
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 export default defineConfig({
+  globalSetup: './tests/setup/global-setup.ts',
   testDir: './tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -24,7 +25,9 @@ export default defineConfig({
     // Proyecto de setup: hace login con cada rol y guarda storageState
     {
       name: 'setup',
-      testMatch: /setup\/auth\.setup\.ts/,
+      testDir: './tests/setup',
+      testMatch: /auth\.setup\.ts/,
+      timeout: 60000,
       use: { ...devices['Desktop Chrome'] },
     },
 

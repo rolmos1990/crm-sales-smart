@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { PageHeader } from "@/shared/ui/page-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TabEmpresa } from "@/configuracion/components/tab-empresa";
@@ -14,6 +16,9 @@ export const dynamic = "force-dynamic";
 
 export default async function ConfiguracionPage() {
   const sesion = await requireSesion();
+
+  const { permitido } = verificarAcceso(sesion, "configuracion", "ver");
+  if (!permitido) redirect("/acceso-denegado");
 
   const [configEmpresa, plantillas] = await Promise.all([
     obtenerConfiguracionEmpresa(sesion.instanciaId),

@@ -128,6 +128,7 @@ function UserMenuDropdown({ usuario }: { usuario: UsuarioMenu }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
+        data-testid="user-menu"
         className={cn(
           "flex-1 min-w-0 flex items-center gap-2 rounded-lg px-2 py-2 transition-colors text-left",
           "hover:bg-stone-50 dark:hover:bg-white/[0.04] cursor-pointer",

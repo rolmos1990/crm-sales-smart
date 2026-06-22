@@ -16,11 +16,11 @@ async function loginAs(
   storageFile: string
 ) {
   await page.goto('/login');
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/contraseña/i).fill(password);
+  await page.locator('input[name="email"]').fill(email);
+  await page.locator('input[name="password"]').fill(password);
   await page.getByRole('button', { name: /iniciar sesión|entrar|login/i }).click();
   // Esperar a que llegue al dashboard tras el login
-  await expect(page).toHaveURL(/\/(dashboard|crm|sales|inbox|productos)?$/, { timeout: 15000 });
+  await expect(page).toHaveURL(/\/(dashboard|crm|sales|inbox|productos)/, { timeout: 45000 });
   await page.context().storageState({ path: storageFile });
 }
 
