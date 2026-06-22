@@ -88,12 +88,15 @@ type CotizacionResumen = {
   creadoEn: Date;
 };
 
-interface WorkspaceData {
+interface DataCritica {
   oportunidad: OportunidadFetched;
-  tagsDisponibles: Tag[];
   todosPipelines: PipelineConStages[];
   tagIds: string[];
   contactosIniciales: ContactoEnPanel[];
+}
+
+interface DataDiferida {
+  tagsDisponibles: Tag[];
   conversaciones: ConversacionResumen[];
   cuentasCanal: CuentaCanalResumen[];
   cotizaciones: CotizacionResumen[];
@@ -165,7 +168,8 @@ export function WorkspaceOportunidad({
   onUpdate,
   onDelete,
 }: WorkspaceOportunidadProps) {
-  const [data, setData] = useState<WorkspaceData | null>(null);
+  const [dataCritica, setDataCritica] = useState<DataCritica | null>(null);
+  const [dataDiferida, setDataDiferida] = useState<DataDiferida | null>(null);
   const [cargando, setCargando] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const fetchedIdRef = useRef<string | null>(null);
@@ -173,21 +177,20 @@ export function WorkspaceOportunidad({
   useEffect(() => {
     if (!oportunidadId) {
       fetchedIdRef.current = null;
-      setData(null);
+      setDataCritica(null);
+      setDataDiferida(null);
       return;
     }
     if (fetchedIdRef.current === oportunidadId) return;
     fetchedIdRef.current = oportunidadId;
     setCargando(true);
+    setDataDiferida(null);
 
+    // Fase 1: solo datos críticos — abre el workspace de inmediato
     Promise.all([
       obtenerOportunidadAction(oportunidadId),
-      obtenerTagsAction(),
       obtenerPipelinesAction(),
-      obtenerConversacionesPorOportunidadAction(oportunidadId),
-      obtenerCuentasCanalAction(),
-      obtenerCotizacionesPorOportunidadAction(oportunidadId),
-    ]).then(([oportunidad, tags, pipelines, conversaciones, cuentasCanal, cotizaciones]) => {
+    ]).then(([oportunidad, pipelines]) => {
       if (!oportunidad) { setCargando(false); return; }
 
       const tagIds = (oportunidad as any).tags?.map((t: { tagId: string }) => t.tagId) ?? [];
@@ -199,20 +202,30 @@ export function WorkspaceOportunidad({
         })
       );
 
-      setData({
+      setDataCritica({
         oportunidad,
-        tagsDisponibles: tags as Tag[],
         todosPipelines: pipelines as PipelineConStages[],
         tagIds,
         contactosIniciales,
-        conversaciones: conversaciones as ConversacionResumen[],
-        cuentasCanal: cuentasCanal as CuentaCanalResumen[],
-        cotizaciones: cotizaciones as CotizacionResumen[],
       });
       setResetKey((k) => k + 1);
       setCargando(false);
-      // Marcar mensajes como leídos cuando el agente abre el workspace
-      marcarMensajeLeido(oportunidadId);
+
+      // Fase 2: datos diferidos — popula conversaciones, tags y cotizaciones
+      Promise.all([
+        obtenerTagsAction(),
+        obtenerConversacionesPorOportunidadAction(oportunidadId),
+        obtenerCuentasCanalAction(),
+        obtenerCotizacionesPorOportunidadAction(oportunidadId),
+      ]).then(([tags, conversaciones, cuentasCanal, cotizaciones]) => {
+        setDataDiferida({
+          tagsDisponibles: tags as Tag[],
+          conversaciones: conversaciones as ConversacionResumen[],
+          cuentasCanal: cuentasCanal as CuentaCanalResumen[],
+          cotizaciones: cotizaciones as CotizacionResumen[],
+        });
+        marcarMensajeLeido(oportunidadId);
+      });
     });
   }, [oportunidadId]);
 
@@ -228,7 +241,7 @@ export function WorkspaceOportunidad({
         <DialogPrimitive.Popup className="fixed inset-0 z-50 flex items-center justify-center p-3 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 duration-200">
           <div className="w-[96vw] h-[94vh] max-w-[1800px] rounded-2xl border border-white/10 shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,_theme(colors.stone.900)_0%,_theme(colors.neutral.950)_60%,_theme(colors.black)_100%)]">
 
-            {/* Loading state */}
+            {/* Spinner inicial — solo hasta que los datos críticos lleguen */}
             {cargando && (
               <div className="flex flex-1 items-center justify-center gap-3">
                 <Loader2 className="h-5 w-5 animate-spin text-lime-400" />
@@ -236,13 +249,14 @@ export function WorkspaceOportunidad({
               </div>
             )}
 
-            {/* Contenido cargado */}
-            {!cargando && data && (
+            {/* Workspace con carga progresiva — aparece en cuanto llegan datos críticos */}
+            {!cargando && dataCritica && (
               <WorkspaceContenido
                 key={resetKey}
-                data={data}
-                initialStageId={data.oportunidad.stageId ?? initialStageId}
-                initialPipelineId={data.oportunidad.pipelineId ?? pipeline.id}
+                critica={dataCritica}
+                diferida={dataDiferida}
+                initialStageId={dataCritica.oportunidad.stageId ?? initialStageId}
+                initialPipelineId={dataCritica.oportunidad.pipelineId ?? pipeline.id}
                 empresas={empresas}
                 contactos={contactos}
                 defaultCountryCode={defaultCountryCode}
@@ -261,7 +275,8 @@ export function WorkspaceOportunidad({
 // ── Capa interior: todo el UI del workspace ───────────────────────────────────
 
 interface WorkspaceContenidoProps {
-  data: WorkspaceData;
+  critica: DataCritica;
+  diferida: DataDiferida | null;
   initialStageId: string | null;
   initialPipelineId: string | null;
   empresas: OpcionCombobox[];
@@ -273,7 +288,8 @@ interface WorkspaceContenidoProps {
 }
 
 function WorkspaceContenido({
-  data,
+  critica,
+  diferida,
   initialStageId,
   initialPipelineId,
   empresas,
@@ -283,7 +299,7 @@ function WorkspaceContenido({
   onUpdate,
   onDelete,
 }: WorkspaceContenidoProps) {
-  const { oportunidad, tagsDisponibles, todosPipelines, conversaciones, cuentasCanal } = data;
+  const { oportunidad, todosPipelines } = critica;
   const { puedeModificar } = useSesion();
   const puedeMod = puedeModificar("oportunidades");
   const formBloqueado = !puedeMod;
@@ -293,7 +309,7 @@ function WorkspaceContenido({
   const [metadata, setMetadata] = useState<Record<string, unknown>>(
     (oportunidad.metadata as Record<string, unknown>) ?? {}
   );
-  const [tagIds, setTagIds] = useState<string[]>(data.tagIds);
+  const [tagIds, setTagIds] = useState<string[]>(critica.tagIds);
   const [guardandoStage, setGuardandoStage] = useState(false);
   const [bloqueoPendiente, setBloqueoPendiente] = useState<{
     stageNombre: string;
@@ -301,7 +317,14 @@ function WorkspaceContenido({
     campos: string[];
   } | null>(null);
   const camposSeccionRef = useRef<HTMLDivElement>(null);
-  const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>(data.cotizaciones);
+  const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>(diferida?.cotizaciones ?? []);
+
+  // Sincroniza cotizaciones cuando llegan los datos diferidos
+  useEffect(() => {
+    if (diferida?.cotizaciones) {
+      setCotizaciones(diferida.cotizaciones);
+    }
+  }, [diferida]);
   const [secciones, setSecciones] = useState({
     info: true,
     contactos: false,
@@ -325,8 +348,8 @@ function WorkspaceContenido({
   const camposPipeline = pipelineActual?.campos ?? [];
 
   const contactoPrincipal =
-    data.contactosIniciales.find((r) => r.principal)?.contacto ??
-    data.contactosIniciales[0]?.contacto ??
+    critica.contactosIniciales.find((r) => r.principal)?.contacto ??
+    critica.contactosIniciales[0]?.contacto ??
     null;
 
   const empresa = (oportunidad as any).empresa ?? null;
@@ -380,7 +403,7 @@ function WorkspaceContenido({
             pipelineId: nuevoPipelineId,
             tags: tagIds.map((tagId) => ({
               tagId,
-              tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
+              tag: (diferida?.tagsDisponibles ?? []).find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
             })),
           } as Oportunidad & { stageId: string });
         },
@@ -413,7 +436,7 @@ function WorkspaceContenido({
             stageId: stageActualId,
             tags: tagIds.map((tagId) => ({
               tagId,
-              tag: tagsDisponibles.find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
+              tag: (diferida?.tagsDisponibles ?? []).find((t) => t.id === tagId) ?? { id: tagId, nombre: "", color: null },
             })),
           });
         },
@@ -592,14 +615,47 @@ function WorkspaceContenido({
 
         {/* Panel Chat — 68% ─────────────────────────────────────────────── */}
         <div className="flex flex-col min-w-0" style={{ width: "68%" }}>
-          <PanelConversacion
-            oportunidadId={oportunidad.id}
-            contactoId={contactoPrincipal?.id ?? ""}
-            nombreContacto={nombreContacto}
-            telefonoContacto={contactoPrincipal?.telefonoPrincipal ?? null}
-            cuentas={cuentasCanal}
-            conversacionesIniciales={conversaciones}
-          />
+          {diferida ? (
+            <PanelConversacion
+              oportunidadId={oportunidad.id}
+              contactoId={contactoPrincipal?.id ?? ""}
+              nombreContacto={nombreContacto}
+              telefonoContacto={contactoPrincipal?.telefonoPrincipal ?? null}
+              cuentas={diferida.cuentasCanal}
+              conversacionesIniciales={diferida.conversaciones}
+            />
+          ) : (
+            <div className="flex flex-col flex-1 p-4 gap-3 animate-pulse">
+              <div className="flex items-end gap-2">
+                <div className="h-8 w-8 rounded-full bg-white/8 shrink-0" />
+                <div className="space-y-1.5">
+                  <div className="h-3 w-48 rounded bg-white/8" />
+                  <div className="h-10 w-64 rounded-xl bg-white/8" />
+                </div>
+              </div>
+              <div className="flex items-end gap-2 flex-row-reverse">
+                <div className="space-y-1.5">
+                  <div className="h-3 w-32 rounded bg-white/8 ml-auto" />
+                  <div className="h-10 w-52 rounded-xl bg-white/8" />
+                </div>
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="h-8 w-8 rounded-full bg-white/8 shrink-0" />
+                <div className="space-y-1.5">
+                  <div className="h-3 w-36 rounded bg-white/8" />
+                  <div className="h-16 w-72 rounded-xl bg-white/8" />
+                </div>
+              </div>
+              <div className="flex items-end gap-2 flex-row-reverse">
+                <div className="space-y-1.5">
+                  <div className="h-3 w-24 rounded bg-white/8 ml-auto" />
+                  <div className="h-10 w-44 rounded-xl bg-white/8" />
+                </div>
+              </div>
+              <div className="flex-1" />
+              <div className="h-12 rounded-xl bg-white/5 border border-white/8" />
+            </div>
+          )}
         </div>
 
         {/* Panel Info — 32% ─────────────────────────────────────────────── */}
@@ -760,12 +816,12 @@ function WorkspaceContenido({
                   icono={<User className="h-3 w-3" />}
                   abierto={secciones.contactos}
                   onToggle={() => toggleSeccion("contactos")}
-                  badge={data.contactosIniciales.length}
+                  badge={critica.contactosIniciales.length}
                 >
                   <div className="-mx-4">
                     <GestorContactosPanel
                       oportunidadId={oportunidad.id}
-                      contactosIniciales={data.contactosIniciales}
+                      contactosIniciales={critica.contactosIniciales}
                       todosContactos={contactos}
                       defaultCountryCode={defaultCountryCode}
                     />
@@ -822,21 +878,29 @@ function WorkspaceContenido({
                 )}
 
                 {/* ── Etiquetas ─────────────────────────────────────── */}
-                {tagsDisponibles.length > 0 && (
+                {(diferida === null || diferida.tagsDisponibles.length > 0) && (
                   <Seccion
                     titulo="Etiquetas"
-                  bloqueado={formBloqueado}
+                    bloqueado={formBloqueado}
                     icono={<TagIcon className="h-3 w-3" />}
                     abierto={secciones.etiquetas}
                     onToggle={() => toggleSeccion("etiquetas")}
                     badge={tagIds.length}
                   >
                     <div className="pt-1">
-                      <SelectorTags
-                        tags={tagsDisponibles}
-                        seleccionados={tagIds}
-                        onChange={setTagIds}
-                      />
+                      {diferida ? (
+                        <SelectorTags
+                          tags={diferida.tagsDisponibles}
+                          seleccionados={tagIds}
+                          onChange={setTagIds}
+                        />
+                      ) : (
+                        <div className="flex gap-1.5 flex-wrap animate-pulse">
+                          <div className="h-5 w-16 rounded-full bg-white/8" />
+                          <div className="h-5 w-20 rounded-full bg-white/8" />
+                          <div className="h-5 w-12 rounded-full bg-white/8" />
+                        </div>
+                      )}
                     </div>
                   </Seccion>
                 )}
@@ -848,10 +912,15 @@ function WorkspaceContenido({
                   icono={<FileText className="h-3 w-3" />}
                   abierto={secciones.cotizaciones}
                   onToggle={() => toggleSeccion("cotizaciones")}
-                  badge={cotizaciones.length}
+                  badge={diferida ? cotizaciones.length : undefined}
                 >
                   <div className="space-y-2 pt-1">
-                    {cotizaciones.length === 0 ? (
+                    {diferida === null ? (
+                      <div className="space-y-2 animate-pulse">
+                        <div className="h-12 rounded-lg bg-white/6 border border-white/8" />
+                        <div className="h-12 rounded-lg bg-white/4 border border-white/6" />
+                      </div>
+                    ) : cotizaciones.length === 0 ? (
                       <p className="text-xs text-stone-500 text-center py-3">Sin cotizaciones</p>
                     ) : (
                       cotizaciones.map((c) => {

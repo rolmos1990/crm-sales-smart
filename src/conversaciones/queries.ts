@@ -85,16 +85,18 @@ export async function obtenerConversacionesPorOportunidad(
   oportunidadId: string,
   instanciaId: string
 ): Promise<ConversacionResumen[]> {
-  const relPrincipal = await prisma.oportunidadContacto.findFirst({
-    where: { oportunidadId, principal: true },
-    select: { contactoId: true },
-  });
-  if (!relPrincipal) return [];
-
   const convs = await prisma.conversacion.findMany({
-    where: { contactoId: relPrincipal.contactoId, instanciaId },
+    where: {
+      instanciaId,
+      contacto: {
+        oportunidades: {
+          some: { oportunidadId, principal: true },
+        },
+      },
+    },
     include: conversacionInclude,
     orderBy: { actualizadoEn: "desc" as const },
+    take: 30,
   });
 
   return convs.map(mapearConversacion);

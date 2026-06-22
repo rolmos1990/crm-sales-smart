@@ -73,7 +73,7 @@ export function PanelConversacion({
     queryKey: ["mensajes", conversacionActiva],
     queryFn: () => fetchMensajesRecientes(conversacionActiva!),
     enabled: !!conversacionActiva,
-    staleTime: 0,
+    staleTime: 5000,
   });
 
   // Determinar si hay mensajes anteriores tras la carga inicial
