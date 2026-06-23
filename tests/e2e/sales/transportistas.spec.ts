@@ -24,7 +24,7 @@ test.describe('Listado de transportistas', () => {
 test.describe('Creación y edición de transportistas', () => {
   test('TR-02 Crear transportista completo', async ({ page }) => {
     await page.goto(URL_TRANSPORTISTAS);
-    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).click();
+    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).first().click();
 
     const nombreTransportista = `Transportista-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreTransportista);
@@ -53,7 +53,7 @@ test.describe('Creación y edición de transportistas', () => {
 
   test('TR-04 Validación: nombre requerido', async ({ page }) => {
     await page.goto(URL_TRANSPORTISTAS);
-    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).click();
+    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).first().click();
     await page.getByRole('button', { name: /guardar|crear/i }).click();
     // Esperado: error en campo nombre
     await expect(page.locator('text=/requerido|obligatorio/i').first()).toBeVisible();
@@ -63,7 +63,7 @@ test.describe('Creación y edición de transportistas', () => {
     await page.goto(URL_TRANSPORTISTAS);
 
     // Crear un transportista para desactivar
-    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).click();
+    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).first().click();
     const nombreDesactivar = `TransDesactivar-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreDesactivar);
     await page.getByRole('button', { name: /guardar|crear/i }).click();

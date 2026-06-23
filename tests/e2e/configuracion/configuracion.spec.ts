@@ -138,7 +138,7 @@ test.describe('Pipelines', () => {
     if (await linkPipelines.isVisible()) await linkPipelines.click();
     else await page.goto('/configuracion/pipelines');
 
-    await page.getByRole('link', { name: /nuevo pipeline|crear/i }).or(page.getByRole('button', { name: /nuevo pipeline|crear/i })).click();
+    await page.getByRole('link', { name: /nuevo pipeline|crear/i }).or(page.getByRole('button', { name: /nuevo pipeline|crear/i })).first().click();
 
     const nombrePipeline = `Pipeline-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombrePipeline);

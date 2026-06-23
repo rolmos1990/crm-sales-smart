@@ -47,7 +47,7 @@ test.describe('Listado de actividades', () => {
 test.describe('Creación de actividades', () => {
   test('A-04 Crear actividad mínima', async ({ page }) => {
     await page.goto('/crm/actividades');
-    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).click();
+    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).first().click();
 
     // Completar tipo
     const selectorTipo = page.getByLabel(/tipo/i).or(page.getByRole('combobox', { name: /tipo/i }));
@@ -71,7 +71,7 @@ test.describe('Creación de actividades', () => {
 
   test('A-05 Crear actividad vinculada a contacto y oportunidad', async ({ page }) => {
     await page.goto('/crm/actividades');
-    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).click();
+    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).first().click();
 
     await page.getByLabel(/título/i).fill(`Actividad-Vinculada-${Date.now()}`);
 
@@ -89,7 +89,7 @@ test.describe('Creación de actividades', () => {
 
   test('A-06 Validaciones: título y fecha requeridos', async ({ page }) => {
     await page.goto('/crm/actividades');
-    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).click();
+    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).first().click();
 
     await page.getByRole('button', { name: /guardar|crear/i }).click();
     // Esperado: errores en campos requeridos
@@ -135,7 +135,7 @@ test.describe('Edición y completar actividades', () => {
   test('A-09 Eliminar actividad', async ({ page }) => {
     // Crear una actividad para eliminar
     await page.goto('/crm/actividades');
-    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).click();
+    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).first().click();
 
     const titulo = `Eliminar-${Date.now()}`;
     await page.getByLabel(/título/i).fill(titulo);

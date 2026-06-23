@@ -41,7 +41,7 @@ test.describe('Listado de contactos', () => {
 test.describe('Creación de contactos', () => {
   test('C-04 Crear contacto con datos mínimos', async ({ page }) => {
     await page.goto('/crm/contactos');
-    await page.getByRole('link', { name: /nuevo contacto|agregar|crear/i }).or(page.getByRole('button', { name: /nuevo contacto|agregar|crear/i })).click();
+    await page.getByRole('link', { name: /nuevo contacto|agregar|crear/i }).or(page.getByRole('button', { name: /nuevo contacto|agregar|crear/i })).first().click();
     // Esperado: navega al formulario o abre modal
     await expect(
       page.getByRole('heading', { name: /nuevo contacto|crear contacto/i })

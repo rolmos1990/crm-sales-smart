@@ -38,7 +38,7 @@ test.describe('Listado de cotizaciones', () => {
 test.describe('Creación de cotizaciones', () => {
   test('CQ-04 Crear cotización mínima como borrador', async ({ page }) => {
     await page.goto('/sales/cotizaciones');
-    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).click();
+    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).first().click();
 
     // Seleccionar contacto o ingresar datos del cliente
     const inputCliente = page.getByLabel(/cliente|contacto/i).first();
@@ -67,7 +67,7 @@ test.describe('Creación de cotizaciones', () => {
 
   test('CQ-05 Agregar ítems — subtotales calculados correctamente', async ({ page }) => {
     await page.goto('/sales/cotizaciones');
-    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).click();
+    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).first().click();
 
     const btnAgregarItem = page.getByRole('button', { name: /agregar ítem|agregar producto/i });
     if (await btnAgregarItem.isVisible()) {
@@ -84,7 +84,7 @@ test.describe('Creación de cotizaciones', () => {
 
   test('CQ-06 Aplicar descuento global recalcula el total', async ({ page }) => {
     await page.goto('/sales/cotizaciones');
-    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).click();
+    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).first().click();
 
     const descuentoGlobal = page.getByLabel(/descuento/i).last();
     if (await descuentoGlobal.isVisible()) {
@@ -97,7 +97,7 @@ test.describe('Creación de cotizaciones', () => {
 
   test('CQ-09 Validación: no guardar sin ítems', async ({ page }) => {
     await page.goto('/sales/cotizaciones');
-    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).click();
+    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).first().click();
     await page.getByRole('button', { name: /guardar|crear/i }).click();
     // Esperado: error claro sobre falta de ítems
     await expect(page.locator('text=/ítem|producto|requerido|obligatorio/i').first()).toBeVisible();

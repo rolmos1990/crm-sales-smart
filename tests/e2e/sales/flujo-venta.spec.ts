@@ -23,7 +23,7 @@ test.describe('Configuración de flujos de venta', () => {
     if (await linkFlujos.isVisible()) await linkFlujos.click();
     else await page.goto('/configuracion/flujos');
 
-    await page.getByRole('link', { name: /nuevo flujo|crear flujo/i }).or(page.getByRole('button', { name: /nuevo flujo|crear flujo/i })).click();
+    await page.getByRole('link', { name: /nuevo flujo|crear flujo/i }).or(page.getByRole('button', { name: /nuevo flujo|crear flujo/i })).first().click();
 
     const nombreFlujo = `Flujo-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreFlujo);
@@ -98,7 +98,7 @@ test.describe('Configuración de flujos de venta', () => {
     if (await linkFlujos.isVisible()) await linkFlujos.click();
     else await page.goto('/configuracion/flujos');
 
-    await page.getByRole('link', { name: /nuevo flujo|crear flujo/i }).or(page.getByRole('button', { name: /nuevo flujo|crear flujo/i })).click();
+    await page.getByRole('link', { name: /nuevo flujo|crear flujo/i }).or(page.getByRole('button', { name: /nuevo flujo|crear flujo/i })).first().click();
     const nombreEliminar = `FlujoEliminar-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreEliminar);
     await page.getByRole('button', { name: /guardar|crear/i }).click();

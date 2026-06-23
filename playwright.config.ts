@@ -12,7 +12,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Limitado a 2 incluso en local: el servidor dev (un solo proceso Next.js)
+  // y el pool de conexiones de Supabase (free tier) no soportan bien más
+  // workers concurrentes — con más, las páginas tardan en responder y los
+  // tests fallan por timeout aunque la app funcione correctamente.
+  workers: process.env.CI ? 1 : 2,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
     baseURL: BASE_URL,
