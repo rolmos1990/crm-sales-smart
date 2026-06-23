@@ -5,12 +5,12 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { FormProducto } from "@/shared/productos/components/form-producto";
 import { obtenerProductoPorId } from "@/shared/productos/queries";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { verificarAcceso } from "@/shared/auth/permisos";
 
 export default async function EditarProductoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sesion = await requireSesion();
-  if (!puedeModificar(sesion.rol, "productos")) redirect("/productos");
+  if (!verificarAcceso(sesion, "productos", "modificar").permitido) redirect("/acceso-denegado");
 
   const producto = await obtenerProductoPorId(id, sesion.instanciaId).catch(() => null);
 

@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaProductos } from "@/shared/productos/components/lista-productos";
 import { obtenerProductos } from "@/shared/productos/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { Producto } from "@/shared/productos/types";
 
 export default async function ProductosPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "productos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "productos");
   let productos: Producto[] = [];
 

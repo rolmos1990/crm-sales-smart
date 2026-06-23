@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -8,11 +8,13 @@ import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { obtenerCotizacionPorId } from "@/sales/cotizaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import type { CrearCotizacionInput } from "@/sales/cotizaciones/schema";
 
 export default async function EditarCotizacionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "cotizaciones", "modificar").permitido) redirect("/acceso-denegado");
 
   let cotizacion = null;
   let empresas: { id: string; nombre: string }[] = [];

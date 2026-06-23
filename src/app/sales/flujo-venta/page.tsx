@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { Settings2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerFlujoVentaCompleto, inicializarFlujoVentaPorDefecto } from "@/sales/flujo-venta/queries";
 import { PanelConfigEtapas } from "@/sales/flujo-venta/components/panel-config-etapas";
 import { PanelConfigReglas } from "@/sales/flujo-venta/components/panel-config-reglas";
@@ -8,6 +10,7 @@ import { PanelConfigDisparadoresFlujo } from "@/sales/flujo-venta/components/pan
 
 export default async function FlujoVentaPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "flujo-venta", "ver").permitido) redirect("/acceso-denegado");
   let flujo = await obtenerFlujoVentaCompleto(sesion.instanciaId);
 
   // Si no existe flujo, crear uno por defecto con etapas iniciales

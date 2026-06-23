@@ -5,7 +5,9 @@ import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerPipelines } from "@/crm/pipeline/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import type { PipelineConStages } from "@/crm/pipeline/types";
 
 export default async function NuevaOportunidadPage(props: {
@@ -14,6 +16,9 @@ export default async function NuevaOportunidadPage(props: {
   const searchParams = await props.searchParams;
   const pipelineId = searchParams.pipelineId ?? null;
   const stageId = searchParams.stageId ?? null;
+
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "oportunidades", "modificar").permitido) redirect("/acceso-denegado");
 
   let empresas: { valor: string; etiqueta: string }[] = [];
   let contactos: { valor: string; etiqueta: string }[] = [];
@@ -24,7 +29,6 @@ export default async function NuevaOportunidadPage(props: {
   let pipelines: PipelineConStages[] = [];
 
   try {
-    const sesion = await requireSesion();
     const [e, c, pls, t, moneda] = await Promise.all([
       buscarEmpresas("", sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),

@@ -1,8 +1,10 @@
+import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormContacto } from "@/crm/contactos/components/form-contacto";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 
 const PAIS_A_ISO: Record<string, string> = {
@@ -13,12 +15,14 @@ const PAIS_A_ISO: Record<string, string> = {
 };
 
 export default async function NuevoContactoPage() {
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "contactos", "modificar").permitido) redirect("/acceso-denegado");
+
   let empresas: { valor: string; etiqueta: string }[] = [];
   let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
   let defaultCountryCode = "PA";
 
   try {
-    const sesion = await requireSesion();
     const [datos, t, config] = await Promise.all([
       buscarEmpresas("", sesion.instanciaId),
       obtenerTags(sesion.instanciaId),

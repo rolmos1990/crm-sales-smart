@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { PageHeader } from "@/shared/ui/page-header";
 import { WizardImportacion } from "@/crm/datos/components/wizard-importacion";
 import { obtenerCamposPersonalizadosPorEntidad } from "@/crm/datos/queries";
@@ -7,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DatosPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "datos", "ver").permitido) redirect("/acceso-denegado");
 
   let camposPersonalizados: Awaited<
     ReturnType<typeof obtenerCamposPersonalizadosPorEntidad>

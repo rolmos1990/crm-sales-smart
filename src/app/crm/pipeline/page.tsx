@@ -3,7 +3,9 @@ import { obtenerPipelines, obtenerOportunidadesPorPipeline } from "@/crm/pipelin
 import { obtenerOportunidadesPorEtapa } from "@/crm/oportunidades/queries";
 import { obtenerEmpresas } from "@/crm/empresas/queries";
 import { obtenerContactos } from "@/crm/contactos/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import type { OportunidadEnStage, PipelineConStages } from "@/crm/pipeline/types";
 import type { Etapa, Oportunidad } from "@/crm/oportunidades/types";
@@ -22,6 +24,9 @@ export default async function PipelinePage(props: {
   const searchParams = await props.searchParams;
   const pipelineIdParam = searchParams.p ?? null;
 
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "pipeline", "ver").permitido) redirect("/acceso-denegado");
+
   let pipelines: PipelineConStages[] = [];
   let pipelineId: string | null = null;
   let oportunidadesDinamicas: Map<string, OportunidadEnStage[]> | null = null;
@@ -31,7 +36,6 @@ export default async function PipelinePage(props: {
   let defaultCountryCode = "PA";
 
   try {
-    const sesion = await requireSesion();
     const [pipelinesData, empresas, contactos, config] = await Promise.all([
       obtenerPipelines(sesion.instanciaId),
       obtenerEmpresas(sesion.instanciaId),

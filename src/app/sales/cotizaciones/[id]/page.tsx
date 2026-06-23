@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { obtenerCotizacionPorId } from "@/sales/cotizaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { cambiarEstadoCotizacion } from "@/sales/cotizaciones/actions";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
 import { BotonCopiarCotizacion } from "@/sales/cotizaciones/components/boton-copiar-cotizacion";
@@ -28,10 +29,12 @@ const ESTADOS_EDITABLES = new Set(["BORRADOR", "ENVIADA"]);
 export default async function CotizacionDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "cotizaciones", "ver").permitido) redirect("/acceso-denegado");
+
   let cotizacion = null;
 
   try {
-    const sesion = await requireSesion();
     cotizacion = await obtenerCotizacionPorId(id, sesion.instanciaId);
   } catch {
     // DB not configured

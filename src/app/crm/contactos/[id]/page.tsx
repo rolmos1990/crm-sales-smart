@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -17,7 +17,7 @@ import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
 import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
 import { obtenerConversacionesResumenPorContacto, obtenerCuentasCanal } from "@/conversaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag as TagType } from "@/crm/tags/types";
@@ -54,6 +54,7 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
   let actividades: Actividad[] = [];
   let todosLosTags: TagType[] = [];
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "contactos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "contactos");
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesResumenPorContacto>> = [];
   let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];

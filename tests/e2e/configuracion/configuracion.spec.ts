@@ -138,7 +138,7 @@ test.describe('Pipelines', () => {
     if (await linkPipelines.isVisible()) await linkPipelines.click();
     else await page.goto('/configuracion/pipelines');
 
-    await page.getByRole('button', { name: /nuevo pipeline|crear/i }).click();
+    await page.getByRole('link', { name: /nuevo pipeline|crear/i }).or(page.getByRole('button', { name: /nuevo pipeline|crear/i })).click();
 
     const nombrePipeline = `Pipeline-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombrePipeline);
@@ -217,7 +217,7 @@ test.describe('Integraciones y Webhooks', () => {
     if (await linkIntegraciones.isVisible()) await linkIntegraciones.click();
     else await page.goto('/configuracion/integraciones');
 
-    const btnNuevoWebhook = page.getByRole('button', { name: /nuevo webhook|agregar webhook/i });
+    const btnNuevoWebhook = page.getByRole('link', { name: /nuevo webhook|agregar webhook/i }).or(page.getByRole('button', { name: /nuevo webhook|agregar webhook/i }));
     if (await btnNuevoWebhook.isVisible()) {
       await btnNuevoWebhook.click();
       await page.getByLabel(/url/i).fill('https://webhook.site/test-url');

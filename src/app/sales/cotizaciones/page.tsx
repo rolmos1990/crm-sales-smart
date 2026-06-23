@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaCotizaciones } from "@/sales/cotizaciones/components/lista-cotizaciones";
 import { obtenerCotizaciones } from "@/sales/cotizaciones/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { Cotizacion } from "@/sales/cotizaciones/types";
 
 export default async function CotizacionesPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "cotizaciones", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "cotizaciones");
   let cotizaciones: Cotizacion[] = [];
   try {

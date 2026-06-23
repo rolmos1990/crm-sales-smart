@@ -1,11 +1,14 @@
 import { Puzzle } from "lucide-react";
 import { CATALOGO_INTEGRACIONES } from "@/integraciones/catalog";
 import { ListaIntegracionesLazy } from "@/integraciones/components/lista-integraciones-lazy";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import type { IntegracionConEstado } from "@/integraciones/types";
 
 export default async function IntegracionesPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
   // Intentar cargar integraciones instaladas — puede no haber DB configurada aún
   let instaladas: { id: string; clave: string; estado: string }[] = [];
   try {

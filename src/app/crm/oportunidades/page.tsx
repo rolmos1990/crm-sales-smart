@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaOportunidades } from "@/crm/oportunidades/components/lista-oportunidades";
 import { obtenerOportunidades } from "@/crm/oportunidades/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { Oportunidad } from "@/crm/oportunidades/types";
 
 export default async function OportunidadesPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "oportunidades", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "oportunidades");
   let oportunidades: Oportunidad[] = [];
   try {

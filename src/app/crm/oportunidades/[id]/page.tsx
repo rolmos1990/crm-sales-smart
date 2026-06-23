@@ -1,6 +1,6 @@
 "use server";
 
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -24,7 +24,7 @@ import { obtenerConversacionesPorOportunidad, obtenerCuentasCanal } from "@/conv
 import { obtenerCotizacionesPorOportunidad } from "@/sales/cotizaciones/queries";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag } from "@/crm/tags/types";
@@ -37,6 +37,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
   let actividades: Actividad[] = [];
   let todosLosTags: Tag[] = [];
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "oportunidades", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "oportunidades");
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesPorOportunidad>> = [];
   let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];

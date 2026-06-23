@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -9,10 +9,14 @@ import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { obtenerPipelines } from "@/crm/pipeline/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import type { PipelineConStages } from "@/crm/pipeline/types";
 
 export default async function EditarOportunidadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "oportunidades", "modificar").permitido) redirect("/acceso-denegado");
 
   let oportunidad = null;
   let empresas: { id: string; nombre: string }[] = [];
@@ -21,7 +25,6 @@ export default async function EditarOportunidadPage({ params }: { params: Promis
   let pipelines: PipelineConStages[] = [];
 
   try {
-    const sesion = await requireSesion();
     [oportunidad, empresas, contactos, tags, pipelines] = await Promise.all([
       obtenerOportunidadPorId(id, sesion.instanciaId),
       buscarEmpresas("", sesion.instanciaId),

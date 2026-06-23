@@ -5,6 +5,8 @@ import { buscarEmpresas } from "@/crm/empresas/queries";
 import { obtenerOportunidades } from "@/crm/oportunidades/queries";
 import { obtenerPedidos } from "@/sales/pedidos/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
+import { redirect } from "next/navigation";
 import { prisma } from "@/shared/db/prisma";
 
 export default async function NuevaActividadPage({
@@ -13,6 +15,10 @@ export default async function NuevaActividadPage({
   searchParams: Promise<{ contactoId?: string; empresaId?: string; oportunidadId?: string; pedidoId?: string; cotizacionId?: string }>;
 }) {
   const params = await searchParams;
+
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "actividades", "modificar").permitido) redirect("/acceso-denegado");
+
   let contactos: { valor: string; etiqueta: string }[] = [];
   let empresas: { valor: string; etiqueta: string }[] = [];
   let oportunidades: { valor: string; etiqueta: string }[] = [];
@@ -20,7 +26,6 @@ export default async function NuevaActividadPage({
   let cotizaciones: { valor: string; etiqueta: string }[] = [];
 
   try {
-    const sesion = await requireSesion();
     const [c, e, o, p, cot] = await Promise.all([
       buscarContactos("", sesion.instanciaId),
       buscarEmpresas("", sesion.instanciaId),

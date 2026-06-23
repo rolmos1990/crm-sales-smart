@@ -24,6 +24,100 @@ const prisma = new PrismaClient({ adapter });
 const NOMBRE_INSTANCIA = "Instancia de Pruebas";
 const PASSWORD = process.env.TEST_OWNER_PASSWORD;
 
+const STAGES_DEFAULT = [
+  { nombre: "Prospecto",   orden: 0, probabilidad: 10,  esInicial: true,  esGanado: false, esPerdido: false, color: "#818cf8" },
+  { nombre: "Calificado",  orden: 1, probabilidad: 25,  esInicial: false, esGanado: false, esPerdido: false, color: "#22d3ee" },
+  { nombre: "Propuesta",   orden: 2, probabilidad: 50,  esInicial: false, esGanado: false, esPerdido: false, color: "#fbbf24" },
+  { nombre: "Negociación", orden: 3, probabilidad: 75,  esInicial: false, esGanado: false, esPerdido: false, color: "#f97316" },
+  { nombre: "Ganado",      orden: 4, probabilidad: 100, esInicial: false, esGanado: true,  esPerdido: false, color: "#4ade80" },
+  { nombre: "Perdido",     orden: 5, probabilidad: 0,   esInicial: false, esGanado: false, esPerdido: true,  color: "#fb7185" },
+];
+
+// Mismo criterio que src/shared/inicializacion/pipeline-default.ts, pero inline
+// (evita depender del alias "@/" al ejecutar este script standalone con tsx).
+async function crearPipelineDefault(instanciaId: string) {
+  const existente = await prisma.pipeline.findFirst({ where: { instanciaId, esDefault: true } });
+  if (existente) return existente;
+
+  return prisma.pipeline.create({
+    data: { nombre: "Pipeline de ventas", esDefault: true, activo: true, instanciaId, stages: { create: STAGES_DEFAULT } },
+    include: { stages: true },
+  });
+}
+
+const EMPRESAS_EJEMPLO = [
+  { nombre: "Acme Corp", industria: "Tecnología", email: "contacto@acme-demo.com" },
+  { nombre: "Norte Distribuciones", industria: "Logística", email: "ventas@norte-demo.com" },
+];
+
+const CONTACTOS_EJEMPLO = [
+  { nombre: "Lucía", apellido: "Fernández", email: "lucia.fernandez@demo.com", telefonoPrincipal: "+507 6000-0001" },
+  { nombre: "Marco", apellido: "Rivas", email: "marco.rivas@demo.com", telefonoPrincipal: "+507 6000-0002" },
+  { nombre: "Elena", apellido: "Torres", email: "elena.torres@demo.com", telefonoPrincipal: "+507 6000-0003" },
+];
+
+const PRODUCTOS_EJEMPLO = [
+  { nombre: "Plan Básico", precio: 49.9, categoria: "Software" },
+  { nombre: "Plan Pro", precio: 149.9, categoria: "Software" },
+  { nombre: "Soporte Premium", precio: 299, categoria: "Servicios" },
+];
+
+// Datos mínimos para que los listados (productos, contactos, empresas, oportunidades)
+// no aparezcan vacíos en los tests E2E. Idempotente: solo crea si la instancia no tiene nada.
+async function sembrarDatosEjemplo(instanciaId: string, usuarioId: string) {
+  const stageInicial = (await crearPipelineDefault(instanciaId)).stages?.find((s) => s.esInicial) ?? null;
+
+  const empresasExistentes = await prisma.empresa.count({ where: { instanciaId } });
+  const empresas = empresasExistentes > 0
+    ? await prisma.empresa.findMany({ where: { instanciaId } })
+    : await Promise.all(
+        EMPRESAS_EJEMPLO.map((e) => prisma.empresa.create({ data: { ...e, instanciaId, usuarioId } })),
+      );
+  if (empresasExistentes === 0) console.log(`✓ ${empresas.length} empresas de ejemplo`);
+
+  const contactosExistentes = await prisma.contacto.count({ where: { instanciaId } });
+  const contactos = contactosExistentes > 0
+    ? await prisma.contacto.findMany({ where: { instanciaId } })
+    : await Promise.all(
+        CONTACTOS_EJEMPLO.map((c, i) =>
+          prisma.contacto.create({
+            data: { ...c, instanciaId, usuarioId, estado: "ACTIVO", empresaId: empresas[i % empresas.length]?.id ?? null },
+          }),
+        ),
+      );
+  if (contactosExistentes === 0) console.log(`✓ ${contactos.length} contactos de ejemplo`);
+
+  const productosExistentes = await prisma.producto.count({ where: { instanciaId } });
+  if (productosExistentes === 0) {
+    await Promise.all(
+      PRODUCTOS_EJEMPLO.map((p) => prisma.producto.create({ data: { ...p, instanciaId } })),
+    );
+    console.log(`✓ ${PRODUCTOS_EJEMPLO.length} productos de ejemplo`);
+  }
+
+  const oportunidadesExistentes = await prisma.oportunidad.count({ where: { instanciaId } });
+  if (oportunidadesExistentes === 0 && contactos.length > 0) {
+    const pipeline = await prisma.pipeline.findFirst({ where: { instanciaId, esDefault: true } });
+    await Promise.all(
+      contactos.map((c, i) =>
+        prisma.oportunidad.create({
+          data: {
+            titulo: `Oportunidad de prueba ${i + 1}`,
+            valor: 1000 * (i + 1),
+            instanciaId,
+            usuarioId,
+            empresaId: c.empresaId,
+            pipelineId: pipeline?.id ?? null,
+            stageId: stageInicial?.id ?? null,
+            contactos: { create: { contactoId: c.id, principal: true } },
+          },
+        }),
+      ),
+    );
+    console.log(`✓ ${contactos.length} oportunidades de ejemplo`);
+  }
+}
+
 const USUARIOS_PRUEBA: { rol: Rol; email: string | undefined }[] = [
   { rol: "OWNER", email: process.env.TEST_OWNER_EMAIL },
   { rol: "ADMIN", email: process.env.TEST_ADMIN_EMAIL },
@@ -70,6 +164,8 @@ async function main() {
   });
   console.log(`✓ Instancia "${instancia.nombre}" (${instancia.slug})`);
 
+  let usuarioOwnerId: string | null = null;
+
   for (const { rol, email } of USUARIOS_PRUEBA) {
     if (!email) {
       console.warn(`⚠ Sin email configurado en .env.test para el rol ${rol}, se omite.`);
@@ -91,7 +187,14 @@ async function main() {
       create: { usuarioId: usuario.id, instanciaId: instancia.id, rol, activo: true },
     });
 
+    if (rol === "OWNER") usuarioOwnerId = usuario.id;
     console.log(`✓ ${rol.padEnd(17)} ${email}`);
+  }
+
+  if (usuarioOwnerId) {
+    await sembrarDatosEjemplo(instancia.id, usuarioOwnerId);
+  } else {
+    console.warn("⚠ No se encontró el usuario OWNER — se omite el seed de datos de ejemplo.");
   }
 
   console.log("\nListo. Los 7 usuarios de prueba ya pueden iniciar sesión en /login.");

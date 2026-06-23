@@ -1,7 +1,9 @@
+import { redirect } from "next/navigation";
 import { ArrowLeft, MessageCircle, Shield, Zap } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { PanelInstagram } from "@/integraciones/instagram/components/panel-instagram";
 
 async function obtenerCuentasIG(instanciaId: string) {
@@ -42,12 +44,13 @@ export default async function InstagramPage({ searchParams }: { searchParams: Se
   // Meta configurado = APP_ID + APP_SECRET disponibles en servidor
   const metaConfigurado = !!(process.env.META_APP_ID && process.env.META_APP_SECRET);
 
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
+
   let cuentas: Awaited<ReturnType<typeof obtenerCuentasIG>> = [];
-  let instanciaId = "";
+  const instanciaId = sesion.instanciaId;
 
   try {
-    const sesion = await requireSesion();
-    instanciaId = sesion.instanciaId;
     cuentas = await obtenerCuentasIG(instanciaId);
   } catch (e) {
     console.error("[Instagram page] Error cargando datos:", e);

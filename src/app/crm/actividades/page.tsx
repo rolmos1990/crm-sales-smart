@@ -4,12 +4,14 @@ import { ButtonLink } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { DashboardActividades } from "@/crm/actividades/components/dashboard-actividades";
 import { obtenerActividades } from "@/crm/actividades/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { Actividad } from "@/crm/actividades/types";
 
 export default async function ActividadesPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "actividades", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "actividades");
   let actividades: Actividad[] = [];
   try {

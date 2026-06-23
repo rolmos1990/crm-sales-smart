@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -11,7 +11,7 @@ import { TimelineActividades } from "@/crm/actividades/components/timeline-activ
 import { obtenerEmpresaPorId } from "@/crm/empresas/queries";
 import { obtenerActividadesPorEmpresa } from "@/crm/actividades/queries";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { Actividad } from "@/crm/actividades/types";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +27,14 @@ const ETAPA_COLOR: Record<string, string> = {
 export default async function EmpresaDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "empresas", "ver").permitido) redirect("/acceso-denegado");
+  const puedeMod = puedeModificar(sesion.rol, "empresas");
+
   let empresa = null;
   let actividades: Actividad[] = [];
-  let puedeMod = false;
 
   try {
-    const sesion = await requireSesion();
-    puedeMod = puedeModificar(sesion.rol, "empresas");
     [empresa, actividades] = await Promise.all([
       obtenerEmpresaPorId(id, sesion.instanciaId),
       obtenerActividadesPorEmpresa(id, sesion.instanciaId),

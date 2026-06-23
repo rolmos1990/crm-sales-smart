@@ -1,12 +1,15 @@
+import { redirect } from "next/navigation";
 import { InboxLayout } from "@/conversaciones/components/inbox-layout";
 import { obtenerConversacionesInbox, obtenerCuentasCanal } from "@/conversaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import type { ConversacionResumen } from "@/conversaciones/types";
 
 type CuentasType = Awaited<ReturnType<typeof obtenerCuentasCanal>>;
 
 export default async function InboxPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "inbox", "ver").permitido) redirect("/acceso-denegado");
   let conversaciones: ConversacionResumen[] = [];
   let cuentas: CuentasType = [];
   try {

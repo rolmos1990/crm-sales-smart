@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Truck } from "lucide-react";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { ListaTransportistas } from "@/sales/transportistas/components/lista-transportistas";
 import { DialogTransportista } from "@/sales/transportistas/components/dialog-transportista";
@@ -8,10 +9,7 @@ import { PageHeader } from "@/shared/ui/page-header";
 
 export default async function TransportistasPage() {
   const sesion = await requireSesion();
-
-  if (!["OWNER", "ADMIN"].includes(sesion.rol)) {
-    redirect("/sales/pedidos");
-  }
+  if (!verificarAcceso(sesion, "transportistas", "ver").permitido) redirect("/acceso-denegado");
 
   const transportistas = await obtenerTransportistas(sesion.instanciaId);
 

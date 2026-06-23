@@ -6,11 +6,14 @@ import { FormPedido } from "@/sales/pedidos/components/form-pedido";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 
 export default async function NuevoPedidoPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "pedidos", "modificar").permitido) redirect("/acceso-denegado");
   let empresas: { id: string; nombre: string }[] = [];
   let contactos: any[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];

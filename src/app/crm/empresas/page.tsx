@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaEmpresas } from "@/crm/empresas/components/lista-empresas";
 import { obtenerEmpresas } from "@/crm/empresas/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { EmpresaConRelaciones } from "@/crm/empresas/types";
 
 export default async function EmpresasPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "empresas", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "empresas");
   let empresas: EmpresaConRelaciones[] = [];
   try {

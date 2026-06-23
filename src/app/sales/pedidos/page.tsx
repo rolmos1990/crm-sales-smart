@@ -5,12 +5,14 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaPedidos } from "@/sales/pedidos/components/lista-pedidos";
 import { obtenerPedidos } from "@/sales/pedidos/queries";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { Pedido } from "@/sales/pedidos/types";
 
 export default async function PedidosPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "pedidos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "pedidos");
   let pedidos: Pedido[] = [];
   let etapasFlujo: { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null }[] = [];

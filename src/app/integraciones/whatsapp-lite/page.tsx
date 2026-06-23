@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
 import { ArrowLeft, Smartphone, ShieldCheck, Zap } from "lucide-react";
 import Link from "next/link";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { prisma } from "@/shared/db/prisma";
 import { PanelNumerosWhatsApp } from "@/integraciones/whatsapp-lite/components/panel-numeros-whatsapp";
 
@@ -30,11 +32,11 @@ export default async function WhatsAppLitePage() {
     stageId: string | null;
     stage: { nombre: string; color: string | null } | null;
   }[] = [];
-  let instanciaId = "";
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
+  const instanciaId = sesion.instanciaId;
 
   try {
-    const sesion = await requireSesion();
-    instanciaId = sesion.instanciaId;
     cuentas = await obtenerCuentasWALite(instanciaId);
   } catch (e) {
     console.error("[WhatsApp Lite page] Error cargando datos:", e);

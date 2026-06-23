@@ -6,7 +6,9 @@ import { FormCotizacion } from "@/sales/cotizaciones/components/form-cotizacion"
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerOportunidadPorId } from "@/crm/oportunidades/queries";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import type { CrearCotizacionInput } from "@/sales/cotizaciones/schema";
@@ -18,6 +20,7 @@ export default async function NuevaCotizacionPage({
 }) {
   const params = await searchParams;
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "cotizaciones", "modificar").permitido) redirect("/acceso-denegado");
   let empresas: { id: string; nombre: string }[] = [];
   let contactos: { id: string; nombre: string; apellido: string }[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];

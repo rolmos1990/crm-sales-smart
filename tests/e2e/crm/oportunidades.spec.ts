@@ -242,7 +242,7 @@ test.describe('Permisos por rol', () => {
     await page.goto('/crm/oportunidades');
 
     await expect(page.getByRole('table').or(page.locator('[data-testid="oportunidades-lista"]'))).toBeVisible();
-    await expect(page.getByRole('button', { name: /nueva oportunidad/i })).not.toBeVisible();
+    await expect(page.getByRole('link', { name: /nueva oportunidad/i }).or(page.getByRole('button', { name: /nueva oportunidad/i }))).not.toBeVisible();
 
     await ctx.close();
   });

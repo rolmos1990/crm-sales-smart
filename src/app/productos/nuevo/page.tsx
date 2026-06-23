@@ -4,12 +4,12 @@ import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/shared/ui/page-header";
 import { FormProducto } from "@/shared/productos/components/form-producto";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 
 export default async function NuevoProductoPage() {
   const sesion = await requireSesion();
-  if (!puedeModificar(sesion.rol, "productos")) redirect("/productos");
+  if (!verificarAcceso(sesion, "productos", "modificar").permitido) redirect("/acceso-denegado");
   const monedaDefault = await obtenerMonedaPrincipal(sesion.instanciaId);
 
   return (

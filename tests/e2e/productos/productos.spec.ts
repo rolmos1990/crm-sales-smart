@@ -40,7 +40,7 @@ test.describe('Catálogo de productos', () => {
 test.describe('Creación de productos', () => {
   test('PR-04 Crear producto mínimo (nombre y precio)', async ({ page }) => {
     await page.goto('/productos');
-    await page.getByRole('button', { name: /nuevo producto|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nuevo producto|agregar|crear/i }).or(page.getByRole('button', { name: /nuevo producto|agregar|crear/i })).click();
 
     const nombreProducto = `Producto-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreProducto);
@@ -53,7 +53,7 @@ test.describe('Creación de productos', () => {
 
   test('PR-05 Crear producto completo', async ({ page }) => {
     await page.goto('/productos');
-    await page.getByRole('button', { name: /nuevo producto|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nuevo producto|agregar|crear/i }).or(page.getByRole('button', { name: /nuevo producto|agregar|crear/i })).click();
 
     const nombreProducto = `ProductoCompleto-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreProducto);
@@ -77,7 +77,7 @@ test.describe('Creación de productos', () => {
 
   test('PR-06 Validaciones: nombre requerido y precio no negativo', async ({ page }) => {
     await page.goto('/productos');
-    await page.getByRole('button', { name: /nuevo producto|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nuevo producto|agregar|crear/i }).or(page.getByRole('button', { name: /nuevo producto|agregar|crear/i })).click();
 
     // Sin nombre
     await page.getByRole('button', { name: /guardar|crear/i }).click();
@@ -126,7 +126,7 @@ test.describe('Edición de productos', () => {
   test('PR-09 Desactivar producto — no aparece en selector de cotizaciones', async ({ page }) => {
     // Crear producto para desactivar
     await page.goto('/productos');
-    await page.getByRole('button', { name: /nuevo producto|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nuevo producto|agregar|crear/i }).or(page.getByRole('button', { name: /nuevo producto|agregar|crear/i })).click();
     const nombreDesactivar = `ProductoDesactivar-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreDesactivar);
     await page.getByLabel(/precio/i).first().fill('1.00');
@@ -145,7 +145,7 @@ test.describe('Edición de productos', () => {
 
     // Verificar que no aparece en selector de cotizaciones
     await page.goto('/sales/cotizaciones');
-    await page.getByRole('button', { name: /nueva cotización|crear/i }).click();
+    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).click();
     const btnAgregar = page.getByRole('button', { name: /agregar ítem|agregar producto/i });
     if (await btnAgregar.isVisible()) {
       await btnAgregar.click();
@@ -165,7 +165,7 @@ test.describe('Edición de productos', () => {
 test.describe('Uso de productos en cotizaciones y pedidos', () => {
   test('PR-10 Buscar y agregar producto en cotización', async ({ page }) => {
     await page.goto('/sales/cotizaciones');
-    await page.getByRole('button', { name: /nueva cotización|crear/i }).click();
+    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).click();
 
     const btnAgregar = page.getByRole('button', { name: /agregar ítem|agregar producto/i });
     if (await btnAgregar.isVisible()) {
@@ -209,7 +209,7 @@ test.describe('Permisos por rol', () => {
     ).toBeVisible();
 
     // Sin botones de edición o creación
-    await expect(page.getByRole('button', { name: /nuevo producto|crear/i })).not.toBeVisible();
+    await expect(page.getByRole('link', { name: /nuevo producto|crear/i }).or(page.getByRole('button', { name: /nuevo producto|crear/i }))).not.toBeVisible();
 
     await ctx.close();
   });

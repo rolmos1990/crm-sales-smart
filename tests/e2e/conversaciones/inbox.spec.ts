@@ -5,7 +5,7 @@ import { authFile } from '../../fixtures';
 
 test.describe('Listado de conversaciones', () => {
   test('IN-01 Ver lista de conversaciones', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     // Esperado: lista con nombre/número, último mensaje, fecha, estado
     await expect(
       page.locator('[data-testid="inbox-lista"], [data-testid="conversaciones-lista"]')
@@ -14,7 +14,7 @@ test.describe('Listado de conversaciones', () => {
   });
 
   test('IN-02 Buscar conversación por nombre o número', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const buscador = page.getByPlaceholder(/buscar|search/i).or(page.getByRole('searchbox'));
     if (await buscador.isVisible()) {
       await buscador.fill('a');
@@ -24,7 +24,7 @@ test.describe('Listado de conversaciones', () => {
   });
 
   test('IN-03 Conversaciones no leídas muestran indicador visual', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     // Esperado: badge o punto en conversaciones pendientes
     const indicadorNoLeido = page.locator(
       '[data-testid="badge-no-leido"], .unread-badge, [aria-label*="no leído"]'
@@ -37,7 +37,7 @@ test.describe('Listado de conversaciones', () => {
   });
 
   test('IN-04 Filtrar por estado — Abierta / Cerrada / Sin asignar', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const filtroEstado = page.getByRole('combobox', { name: /estado/i })
       .or(page.getByRole('button', { name: /abierta|estado/i }));
     if (await filtroEstado.isVisible()) {
@@ -53,7 +53,7 @@ test.describe('Listado de conversaciones', () => {
 
 test.describe('Vista de conversación', () => {
   test('IN-05 Ver mensajes de una conversación ordenados cronológicamente', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const primeraConversacion = page.locator('[data-testid="conversacion-item"], .conversacion-item').first();
     if (await primeraConversacion.isVisible()) {
       await primeraConversacion.click();
@@ -66,7 +66,7 @@ test.describe('Vista de conversación', () => {
   });
 
   test('IN-06 Mensajes en tiempo real via SSE — conversación activa recibe nuevos mensajes', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const primeraConversacion = page.locator('[data-testid="conversacion-item"]').first();
     if (await primeraConversacion.isVisible()) {
       await primeraConversacion.click();
@@ -84,7 +84,7 @@ test.describe('Vista de conversación', () => {
   });
 
   test('IN-07 Indicador de tipo de mensaje — texto, imagen, archivo', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const primeraConversacion = page.locator('[data-testid="conversacion-item"]').first();
     if (await primeraConversacion.isVisible()) {
       await primeraConversacion.click();
@@ -100,7 +100,7 @@ test.describe('Vista de conversación', () => {
 
 test.describe('Responder y enviar mensajes', () => {
   test('IN-08 Enviar mensaje de texto', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const primeraConversacion = page.locator('[data-testid="conversacion-item"]').first();
     if (!await primeraConversacion.isVisible()) {
       test.skip(true, 'No hay conversaciones disponibles');
@@ -122,7 +122,7 @@ test.describe('Responder y enviar mensajes', () => {
   });
 
   test('IN-09 Responder con template', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const primeraConversacion = page.locator('[data-testid="conversacion-item"]').first();
     if (!await primeraConversacion.isVisible()) {
       test.skip(true, 'No hay conversaciones disponibles');
@@ -147,7 +147,7 @@ test.describe('Responder y enviar mensajes', () => {
 
 test.describe('Gestión de conversaciones', () => {
   test('IN-11 Marcar conversación como leída al abrirla', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     // Buscar conversación con indicador de no leído
     const convNoLeida = page.locator('[data-testid="conversacion-item"]').filter({
       has: page.locator('[data-testid="badge-no-leido"]')
@@ -162,7 +162,7 @@ test.describe('Gestión de conversaciones', () => {
   });
 
   test('IN-12 Cerrar conversación cambia estado a Cerrada', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const primeraConversacion = page.locator('[data-testid="conversacion-item"]').filter({
       hasText: /abierta/i
     }).first();
@@ -178,7 +178,7 @@ test.describe('Gestión de conversaciones', () => {
   });
 
   test('IN-13 Asignar conversación a un agente', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const primeraConversacion = page.locator('[data-testid="conversacion-item"]').first();
     if (await primeraConversacion.isVisible()) {
       await primeraConversacion.click();
@@ -200,7 +200,7 @@ test.describe('Gestión de conversaciones', () => {
 
 test.describe('Vinculación con CRM', () => {
   test('IN-14 Conversación vinculada a contacto — datos visibles en panel lateral', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     const primeraConversacion = page.locator('[data-testid="conversacion-item"]').first();
     if (await primeraConversacion.isVisible()) {
       await primeraConversacion.click();
@@ -213,7 +213,7 @@ test.describe('Vinculación con CRM', () => {
   });
 
   test('IN-15 Crear contacto desde conversación de número desconocido', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     // Buscar conversación sin contacto vinculado
     const convSinContacto = page.locator('[data-testid="conversacion-item"]').filter({
       has: page.locator('[data-testid="sin-contacto"]')
@@ -236,7 +236,7 @@ test.describe('Permisos por rol', () => {
   test('IN-16 EJECUTIVO_VENTAS sin acceso al inbox', async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: authFile.ejecutivoVentas });
     const page = await ctx.newPage();
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
 
     const bloqueado =
       page.url().includes('/login') ||
@@ -250,7 +250,7 @@ test.describe('Permisos por rol', () => {
   test('IN-17 INVITADO solo lectura — campo de respuesta oculto o deshabilitado', async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: authFile.invitado });
     const page = await ctx.newPage();
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
 
     if (!page.url().includes('/login') && !page.url().includes('/acceso-denegado')) {
       const primeraConversacion = page.locator('[data-testid="conversacion-item"]').first();

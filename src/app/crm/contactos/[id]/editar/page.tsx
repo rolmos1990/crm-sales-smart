@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
@@ -7,6 +7,7 @@ import { obtenerContactoPorId } from "@/crm/contactos/queries";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 
 const PAIS_A_ISO: Record<string, string> = {
@@ -19,13 +20,15 @@ const PAIS_A_ISO: Record<string, string> = {
 export default async function EditarContactoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "contactos", "modificar").permitido) redirect("/acceso-denegado");
+
   let contacto = null;
   let empresas: { id: string; nombre: string }[] = [];
   let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
   let defaultCountryCode = "PA";
 
   try {
-    const sesion = await requireSesion();
     [contacto, empresas, tags] = await Promise.all([
       obtenerContactoPorId(id, sesion.instanciaId),
       buscarEmpresas("", sesion.instanciaId),

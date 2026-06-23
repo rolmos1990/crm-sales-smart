@@ -4,12 +4,14 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaContactos } from "@/crm/contactos/components/lista-contactos";
 import { obtenerContactos } from "@/crm/contactos/queries";
+import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { Contacto } from "@/crm/contactos/types";
 
 export default async function ContactosPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "contactos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "contactos");
   let contactos: Contacto[] = [];
   try {

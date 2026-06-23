@@ -36,7 +36,7 @@ test.describe('Listado de pedidos', () => {
 test.describe('Creación de pedidos', () => {
   test('P-04 Crear pedido mínimo', async ({ page }) => {
     await page.goto('/sales/pedidos');
-    await page.getByRole('button', { name: /nuevo pedido|crear/i }).click();
+    await page.getByRole('link', { name: /nuevo pedido|crear/i }).or(page.getByRole('button', { name: /nuevo pedido|crear/i })).click();
 
     // Seleccionar contacto o ingresar datos del cliente
     const inputCliente = page.getByLabel(/cliente|contacto/i).first();
@@ -69,7 +69,7 @@ test.describe('Creación de pedidos', () => {
 
   test('P-05 Agregar ítems — subtotales actualizados en tiempo real', async ({ page }) => {
     await page.goto('/sales/pedidos');
-    await page.getByRole('button', { name: /nuevo pedido|crear/i }).click();
+    await page.getByRole('link', { name: /nuevo pedido|crear/i }).or(page.getByRole('button', { name: /nuevo pedido|crear/i })).click();
 
     const btnAgregarItem = page.getByRole('button', { name: /agregar ítem|agregar producto/i });
     if (await btnAgregarItem.isVisible()) {
@@ -259,7 +259,7 @@ test.describe('Permisos por rol', () => {
     await page.goto('/sales/pedidos');
 
     await expect(page.getByRole('table').or(page.locator('[data-testid="pedidos-lista"]'))).toBeVisible();
-    await expect(page.getByRole('button', { name: /nuevo pedido/i })).not.toBeVisible();
+    await expect(page.getByRole('link', { name: /nuevo pedido/i }).or(page.getByRole('button', { name: /nuevo pedido/i }))).not.toBeVisible();
 
     await ctx.close();
   });
@@ -270,7 +270,7 @@ test.describe('Permisos por rol', () => {
     await page.goto('/sales/pedidos');
 
     await expect(page.getByRole('table').or(page.locator('[data-testid="pedidos-lista"]'))).toBeVisible();
-    await expect(page.getByRole('button', { name: /nuevo pedido/i })).not.toBeVisible();
+    await expect(page.getByRole('link', { name: /nuevo pedido/i }).or(page.getByRole('button', { name: /nuevo pedido/i }))).not.toBeVisible();
 
     await ctx.close();
   });

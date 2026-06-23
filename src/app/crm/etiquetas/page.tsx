@@ -1,11 +1,14 @@
+import { redirect } from "next/navigation";
 import { Tag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { obtenerTags } from "@/crm/tags/queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { ListaTags } from "@/crm/tags/components/lista-tags";
 
 export default async function EtiquetasPage() {
   const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "etiquetas", "ver").permitido) redirect("/acceso-denegado");
   let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
 
   try {

@@ -25,7 +25,7 @@ test.describe('Listado y búsqueda de empresas', () => {
 test.describe('Creación de empresas', () => {
   test('E-03 Crear empresa mínima (solo nombre)', async ({ page }) => {
     await page.goto('/crm/empresas');
-    await page.getByRole('button', { name: /nueva empresa|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nueva empresa|agregar|crear/i }).or(page.getByRole('button', { name: /nueva empresa|agregar|crear/i })).click();
 
     const nombreEmpresa = `Empresa-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreEmpresa);
@@ -37,7 +37,7 @@ test.describe('Creación de empresas', () => {
 
   test('E-04 Crear empresa completa', async ({ page }) => {
     await page.goto('/crm/empresas/nueva').catch(() => page.goto('/crm/empresas'));
-    const btn = page.getByRole('button', { name: /nueva empresa|agregar|crear/i });
+    const btn = page.getByRole('link', { name: /nueva empresa|agregar|crear/i }).or(page.getByRole('button', { name: /nueva empresa|agregar|crear/i }));
     if (await btn.isVisible()) await btn.click();
 
     const nombreEmpresa = `EmpresaCompleta-${Date.now()}`;
@@ -57,7 +57,7 @@ test.describe('Creación de empresas', () => {
 
   test('E-05 Validación: nombre requerido', async ({ page }) => {
     await page.goto('/crm/empresas');
-    await page.getByRole('button', { name: /nueva empresa|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nueva empresa|agregar|crear/i }).or(page.getByRole('button', { name: /nueva empresa|agregar|crear/i })).click();
     await page.getByRole('button', { name: /guardar|crear/i }).click();
     // Esperado: error de validación en el campo nombre
     await expect(page.locator('text=/requerido|obligatorio/i').first()).toBeVisible();
@@ -99,7 +99,7 @@ test.describe('Detalle y edición de empresas', () => {
   test('E-09 Eliminar empresa sin vínculos', async ({ page }) => {
     // Crear empresa nueva sin vínculos para eliminar
     await page.goto('/crm/empresas');
-    await page.getByRole('button', { name: /nueva empresa|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nueva empresa|agregar|crear/i }).or(page.getByRole('button', { name: /nueva empresa|agregar|crear/i })).click();
     const nombreEliminar = `EmpresaEliminar-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreEliminar);
     await page.getByRole('button', { name: /guardar|crear/i }).click();
@@ -128,7 +128,7 @@ test.describe('Permisos por rol', () => {
 
     // Esperado: NO aparece botón de editar
     await expect(page.getByRole('button', { name: /editar/i })).not.toBeVisible();
-    await expect(page.getByRole('button', { name: /nueva empresa/i })).not.toBeVisible();
+    await expect(page.getByRole('link', { name: /nueva empresa/i }).or(page.getByRole('button', { name: /nueva empresa/i }))).not.toBeVisible();
 
     await ctx.close();
   });

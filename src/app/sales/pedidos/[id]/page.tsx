@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -15,7 +15,7 @@ import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { moverPedidoAEtapa } from "@/sales/flujo-venta/motor";
 import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
 import { requireSesion } from "@/shared/auth/sesion";
-import { puedeModificar } from "@/shared/auth/permisos";
+import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import { actualizarEstadoPedido } from "@/sales/pedidos/actions";
 import { ESTADO_PEDIDO_CONFIG } from "@/sales/pedidos/types";
 import { BotonesTransicion } from "@/sales/pedidos/components/botones-transicion";
@@ -50,16 +50,16 @@ function formatearValorCampo(cv: any): string {
 export default async function PedidoDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "pedidos", "ver").permitido) redirect("/acceso-denegado");
+  const puedeMod = puedeModificar(sesion.rol, "pedidos");
+
   let pedido = null;
-  let sesion = null;
-  let puedeMod = false;
   let opcionesEmpresas: { valor: string; etiqueta: string }[] = [];
   let opcionesContactos: { valor: string; etiqueta: string }[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
 
   try {
-    sesion = await requireSesion();
-    puedeMod = puedeModificar(sesion.rol, "pedidos");
     [pedido, opcionesEmpresas, opcionesContactos, productos] = await Promise.all([
       obtenerPedidoPorId(id, sesion.instanciaId),
       buscarEmpresas("", sesion.instanciaId).then(r => r.map((e: any) => ({ valor: e.id, etiqueta: e.nombre }))),
@@ -74,7 +74,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
     notFound();
   }
 
-  if (!pedido || !sesion) {
+  if (!pedido) {
     return (
       <div className="p-6">
         <ButtonLink variant="ghost" size="icon-sm" href="/sales/pedidos"><ArrowLeft className="h-4 w-4" /></ButtonLink>

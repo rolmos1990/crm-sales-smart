@@ -47,7 +47,7 @@ test.describe('Listado de actividades', () => {
 test.describe('Creación de actividades', () => {
   test('A-04 Crear actividad mínima', async ({ page }) => {
     await page.goto('/crm/actividades');
-    await page.getByRole('button', { name: /nueva actividad|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).click();
 
     // Completar tipo
     const selectorTipo = page.getByLabel(/tipo/i).or(page.getByRole('combobox', { name: /tipo/i }));
@@ -71,7 +71,7 @@ test.describe('Creación de actividades', () => {
 
   test('A-05 Crear actividad vinculada a contacto y oportunidad', async ({ page }) => {
     await page.goto('/crm/actividades');
-    await page.getByRole('button', { name: /nueva actividad|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).click();
 
     await page.getByLabel(/título/i).fill(`Actividad-Vinculada-${Date.now()}`);
 
@@ -89,7 +89,7 @@ test.describe('Creación de actividades', () => {
 
   test('A-06 Validaciones: título y fecha requeridos', async ({ page }) => {
     await page.goto('/crm/actividades');
-    await page.getByRole('button', { name: /nueva actividad|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).click();
 
     await page.getByRole('button', { name: /guardar|crear/i }).click();
     // Esperado: errores en campos requeridos
@@ -135,7 +135,7 @@ test.describe('Edición y completar actividades', () => {
   test('A-09 Eliminar actividad', async ({ page }) => {
     // Crear una actividad para eliminar
     await page.goto('/crm/actividades');
-    await page.getByRole('button', { name: /nueva actividad|agregar|crear/i }).click();
+    await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).click();
 
     const titulo = `Eliminar-${Date.now()}`;
     await page.getByLabel(/título/i).fill(titulo);
@@ -159,7 +159,7 @@ test.describe('Actividades desde detalle de contacto u oportunidad', () => {
     await page.goto('/crm/contactos');
     await page.locator('tbody tr a, [data-testid="contacto-fila"] a').first().click();
 
-    const btnNuevaActividad = page.getByRole('button', { name: /nueva actividad|agregar actividad/i });
+    const btnNuevaActividad = page.getByRole('link', { name: /nueva actividad|agregar actividad/i }).or(page.getByRole('button', { name: /nueva actividad|agregar actividad/i }));
     await expect(btnNuevaActividad).toBeVisible({ timeout: 5000 });
     await btnNuevaActividad.click();
 
@@ -187,7 +187,7 @@ test.describe('Permisos por rol', () => {
     await page.goto('/crm/actividades');
 
     await expect(page.getByRole('table').or(page.locator('[data-testid="actividades-lista"]'))).toBeVisible();
-    await expect(page.getByRole('button', { name: /nueva actividad/i })).not.toBeVisible();
+    await expect(page.getByRole('link', { name: /nueva actividad/i }).or(page.getByRole('button', { name: /nueva actividad/i }))).not.toBeVisible();
 
     await ctx.close();
   });
@@ -200,7 +200,7 @@ test.describe('Permisos por rol', () => {
     // Esperado: puede ver la lista
     await expect(page.getByRole('table').or(page.locator('[data-testid="actividades-lista"]'))).toBeVisible();
     // Sin botones de modificación
-    await expect(page.getByRole('button', { name: /nueva actividad|crear/i })).not.toBeVisible();
+    await expect(page.getByRole('link', { name: /nueva actividad|crear/i }).or(page.getByRole('button', { name: /nueva actividad|crear/i }))).not.toBeVisible();
 
     await ctx.close();
   });
