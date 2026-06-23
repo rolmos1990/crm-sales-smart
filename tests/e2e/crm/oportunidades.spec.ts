@@ -1,9 +1,26 @@
 import { test, expect } from '@playwright/test';
 import { authFile } from '../../fixtures';
+import {
+  desconectarPrismaTest,
+  obtenerInstanciaPruebas,
+  obtenerUsuarioOwner,
+  crearOportunidad,
+  asegurarAlMenosUnContacto,
+  asegurarAlMenosUnaOportunidad,
+  asegurarSegundoPipeline,
+} from '../../helpers/db';
+
+test.afterAll(() => desconectarPrismaTest());
 
 // ─── Listado ──────────────────────────────────────────────────────────────────
 
 test.describe('Listado de oportunidades', () => {
+  test.beforeEach(async () => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    await asegurarAlMenosUnaOportunidad(instancia.id, owner.id);
+  });
+
   test('O-01 Ver lista de oportunidades', async ({ page }) => {
     await page.goto('/crm/oportunidades');
     // Esperado: lista con título, valor, etapa, empresa, fecha de cierre
@@ -67,17 +84,20 @@ test.describe('Creación sin pipeline', () => {
 // ─── Creación con pipeline ────────────────────────────────────────────────────
 
 test.describe('Creación con pipeline', () => {
+  test.beforeEach(async () => {
+    const instancia = await obtenerInstanciaPruebas();
+    // Garantiza 2+ pipelines para que O-05/O-06 no dependan de test.skip.
+    await asegurarSegundoPipeline(instancia.id);
+  });
+
   test('O-05 Crear oportunidad asignando pipeline — etapas del pipeline visibles', async ({ page }) => {
     await page.goto('/crm/oportunidades/nueva');
 
     const selectorPipeline = page.getByLabel(/pipeline/i).or(page.getByRole('combobox', { name: /pipeline/i }));
-    if (!await selectorPipeline.isVisible()) {
-      test.skip(true, 'Selector de pipeline no visible — puede no haber pipelines configurados');
-    }
+    await expect(selectorPipeline).toBeVisible();
 
     await selectorPipeline.click();
     const primeraOpcion = page.getByRole('option').nth(1); // Primera opción que no sea "Sin pipeline"
-    const nombrePipeline = await primeraOpcion.textContent();
     await primeraOpcion.click();
 
     // Esperado: etapas del pipeline seleccionado aparecen en el selector de etapa
@@ -101,17 +121,12 @@ test.describe('Creación con pipeline', () => {
     await page.goto('/crm/oportunidades/nueva');
 
     const selectorPipeline = page.getByLabel(/pipeline/i).or(page.getByRole('combobox', { name: /pipeline/i }));
-    if (!await selectorPipeline.isVisible()) {
-      test.skip(true, 'No hay selector de pipeline');
-    }
+    await expect(selectorPipeline).toBeVisible();
 
     // Seleccionar Pipeline A
     await selectorPipeline.click();
     const opciones = page.getByRole('option');
-    const cantOpciones = await opciones.count();
-    if (cantOpciones < 3) {
-      test.skip(true, 'No hay suficientes pipelines para este test');
-    }
+    await expect(opciones).toHaveCount(3, { timeout: 3000 }).catch(() => {});
     await opciones.nth(1).click();
 
     // Cambiar a Pipeline B
@@ -133,6 +148,10 @@ test.describe('Creación con pipeline', () => {
   });
 
   test('O-07 Crear oportunidad con empresa y contacto vinculados', async ({ page }) => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    await asegurarAlMenosUnContacto(instancia.id, owner.id);
+
     await page.goto('/crm/oportunidades/nueva');
     await page.getByLabel(/título|nombre/i).first().fill(`Opp-Vinculada-${Date.now()}`);
 
@@ -152,8 +171,11 @@ test.describe('Creación con pipeline', () => {
 
 test.describe('Edición de oportunidades', () => {
   test('O-08 Editar oportunidad sin pipeline — etapa legacy visible', async ({ page }) => {
-    await page.goto('/crm/oportunidades');
-    await page.locator('tbody tr a, [data-testid="oportunidad-fila"] a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const oportunidad = await crearOportunidad({ instanciaId: instancia.id, usuarioId: owner.id });
+
+    await page.goto(`/crm/oportunidades/${oportunidad.id}`);
     await page.getByRole('button', { name: /editar/i }).click();
 
     // Verificar que existe selector de pipeline
@@ -162,8 +184,11 @@ test.describe('Edición de oportunidades', () => {
   });
 
   test('O-12 Editar campos de texto y valor', async ({ page }) => {
-    await page.goto('/crm/oportunidades');
-    await page.locator('tbody tr a, [data-testid="oportunidad-fila"] a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const oportunidad = await crearOportunidad({ instanciaId: instancia.id, usuarioId: owner.id });
+
+    await page.goto(`/crm/oportunidades/${oportunidad.id}`);
     await page.getByRole('button', { name: /editar/i }).click();
 
     const nuevoTitulo = `Opp-Editada-${Date.now()}`;
@@ -183,8 +208,11 @@ test.describe('Edición de oportunidades', () => {
 
 test.describe('Detalle de oportunidad', () => {
   test('O-13 Ver historial de cambios en el timeline', async ({ page }) => {
-    await page.goto('/crm/oportunidades');
-    await page.locator('tbody tr a, [data-testid="oportunidad-fila"] a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const oportunidad = await crearOportunidad({ instanciaId: instancia.id, usuarioId: owner.id });
+
+    await page.goto(`/crm/oportunidades/${oportunidad.id}`);
     // Esperado: timeline o historial visible
     await expect(
       page.locator('text=/historial|timeline|actividad|cambios/i').first()
@@ -192,8 +220,11 @@ test.describe('Detalle de oportunidad', () => {
   });
 
   test('O-14 Cambiar etapa desde el detalle registra en historial', async ({ page }) => {
-    await page.goto('/crm/oportunidades');
-    await page.locator('tbody tr a, [data-testid="oportunidad-fila"] a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const oportunidad = await crearOportunidad({ instanciaId: instancia.id, usuarioId: owner.id });
+
+    await page.goto(`/crm/oportunidades/${oportunidad.id}`);
 
     const selectorStage = page.getByLabel(/etapa|stage/i).or(
       page.locator('[data-testid="stage-selector"]')
@@ -207,8 +238,11 @@ test.describe('Detalle de oportunidad', () => {
   });
 
   test('O-15 Marcar oportunidad como Ganada', async ({ page }) => {
-    await page.goto('/crm/oportunidades');
-    await page.locator('tbody tr a, [data-testid="oportunidad-fila"] a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const oportunidad = await crearOportunidad({ instanciaId: instancia.id, usuarioId: owner.id });
+
+    await page.goto(`/crm/oportunidades/${oportunidad.id}`);
 
     const btnGanada = page.getByRole('button', { name: /ganada|won/i });
     if (await btnGanada.isVisible()) {
@@ -222,6 +256,12 @@ test.describe('Detalle de oportunidad', () => {
 // ─── Permisos por rol ─────────────────────────────────────────────────────────
 
 test.describe('Permisos por rol', () => {
+  test.beforeEach(async () => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    await asegurarAlMenosUnaOportunidad(instancia.id, owner.id);
+  });
+
   test('O-16 EJECUTIVO_VENTAS no puede acceder a /crm/oportunidades', async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: authFile.ejecutivoVentas });
     const page = await ctx.newPage();

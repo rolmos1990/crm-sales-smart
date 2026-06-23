@@ -1,90 +1,132 @@
 import { test, expect } from '@playwright/test';
 import { authFile } from '../../fixtures';
+import {
+  desconectarPrismaTest,
+  obtenerInstanciaPruebas,
+  obtenerUsuarioOwner,
+  crearActividad,
+  asegurarAlMenosUnContacto,
+  asegurarAlMenosUnaOportunidad,
+} from '../../helpers/db';
+
+test.afterAll(() => desconectarPrismaTest());
 
 // ─── Listado ──────────────────────────────────────────────────────────────────
 
 test.describe('Listado de actividades', () => {
   test('A-01 Ver lista de actividades', async ({ page }) => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const actividad = await crearActividad({ instanciaId: instancia.id, usuarioId: owner.id, completada: false });
+
     await page.goto('/crm/actividades');
-    // Esperado: lista con tipo, título, fecha/hora, estado, responsable
-    await expect(page.getByRole('table').or(page.locator('[data-testid="actividades-lista"]'))).toBeVisible();
+    // La sección "Próximas" pagina de 5 en 5 ordenando ascendente por fecha: una
+    // actividad recién creada (fecha = ahora+24h) suele quedar al final, fuera de
+    // la ventana inicial. Se busca por título único para no depender de eso.
+    await page.getByPlaceholder('Buscar actividades...').fill(actividad.titulo);
+    await expect(page.getByText(actividad.titulo)).toBeVisible();
   });
 
   test('A-02 Filtrar por tipo de actividad', async ({ page }) => {
-    await page.goto('/crm/actividades');
-    const filtroTipo = page.getByRole('combobox', { name: /tipo/i })
-      .or(page.locator('select[name*="tipo"]'))
-      .or(page.getByRole('button', { name: /tipo/i }));
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const llamada = await crearActividad({ instanciaId: instancia.id, usuarioId: owner.id, tipo: 'LLAMADA', completada: false });
+    const reunion = await crearActividad({ instanciaId: instancia.id, usuarioId: owner.id, tipo: 'REUNION', completada: false });
 
-    if (await filtroTipo.isVisible()) {
-      await filtroTipo.click();
-      await page.getByRole('option', { name: /llamada/i }).click();
-      await page.waitForTimeout(600);
-      // Esperado: lista filtrada con solo Llamadas
-      const tiposVisibles = page.locator('text=/reunión|tarea|email/i');
-      await expect(tiposVisibles).not.toBeVisible({ timeout: 3000 }).catch(() => {});
-    }
+    await page.goto('/crm/actividades');
+    // Se busca por título único primero para que el filtro de tipo no compita con
+    // la paginación de 5 en 5 de la sección (ver A-01: mismo problema de orden).
+    await page.getByPlaceholder('Buscar actividades...').fill(llamada.titulo);
+    await page.getByRole('button', { name: /filtros/i }).click();
+    await page.getByRole('button', { name: 'Llamada', exact: true }).click();
+
+    // Esperado: lista filtrada con solo Llamadas
+    await expect(page.getByText(llamada.titulo)).toBeVisible();
+
+    // Se limpia la búsqueda (con el filtro de tipo ya activo) para confirmar que
+    // "Reunión" queda excluida independientemente de la paginación.
+    await page.getByPlaceholder('Buscar actividades...').fill('');
+    await expect(page.getByText(reunion.titulo)).not.toBeVisible();
   });
 
-  test('A-03 Filtrar por estado', async ({ page }) => {
-    await page.goto('/crm/actividades');
-    const filtroEstado = page.getByRole('combobox', { name: /estado/i })
-      .or(page.locator('select[name*="estado"]'))
-      .or(page.getByRole('button', { name: /estado|pendiente/i }));
+  test('A-03 Actividades pendientes y completadas se agrupan en secciones distintas', async ({ page }) => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const pendiente = await crearActividad({ instanciaId: instancia.id, usuarioId: owner.id, completada: false });
+    const completada = await crearActividad({ instanciaId: instancia.id, usuarioId: owner.id, completada: true });
 
-    if (await filtroEstado.isVisible()) {
-      await filtroEstado.click();
-      await page.getByRole('option', { name: /pendiente/i }).click();
-      await page.waitForTimeout(600);
-      // Esperado: solo actividades pendientes
-      await expect(page).toHaveURL(/\/crm\/actividades/);
-    }
+    await page.goto('/crm/actividades');
+
+    // No hay filtro de "estado" en la UI: las pendientes y completadas viven en
+    // columnas/secciones separadas (ver SeccionActividades en dashboard-actividades.tsx).
+    // Cada sección pagina de 5 en 5: se busca por título único para no depender
+    // de cuántas actividades residuales de otras corridas haya por delante.
+    const buscador = page.getByPlaceholder('Buscar actividades...');
+    const columnaPendientes = page.locator('[class*="col-span-3"]').first();
+    const columnaCompletadas = page.locator('[class*="col-span-2"]').first();
+
+    await buscador.fill(pendiente.titulo);
+    await expect(columnaPendientes.getByText(pendiente.titulo)).toBeVisible();
+
+    await buscador.fill(completada.titulo);
+    await expect(columnaCompletadas.getByText(completada.titulo)).toBeVisible();
   });
 });
 
 // ─── Creación ─────────────────────────────────────────────────────────────────
 
 test.describe('Creación de actividades', () => {
+  test.beforeEach(async () => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    await asegurarAlMenosUnContacto(instancia.id, owner.id);
+    await asegurarAlMenosUnaOportunidad(instancia.id, owner.id);
+  });
+
   test('A-04 Crear actividad mínima', async ({ page }) => {
     await page.goto('/crm/actividades');
     await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).first().click();
 
-    // Completar tipo
-    const selectorTipo = page.getByLabel(/tipo/i).or(page.getByRole('combobox', { name: /tipo/i }));
-    if (await selectorTipo.isVisible()) {
-      await selectorTipo.click();
-      await page.getByRole('option', { name: /llamada|tarea/i }).first().click();
-    }
-
-    await page.getByLabel(/título/i).fill(`Actividad-${Date.now()}`);
+    // El tipo ya viene con un valor por defecto (TAREA) en el formulario; no hace falta tocarlo.
+    const titulo = `Actividad-${Date.now()}`;
+    await page.getByLabel(/título/i).fill(titulo);
 
     const inputFecha = page.getByLabel(/fecha/i).first();
-    if (await inputFecha.isVisible()) {
-      await inputFecha.fill('2025-12-31');
-    }
+    // Input type="datetime-local" exige formato YYYY-MM-DDTHH:mm.
+    await inputFecha.fill('2025-12-31T10:00');
 
     await page.getByRole('button', { name: /guardar|crear/i }).click();
 
-    // Esperado: actividad creada y visible en la lista
-    await expect(page.getByRole('table').or(page.locator('[data-testid="actividades-lista"]'))).toBeVisible({ timeout: 8000 });
+    // Esperado: actividad creada y visible en la lista (se busca por título único
+    // para no depender de la paginación de las secciones de la página).
+    await page.getByPlaceholder('Buscar actividades...').fill(titulo);
+    await expect(page.getByText(titulo)).toBeVisible({ timeout: 8000 });
   });
 
   test('A-05 Crear actividad vinculada a contacto y oportunidad', async ({ page }) => {
     await page.goto('/crm/actividades');
     await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).first().click();
 
-    await page.getByLabel(/título/i).fill(`Actividad-Vinculada-${Date.now()}`);
+    const titulo = `Actividad-Vinculada-${Date.now()}`;
+    await page.getByLabel(/título/i).fill(titulo);
 
-    // Vincular contacto
-    const selectorContacto = page.getByLabel(/contacto/i).or(page.getByRole('combobox', { name: /contacto/i }));
-    if (await selectorContacto.isVisible()) {
-      await selectorContacto.click();
-      const primeraOpcion = page.getByRole('option').first();
-      if (await primeraOpcion.isVisible()) await primeraOpcion.click();
-    }
+    // "Contacto"/"Oportunidad" son Combobox custom (Popover + cmdk), no <select>
+    // nativos: el trigger no se asocia por label-for, así que se ubica por el
+    // texto exacto de la etiqueta y se toma el primer botón que le sigue en el
+    // DOM (no necesariamente un hijo del hermano: label y trigger son hermanos
+    // directos sin wrapper intermedio).
+    const selectorContacto = page.getByText('Contacto', { exact: true }).locator('xpath=following::button[1]');
+    await expect(selectorContacto).toBeVisible();
+    await selectorContacto.click();
+    await page.getByRole('option').first().click();
+
+    const selectorOportunidad = page.getByText('Oportunidad', { exact: true }).locator('xpath=following::button[1]');
+    await selectorOportunidad.click();
+    await page.getByRole('option').first().click();
 
     await page.getByRole('button', { name: /guardar|crear/i }).click();
-    await expect(page.getByRole('table').or(page.locator('[data-testid="actividades-lista"]'))).toBeVisible({ timeout: 8000 });
+    await page.getByPlaceholder('Buscar actividades...').fill(titulo);
+    await expect(page.getByText(titulo)).toBeVisible({ timeout: 8000 });
   });
 
   test('A-06 Validaciones: título y fecha requeridos', async ({ page }) => {
@@ -101,36 +143,36 @@ test.describe('Creación de actividades', () => {
 
 test.describe('Edición y completar actividades', () => {
   test('A-07 Marcar actividad como completada', async ({ page }) => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const titulo = `Completar-${Date.now()}`;
+    await crearActividad({ instanciaId: instancia.id, usuarioId: owner.id, titulo, completada: false });
+
     await page.goto('/crm/actividades');
-    // Buscar un checkbox o botón de completar en la lista
-    const checkbox = page.locator('[type="checkbox"], [data-testid="completar-actividad"]').first();
-    const btnCompletar = page.getByRole('button', { name: /completar|marcar/i }).first();
+    // Se busca por título único para no depender de la paginación de las secciones.
+    await page.getByPlaceholder('Buscar actividades...').fill(titulo);
 
-    if (await checkbox.isVisible()) {
-      await checkbox.check();
-    } else if (await btnCompletar.isVisible()) {
-      await btnCompletar.click();
-    }
+    const columnaPendientes = page.locator('[class*="col-span-3"]').first();
+    const columnaCompletadas = page.locator('[class*="col-span-2"]').first();
 
-    // Esperado: estado cambia a "Completada"
-    await expect(page.locator('text=/completada/i').first()).toBeVisible({ timeout: 5000 });
+    const fila = columnaPendientes.getByText(titulo);
+    await expect(fila).toBeVisible();
+
+    // El botón "Completar" (icono, sin texto, accesible por su atributo title) vive
+    // en el mismo contenedor "group" que el título — ver CardActividad.
+    const filaContenedor = fila.locator('xpath=ancestor::div[contains(@class,"group")][1]');
+    await filaContenedor.getByRole('button', { name: 'Completar' }).click();
+
+    // Esperado: la actividad se mueve a la columna de completadas recientes.
+    await expect(columnaCompletadas.getByText(titulo)).toBeVisible({ timeout: 5000 });
   });
 
-  test('A-08 Editar actividad pendiente', async ({ page }) => {
-    await page.goto('/crm/actividades');
-    await page.locator('tbody tr a, [data-testid="actividad-fila"] a').first().click();
-    await page.getByRole('button', { name: /editar/i }).click();
-
-    const notasField = page.getByLabel(/notas|descripción/i);
-    if (await notasField.isVisible()) {
-      await notasField.clear();
-      await notasField.fill(`Nota editada ${Date.now()}`);
-    }
-
-    await page.getByRole('button', { name: /guardar/i }).click();
-    // Esperado: cambios reflejados
-    await expect(page.locator('text=/nota editada/i').first()).toBeVisible({ timeout: 8000 });
-  });
+  // A-08 Editar actividad pendiente — DESHABILITADO: no existe edición de
+  // actividades en la UI actual (sin ruta de detalle ni de edición, ver
+  // src/app/crm/actividades/; dashboard-actividades.tsx solo expone Completar/
+  // Eliminar desde la lista). Pendiente de definir con producto si se agrega
+  // edición o si el caso de prueba debe retirarse.
+  test.skip('A-08 Editar actividad pendiente', async () => {});
 
   test('A-09 Eliminar actividad', async ({ page }) => {
     // Crear una actividad para eliminar
@@ -140,15 +182,20 @@ test.describe('Edición y completar actividades', () => {
     const titulo = `Eliminar-${Date.now()}`;
     await page.getByLabel(/título/i).fill(titulo);
     await page.getByRole('button', { name: /guardar|crear/i }).click();
-    await expect(page.locator(`text=${titulo}`).first()).toBeVisible({ timeout: 8000 });
 
-    // Eliminar
-    await page.locator(`text=${titulo}`).first().click();
-    await page.getByRole('button', { name: /eliminar/i }).click();
-    await page.getByRole('button', { name: /confirmar|sí, eliminar|eliminar/i }).last().click();
+    // Se busca por título único para no depender de la paginación de las secciones.
+    await page.getByPlaceholder('Buscar actividades...').fill(titulo);
+    const fila = page.getByText(titulo);
+    await expect(fila).toBeVisible({ timeout: 8000 });
+
+    // Eliminar (botón con icono, accesible por su atributo title, en el mismo
+    // contenedor "group" que el título — ver CardActividad). No hay diálogo de
+    // confirmación: handleEliminar() borra directamente al hacer click.
+    const filaContenedor = fila.locator('xpath=ancestor::div[contains(@class,"group")][1]');
+    await filaContenedor.getByRole('button', { name: 'Eliminar' }).click();
 
     // Esperado: eliminada de la lista
-    await expect(page.locator(`text=${titulo}`)).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(titulo)).not.toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -156,22 +203,32 @@ test.describe('Edición y completar actividades', () => {
 
 test.describe('Actividades desde detalle de contacto u oportunidad', () => {
   test('A-10 Crear actividad desde el detalle de un contacto', async ({ page }) => {
-    await page.goto('/crm/contactos');
-    await page.locator('tbody tr a, [data-testid="contacto-fila"] a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const contacto = await asegurarAlMenosUnContacto(instancia.id, owner.id);
+
+    await page.goto(`/crm/contactos/${contacto.id}`);
+
+    // El botón "Nueva actividad" vive dentro del tab "Actividades" del detalle.
+    await page.getByRole('tab', { name: /actividades/i }).click();
 
     const btnNuevaActividad = page.getByRole('link', { name: /nueva actividad|agregar actividad/i }).or(page.getByRole('button', { name: /nueva actividad|agregar actividad/i }));
     await expect(btnNuevaActividad).toBeVisible({ timeout: 5000 });
     await btnNuevaActividad.click();
 
-    // Esperado: formulario con el contacto pre-seleccionado
-    const contactoPreseleccionado = page.getByLabel(/contacto/i)
-      .or(page.locator('[data-testid="contacto-preseleccionado"]'));
-    await expect(contactoPreseleccionado).not.toBeEmpty({ timeout: 5000 });
+    // Esperado: formulario con el contacto pre-seleccionado. "Contacto" es un
+    // Combobox custom (Popover + cmdk): el botón ya no muestra el placeholder
+    // "Seleccionar..." sino el nombre del contacto.
+    const botonContacto = page.getByText('Contacto', { exact: true }).locator('xpath=following::button[1]');
+    await expect(botonContacto).not.toHaveText('Seleccionar...', { timeout: 5000 });
   });
 
   test('A-11 Ver actividades en el detalle de una oportunidad', async ({ page }) => {
-    await page.goto('/crm/oportunidades');
-    await page.locator('tbody tr a, [data-testid="oportunidad-fila"] a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const oportunidad = await asegurarAlMenosUnaOportunidad(instancia.id, owner.id);
+
+    await page.goto(`/crm/oportunidades/${oportunidad.id}`);
 
     // Esperado: sección de actividades con estado y fecha
     await expect(page.locator('text=/actividades/i').first()).toBeVisible({ timeout: 5000 });
@@ -181,13 +238,24 @@ test.describe('Actividades desde detalle de contacto u oportunidad', () => {
 // ─── Permisos por rol ─────────────────────────────────────────────────────────
 
 test.describe('Permisos por rol', () => {
+  let tituloActividad: string;
+
+  test.beforeEach(async () => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const actividad = await crearActividad({ instanciaId: instancia.id, usuarioId: owner.id });
+    tituloActividad = actividad.titulo;
+  });
+
   test('A-12 SUPERVISOR solo lectura — sin botones de crear/editar', async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: authFile.supervisor });
     const page = await ctx.newPage();
     await page.goto('/crm/actividades');
 
-    await expect(page.getByRole('table').or(page.locator('[data-testid="actividades-lista"]'))).toBeVisible();
-    await expect(page.getByRole('link', { name: /nueva actividad/i }).or(page.getByRole('button', { name: /nueva actividad/i }))).not.toBeVisible();
+    // Se busca por título único para no depender de la paginación de las secciones.
+    await page.getByPlaceholder('Buscar actividades...').fill(tituloActividad);
+    await expect(page.getByText(tituloActividad)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Nueva actividad', exact: true })).not.toBeVisible();
 
     await ctx.close();
   });
@@ -198,9 +266,10 @@ test.describe('Permisos por rol', () => {
     await page.goto('/crm/actividades');
 
     // Esperado: puede ver la lista
-    await expect(page.getByRole('table').or(page.locator('[data-testid="actividades-lista"]'))).toBeVisible();
+    await page.getByPlaceholder('Buscar actividades...').fill(tituloActividad);
+    await expect(page.getByText(tituloActividad)).toBeVisible();
     // Sin botones de modificación
-    await expect(page.getByRole('link', { name: /nueva actividad|crear/i }).or(page.getByRole('button', { name: /nueva actividad|crear/i }))).not.toBeVisible();
+    await expect(page.getByRole('link', { name: 'Nueva actividad', exact: true })).not.toBeVisible();
 
     await ctx.close();
   });
