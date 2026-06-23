@@ -46,6 +46,7 @@ test.describe('Creación de contactos', () => {
     await expect(
       page.getByRole('heading', { name: /nuevo contacto|crear contacto/i })
         .or(page.locator('form'))
+        .first()
     ).toBeVisible({ timeout: 5000 });
 
     await page.getByLabel(/nombre/i).first().fill('Juan');
