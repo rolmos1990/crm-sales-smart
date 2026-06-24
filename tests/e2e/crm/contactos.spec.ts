@@ -29,9 +29,9 @@ test.describe('Listado de contactos', () => {
     const buscador = page.getByPlaceholder(/buscar|search/i).or(page.getByRole('searchbox'));
     await buscador.fill('zzz_busqueda_sin_resultados_xyzxyz');
     await page.waitForTimeout(600);
-    // Esperado: mensaje de estado vacío
+    // Esperado: mensaje de estado vacío ("Sin Resultados" o similar)
     await expect(
-      page.locator('text=/no hay|sin contactos|no se encontraron|empty/i').first()
+      page.locator('text=/no hay|sin contactos|no se encontraron|sin resultados|empty/i').first()
     ).toBeVisible({ timeout: 5000 });
   });
 });
@@ -42,13 +42,9 @@ test.describe('Creación de contactos', () => {
   test('C-04 Crear contacto con datos mínimos', async ({ page }) => {
     await page.goto('/crm/contactos');
     await page.getByRole('link', { name: /nuevo contacto|agregar|crear/i }).or(page.getByRole('button', { name: /nuevo contacto|agregar|crear/i })).first().click();
-    // Esperado: navega al formulario o abre modal
-    await expect(
-      page.getByRole('heading', { name: /nuevo contacto|crear contacto/i })
-        .or(page.locator('form'))
-        .first()
-    ).toBeVisible({ timeout: 5000 });
 
+    // Esperar a que Next.js compile y cargue la página del formulario
+    await page.waitForURL(/\/crm\/contactos\/nuevo/, { timeout: 20000 });
     await page.getByLabel(/nombre/i).first().fill('Juan');
     await page.getByLabel(/apellido/i).fill('Prueba');
     await page.getByRole('button', { name: /guardar|crear/i }).click();
@@ -59,10 +55,19 @@ test.describe('Creación de contactos', () => {
 
   test('C-05 Crear contacto completo', async ({ page }) => {
     await page.goto('/crm/contactos/nuevo');
+    // Esperar a que el formulario esté listo (Next.js puede tardar en compilar la ruta)
+    await page.waitForLoadState('networkidle', { timeout: 20000 });
     await page.getByLabel(/nombre/i).first().fill('María');
     await page.getByLabel(/apellido/i).fill('Completa');
     await page.getByLabel(/email/i).fill(`maria.completa.${Date.now()}@example.com`);
-    await page.getByLabel(/teléfono principal|tel\./i).fill('+51 999 888 777');
+
+    // PhoneInput: el input[type="tel"] no está vinculado al label via id/for.
+    // Se navega desde el label hasta el primer input[type="tel"] que le sigue.
+    // Solo se llena el número local — el componente combina con el prefijo del país (PE → +51).
+    const inputTelPrincipal = page.getByText('Teléfono principal', { exact: true })
+      .locator('xpath=following::input[@type="tel"][1]');
+    await inputTelPrincipal.fill('999 888 777');
+
     await page.getByLabel(/cargo/i).fill('Gerente');
     await page.getByLabel(/notas/i).fill('Contacto de prueba completo');
     await page.getByRole('button', { name: /guardar|crear/i }).click();
@@ -98,11 +103,18 @@ test.describe('Creación de contactos', () => {
 
   test('C-07 Teléfono con formato internacional', async ({ page }) => {
     await page.goto('/crm/contactos/nuevo');
+    await page.waitForLoadState('networkidle', { timeout: 20000 });
     await page.getByLabel(/nombre/i).first().fill('Tel');
     await page.getByLabel(/apellido/i).fill('Internacional');
-    await page.getByLabel(/teléfono principal|tel\./i).fill('+51 999 888 777');
+
+    // PhoneInput: se llena solo el número local; el país por defecto (PE → +51)
+    // se combina internamente. El valor guardado será "+51 999 888 777".
+    const inputTelPrincipal = page.getByText('Teléfono principal', { exact: true })
+      .locator('xpath=following::input[@type="tel"][1]');
+    await inputTelPrincipal.fill('999 888 777');
+
     await page.getByRole('button', { name: /guardar|crear/i }).click();
-    // Esperado: teléfono guardado correctamente
+    // Esperado: teléfono guardado y visible en el detalle
     await expect(page.locator('text=Tel Internacional').first()).toBeVisible({ timeout: 8000 });
     await expect(page.locator('text=/\\+51|999 888 777/').first()).toBeVisible();
   });
