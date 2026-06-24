@@ -29,7 +29,23 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:actividades": "playwright test tests/e2e/crm/actividades.spec.ts",
+    "test:e2e:contactos": "playwright test tests/e2e/crm/contactos.spec.ts",
+    "test:e2e:empresas": "playwright test tests/e2e/crm/empresas.spec.ts",
+    "test:e2e:oportunidades": "playwright test tests/e2e/crm/oportunidades.spec.ts",
+    "test:e2e:pipeline": "playwright test tests/e2e/crm/pipeline.spec.ts",
+    "test:e2e:crm": "playwright test tests/e2e/crm/",
+    "test:e2e:cotizaciones": "playwright test tests/e2e/sales/cotizaciones.spec.ts",
+    "test:e2e:pedidos": "playwright test tests/e2e/sales/pedidos.spec.ts",
+    "test:e2e:flujo-venta": "playwright test tests/e2e/sales/flujo-venta.spec.ts",
+    "test:e2e:transportistas": "playwright test tests/e2e/sales/transportistas.spec.ts",
+    "test:e2e:sales": "playwright test tests/e2e/sales/",
+    "test:e2e:productos": "playwright test tests/e2e/productos/productos.spec.ts",
+    "test:e2e:configuracion": "playwright test tests/e2e/configuracion/configuracion.spec.ts",
+    "test:e2e:conversaciones": "playwright test tests/e2e/conversaciones/inbox.spec.ts",
+    "test:e2e:eventos": "playwright test tests/e2e/sistema/eventos.spec.ts",
+    "test:e2e:auth": "playwright test tests/e2e/auth/autenticacion.spec.ts"
   },
   "engines": {
     "node": ">=20.19.0"
