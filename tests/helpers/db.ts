@@ -39,12 +39,14 @@ const pendientes = new Map<number, { resolve: (valor: unknown) => void; reject: 
 function obtenerWorker(): ChildProcess {
   if (proceso) return proceso;
 
-  const tsxBin = path.join(__dirname, "..", "..", "node_modules", ".bin", "tsx");
+  const ext = process.platform === "win32" ? ".cmd" : "";
+  const tsxBin = path.join(__dirname, "..", "..", "node_modules", ".bin", `tsx${ext}`);
   const workerScript = path.join(__dirname, "db-worker.ts");
 
   const child = spawn(tsxBin, [workerScript], {
     cwd: path.join(__dirname, "..", ".."),
     stdio: ["pipe", "pipe", "inherit"],
+    shell: process.platform === "win32",
   });
   proceso = child;
 
