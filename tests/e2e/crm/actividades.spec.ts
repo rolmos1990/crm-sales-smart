@@ -174,8 +174,11 @@ test.describe('Edición y completar actividades', () => {
   // edición o si el caso de prueba debe retirarse.
   test.skip('A-08 Editar actividad pendiente', async () => {});
 
-  test('A-09 Eliminar actividad', async ({ page }) => {
-    // Crear una actividad para eliminar
+  test('A-09 Eliminar actividad (como owner)', async ({ browser }) => {
+    // Solo OWNER y ADMIN pueden eliminar actividades — se usa contexto owner explícito.
+    const ctx = await browser.newContext({ storageState: authFile.owner });
+    const page = await ctx.newPage();
+
     await page.goto('/crm/actividades');
     await page.getByRole('link', { name: /nueva actividad|agregar|crear/i }).or(page.getByRole('button', { name: /nueva actividad|agregar|crear/i })).first().click();
 
@@ -183,19 +186,21 @@ test.describe('Edición y completar actividades', () => {
     await page.getByLabel(/título/i).fill(titulo);
     await page.getByRole('button', { name: /guardar|crear/i }).click();
 
-    // Se busca por título único para no depender de la paginación de las secciones.
     await page.getByPlaceholder('Buscar actividades...').fill(titulo);
     const fila = page.getByText(titulo);
     await expect(fila).toBeVisible({ timeout: 8000 });
 
-    // Eliminar (botón con icono, accesible por su atributo title, en el mismo
-    // contenedor "group" que el título — ver CardActividad). No hay diálogo de
-    // confirmación: handleEliminar() borra directamente al hacer click.
+    // Abrir diálogo de confirmación
     const filaContenedor = fila.locator('xpath=ancestor::div[contains(@class,"group")][1]');
     await filaContenedor.getByRole('button', { name: 'Eliminar' }).click();
 
+    // Confirmar en el AlertDialog
+    await page.getByRole('button', { name: 'Eliminar' }).last().click();
+
     // Esperado: eliminada de la lista
     await expect(page.getByText(titulo)).not.toBeVisible({ timeout: 5000 });
+
+    await ctx.close();
   });
 });
 
@@ -247,29 +252,47 @@ test.describe('Permisos por rol', () => {
     tituloActividad = actividad.titulo;
   });
 
-  test('A-12 SUPERVISOR solo lectura — sin botones de crear/editar', async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: authFile.supervisor });
+  test('A-12 AGENTE_VENTAS no puede eliminar actividades', async ({ browser }) => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const actividad = await crearActividad({ instanciaId: instancia.id, usuarioId: owner.id, completada: false });
+
+    const ctx = await browser.newContext({ storageState: authFile.agenteVentas });
     const page = await ctx.newPage();
     await page.goto('/crm/actividades');
 
-    // Se busca por título único para no depender de la paginación de las secciones.
-    await page.getByPlaceholder('Buscar actividades...').fill(tituloActividad);
-    await expect(page.getByText(tituloActividad)).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Nueva actividad', exact: true })).not.toBeVisible();
+    await page.getByPlaceholder('Buscar actividades...').fill(actividad.titulo);
+    await expect(page.getByText(actividad.titulo)).toBeVisible();
+
+    // AGENTE_VENTAS tiene permiso de modificar (puede completar) pero no de eliminar
+    const filaContenedor = page.getByText(actividad.titulo).locator('xpath=ancestor::div[contains(@class,"group")][1]');
+    await expect(filaContenedor.getByRole('button', { name: 'Eliminar' })).not.toBeVisible();
 
     await ctx.close();
   });
 
-  test('A-13 INVITADO puede ver actividades sin acciones de modificación', async ({ browser }) => {
+  test('A-13 SUPERVISOR solo lectura — sin botones de crear/editar ni eliminar', async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: authFile.supervisor });
+    const page = await ctx.newPage();
+    await page.goto('/crm/actividades');
+
+    await page.getByPlaceholder('Buscar actividades...').fill(tituloActividad);
+    await expect(page.getByText(tituloActividad)).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Nueva actividad', exact: true })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Eliminar' })).not.toBeVisible();
+
+    await ctx.close();
+  });
+
+  test('A-14 INVITADO puede ver actividades sin acciones de modificación ni eliminación', async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: authFile.invitado });
     const page = await ctx.newPage();
     await page.goto('/crm/actividades');
 
-    // Esperado: puede ver la lista
     await page.getByPlaceholder('Buscar actividades...').fill(tituloActividad);
     await expect(page.getByText(tituloActividad)).toBeVisible();
-    // Sin botones de modificación
     await expect(page.getByRole('link', { name: 'Nueva actividad', exact: true })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Eliminar' })).not.toBeVisible();
 
     await ctx.close();
   });

@@ -12,6 +12,11 @@ import {
 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { completarActividad, eliminarActividad } from "../actions";
 import { useSesion } from "@/shared/auth/sesion-context";
@@ -273,9 +278,11 @@ const LIMITE_INICIAL = 5;
 const PASO_LIMITE = 5;
 
 export function DashboardActividades({ actividades }: DashboardActividadesProps) {
-  const { puedeModificar } = useSesion();
+  const { rol, puedeModificar } = useSesion();
   const puedeMod = puedeModificar("actividades");
+  const puedeEliminar = rol === "OWNER" || rol === "ADMIN";
   const [busqueda, setBusqueda] = useState("");
+  const [idAEliminar, setIdAEliminar] = useState<string | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<TipoActividad | "">("");
   const [filtroPrioridad, setFiltroPrioridad] = useState<PrioridadActividad | "">("");
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
@@ -339,7 +346,10 @@ export function DashboardActividades({ actividades }: DashboardActividadesProps)
     });
   }
 
-  function handleEliminar(id: string) {
+  function handleConfirmarEliminar() {
+    if (!idAEliminar) return;
+    const id = idAEliminar;
+    setIdAEliminar(null);
     startTransition(async () => {
       await eliminarActividad(id);
     });
@@ -450,19 +460,19 @@ export function DashboardActividades({ actividades }: DashboardActividadesProps)
               titulo="Vencidas" color="#ef4444" icono={AlertCircle}
               actividades={vencidas} esVencida
               limite={limiteVencidas} onVerMas={() => setLimiteVencidas(l => l + PASO_LIMITE)}
-              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeMod ? handleEliminar : undefined}
+              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeEliminar ? setIdAEliminar : undefined}
             />
             <SeccionActividades
               titulo="Hoy" color="#f59e0b" icono={Sun}
               actividades={hoyActividades}
               limite={limiteHoy} onVerMas={() => setLimiteHoy(l => l + PASO_LIMITE)}
-              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeMod ? handleEliminar : undefined}
+              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeEliminar ? setIdAEliminar : undefined}
             />
             <SeccionActividades
               titulo="Próximas" color="#3b82f6" icono={Clock}
               actividades={proximas}
               limite={limiteProximas} onVerMas={() => setLimiteProximas(l => l + PASO_LIMITE)}
-              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeMod ? handleEliminar : undefined}
+              onCompletar={puedeMod ? handleCompletar : undefined} onEliminar={puedeEliminar ? setIdAEliminar : undefined}
             />
             {totalPendientesFiltrado === 0 && (
               <div className="rounded-xl border border-dashed border-border py-10 text-center">
@@ -506,6 +516,26 @@ export function DashboardActividades({ actividades }: DashboardActividadesProps)
         <span className="text-lime-500">💡</span>
         Tip: Marca las actividades como completadas para mantener tu seguimiento al día.
       </p>
+
+      <AlertDialog open={!!idAEliminar} onOpenChange={(open) => { if (!open) setIdAEliminar(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar actividad?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. La actividad será eliminada permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmarEliminar}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
