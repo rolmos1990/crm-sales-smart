@@ -54,16 +54,18 @@ test.describe('Creación de contactos', () => {
   });
 
   test('C-05 Crear contacto completo', async ({ page }) => {
+    const apellido = `Completa-${Date.now()}`;
+
     await page.goto('/crm/contactos/nuevo');
     // Esperar a que el formulario esté listo (Next.js puede tardar en compilar la ruta)
     await page.waitForLoadState('networkidle', { timeout: 20000 });
     await page.getByLabel(/nombre/i).first().fill('María');
-    await page.getByLabel(/apellido/i).fill('Completa');
+    await page.getByLabel(/apellido/i).fill(apellido);
     await page.getByLabel(/email/i).fill(`maria.completa.${Date.now()}@example.com`);
 
     // PhoneInput: el input[type="tel"] no está vinculado al label via id/for.
     // Se navega desde el label hasta el primer input[type="tel"] que le sigue.
-    // Solo se llena el número local — el componente combina con el prefijo del país (PE → +51).
+    // Solo se llena el número local — el componente combina con el prefijo del país por defecto.
     const inputTelPrincipal = page.getByText('Teléfono principal', { exact: true })
       .locator('xpath=following::input[@type="tel"][1]');
     await inputTelPrincipal.fill('999 888 777');
@@ -72,8 +74,14 @@ test.describe('Creación de contactos', () => {
     await page.getByLabel(/notas/i).fill('Contacto de prueba completo');
     await page.getByRole('button', { name: /guardar|crear/i }).click();
 
-    // Esperado: todos los campos guardados y visibles en el detalle
-    await expect(page.locator('text=María Completa').first()).toBeVisible({ timeout: 8000 });
+    // El formulario redirige a la lista (no al detalle) tras crear. El apellido
+    // lleva timestamp para que el nombre sea único entre corridas de la suite.
+    await expect(page.getByRole('link', { name: new RegExp(`María ${apellido}`) })).toBeVisible({ timeout: 8000 });
+
+    // El cargo no se muestra en la lista — se verifica entrando al detalle.
+    // La ruta [id] puede tardar en compilar la primera vez (Next.js dev mode).
+    await page.getByRole('link', { name: new RegExp(`María ${apellido}`) }).click();
+    await page.waitForURL(/\/crm\/contactos\/[\w-]+$/, { timeout: 20000 });
     await expect(page.locator('text=Gerente').first()).toBeVisible();
   });
 
@@ -107,16 +115,17 @@ test.describe('Creación de contactos', () => {
     await page.getByLabel(/nombre/i).first().fill('Tel');
     await page.getByLabel(/apellido/i).fill('Internacional');
 
-    // PhoneInput: se llena solo el número local; el país por defecto (PE → +51)
-    // se combina internamente. El valor guardado será "+51 999 888 777".
+    // PhoneInput: se llena solo el número local; el país por defecto (configurable,
+    // PA → +507 si la instancia no tiene país configurado) se combina internamente.
+    // normalizarTelefono() elimina los espacios al guardar, ej: "+507999888777".
     const inputTelPrincipal = page.getByText('Teléfono principal', { exact: true })
       .locator('xpath=following::input[@type="tel"][1]');
     await inputTelPrincipal.fill('999 888 777');
 
     await page.getByRole('button', { name: /guardar|crear/i }).click();
-    // Esperado: teléfono guardado y visible en el detalle
+    // El formulario redirige a la lista; el teléfono se ve en la columna "Teléfono".
     await expect(page.locator('text=Tel Internacional').first()).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('text=/\\+51|999 888 777/').first()).toBeVisible();
+    await expect(page.locator('text=/999888777/').first()).toBeVisible();
   });
 
   test('C-08 Validaciones del formulario', async ({ page }) => {
@@ -149,7 +158,8 @@ test.describe('Detalle y edición de contactos', () => {
   test('C-10 Editar contacto', async ({ page }) => {
     await page.goto('/crm/contactos');
     await page.locator('tbody tr a, [data-testid="contacto-fila"] a').first().click();
-    await page.getByRole('button', { name: /editar/i }).click();
+    // El botón "Editar" del detalle es un Link (ButtonLink), no un <button>.
+    await page.getByRole('link', { name: /editar/i }).click();
 
     const nuevoCampo = `Editado-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().clear();
@@ -169,14 +179,17 @@ test.describe('Detalle y edición de contactos', () => {
     await page.getByRole('button', { name: /guardar|crear/i }).click();
     await expect(page.locator(`text=${nombreParaEliminar}`).first()).toBeVisible({ timeout: 8000 });
 
-    // Eliminar
-    await page.getByRole('button', { name: /eliminar/i }).click();
-    // Confirmar diálogo
-    await page.getByRole('button', { name: /confirmar|sí, eliminar|eliminar/i }).last().click();
+    // Eliminar: la acción vive en el menú "Acciones" (⋯) de la fila, no en un botón visible.
+    const fila = page.locator('tbody tr', { hasText: nombreParaEliminar });
+    await fila.getByRole('button', { name: /acciones/i }).click();
+    await page.getByRole('menuitem', { name: /eliminar/i }).click();
+    // Confirmar diálogo (el título del diálogo también contiene el nombre, por eso
+    // se espera a que se cierre antes de comprobar que la fila desapareció)
+    await page.getByRole('button', { name: /sí, eliminar contacto/i }).click();
+    await expect(page.getByRole('alertdialog')).not.toBeVisible({ timeout: 8000 });
 
-    // Esperado: redirige a la lista y no aparece más
-    await expect(page).toHaveURL(/\/crm\/contactos$/, { timeout: 8000 });
-    await expect(page.locator(`text=${nombreParaEliminar}`)).not.toBeVisible({ timeout: 5000 });
+    // Esperado: el contacto ya no aparece en la fila de la tabla
+    await expect(page.locator('tbody tr', { hasText: nombreParaEliminar })).not.toBeVisible({ timeout: 8000 });
   });
 });
 

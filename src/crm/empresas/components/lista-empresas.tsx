@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Pencil, Trash2, Building2, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
@@ -41,6 +42,8 @@ const TAMANO_LABELS: Record<string, string> = {
 
 function AccionesEmpresa({ empresa }: { empresa: EmpresaConRelaciones }) {
   const router = useRouter();
+  const [confirmarDesactivar, setConfirmarDesactivar] = useState(false);
+
   const handleEliminar = async () => {
     const resultado = await eliminarEmpresa(empresa.id);
     if (resultado.exito) toast.success("Empresa desactivada");
@@ -48,33 +51,40 @@ function AccionesEmpresa({ empresa }: { empresa: EmpresaConRelaciones }) {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
-        <MoreHorizontal className="h-4 w-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => router.push(`/crm/empresas/${empresa.id}`)}>
-          Ver detalle
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push(`/crm/empresas/${empresa.id}/editar`)}>
-          <Pencil className="mr-2 h-4 w-4" />
-          Editar
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <ConfirmacionDialog
-          trigger={
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Desactivar
-            </DropdownMenuItem>
-          }
-          titulo="¿Desactivar empresa?"
-          descripcion={`Se desactivará "${empresa.nombre}". Los datos asociados se conservarán.`}
-          textoConfirmar="Desactivar"
-          onConfirmar={handleEliminar}
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
+          <MoreHorizontal className="h-4 w-4" />
+          <span className="sr-only">Acciones</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => router.push(`/crm/empresas/${empresa.id}`)}>
+            Ver detalle
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push(`/crm/empresas/${empresa.id}/editar`)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Editar
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setConfirmarDesactivar(true)}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Desactivar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ConfirmacionDialog
+        open={confirmarDesactivar}
+        onOpenChange={setConfirmarDesactivar}
+        titulo="¿Desactivar empresa?"
+        descripcion={`Se desactivará "${empresa.nombre}". Los datos asociados se conservarán.`}
+        textoConfirmar="Desactivar"
+        onConfirmar={handleEliminar}
+      />
+    </>
   );
 }
 

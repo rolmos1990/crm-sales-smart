@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, Package, ImageIcon } from "lucide-react";
 import Link from "next/link";
@@ -42,6 +43,7 @@ function ImagenProducto({ src, nombre }: { src: string | null; nombre: string })
 
 function AccionesProducto({ producto }: { producto: Producto }) {
   const router = useRouter();
+  const [confirmarDesactivar, setConfirmarDesactivar] = useState(false);
 
   const handleEliminar = async () => {
     const resultado = await eliminarProducto(producto.id);
@@ -54,27 +56,35 @@ function AccionesProducto({ producto }: { producto: Producto }) {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
-        <MoreHorizontal className="h-4 w-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => router.push(`/productos/${producto.id}/editar`)}>
-          <Pencil className="mr-2 h-4 w-4" />Editar
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <ConfirmacionDialog
-          trigger={
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />Desactivar
-            </DropdownMenuItem>
-          }
-          titulo="¿Desactivar producto?"
-          descripcion={`"${producto.nombre}" se desactivará y no aparecerá en cotizaciones nuevas.`}
-          onConfirmar={handleEliminar}
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
+          <MoreHorizontal className="h-4 w-4" />
+          <span className="sr-only">Acciones</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => router.push(`/productos/${producto.id}/editar`)}>
+            <Pencil className="mr-2 h-4 w-4" />Editar
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setConfirmarDesactivar(true)}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />Desactivar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ConfirmacionDialog
+        open={confirmarDesactivar}
+        onOpenChange={setConfirmarDesactivar}
+        titulo="¿Desactivar producto?"
+        descripcion={`"${producto.nombre}" se desactivará y no aparecerá en cotizaciones nuevas.`}
+        textoConfirmar="Desactivar"
+        onConfirmar={handleEliminar}
+      />
+    </>
   );
 }
 

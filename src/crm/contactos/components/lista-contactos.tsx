@@ -141,7 +141,7 @@ const columnasFijas: ColumnDef<Contacto>[] = [
     },
   },
   {
-    accessorKey: "telefono",
+    accessorKey: "telefonoPrincipal",
     header: "Teléfono",
     cell: ({ getValue }) => (
       <span className="text-sm text-muted-foreground">{getValue<string | null>() ?? "—"}</span>

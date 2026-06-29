@@ -30,10 +30,13 @@ test.describe('Listado de oportunidades', () => {
   test('O-02 Filtrado y búsqueda por nombre', async ({ page }) => {
     await page.goto('/crm/oportunidades');
     const buscador = page.getByPlaceholder(/buscar|search/i).or(page.getByRole('searchbox'));
+    // Esperar a que el buscador esté listo antes de escribir; bajo contención
+    // de los 2 workers la hidratación del cliente puede tardar.
+    await expect(buscador).toBeVisible({ timeout: 15000 });
     await buscador.fill('a');
     await page.waitForTimeout(600);
     // Esperado: lista filtrada sin recargar
-    await expect(page).toHaveURL(/\/crm\/oportunidades/);
+    await expect(page).toHaveURL(/\/crm\/oportunidades/, { timeout: 10000 });
   });
 });
 
@@ -137,6 +140,9 @@ test.describe('Creación con pipeline', () => {
     const selectorStage = page.getByLabel(/etapa|stage/i).or(page.getByRole('combobox', { name: /etapa|stage/i }));
     await selectorStage.click();
     await expect(page.getByRole('option').first()).toBeVisible();
+    // Cerrar el selector de etapa antes de volver al de pipeline; si queda abierto,
+    // su overlay intercepta el siguiente clic.
+    await page.keyboard.press('Escape');
 
     // Volver a "Sin pipeline"
     await selectorPipeline.click();
@@ -176,7 +182,12 @@ test.describe('Edición de oportunidades', () => {
     const oportunidad = await crearOportunidad({ instanciaId: instancia.id, usuarioId: owner.id });
 
     await page.goto(`/crm/oportunidades/${oportunidad.id}`);
-    await page.getByRole('button', { name: /editar/i }).click();
+    // El botón "Editar" del detalle es un Link (ButtonLink), no un <button>.
+    // La ruta /editar puede tardar en compilar la primera vez (Next.js dev mode).
+    await page.getByRole('link', { name: /editar/i }).click();
+    // navigationTimeout global es 30s (config) por la contención de 2 workers
+    // contra un único servidor dev; no usar un timeout local más estricto.
+    await page.waitForURL(/\/crm\/oportunidades\/[\w-]+\/editar$/, { timeout: 30000 });
 
     // Verificar que existe selector de pipeline
     const selectorPipeline = page.getByLabel(/pipeline/i).or(page.getByRole('combobox', { name: /pipeline/i }));
@@ -189,7 +200,12 @@ test.describe('Edición de oportunidades', () => {
     const oportunidad = await crearOportunidad({ instanciaId: instancia.id, usuarioId: owner.id });
 
     await page.goto(`/crm/oportunidades/${oportunidad.id}`);
-    await page.getByRole('button', { name: /editar/i }).click();
+    // El botón "Editar" del detalle es un Link (ButtonLink), no un <button>.
+    // La ruta /editar puede tardar en compilar la primera vez (Next.js dev mode).
+    await page.getByRole('link', { name: /editar/i }).click();
+    // navigationTimeout global es 30s (config) por la contención de 2 workers
+    // contra un único servidor dev; no usar un timeout local más estricto.
+    await page.waitForURL(/\/crm\/oportunidades\/[\w-]+\/editar$/, { timeout: 30000 });
 
     const nuevoTitulo = `Opp-Editada-${Date.now()}`;
     await page.getByLabel(/título|nombre/i).first().clear();
@@ -198,7 +214,13 @@ test.describe('Edición de oportunidades', () => {
     await page.getByLabel(/valor/i).fill('99999');
     await page.getByRole('button', { name: /guardar/i }).click();
 
-    // Esperado: cambios reflejados en el detalle
+    // Al guardar redirige a la lista (ordenada por fecha de creación, no de
+    // actualización); con datos de pruebas en paralelo el registro editado puede
+    // caer en otra página. Se filtra por título para ubicarlo de forma determinística.
+    await page.waitForURL(/\/crm\/oportunidades$/, { timeout: 30000 });
+    await page.getByPlaceholder(/buscar oportunidad/i).fill(nuevoTitulo);
+
+    // Esperado: cambios reflejados en la lista
     await expect(page.locator(`text=${nuevoTitulo}`).first()).toBeVisible({ timeout: 8000 });
     await expect(page.locator('text=/99[,.]?999/').first()).toBeVisible();
   });

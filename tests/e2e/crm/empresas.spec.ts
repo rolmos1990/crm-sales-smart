@@ -43,8 +43,13 @@ test.describe('Creación de empresas', () => {
     const nombreEmpresa = `EmpresaCompleta-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreEmpresa);
 
+    // "Industria" es un Select (combobox), no un input de texto.
+    // Los valores del catálogo no llevan tilde (ej. "Tecnologia").
     const industria = page.getByLabel(/industria/i);
-    if (await industria.isVisible()) await industria.fill('Tecnología');
+    if (await industria.isVisible()) {
+      await industria.click();
+      await page.getByRole('option', { name: /tecnolog/i }).click();
+    }
 
     const sitio = page.getByLabel(/sitio web|web/i);
     if (await sitio.isVisible()) await sitio.fill('https://example.com');
@@ -85,7 +90,8 @@ test.describe('Detalle y edición de empresas', () => {
   test('E-08 Editar empresa', async ({ page }) => {
     await page.goto('/crm/empresas');
     await page.locator('tbody tr a, [data-testid="empresa-fila"] a').first().click();
-    await page.getByRole('button', { name: /editar/i }).click();
+    // El botón "Editar" del detalle es un Link (ButtonLink), no un <button>.
+    await page.getByRole('link', { name: /editar/i }).click();
 
     const nombreNuevo = `EmpresaEditada-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().clear();
@@ -103,15 +109,22 @@ test.describe('Detalle y edición de empresas', () => {
     const nombreEliminar = `EmpresaEliminar-${Date.now()}`;
     await page.getByLabel(/nombre/i).first().fill(nombreEliminar);
     await page.getByRole('button', { name: /guardar|crear/i }).click();
+
+    // La lista ordena por nombre (asc), no por fecha de creación; con datos de
+    // pruebas acumulados el nuevo registro puede caer en otra página. Se filtra
+    // por nombre para ubicarlo de forma determinística.
+    await page.getByPlaceholder(/buscar empresa/i).fill(nombreEliminar);
     await expect(page.locator(`text=${nombreEliminar}`).first()).toBeVisible({ timeout: 8000 });
 
-    // Eliminar
-    await page.getByRole('button', { name: /eliminar/i }).click();
-    await page.getByRole('button', { name: /confirmar|sí, eliminar|eliminar/i }).last().click();
+    // "Eliminar" en empresas es en realidad un soft-delete ("Desactivar"), disponible
+    // en el menú de acciones (⋯) de la fila — el trigger no tiene nombre accesible.
+    const fila = page.locator('tbody tr', { hasText: nombreEliminar });
+    await fila.getByRole('button', { name: /acciones/i }).click();
+    await page.getByRole('menuitem', { name: /desactivar/i }).click();
+    await page.getByRole('button', { name: /desactivar/i }).last().click();
 
-    // Esperado: eliminada sin errores
-    await expect(page).toHaveURL(/\/crm\/empresas$/, { timeout: 8000 });
-    await expect(page.locator(`text=${nombreEliminar}`)).not.toBeVisible({ timeout: 5000 });
+    // Esperado: desactivada sin errores y ya no aparece en la lista (queries filtran activo:true)
+    await expect(page.locator('tbody tr', { hasText: nombreEliminar })).not.toBeVisible({ timeout: 8000 });
   });
 });
 
