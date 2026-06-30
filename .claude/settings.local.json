@@ -126,7 +126,12 @@
       "PowerShell(Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue)",
       "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
       "Bash(grep -n \"Crear pedido\\\\|nuevo pedido\\\\|/sales/pedidos/nuevo\\\\|sales\\\\\\\\\\\\\\\\pedidos\\\\\\\\\\\\\\\\nuevo\" \"c:/Users/ramon.olmos/source/repos/Vento/crm-sales-smart/tests/e2e/sales/pedidos.spec.ts\")",
-      "PowerShell(Get-Process -Id 15460 -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Process -Id 15460 -ErrorAction SilentlyContinue)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"ai/\" } | Select-Object -First 30)",
+      "PowerShell(Test-NetConnection -ComputerName \"db.gbghddqlerklgkopxgug.supabase.co\" -Port 5432)",
+      "PowerShell(Test-NetConnection -ComputerName \"aws-1-us-west-2.pooler.supabase.com\" -Port 5432)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

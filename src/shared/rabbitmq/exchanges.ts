@@ -13,6 +13,9 @@ export const QUEUES = {
   SISTEMA_INICIALIZAR: "crm.comando.sistema",
   // Dead letter
   MUERTOS: "crm.muertos",
+  // IA
+  AI_RESPUESTA: "crm.ai.comando.respuesta",
+  AI_RESUMEN: "crm.ai.comando.resumen",
 } as const;
 
 // Routing keys — prefijo "evento." para domain events, "comando." para async commands
@@ -59,6 +62,12 @@ export const RK = {
   COMANDO_MENSAJE_LEIDO: "comando.mensaje.leido",
   COMANDO_EMAIL_ENVIAR: "comando.email.enviar",
   COMANDO_SISTEMA_INICIALIZAR: "comando.sistema.inicializar",
+  // IA
+  EVENTO_IA_RESPUESTA_GENERADA: "evento.ia.respuesta.generada",
+  EVENTO_IA_LIMITE_ALCANZADO: "evento.ia.limite.alcanzado",
+  COMANDO_AI_GENERAR_RESPUESTA: "comando.ai.generar.respuesta",
+  COMANDO_AI_RESUMIR: "comando.ai.resumir",
+  COMANDO_AI_CLASIFICAR: "comando.ai.clasificar",
 } as const;
 
 export type RoutingKey = (typeof RK)[keyof typeof RK];
@@ -98,4 +107,9 @@ export const TIPO_EVENTO_A_RK: Record<string, RoutingKey> = {
   CONVERSACION_CREADA: RK.EVENTO_CONVERSACION_CREADA,
   REACCION_ACTUALIZADA: RK.EVENTO_REACCION_ACTUALIZADA,
   INSTANCIA_CREADA: RK.EVENTO_INSTANCIA_CREADA,
+  RESPUESTA_IA_GENERADA: RK.EVENTO_IA_RESPUESTA_GENERADA,
+  LIMITE_IA_ALCANZADO: RK.EVENTO_IA_LIMITE_ALCANZADO,
+  GENERAR_RESPUESTA_IA: RK.COMANDO_AI_GENERAR_RESPUESTA,
+  RESUMIR_CONVERSACION: RK.COMANDO_AI_RESUMIR,
+  CLASIFICAR_CONVERSACION: RK.COMANDO_AI_CLASIFICAR,
 };

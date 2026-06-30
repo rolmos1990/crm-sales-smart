@@ -278,6 +278,12 @@ model Instancia {
   importaciones        HistorialImportacion[]
   transportistas       Transportista[]
 
+  // IA
+  configuracionIA ConfiguracionIA?
+  proveedoresIA   ProveedorIA[]
+  agentesIAConfig AgenteIAConfig[]
+  usoIA           UsoIA[]
+
   @@index([slug])
   @@index([estado])
 }
@@ -314,6 +320,9 @@ model Usuario {
   actividades   Actividad[]
   cotizaciones  Cotizacion[]
   pedidos       Pedido[]
+
+  // IA — presente solo en usuarios tipo AGENTE con capacidades IA
+  agenteIAConfig AgenteIAConfig?
 }
 
 model UsuarioInstancia {
@@ -1514,3 +1523,157 @@ enum ClasificacionConversacion {
   COMERCIAL
 }
 
+// =====================
+// CAPA DE INTELIGENCIA ARTIFICIAL
+// =====================
+
+// =====================
+// ENUMS DE IA
+// =====================
+
+enum ProveedorIAEnum {
+  ANTHROPIC
+  OPENAI
+  GEMINI
+  DEEPSEEK
+  LOCAL
+}
+
+enum TareaIA {
+  CHAT
+  RESUMEN
+  CLASIFICACION
+  SENTIMIENTO
+  EXTRACCION_ENTIDADES
+  REPORTE
+  EMBEDDINGS
+}
+
+enum TipoMemoriaIA {
+  EPISODICO
+  SEMANTICO
+  PROCEDURAL
+}
+
+// =====================
+// MODELOS DE IA
+// =====================
+
+// Configuración global de IA por instancia (1-1)
+model ConfiguracionIA {
+  id                   String          @id @default(cuid())
+  habilitado           Boolean         @default(false)
+  proveedorDefault     ProveedorIAEnum @default(ANTHROPIC)
+  modeloDefault        String          @default("claude-sonnet-4-6")
+  temperaturaDefault   Float           @default(0.7)
+  limiteTokensDiarios  Int?
+  limiteTokensMensual  Int?
+  fallbackHabilitado   Boolean         @default(true)
+  creadoEn             DateTime        @default(now())
+  actualizadoEn        DateTime        @updatedAt
+
+  instanciaId String    @unique
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+}
+
+// Credenciales y configuración de cada proveedor IA por instancia
+model ProveedorIA {
+  id                     String          @id @default(cuid())
+  proveedor              ProveedorIAEnum
+  apiKeyEncriptada       String?
+  baseUrl                String?
+  modelosDisponibles     Json            @default("[]")
+  activo                 Boolean         @default(true)
+  prioridad              Int             @default(1)
+  limitePorMinuto        Int?
+  limitePorDia           Int?
+  costoInputPorMilToken  Decimal?
+  costoOutputPorMilToken Decimal?
+  timeoutMs              Int             @default(30000)
+  reintentosMax          Int             @default(2)
+  casosDeUso             Json?
+  creadoEn               DateTime        @default(now())
+  actualizadoEn          DateTime        @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  usoIA UsoIA[]
+
+  @@unique([instanciaId, proveedor])
+  @@index([instanciaId])
+  @@index([instanciaId, activo, prioridad])
+}
+
+// Extensión de Usuario (tipo=AGENTE) con capacidades de IA
+model AgenteIAConfig {
+  id                  String           @id @default(cuid())
+  sistemaPrompt       String?
+  personalidad        String?
+  objetivo            String?
+  especialidad        String?
+  temperaturaOverride Float?
+  modeloPreferido     String?
+  proveedorPreferido  ProveedorIAEnum?
+  herramientas        Json?
+  canalesPermitidos   Json?
+  memoriaHabilitada   Boolean          @default(true)
+  limiteTokensCtx     Int              @default(4000)
+  instrucciones       Json?
+  creadoEn            DateTime         @default(now())
+  actualizadoEn       DateTime         @updatedAt
+
+  usuarioId String  @unique
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  memorias MemoriaAgenteIA[]
+  usoIA    UsoIA[]
+}
+
+// Memoria persistente del agente IA
+model MemoriaAgenteIA {
+  id       String        @id @default(cuid())
+  tipo     TipoMemoriaIA
+  clave    String
+  valor    String
+  expiraEn DateTime?
+  creadoEn DateTime      @default(now())
+
+  agenteIAConfigId String
+  agenteIAConfig   AgenteIAConfig @relation(fields: [agenteIAConfigId], references: [id], onDelete: Cascade)
+
+  @@index([agenteIAConfigId, tipo])
+  @@index([expiraEn])
+}
+
+// Auditoría de uso y costos de IA
+model UsoIA {
+  id            String   @id @default(cuid())
+  modelo        String
+  tarea         TareaIA
+  tokensInput   Int      @default(0)
+  tokensOutput  Int      @default(0)
+  costoEstimado Decimal?
+  tiempoMs      Int      @default(0)
+  exito         Boolean  @default(true)
+  error         String?
+  entidadTipo   String?
+  entidadId     String?
+  creadoEn      DateTime @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  proveedorIAId String?
+  proveedorIA   ProveedorIA? @relation(fields: [proveedorIAId], references: [id], onDelete: SetNull)
+
+  agenteIAConfigId String?
+  agenteIAConfig   AgenteIAConfig? @relation(fields: [agenteIAConfigId], references: [id], onDelete: SetNull)
+
+  @@index([instanciaId, creadoEn])
+  @@index([instanciaId, tarea])
+  @@index([proveedorIAId])
+}

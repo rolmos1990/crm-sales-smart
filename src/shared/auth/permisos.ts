@@ -58,63 +58,64 @@ export type Modulo =
   | "integraciones"
   | "configuracion"
   | "datos"
-  | "transportistas";
+  | "transportistas"
+  | "ia";
 
 const PERMISOS: Record<Rol, Record<Modulo, NivelAcceso>> = {
   OWNER: {
     dashboard: "rw", pipeline: "rw", inbox: "rw", contactos: "rw", empresas: "rw",
     oportunidades: "rw", actividades: "rw", cotizaciones: "rw", pedidos: "rw",
     "flujo-venta": "rw", etiquetas: "rw", productos: "rw", integraciones: "rw",
-    configuracion: "rw", datos: "rw", transportistas: "rw",
+    configuracion: "rw", datos: "rw", transportistas: "rw", ia: "rw",
   },
   ADMIN: {
     dashboard: "rw", pipeline: "rw", inbox: "rw", contactos: "rw", empresas: "rw",
     oportunidades: "rw", actividades: "rw", cotizaciones: "rw", pedidos: "rw",
     "flujo-venta": "rw", etiquetas: "rw", productos: "rw", integraciones: "rw",
-    configuracion: "rw", datos: "rw", transportistas: "rw",
+    configuracion: "rw", datos: "rw", transportistas: "rw", ia: "rw",
   },
   GERENTE_VENTAS: {
     dashboard: "rw", pipeline: "rw", inbox: "rw", contactos: "rw", empresas: "rw",
     oportunidades: "rw", actividades: "rw", cotizaciones: "rw", pedidos: "rw",
     "flujo-venta": "rw", etiquetas: "rw", productos: "rw", integraciones: "none",
-    configuracion: "none", datos: "r", transportistas: "none",
+    configuracion: "none", datos: "r", transportistas: "none", ia: "r",
   },
   SUPERVISOR: {
     dashboard: "r", pipeline: "r", inbox: "r", contactos: "r", empresas: "r",
     oportunidades: "r", actividades: "r", cotizaciones: "r", pedidos: "r",
     "flujo-venta": "r", etiquetas: "r", productos: "r", integraciones: "r",
-    configuracion: "r", datos: "r", transportistas: "none",
+    configuracion: "r", datos: "r", transportistas: "none", ia: "r",
   },
   AGENTE_VENTAS: {
     dashboard: "rw", pipeline: "rw", inbox: "rw", contactos: "rw", empresas: "rw",
     oportunidades: "rw", actividades: "rw", cotizaciones: "rw", pedidos: "rw",
     "flujo-venta": "none", etiquetas: "none", productos: "r", integraciones: "none",
-    configuracion: "none", datos: "none", transportistas: "none",
+    configuracion: "none", datos: "none", transportistas: "none", ia: "r",
   },
   EJECUTIVO_VENTAS: {
     dashboard: "rw", pipeline: "none", inbox: "none", contactos: "r", empresas: "none",
     oportunidades: "none", actividades: "rw", cotizaciones: "rw", pedidos: "rw",
     "flujo-venta": "none", etiquetas: "none", productos: "r", integraciones: "none",
-    configuracion: "none", datos: "none", transportistas: "none",
+    configuracion: "none", datos: "none", transportistas: "none", ia: "r",
   },
   AGENTE_SOPORTE: {
     dashboard: "rw", pipeline: "r", inbox: "rw", contactos: "rw", empresas: "r",
     oportunidades: "r", actividades: "rw", cotizaciones: "none", pedidos: "r",
     "flujo-venta": "none", etiquetas: "none", productos: "none", integraciones: "none",
-    configuracion: "none", datos: "none", transportistas: "none",
+    configuracion: "none", datos: "none", transportistas: "none", ia: "r",
   },
   INVITADO: {
     dashboard: "r", pipeline: "r", inbox: "r", contactos: "r", empresas: "r",
     oportunidades: "r", actividades: "r", cotizaciones: "r", pedidos: "r",
     "flujo-venta": "none", etiquetas: "none", productos: "none", integraciones: "none",
-    configuracion: "none", datos: "none", transportistas: "none",
+    configuracion: "none", datos: "none", transportistas: "none", ia: "none",
   },
   // AGENTE es para bots/sistema — no navegan, pero les damos acceso mínimo por si acaso
   AGENTE: {
     dashboard: "none", pipeline: "none", inbox: "none", contactos: "none", empresas: "none",
     oportunidades: "none", actividades: "none", cotizaciones: "none", pedidos: "none",
     "flujo-venta": "none", etiquetas: "none", productos: "none", integraciones: "none",
-    configuracion: "none", datos: "none", transportistas: "none",
+    configuracion: "none", datos: "none", transportistas: "none", ia: "none",
   },
 };
 

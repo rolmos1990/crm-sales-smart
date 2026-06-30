@@ -46,6 +46,12 @@ export const EventosSistema = {
 
   // Sistema
   InstanciaCreada:        "INSTANCIA_CREADA",
+
+  // IA
+  RespuestaIAGenerada:    "RESPUESTA_IA_GENERADA",
+  ConversacionResumida:   "CONVERSACION_RESUMIDA",
+  AgenteIAActivado:       "AGENTE_IA_ACTIVADO",
+  LimiteIAAlcanzado:      "LIMITE_IA_ALCANZADO",
 } as const;
 
 export type NombreEvento = (typeof EventosSistema)[keyof typeof EventosSistema];
@@ -57,6 +63,9 @@ export const ComandosSistema = {
   MarcarLeido:            "MARCAR_LEIDO",
   EnviarEmail:            "ENVIAR_EMAIL",
   InicializarInstancia:   "INICIALIZAR_INSTANCIA",
+  GenerarRespuestaIA:     "GENERAR_RESPUESTA_IA",
+  ResumirConversacion:    "RESUMIR_CONVERSACION",
+  ClasificarConversacion: "CLASIFICAR_CONVERSACION",
 } as const;
 
 export type NombreComando = (typeof ComandosSistema)[keyof typeof ComandosSistema];
