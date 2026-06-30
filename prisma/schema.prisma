@@ -767,7 +767,7 @@ model Actividad {
 
 model Cotizacion {
   id               String           @id @default(cuid())
-  numero           String           @unique
+  numero           String
   estado           EstadoCotizacion @default(BORRADOR)
   fechaEmision     DateTime         @default(now())
   fechaVencimiento DateTime?
@@ -804,6 +804,7 @@ model Cotizacion {
   campos      CampoPersonalizadoValor[]
   actividades Actividad[]
 
+  @@unique([instanciaId, numero])
   @@index([instanciaId])
   @@index([estado])
   @@index([oportunidadId])
@@ -834,7 +835,7 @@ model CotizacionLinea {
 
 model Pedido {
   id     String       @id @default(cuid())
-  numero String       @unique
+  numero String
   estado EstadoPedido @default(PENDIENTE)
 
   // Datos del comprador (pedido manual sin contacto en sistema)
@@ -892,6 +893,7 @@ model Pedido {
   actividades     Actividad[]
   entrega         EntregaPedido?
 
+  @@unique([instanciaId, numero])
   @@index([instanciaId])
   @@index([estado])
   @@index([flujoVentaEtapaId])

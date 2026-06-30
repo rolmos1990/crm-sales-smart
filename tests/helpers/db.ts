@@ -146,8 +146,40 @@ export function asegurarAlMenosUnaOportunidad(instanciaId: string, usuarioId: st
   return llamar<RegistroOportunidad>("asegurarAlMenosUnaOportunidad", [instanciaId, usuarioId]);
 }
 
+export function asegurarOportunidadEnPipeline(instanciaId: string, usuarioId: string) {
+  return llamar<{ pipelineId: string; stageId: string; oportunidad: RegistroOportunidad }>(
+    "asegurarOportunidadEnPipeline",
+    [instanciaId, usuarioId],
+  );
+}
+
 export function asegurarSegundoPipeline(instanciaId: string) {
   return llamar<{ ok: true }>("asegurarSegundoPipeline", [instanciaId]);
+}
+
+export function asegurarFlujoConEtapas(instanciaId: string) {
+  return llamar<{
+    flujoVentaId: string;
+    etapas: { id: string; nombre: string; esInicial: boolean; esFinal: boolean }[];
+  }>("asegurarFlujoConEtapas", [instanciaId]);
+}
+
+export function crearEtapaConPedido(instanciaId: string, usuarioId: string) {
+  return llamar<{ etapaId: string; etapaNombre: string; pedidoId: string }>(
+    "crearEtapaConPedido",
+    [instanciaId, usuarioId],
+  );
+}
+
+export function crearPedidoEnEtapaFinal(instanciaId: string, usuarioId: string) {
+  return llamar<{ pedidoId: string; etapaNombre: string }>(
+    "crearPedidoEnEtapaFinal",
+    [instanciaId, usuarioId],
+  );
+}
+
+export function crearPedidoConEntregaEditable(instanciaId: string, usuarioId: string) {
+  return llamar<{ pedidoId: string }>("crearPedidoConEntregaEditable", [instanciaId, usuarioId]);
 }
 
 export function vaciarActividades(instanciaId: string) {

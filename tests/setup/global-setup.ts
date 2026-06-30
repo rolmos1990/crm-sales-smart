@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 
 // Cargar DATABASE_URL desde archivos de entorno locales, luego vars de test encima
@@ -28,18 +28,23 @@ export default async function globalSetup() {
   }
 
   if (emailsPrueba.length === 0) return;
+  if (!process.env.DATABASE_URL) return;
 
-  const lista = emailsPrueba.map((e) => `'${e}'`).join(', ');
-  const sql = `UPDATE "Usuario" SET "intentosFallidos" = 0, "bloqueadoHasta" = NULL, "nivelBloqueo" = 0 WHERE email IN (${lista});`;
-
+  // Usa DATABASE_URL (pooler de Supabase) en vez de `prisma db execute`, que
+  // resuelve el datasource via prisma.config.ts y ahí siempre prioriza
+  // DIRECT_URL (conexión directa, puerto 5432) — inalcanzable en algunas
+  // redes/firewalls que sí permiten el pooler (puerto 6543). DATABASE_URL es
+  // la misma conexión que ya usa la app y el resto de los helpers de test.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    execSync('npx prisma db execute --stdin', {
-      input: sql,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
-    });
+    await pool.query(
+      `UPDATE "Usuario" SET "intentosFallidos" = 0, "bloqueadoHasta" = NULL, "nivelBloqueo" = 0 WHERE email = ANY($1::text[])`,
+      [emailsPrueba],
+    );
     console.log('[global-setup] Bloqueos de usuarios de prueba limpiados.');
   } catch (err) {
     console.warn('[global-setup] No se pudo limpiar el bloqueo de usuarios de prueba:', err);
+  } finally {
+    await pool.end();
   }
 }

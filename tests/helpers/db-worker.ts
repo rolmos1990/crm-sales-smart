@@ -138,6 +138,165 @@ async function asegurarAlMenosUnaOportunidad(instanciaId: string, usuarioId: str
   return crearOportunidad({ instanciaId, usuarioId });
 }
 
+// Garantiza un pipeline con stages y al menos una oportunidad en su primera
+// etapa, para que el tablero Kanban dinámico (/crm/pipeline) tenga contenido
+// determinístico sin depender de qué pipeline quedó marcado esDefault.
+async function asegurarOportunidadEnPipeline(instanciaId: string, usuarioId: string) {
+  let pipeline = await prisma.pipeline.findFirst({
+    where: { instanciaId, activo: true },
+    include: { stages: { orderBy: { orden: "asc" } } },
+  });
+
+  if (!pipeline || pipeline.stages.length === 0) {
+    pipeline = await prisma.pipeline.create({
+      data: {
+        nombre: "Pipeline de prueba",
+        esDefault: true,
+        activo: true,
+        instanciaId,
+        stages: {
+          create: [
+            { nombre: "Inicial", orden: 0, probabilidad: 10, esInicial: true, esGanado: false, esPerdido: false, color: "#818cf8" },
+            { nombre: "Avanzada", orden: 1, probabilidad: 60, esInicial: false, esGanado: false, esPerdido: false, color: "#fbbf24" },
+            { nombre: "Cerrada", orden: 2, probabilidad: 100, esInicial: false, esGanado: true, esPerdido: false, color: "#4ade80" },
+          ],
+        },
+      },
+      include: { stages: { orderBy: { orden: "asc" } } },
+    });
+  }
+
+  const primeraEtapa = pipeline.stages.find((s) => !s.esGanado && !s.esPerdido) ?? pipeline.stages[0];
+
+  const existente = await prisma.oportunidad.findFirst({
+    where: { instanciaId, pipelineId: pipeline.id, stageId: primeraEtapa.id },
+  });
+  const oportunidad = existente ?? await crearOportunidad({
+    instanciaId, usuarioId, pipelineId: pipeline.id, stageId: primeraEtapa.id,
+  });
+
+  return { pipelineId: pipeline.id, stageId: primeraEtapa.id, oportunidad };
+}
+
+// Garantiza el FlujoVenta de la instancia (auto-creado sin etapas la primera
+// vez que se visita /sales/flujo-venta) con al menos 2 etapas — una inicial y
+// una final — para que las pruebas de transición (FV-07/08) tengan un flujo
+// real y determinístico sin depender de qué quedó configurado en corridas
+// anteriores.
+async function asegurarFlujoConEtapas(instanciaId: string) {
+  let flujo = await prisma.flujoVenta.findFirst({
+    where: { instanciaId },
+    include: { etapas: { orderBy: { orden: "asc" } } },
+  });
+
+  if (!flujo) {
+    flujo = await prisma.flujoVenta.create({
+      data: { nombre: "Flujo de venta", esDefault: true, instanciaId },
+      include: { etapas: { orderBy: { orden: "asc" } } },
+    });
+  }
+
+  if (flujo.etapas.length < 2) {
+    await prisma.flujoVentaEtapa.deleteMany({ where: { flujoVentaId: flujo.id } });
+    await prisma.flujoVentaEtapa.createMany({
+      data: [
+        { flujoVentaId: flujo.id, nombre: "Pendiente", orden: 0, esInicial: true, color: "#94a3b8" },
+        { flujoVentaId: flujo.id, nombre: "Completado", orden: 1, esFinal: true, color: "#4ade80" },
+      ],
+    });
+    flujo = await prisma.flujoVenta.findFirst({
+      where: { id: flujo.id },
+      include: { etapas: { orderBy: { orden: "asc" } } },
+    }) as NonNullable<typeof flujo>;
+  }
+
+  return { flujoVentaId: flujo.id, etapas: flujo.etapas.map((e) => ({ id: e.id, nombre: e.nombre, esInicial: e.esInicial, esFinal: e.esFinal })) };
+}
+
+// Crea (o reutiliza) una etapa esFinal y un pedido ya ubicado en ella, para
+// probar de forma determinística que un pedido en etapa final no tiene
+// transiciones disponibles (FV-08) — sin depender de "click hasta agotar"
+// sobre el flujo compartido, que acumula etapas entre corridas de FV-02/04
+// y vuelve frágil recorrer la cadena completa por UI.
+async function crearPedidoEnEtapaFinal(instanciaId: string, usuarioId: string) {
+  const flujo = await prisma.flujoVenta.findFirst({
+    where: { instanciaId },
+    include: { etapas: true },
+  });
+  if (!flujo) throw new Error("No existe flujo de venta para la instancia");
+
+  let etapaFinal = flujo.etapas.find((e) => e.esFinal);
+  if (!etapaFinal) {
+    etapaFinal = await prisma.flujoVentaEtapa.create({
+      data: { flujoVentaId: flujo.id, nombre: "Completado", orden: 999, esFinal: true, color: "#4ade80" },
+    });
+  }
+
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero: `PED-TEST-${sufijo}`, estado: "PENDIENTE", instanciaId, usuarioId,
+      flujoVentaId: flujo.id, flujoVentaEtapaId: etapaFinal.id,
+    },
+  });
+
+  return { pedidoId: pedido.id, etapaNombre: etapaFinal.nombre };
+}
+
+// Crea (o reutiliza) una etapa con permiteEditarEntrega:true y un pedido ya
+// ubicado en ella — la sección "Entrega y seguimiento" del pedido está
+// bloqueada por defecto (requiere una etapa que explícitamente lo permita),
+// así que sin esto los tests de transportistas en pedidos (TR-05/06/07)
+// nunca llegan a ver el selector real.
+async function crearPedidoConEntregaEditable(instanciaId: string, usuarioId: string) {
+  const flujo = await prisma.flujoVenta.findFirst({
+    where: { instanciaId },
+    include: { etapas: true },
+  });
+  if (!flujo) throw new Error("No existe flujo de venta para la instancia");
+
+  let etapa = flujo.etapas.find((e) => e.permiteEditarEntrega);
+  if (!etapa) {
+    etapa = await prisma.flujoVentaEtapa.create({
+      data: { flujoVentaId: flujo.id, nombre: "En preparación", orden: 998, permiteEditarEntrega: true, color: "#fbbf24" },
+    });
+  }
+
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero: `PED-TEST-${sufijo}`, estado: "PENDIENTE", instanciaId, usuarioId,
+      flujoVentaId: flujo.id, flujoVentaEtapaId: etapa.id,
+    },
+  });
+
+  return { pedidoId: pedido.id };
+}
+
+// Crea una etapa nueva (nombre único) con un pedido ya vinculado a ella, para
+// probar de forma determinística que eliminarEtapa rechaza etapas con
+// pedidos asociados (FV-06) — no depende de qué etapa haya quedado con
+// pedidos por corridas anteriores.
+async function crearEtapaConPedido(instanciaId: string, usuarioId: string) {
+  const flujo = await prisma.flujoVenta.findFirst({ where: { instanciaId } });
+  if (!flujo) throw new Error("No existe flujo de venta para la instancia");
+
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const etapa = await prisma.flujoVentaEtapa.create({
+    data: { flujoVentaId: flujo.id, nombre: `EtapaConPedido-${sufijo}`, orden: 999 },
+  });
+
+  const numero = `PED-TEST-${sufijo}`;
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero, estado: "PENDIENTE", instanciaId, usuarioId,
+      flujoVentaId: flujo.id, flujoVentaEtapaId: etapa.id,
+    },
+  });
+
+  return { etapaId: etapa.id, etapaNombre: etapa.nombre, pedidoId: pedido.id };
+}
+
 const STAGES_PIPELINE_B = [
   { nombre: "Inicial", orden: 0, probabilidad: 10, esInicial: true, esGanado: false, esPerdido: false, color: "#818cf8" },
   { nombre: "Avanzada", orden: 1, probabilidad: 60, esInicial: false, esGanado: false, esPerdido: false, color: "#fbbf24" },
@@ -188,7 +347,12 @@ const OPERACIONES: Record<string, (...args: any[]) => Promise<unknown>> = {
   crearOportunidad,
   asegurarAlMenosUnContacto,
   asegurarAlMenosUnaOportunidad,
+  asegurarOportunidadEnPipeline,
   asegurarSegundoPipeline,
+  asegurarFlujoConEtapas,
+  crearEtapaConPedido,
+  crearPedidoEnEtapaFinal,
+  crearPedidoConEntregaEditable,
   vaciarActividades,
   vaciarOportunidades,
 };

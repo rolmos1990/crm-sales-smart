@@ -64,6 +64,7 @@ function TarjetaOportunidad({
   return (
     <div
       ref={setNodeRef}
+      data-testid="oportunidad-card"
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn("mb-2 touch-none", isDragging && "opacity-20")}
       {...(puedeMod ? attributes : {})}
@@ -209,7 +210,7 @@ function ColumnaKanban({
   const totalValor = items.reduce((sum, o) => sum + o.valor, 0);
 
   return (
-    <div className="flex-shrink-0 w-[272px]">
+    <div className="flex-shrink-0 w-[272px]" data-testid="pipeline-column">
       <div
         className={cn(
           "flex flex-col rounded-xl border transition-all duration-150",
@@ -247,7 +248,7 @@ function ColumnaKanban({
             )}
           </div>
           {items.length > 0 && (
-            <p className="mt-1.5 text-[11px] font-semibold text-lime-600 dark:text-lime-400/80 tabular-nums">
+            <p className="mt-1.5 text-[11px] font-semibold text-lime-600 dark:text-lime-400/80 tabular-nums" data-testid="column-total">
               {formatearMoneda(totalValor, "PEN")}
             </p>
           )}

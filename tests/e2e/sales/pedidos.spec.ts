@@ -1,5 +1,20 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { authFile } from '../../fixtures';
+
+// El historial de PEDIDO_EDITADO/PRODUCTO_AGREGADO/etc. no se escribe en la
+// transacción de la Server Action: se publica un evento a RabbitMQ que un
+// worker aparte (npm run worker → PedidoActualizadoSuscriptor) consume y
+// recién ahí inserta en PedidoHistorial. La revalidación de Next.js ocurre
+// inmediatamente al volver la Server Action, así que hay una carrera real
+// contra el consumidor async — puede ganarle. Se reintenta con reload().
+async function esperarEnHistorial(page: Page, patron: RegExp, intentos = 6) {
+  for (let i = 0; i < intentos; i++) {
+    if (await page.locator(`text=${patron}`).first().isVisible().catch(() => false)) return;
+    await page.waitForTimeout(1000);
+    await page.reload();
+  }
+  await expect(page.locator(`text=${patron}`).first()).toBeVisible({ timeout: 5000 });
+}
 
 // ─── Listado ──────────────────────────────────────────────────────────────────
 
@@ -63,8 +78,12 @@ test.describe('Creación de pedidos', () => {
 
     await page.getByRole('button', { name: /guardar|crear pedido/i }).click();
 
+    // crearPedido siempre redirige a la lista (no al detalle). Ojo: un regex
+    // como /\/sales\/pedidos\/\w+/ matchea trivialmente ".../pedidos/nuevo"
+    // (ya que "nuevo" es \w+) y pasaría sin esperar la navegación real.
+    await page.waitForURL(/\/sales\/pedidos$/, { timeout: 30000 });
     // Esperado: pedido creado con número correlativo, en la primera etapa del flujo
-    await expect(page).toHaveURL(/\/sales\/pedidos\/\w+/, { timeout: 10000 });
+    await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 8000 });
   });
 
   test('P-05 Agregar ítems — subtotales actualizados en tiempo real', async ({ page }) => {
@@ -89,37 +108,57 @@ test.describe('Creación de pedidos', () => {
 
 test.describe('Edición de pedido', () => {
   test('P-07 Editar datos del cliente y ver PEDIDO_EDITADO en historial', async ({ page }) => {
+    // Autocontenido: un pedido propio con un valor único en "Nombre" — si se
+    // reutiliza el primer pedido de la lista con un string fijo, una corrida
+    // previa puede haber dejado el mismo valor guardado y el diff no detecta
+    // cambio real (no se registra PEDIDO_EDITADO).
     await page.goto('/sales/pedidos');
-    await page.locator('tbody tr a, [data-testid="pedido-fila"] a').first().click();
-    await page.getByRole('button', { name: /editar/i }).click();
+    await page.getByRole('link', { name: /nuevo pedido|crear/i }).or(page.getByRole('button', { name: /nuevo pedido|crear/i })).first().click();
+    await page.waitForURL(/\/sales\/pedidos\/nuevo$/, { timeout: 30000 });
+    await page.getByRole('button', { name: /guardar|crear pedido/i }).click();
+    // crearPedido siempre redirige a la lista (no al detalle); el pedido
+    // recién creado queda primero (orderBy creadoEn desc).
+    await page.waitForURL(/\/sales\/pedidos$/, { timeout: 30000 });
+    await page.locator('tbody tr a').first().click();
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
-    const nombreCliente = page.getByLabel(/nombre.*cliente|cliente.*nombre/i);
-    if (await nombreCliente.isVisible()) {
-      await nombreCliente.clear();
-      await nombreCliente.fill('Cliente Editado Test');
-    }
+    // El botón real dice "Editar pedido" y abre un Sheet (no navega de página).
+    await page.getByRole('button', { name: /editar pedido/i }).click();
+
+    // El campo "Nombre" vive dentro de la sección colapsable "Datos de
+    // facturación" — hay que expandirla primero.
+    await page.getByRole('button', { name: /datos de facturación/i }).click();
+    const nombreUnico = `Cliente Editado ${Date.now()}`;
+    await page.getByLabel('Nombre', { exact: true }).fill(nombreUnico);
 
     await page.getByRole('button', { name: /guardar/i }).click();
 
-    // Esperado: cambios en historial con PEDIDO_EDITADO
-    await expect(page.locator('text=/editado|pedido_editado|cliente.*editado/i').first()).toBeVisible({ timeout: 8000 });
+    // editarPedido corre una transacción no trivial; bajo la contención de
+    // los 2 workers puede tardar más que el timeout corto por defecto.
+    await expect(page.getByRole('button', { name: /guardando/i })).not.toBeVisible({ timeout: 20000 });
+    // Esperado: cambios en historial ("Datos del pedido editados")
+    await esperarEnHistorial(page, /datos del pedido editados/i);
   });
 
   test('P-08 Agregar producto a un pedido — PRODUCTO_AGREGADO en historial', async ({ page }) => {
+    // Autocontenido por la misma razón que P-07.
     await page.goto('/sales/pedidos');
-    await page.locator('tbody tr a, [data-testid="pedido-fila"] a').first().click();
+    await page.getByRole('link', { name: /nuevo pedido|crear/i }).or(page.getByRole('button', { name: /nuevo pedido|crear/i })).first().click();
+    await page.waitForURL(/\/sales\/pedidos\/nuevo$/, { timeout: 30000 });
+    await page.getByRole('button', { name: /guardar|crear pedido/i }).click();
+    await page.waitForURL(/\/sales\/pedidos$/, { timeout: 30000 });
+    await page.locator('tbody tr a').first().click();
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
-    const btnEditarLineas = page.getByRole('button', { name: /editar líneas|agregar ítem|editar/i });
-    if (await btnEditarLineas.isVisible()) {
-      await btnEditarLineas.click();
-      const btnAgregar = page.getByRole('button', { name: /agregar ítem|agregar producto/i });
-      if (await btnAgregar.isVisible()) {
-        await btnAgregar.click();
-        await page.getByRole('button', { name: /guardar/i }).click();
-        // Esperado: PRODUCTO_AGREGADO en historial
-        await expect(page.locator('text=/producto.*agregado|PRODUCTO_AGREGADO/i').first()).toBeVisible({ timeout: 8000 });
-      }
-    }
+    // El botón real dice "Editar pedido"; cada línea nueva (sin id) ya cuenta
+    // como "agregada" en el diff, sin necesidad de seleccionar un producto.
+    await page.getByRole('button', { name: /editar pedido/i }).click();
+    await page.getByRole('button', { name: /agregar línea/i }).click();
+    await page.getByRole('button', { name: /guardar/i }).click();
+    await expect(page.getByRole('button', { name: /guardando/i })).not.toBeVisible({ timeout: 20000 });
+
+    // Esperado: "Producto agregado" en historial
+    await esperarEnHistorial(page, /producto agregado/i);
   });
 });
 
@@ -129,6 +168,9 @@ test.describe('Flujo de venta y etapas', () => {
   test('P-09 Avanzar etapa del pedido registra en timeline', async ({ page }) => {
     await page.goto('/sales/pedidos');
     await page.locator('tbody tr a, [data-testid="pedido-fila"] a').first().click();
+    // La ruta /sales/pedidos/[id] puede tardar en compilar la primera vez
+    // bajo la contención de los 2 workers (Next.js dev mode).
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     const btnAvanzar = page.getByRole('button', { name: /avanzar|siguiente etapa|próxima etapa/i });
     if (await btnAvanzar.isVisible()) {
@@ -144,11 +186,13 @@ test.describe('Flujo de venta y etapas', () => {
   test('P-11 Etapa con acción automática ejecuta la acción', async ({ page }) => {
     await page.goto('/sales/pedidos');
     await page.locator('tbody tr a, [data-testid="pedido-fila"] a').first().click();
+    // La ruta /sales/pedidos/[id] puede tardar en compilar la primera vez
+    // bajo la contención de los 2 workers (Next.js dev mode).
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     // Solo verificar que el historial/timeline existe y funciona
-    await expect(page.locator('[data-testid="pedido-timeline"], [data-testid="historial"]').or(
-      page.locator('text=/historial|timeline/i').first()
-    )).toBeVisible({ timeout: 5000 });
+    // (sección real: "Historial de etapas", sin data-testid).
+    await expect(page.locator('text=/historial de etapas/i').first()).toBeVisible({ timeout: 8000 });
   });
 });
 
@@ -160,6 +204,9 @@ test.describe('Entrega y seguimiento', () => {
 
     // Buscar un pedido en etapa que permita editar entrega
     await page.locator('tbody tr a, [data-testid="pedido-fila"] a').first().click();
+    // La ruta /sales/pedidos/[id] puede tardar en compilar la primera vez
+    // bajo la contención de los 2 workers (Next.js dev mode).
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     const seccionEntrega = page.locator('text=/entrega y seguimiento|entrega/i').first();
     if (await seccionEntrega.isVisible()) {
@@ -188,6 +235,9 @@ test.describe('Entrega y seguimiento', () => {
   test('P-13 Actualizar estado de entrega — "Entrega actualizada" en timeline', async ({ page }) => {
     await page.goto('/sales/pedidos');
     await page.locator('tbody tr a, [data-testid="pedido-fila"] a').first().click();
+    // La ruta /sales/pedidos/[id] puede tardar en compilar la primera vez
+    // bajo la contención de los 2 workers (Next.js dev mode).
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     const btnActualizar = page.getByRole('button', { name: /actualizar entrega|editar entrega/i });
     if (await btnActualizar.isVisible()) {
@@ -207,6 +257,7 @@ test.describe('Entrega y seguimiento', () => {
     await page.goto('/sales/pedidos');
     // Buscar un pedido en primera etapa donde permiteEditarEntrega = false
     await page.locator('tbody tr a').first().click();
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     // Si el pedido está en etapa sin permiso de entrega, la sección debe estar bloqueada
     const seccionBloqueada = page.locator('[data-testid="entrega-bloqueada"], text=/no disponible en esta etapa/i');
@@ -228,24 +279,30 @@ test.describe('Timeline e historial', () => {
   test('P-16 Ver historial de cambios completo y ordenado', async ({ page }) => {
     await page.goto('/sales/pedidos');
     await page.locator('tbody tr a, [data-testid="pedido-fila"] a').first().click();
+    // La ruta /sales/pedidos/[id] puede tardar en compilar la primera vez
+    // bajo la contención de los 2 workers (Next.js dev mode).
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     // Esperado: timeline con entradas ordenadas por fecha
-    await expect(
-      page.locator('[data-testid="pedido-timeline"], [data-testid="historial"]')
-        .or(page.locator('text=/historial|creación|creado/i').first())
-    ).toBeVisible({ timeout: 5000 });
+    // (sección real: "Historial de etapas", sin data-testid).
+    await expect(page.locator('text=/historial de etapas/i').first()).toBeVisible({ timeout: 8000 });
   });
 
   test('P-17 Nombre de usuario visible en cada entrada del historial', async ({ page }) => {
     await page.goto('/sales/pedidos');
     await page.locator('tbody tr a, [data-testid="pedido-fila"] a').first().click();
+    // La ruta /sales/pedidos/[id] puede tardar en compilar la primera vez
+    // bajo la contención de los 2 workers (Next.js dev mode).
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
-    const timeline = page.locator('[data-testid="pedido-timeline"], [data-testid="historial"]').first();
-    await expect(timeline).toBeVisible({ timeout: 5000 });
+    const timeline = page.locator('text=/historial de etapas/i').first()
+      .locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]');
+    await expect(timeline).toBeVisible({ timeout: 8000 });
 
-    // Al menos una entrada debe tener nombre de usuario o "Sistema"
+    // Cada entrada muestra su autor (AutorFecha): el nombre de quien la hizo,
+    // o "Sistema" si fue automática (ej. la etapa inicial al crear el pedido).
     await expect(
-      timeline.locator('text=/sistema|usuario|por:/i').first()
+      timeline.locator('text=/sistema/i').first()
     ).toBeVisible();
   });
 });

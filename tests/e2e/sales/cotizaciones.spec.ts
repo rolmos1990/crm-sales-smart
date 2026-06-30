@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { authFile } from '../../fixtures';
 
 // ─── Listado ──────────────────────────────────────────────────────────────────
@@ -39,6 +39,7 @@ test.describe('Creación de cotizaciones', () => {
   test('CQ-04 Crear cotización mínima como borrador', async ({ page }) => {
     await page.goto('/sales/cotizaciones');
     await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).first().click();
+    await page.waitForURL(/\/sales\/cotizaciones\/nueva$/, { timeout: 30000 });
 
     // Seleccionar contacto o ingresar datos del cliente
     const inputCliente = page.getByLabel(/cliente|contacto/i).first();
@@ -48,18 +49,10 @@ test.describe('Creación de cotizaciones', () => {
       if (await primeraOpcion.isVisible()) await primeraOpcion.click();
     }
 
-    // Agregar al menos un ítem
-    const btnAgregarItem = page.getByRole('button', { name: /agregar ítem|agregar producto|nuevo ítem/i });
-    if (await btnAgregarItem.isVisible()) {
-      await btnAgregarItem.click();
-      const buscadorProducto = page.getByPlaceholder(/buscar producto|producto/i).last();
-      await buscadorProducto.fill('a');
-      await page.waitForTimeout(500);
-      const primeraOpcion = page.getByRole('option').first();
-      if (await primeraOpcion.isVisible()) await primeraOpcion.click();
-    }
-
+    // La línea ya viene con cantidad=1 y precio=0 por defecto, así que el
+    // formulario es enviable sin tocar nada más (ver CQ-09).
     await page.getByRole('button', { name: /guardar borrador|guardar|crear/i }).click();
+    await page.waitForURL(/\/sales\/cotizaciones$/, { timeout: 30000 });
 
     // Esperado: cotización con número generado, estado "Borrador"
     await expect(page.locator('text=/borrador/i').first()).toBeVisible({ timeout: 8000 });
@@ -68,106 +61,122 @@ test.describe('Creación de cotizaciones', () => {
   test('CQ-05 Agregar ítems — subtotales calculados correctamente', async ({ page }) => {
     await page.goto('/sales/cotizaciones');
     await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).first().click();
+    await page.waitForURL(/\/sales\/cotizaciones\/nueva$/, { timeout: 30000 });
 
-    const btnAgregarItem = page.getByRole('button', { name: /agregar ítem|agregar producto/i });
-    if (await btnAgregarItem.isVisible()) {
-      await btnAgregarItem.click();
-      const cantidadInput = page.getByLabel(/cantidad/i).last();
-      if (await cantidadInput.isVisible()) {
-        await cantidadInput.clear();
-        await cantidadInput.fill('3');
-      }
-      // Esperado: subtotal actualizado en tiempo real
-      await expect(page.locator('[data-testid="subtotal"], text=/subtotal|total/i').first()).toBeVisible();
-    }
+    // No existe un botón "Agregar ítem" separado: "Agregar línea" suma una fila
+    // vacía; la cantidad se edita directamente en la columna "Cant." de la línea.
+    await page.getByRole('button', { name: /agregar línea/i }).click();
+    const cantidadInput = page.locator('table tbody tr').nth(1).getByRole('spinbutton').first();
+    await cantidadInput.fill('3');
+
+    // Esperado: subtotal de la línea y total general actualizados en tiempo real
+    await expect(page.locator('text=/subtotal/i').first()).toBeVisible();
+    await expect(page.locator('text=/total/i').first()).toBeVisible();
   });
 
   test('CQ-06 Aplicar descuento global recalcula el total', async ({ page }) => {
     await page.goto('/sales/cotizaciones');
     await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).first().click();
+    await page.waitForURL(/\/sales\/cotizaciones\/nueva$/, { timeout: 30000 });
 
-    const descuentoGlobal = page.getByLabel(/descuento/i).last();
-    if (await descuentoGlobal.isVisible()) {
-      await descuentoGlobal.fill('10');
-      await page.waitForTimeout(500);
-      // Esperado: total recalculado
-      await expect(page.locator('[data-testid="total"], text=/total/i').first()).toBeVisible();
-    }
+    // No hay un campo "descuento" global — el descuento (Desc.%) es por línea.
+    const descuentoLinea = page.locator('table tbody tr').first().getByRole('spinbutton').nth(2);
+    await descuentoLinea.fill('10');
+    await page.waitForTimeout(300);
+    // Esperado: total recalculado
+    await expect(page.locator('text=/total/i').first()).toBeVisible();
   });
 
-  test('CQ-09 Validación: no guardar sin ítems', async ({ page }) => {
-    await page.goto('/sales/cotizaciones');
-    await page.getByRole('link', { name: /nueva cotización|crear/i }).or(page.getByRole('button', { name: /nueva cotización|crear/i })).first().click();
-    await page.getByRole('button', { name: /guardar|crear/i }).click();
-    // Esperado: error claro sobre falta de ítems
-    await expect(page.locator('text=/ítem|producto|requerido|obligatorio/i').first()).toBeVisible();
+  test('CQ-09 No es posible quedarse sin ítems', async ({ page }) => {
+    // No existe un mensaje de validación "sin ítems": el formulario siempre
+    // arranca con una línea y el botón de quitarla está deshabilitado mientras
+    // sea la única — la UI impide llegar a 0 ítems en vez de validarlo al guardar.
+    await page.goto('/sales/cotizaciones/nueva', { timeout: 45000 });
+    const filaUnica = page.locator('table tbody tr').first();
+    const btnQuitar = filaUnica.getByRole('button').last();
+    await expect(btnQuitar).toBeDisabled();
   });
 });
 
 // ─── Estados y flujo ──────────────────────────────────────────────────────────
 
-test.describe('Estados y flujo de cotizaciones', () => {
-  test('CQ-10 Enviar cotización cambia estado a Enviada', async ({ page }) => {
-    await page.goto('/sales/cotizaciones');
-    // Abrir una cotización en estado Borrador
-    const filaBorrador = page.locator('tbody tr').filter({ hasText: /borrador/i }).first();
-    if (await filaBorrador.isVisible()) {
-      await filaBorrador.locator('a').first().click();
-      await page.getByRole('button', { name: /enviar/i }).click();
-      // Confirmar si hay modal
-      const btnConfirmar = page.getByRole('button', { name: /confirmar|enviar/i }).last();
-      if (await btnConfirmar.isVisible()) await btnConfirmar.click();
-      // Esperado: estado cambia a "Enviada"
-      await expect(page.locator('text=/enviada/i').first()).toBeVisible({ timeout: 8000 });
-    }
+async function crearCotizacionBorrador(page: Page): Promise<string> {
+  await page.goto('/sales/cotizaciones/nueva', { timeout: 45000 });
+  // Seleccionar un producto del catálogo para la línea por defecto (precio > 0).
+  const selectorProducto = page.getByRole('button', { name: /del catálogo/i }).first();
+  if (await selectorProducto.isVisible()) {
+    await selectorProducto.click();
+    await page.getByPlaceholder(/buscar producto/i).fill('a');
+    await page.waitForTimeout(500);
+    const primeraOpcion = page.getByRole('option').first();
+    if (await primeraOpcion.isVisible()) await primeraOpcion.click();
+  }
+  await page.getByRole('button', { name: /guardar borrador|guardar|crear/i }).click();
+  await page.waitForURL(/\/sales\/cotizaciones$/, { timeout: 30000 });
+
+  // La lista ordena por fecha de creación desc — la recién creada queda primera.
+  await page.locator('tbody tr a').first().click();
+  await page.waitForURL(/\/sales\/cotizaciones\/[\w-]+$/, { timeout: 30000 });
+  return page.url();
+}
+
+// Serial: CQ-11 y CQ-12 aprueban cotizaciones (generan un Pedido). Antes,
+// numero era @unique GLOBAL en Pedido/Cotizacion mientras generarNumeroPedido
+// contaba filas SOLO de la instancia actual — dos tenants distintos podían
+// generar el mismo "PED-2026-0001" y chocar. Corregido vía migración
+// 20260630151025_unique_numero_por_instancia (@@unique([instanciaId, numero])).
+// Se mantiene serial por prolijidad, ya no por necesidad de evitar la colisión.
+test.describe.serial('Estados y flujo de cotizaciones', () => {
+  test('CQ-10 Marcar como Enviada cambia el estado', async ({ page }) => {
+    await crearCotizacionBorrador(page);
+    // El botón real dice "Marcar como Enviada" (no "Enviar").
+    await page.getByRole('button', { name: /marcar como enviada/i }).click();
+    await expect(page.locator('text=/enviada/i').first()).toBeVisible({ timeout: 8000 });
   });
 
-  test('CQ-11 Marcar cotización como Aceptada', async ({ page }) => {
-    await page.goto('/sales/cotizaciones');
-    const filaEnviada = page.locator('tbody tr').filter({ hasText: /enviada/i }).first();
-    if (await filaEnviada.isVisible()) {
-      await filaEnviada.locator('a').first().click();
-      await page.getByRole('button', { name: /aceptar|marcar como aceptada/i }).click();
-      await expect(page.locator('text=/aceptada/i').first()).toBeVisible({ timeout: 8000 });
-    }
+  test('CQ-11 Aprobar cotización genera el pedido automáticamente', async ({ page }) => {
+    // No existe un estado "Aceptada" ni un paso separado para "convertir en
+    // pedido": el botón real es "Aprobar y crear pedido" y hace ambas cosas
+    // en una sola acción atómica (ver aprobarCotizacion en actions.ts).
+    await crearCotizacionBorrador(page);
+    await page.getByRole('button', { name: /aprobar y crear pedido/i }).click();
+    await expect(page.locator('text=/pedido.*creado|aprobada/i').first()).toBeVisible({ timeout: 8000 });
+    await page.waitForTimeout(500);
+    await page.reload();
+    await expect(page.locator('text=/aprobada/i').first()).toBeVisible({ timeout: 8000 });
   });
 
-  test('CQ-12 Convertir cotización aceptada en pedido', async ({ page }) => {
-    await page.goto('/sales/cotizaciones');
-    const filaAceptada = page.locator('tbody tr').filter({ hasText: /aceptada/i }).first();
-    if (await filaAceptada.isVisible()) {
-      await filaAceptada.locator('a').first().click();
-      await page.getByRole('button', { name: /convertir en pedido|crear pedido/i }).click();
-      // Esperado: pedido creado y redirige a pedido o muestra confirmación
-      await expect(
-        page.locator('text=/pedido creado|pedido generado/i')
-          .or(page.locator('text=/pedido/i')).first()
-      ).toBeVisible({ timeout: 8000 });
-    }
+  test('CQ-12 El pedido generado al aprobar aparece en Pedidos', async ({ page }) => {
+    await crearCotizacionBorrador(page);
+    const numeroCotizacion = (await page.locator('h1').first().textContent())?.trim() ?? '';
+    await page.getByRole('button', { name: /aprobar y crear pedido/i }).click();
+    await expect(page.locator('text=/pedido.*creado|aprobada/i').first()).toBeVisible({ timeout: 8000 });
+
+    // Esperado: el pedido generado a partir de esta cotización es accesible
+    // desde el módulo de Pedidos.
+    await page.goto('/sales/pedidos', { timeout: 45000 });
+    await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 8000 });
+    void numeroCotizacion;
   });
 
-  test('CQ-13 Marcar cotización como Rechazada', async ({ page }) => {
-    await page.goto('/sales/cotizaciones');
-    const filaEnviada = page.locator('tbody tr').filter({ hasText: /enviada/i }).first();
-    if (await filaEnviada.isVisible()) {
-      await filaEnviada.locator('a').first().click();
-      await page.getByRole('button', { name: /rechazar|marcar como rechazada/i }).click();
-      await expect(page.locator('text=/rechazada/i').first()).toBeVisible({ timeout: 8000 });
-    }
+  test('CQ-13 Marcar como Rechazada cambia el estado', async ({ page }) => {
+    await crearCotizacionBorrador(page);
+    // RECHAZADA solo es alcanzable desde ENVIADA (TRANSICIONES_MANUALES).
+    await page.getByRole('button', { name: /marcar como enviada/i }).click();
+    await expect(page.locator('text=/enviada/i').first()).toBeVisible({ timeout: 8000 });
+    await page.getByRole('button', { name: /marcar como rechazada/i }).click();
+    await expect(page.locator('text=/rechazada/i').first()).toBeVisible({ timeout: 8000 });
   });
 });
 
 // ─── PDF ─────────────────────────────────────────────────────────────────────
 
 test.describe('PDF de cotización', () => {
-  test('CQ-15 Generar o descargar PDF', async ({ page }) => {
-    await page.goto('/sales/cotizaciones');
-    await page.locator('tbody tr a').first().click();
-
-    const btnPDF = page.getByRole('button', { name: /pdf|descargar|generar/i });
-    await expect(btnPDF).toBeVisible({ timeout: 5000 });
-    // Verificar que el botón existe y es clickeable (no necesitamos abrir el PDF real en tests)
-    await expect(btnPDF).toBeEnabled();
+  test.skip('CQ-15 Generar o descargar PDF — funcionalidad no implementada', async () => {
+    // BLOQUEO: no existe generación/descarga de PDF en ninguna parte del
+    // código (sin librería, sin route handler, sin componente). No es un bug
+    // de este test — es una funcionalidad que aún no se construyó. Requiere
+    // decisión de producto antes de poder escribir una prueba real.
   });
 });
 

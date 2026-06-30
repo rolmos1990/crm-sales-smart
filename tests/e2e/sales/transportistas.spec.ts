@@ -1,21 +1,38 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import {
+  obtenerInstanciaPruebas,
+  obtenerUsuarioOwner,
+  crearPedidoConEntregaEditable,
+} from '../../helpers/db';
 
-const URL_TRANSPORTISTAS = '/configuracion/transportistas';
+// La ruta real es /sales/transportistas (NO /configuracion/transportistas,
+// que no existe). No hay tabla: es una lista de tarjetas. Crear/editar usa
+// un Dialog inline (sin navegación), y el modelo Transportista solo tiene
+// nombre + tipo (sin RUC/teléfono/email). "Desactivar" es un botón Power
+// con título accesible ("Desactivar"/"Activar") que actúa de inmediato, sin
+// diálogo de confirmación ni paso de "guardar" separado.
+const URL_TRANSPORTISTAS = '/sales/transportistas';
+
+function filaTransportista(page: Page, nombre: string) {
+  return page.locator(`text="${nombre}"`).locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]');
+}
+
+async function crearTransportista(page: Page, nombre: string) {
+  await page.getByRole('button', { name: /nuevo transportista/i }).click();
+  await page.getByLabel(/nombre/i).fill(nombre);
+  await page.getByRole('button', { name: /crear transportista/i }).click();
+  await expect(page.locator(`text="${nombre}"`)).toBeVisible({ timeout: 8000 });
+}
 
 // ─── Listado ──────────────────────────────────────────────────────────────────
 
 test.describe('Listado de transportistas', () => {
   test('TR-01 Ver lista de transportistas', async ({ page }) => {
     await page.goto(URL_TRANSPORTISTAS);
-    if (page.url().includes('/configuracion')) {
-      // Puede estar dentro de configuración general
-      const link = page.getByRole('link', { name: /transportistas/i });
-      if (await link.isVisible()) await link.click();
-    }
-    // Esperado: tabla con nombre, RUC, teléfono, estado activo/inactivo
-    await expect(
-      page.getByRole('table').or(page.locator('[data-testid="transportistas-lista"]'))
-    ).toBeVisible({ timeout: 8000 });
+    // Esperado: catálogo de transportistas (tarjetas, no tabla) con botón
+    // para crear uno nuevo.
+    await expect(page.getByRole('heading', { name: 'Transportistas' })).toBeVisible({ timeout: 8000 });
+    await expect(page.getByRole('button', { name: /nuevo transportista/i })).toBeVisible();
   });
 });
 
@@ -24,69 +41,67 @@ test.describe('Listado de transportistas', () => {
 test.describe('Creación y edición de transportistas', () => {
   test('TR-02 Crear transportista completo', async ({ page }) => {
     await page.goto(URL_TRANSPORTISTAS);
-    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).first().click();
-
     const nombreTransportista = `Transportista-${Date.now()}`;
-    await page.getByLabel(/nombre/i).first().fill(nombreTransportista);
-    await page.getByLabel(/ruc|identificación/i).fill('20123456789');
-    await page.getByLabel(/teléfono/i).fill('+51 999 000 111');
-    await page.getByLabel(/email/i).fill('transportista@test.com');
-    await page.getByRole('button', { name: /guardar|crear/i }).click();
+    await page.getByRole('button', { name: /nuevo transportista/i }).click();
+    await page.getByLabel(/nombre/i).fill(nombreTransportista);
+    // El modelo solo tiene nombre + tipo (sin RUC/teléfono/email); el tipo
+    // ya viene con un valor por defecto ("Courier externo").
+    await page.getByRole('button', { name: /crear transportista/i }).click();
 
-    // Esperado: transportista creado y disponible en entregas de pedidos
-    await expect(page.locator(`text=${nombreTransportista}`).first()).toBeVisible({ timeout: 8000 });
+    // Esperado: transportista creado y disponible para asignar en entregas
+    await expect(page.locator(`text="${nombreTransportista}"`)).toBeVisible({ timeout: 8000 });
   });
 
   test('TR-03 Editar transportista', async ({ page }) => {
     await page.goto(URL_TRANSPORTISTAS);
-    await page.locator('tbody tr a, [data-testid="transportista-fila"] a').first().click();
-    await page.getByRole('button', { name: /editar/i }).click();
+    const nombreOriginal = `TransOriginal-${Date.now()}`;
+    await crearTransportista(page, nombreOriginal);
+
+    // Editar es un botón Pencil icon-only directamente en la fila (sin
+    // navegar a ninguna página de detalle).
+    await filaTransportista(page, nombreOriginal).getByRole('button').first().click();
+    await expect(page.getByText('Editar transportista', { exact: true })).toBeVisible();
 
     const nuevoNombre = `TransEditado-${Date.now()}`;
-    await page.getByLabel(/nombre/i).first().clear();
-    await page.getByLabel(/nombre/i).first().fill(nuevoNombre);
-    await page.getByRole('button', { name: /guardar/i }).click();
+    await page.getByLabel(/nombre/i).fill(nuevoNombre);
+    await page.getByRole('button', { name: /guardar cambios/i }).click();
 
     // Esperado: cambios reflejados
-    await expect(page.locator(`text=${nuevoNombre}`).first()).toBeVisible({ timeout: 8000 });
+    await expect(page.locator(`text="${nuevoNombre}"`)).toBeVisible({ timeout: 8000 });
   });
 
   test('TR-04 Validación: nombre requerido', async ({ page }) => {
     await page.goto(URL_TRANSPORTISTAS);
-    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).first().click();
-    await page.getByRole('button', { name: /guardar|crear/i }).click();
+    await page.getByRole('button', { name: /nuevo transportista/i }).click();
+    await page.getByRole('button', { name: /crear transportista/i }).click();
     // Esperado: error en campo nombre
     await expect(page.locator('text=/requerido|obligatorio/i').first()).toBeVisible();
   });
 
   test('TR-05 Desactivar transportista no lo muestra en selector de entregas', async ({ page }) => {
     await page.goto(URL_TRANSPORTISTAS);
-
-    // Crear un transportista para desactivar
-    await page.getByRole('link', { name: /nuevo transportista|crear/i }).or(page.getByRole('button', { name: /nuevo transportista|crear/i })).first().click();
     const nombreDesactivar = `TransDesactivar-${Date.now()}`;
-    await page.getByLabel(/nombre/i).first().fill(nombreDesactivar);
-    await page.getByRole('button', { name: /guardar|crear/i }).click();
-    await expect(page.locator(`text=${nombreDesactivar}`).first()).toBeVisible({ timeout: 8000 });
+    await crearTransportista(page, nombreDesactivar);
 
-    // Desactivar
-    await page.locator(`text=${nombreDesactivar}`).first().click();
-    const toggleActivo = page.getByLabel(/activo|estado/i).or(page.locator('[data-testid="toggle-activo"]'));
-    if (await toggleActivo.isVisible()) {
-      await toggleActivo.click(); // Toggle off
-    } else {
-      await page.getByRole('button', { name: /desactivar/i }).click();
-    }
-    await page.getByRole('button', { name: /guardar/i }).click();
+    // Desactivar: botón "Power" (título accesible "Desactivar"), acción
+    // inmediata sin diálogo de confirmación ni paso de "guardar" aparte.
+    const fila = filaTransportista(page, nombreDesactivar);
+    await fila.getByRole('button', { name: /desactivar/i }).click();
+    await expect(page.locator('text=/transportista desactivado/i').first()).toBeVisible({ timeout: 5000 });
+    await expect(fila.getByText('Inactivo')).toBeVisible();
 
-    // Verificar que no aparece en el selector de entregas
-    await page.goto('/sales/pedidos');
-    await page.locator('tbody tr a').first().click();
-    const selectorTransportista = page.getByLabel(/transportista/i).or(page.getByRole('combobox', { name: /transportista/i }));
-    if (await selectorTransportista.isVisible()) {
-      await selectorTransportista.click();
-      await expect(page.locator(`text=${nombreDesactivar}`)).not.toBeVisible({ timeout: 3000 });
-    }
+    // Verificar que no aparece en el selector de entregas de un pedido. La
+    // sección de entrega está bloqueada por defecto — se crea un pedido en
+    // una etapa que explícitamente permite editarla.
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const { pedidoId } = await crearPedidoConEntregaEditable(instancia.id, owner.id);
+
+    await page.goto(`/sales/pedidos/${pedidoId}`);
+    const selectorTransportista = page.getByLabel(/transportista/i);
+    await expect(selectorTransportista).toBeVisible({ timeout: 8000 });
+    await selectorTransportista.click();
+    await expect(page.getByRole('option', { name: nombreDesactivar })).not.toBeVisible();
   });
 });
 
@@ -94,43 +109,46 @@ test.describe('Creación y edición de transportistas', () => {
 
 test.describe('Uso de transportistas en pedidos', () => {
   test('TR-06 Asignar transportista en entrega de un pedido', async ({ page }) => {
-    await page.goto('/sales/pedidos');
-    await page.locator('tbody tr a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
 
-    const seccionEntrega = page.locator('text=/entrega y seguimiento/i').first();
-    if (await seccionEntrega.isVisible()) {
-      await seccionEntrega.click().catch(() => {});
-    }
+    // Transportista propio, para verificar exactamente que ese se asignó.
+    await page.goto(URL_TRANSPORTISTAS);
+    const nombreTransportista = `TransAsignar-${Date.now()}`;
+    await crearTransportista(page, nombreTransportista);
 
-    const selectorTransportista = page.getByLabel(/transportista/i).or(page.getByRole('combobox', { name: /transportista/i }));
-    if (await selectorTransportista.isVisible()) {
-      await selectorTransportista.click();
-      await page.getByRole('option').first().click();
-      await page.getByRole('button', { name: /guardar/i }).click();
+    const { pedidoId } = await crearPedidoConEntregaEditable(instancia.id, owner.id);
+    await page.goto(`/sales/pedidos/${pedidoId}`);
 
-      // Esperado: transportista asignado, visible en el timeline
-      await expect(page.locator('[data-testid="pedido-timeline"]').or(
-        page.locator('text=/transportista|asignado/i').first()
-      )).toBeVisible({ timeout: 5000 });
-    }
+    const selectorTransportista = page.getByLabel(/transportista/i);
+    await expect(selectorTransportista).toBeVisible({ timeout: 8000 });
+    await selectorTransportista.click();
+    await page.getByRole('option', { name: nombreTransportista }).click();
+    await page.getByRole('button', { name: /guardar entrega/i }).click();
+
+    // Esperado: entrega actualizada y transportista asignado visible
+    await expect(page.locator('text=/entrega actualizada/i').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.locator(`text="${nombreTransportista}"`).first()).toBeVisible();
   });
 
   test('TR-07 Solo transportistas activos aparecen en el selector', async ({ page }) => {
-    await page.goto('/sales/pedidos');
-    await page.locator('tbody tr a').first().click();
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
 
-    const selectorTransportista = page.getByLabel(/transportista/i).or(page.getByRole('combobox', { name: /transportista/i }));
-    if (await selectorTransportista.isVisible()) {
-      await selectorTransportista.click();
-      const opciones = page.getByRole('option');
-      const cantOpciones = await opciones.count();
+    await page.goto(URL_TRANSPORTISTAS);
+    const nombreInactivo = `TransInactivo-${Date.now()}`;
+    await crearTransportista(page, nombreInactivo);
+    await filaTransportista(page, nombreInactivo).getByRole('button', { name: /desactivar/i }).click();
+    await expect(page.locator('text=/transportista desactivado/i').first()).toBeVisible({ timeout: 5000 });
 
-      // Todas las opciones visibles deben corresponder a transportistas activos
-      // (Verificamos que ninguna incluye texto como "inactivo")
-      for (let i = 0; i < cantOpciones; i++) {
-        const texto = await opciones.nth(i).textContent();
-        expect(texto?.toLowerCase()).not.toContain('inactivo');
-      }
-    }
+    const { pedidoId } = await crearPedidoConEntregaEditable(instancia.id, owner.id);
+    await page.goto(`/sales/pedidos/${pedidoId}`);
+
+    const selectorTransportista = page.getByLabel(/transportista/i);
+    await expect(selectorTransportista).toBeVisible({ timeout: 8000 });
+    await selectorTransportista.click();
+
+    // El transportista recién desactivado no debe listarse como opción.
+    await expect(page.getByRole('option', { name: nombreInactivo })).not.toBeVisible();
   });
 });

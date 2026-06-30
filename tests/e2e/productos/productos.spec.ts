@@ -170,9 +170,11 @@ test.describe('Edición de productos', () => {
     const nombreDesactivar = `ProductoDesactivar-${Date.now()}`;
     await page.goto('/productos', { timeout: 45000 });
     await page.getByRole('link', { name: /nuevo producto|agregar|crear/i }).or(page.getByRole('button', { name: /nuevo producto|agregar|crear/i })).first().click();
+    await page.waitForURL(/\/productos\/nuevo$/, { timeout: 30000 });
     await page.getByLabel(/nombre/i).first().fill(nombreDesactivar);
     await page.getByLabel(/precio/i).first().fill('1.00');
     await page.getByRole('button', { name: /guardar|crear/i }).click();
+    await page.waitForURL(/\/productos$/, { timeout: 30000 });
     await page.getByPlaceholder(/buscar por nombre, sku/i).fill(nombreDesactivar);
     await expect(page.locator(`text=${nombreDesactivar}`).first()).toBeVisible({ timeout: 8000 });
 

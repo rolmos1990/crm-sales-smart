@@ -56,6 +56,7 @@ function TarjetaOportunidad({
   return (
     <div
       ref={setNodeRef}
+      data-testid="oportunidad-card"
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn("mb-2 touch-none", isDragging && "opacity-20")}
       {...(puedeMod ? attributes : {})}
@@ -186,7 +187,7 @@ function ColumnaStage({
   const color = stage.color ?? "#818cf8";
 
   return (
-    <div className="flex-shrink-0 w-[272px]">
+    <div className="flex-shrink-0 w-[272px]" data-testid="pipeline-column">
       <div
         className={cn(
           "flex flex-col rounded-xl border overflow-hidden transition-all duration-150",
@@ -232,7 +233,7 @@ function ColumnaStage({
           </div>
 
           {items.length > 0 && (
-            <p className="mt-1.5 text-[11px] font-semibold tabular-nums" style={{ color, opacity: 0.85 }}>
+            <p className="mt-1.5 text-[11px] font-semibold tabular-nums" style={{ color, opacity: 0.85 }} data-testid="column-total">
               {formatearMoneda(totalValor, "PEN")}
             </p>
           )}
