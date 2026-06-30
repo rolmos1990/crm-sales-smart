@@ -11,8 +11,10 @@ test.describe('Registro de cuenta nueva', () => {
     await page.locator('input[name="password"]').fill('Test1234!');
     await page.locator('input[name="confirmarPassword"]').fill('Test1234!');
     await page.getByRole('button', { name: /crear cuenta/i }).click();
-    // Esperado: redirige al dashboard tras el registro exitoso
-    await expect(page).toHaveURL(/\/(dashboard|crm|sales|configurar-cuenta)/, { timeout: 15000 });
+    // Tras el registro, el servicio hace: Supabase signUp → instancia en BD →
+    // usuario en BD → signIn automático → router.push("/crm"). La cadena puede
+    // tardar hasta 30-45s bajo contención en dev mode.
+    await expect(page).toHaveURL(/\/(dashboard|crm|sales|configurar-cuenta)/, { timeout: 45000 });
   });
 
   test('R-02 Email ya registrado', async ({ page }) => {

@@ -38,7 +38,10 @@ export default async function globalSetup() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     await pool.query(
-      `UPDATE "Usuario" SET "intentosFallidos" = 0, "bloqueadoHasta" = NULL, "nivelBloqueo" = 0 WHERE email = ANY($1::text[])`,
+      // Resetea lockout Y suspensión; tests como CF-07 pueden suspender cuentas
+      // reales por error (last row = test user) — este reset garantiza que al
+      // inicio de cada corrida todos los usuarios de prueba estén activos.
+      `UPDATE "Usuario" SET "intentosFallidos" = 0, "bloqueadoHasta" = NULL, "nivelBloqueo" = 0, "activo" = true, "estado" = 'ACTIVO' WHERE email = ANY($1::text[])`,
       [emailsPrueba],
     );
     console.log('[global-setup] Bloqueos de usuarios de prueba limpiados.');

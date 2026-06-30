@@ -1,4 +1,12 @@
 import { test, expect } from '@playwright/test';
+import {
+  desconectarPrismaTest,
+  obtenerInstanciaPruebas,
+  obtenerUsuarioOwner,
+  crearOportunidad,
+} from '../../helpers/db';
+
+test.afterAll(() => desconectarPrismaTest());
 
 /**
  * Tests de eventos del sistema
@@ -21,6 +29,9 @@ test.describe('Publicación de eventos — verificación por efectos en UI', () 
     await page.getByLabel(/apellido/i).fill('Evento');
     await page.getByRole('button', { name: /guardar|crear/i }).click();
 
+    // El formulario redirige a la lista tras crear (igual que C-05 en
+    // contactos.spec.ts). Esperar la navegación antes de buscar en la lista.
+    await page.waitForURL(/\/crm\/contactos$/, { timeout: 30000 });
     // Esperado: contacto creado — el evento CONTACTO_CREADO fue publicado correctamente
     // si el flujo funciona de extremo a extremo
     await expect(page.locator(`text=${nombreContacto}`).first()).toBeVisible({ timeout: 8000 });
@@ -32,9 +43,42 @@ test.describe('Publicación de eventos — verificación por efectos en UI', () 
   });
 
   test('EV-02 PEDIDO_CREADO — historial del pedido tiene entrada PEDIDO_CREADO', async ({ page }) => {
-    // Crear un pedido y verificar el historial
+    // El primer pedido de la lista puede ser un fixture insertado directamente
+    // en la BD por otras suites (vía db-worker.ts), que nunca pasó por la
+    // Server Action ni publicó el evento — por eso no tiene historial. Hay
+    // que crear un pedido real a través del flujo de UI para garantizar que
+    // el evento PEDIDO_CREADO fue publicado y consumido.
     await page.goto('/sales/pedidos');
+    await page.getByRole('link', { name: /nuevo pedido|crear/i }).or(page.getByRole('button', { name: /nuevo pedido|crear/i })).first().click();
+
+    const inputCliente = page.getByLabel(/cliente|contacto/i).first();
+    if (await inputCliente.isVisible()) {
+      await inputCliente.fill('Cliente');
+      await page.waitForTimeout(400);
+      const primeraOpcion = page.getByRole('option').first();
+      if (await primeraOpcion.isVisible()) await primeraOpcion.click();
+    }
+
+    const btnAgregarItem = page.getByRole('button', { name: /agregar ítem|agregar producto/i });
+    if (await btnAgregarItem.isVisible()) {
+      await btnAgregarItem.click();
+      await page.waitForTimeout(300);
+      const buscadorProducto = page.getByPlaceholder(/buscar producto/i).last();
+      if (await buscadorProducto.isVisible()) {
+        await buscadorProducto.fill('a');
+        await page.waitForTimeout(400);
+        const primera = page.getByRole('option').first();
+        if (await primera.isVisible()) await primera.click();
+      }
+    }
+
+    await page.getByRole('button', { name: /guardar|crear pedido/i }).click();
+    // crearPedido siempre redirige a la lista (no al detalle).
+    await page.waitForURL(/\/sales\/pedidos$/, { timeout: 30000 });
+
+    // El pedido recién creado queda primero (orderBy creadoEn desc).
     await page.locator('tbody tr a').first().click();
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     // Esperado: el historial del pedido tiene la entrada de creación
     await expect(
@@ -45,6 +89,7 @@ test.describe('Publicación de eventos — verificación por efectos en UI', () 
   test('EV-03 ENTREGA_REGISTRADA — aparece en el timeline al guardar entrega por primera vez', async ({ page }) => {
     await page.goto('/sales/pedidos');
     await page.locator('tbody tr a').first().click();
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     // Verificar que el timeline registra entradas de entrega
     const entradaEntrega = page.locator('text=/entrega.*registrada|ENTREGA_REGISTRADA/i').first();
@@ -61,6 +106,7 @@ test.describe('Publicación de eventos — verificación por efectos en UI', () 
   test('EV-04 ENTREGA_ACTUALIZADA — timeline muestra valorAnterior y valorNuevo', async ({ page }) => {
     await page.goto('/sales/pedidos');
     await page.locator('tbody tr a').first().click();
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     const entradaActualizacion = page.locator('text=/entrega.*actualizada|ENTREGA_ACTUALIZADA/i').first();
     if (await entradaActualizacion.isVisible()) {
@@ -75,43 +121,54 @@ test.describe('Publicación de eventos — verificación por efectos en UI', () 
   });
 
   test('EV-05 COTIZACION_ENVIADA — estado de cotización cambia a "Enviada"', async ({ page }) => {
-    await page.goto('/sales/cotizaciones');
-    const filaBorrador = page.locator('tbody tr').filter({ hasText: /borrador/i }).first();
-    if (await filaBorrador.isVisible()) {
-      await filaBorrador.locator('a').first().click();
-      await page.getByRole('button', { name: /enviar/i }).click();
-      const btnConfirmar = page.getByRole('button', { name: /confirmar|enviar/i }).last();
-      if (await btnConfirmar.isVisible()) await btnConfirmar.click();
-
-      // Esperado: estado "Enviada" — confirma que COTIZACION_ENVIADA fue procesado
-      await expect(page.locator('text=/enviada/i').first()).toBeVisible({ timeout: 8000 });
+    // Crear una cotización borrador real vía UI (igual que CQ-10 en
+    // cotizaciones.spec.ts) en vez de depender de que ya exista una fila
+    // "borrador" en la lista. El botón real dice "Marcar como Enviada"
+    // (no "Enviar"), y hay que esperar la navegación al detalle.
+    await page.goto('/sales/cotizaciones/nueva', { timeout: 45000 });
+    const selectorProducto = page.getByRole('button', { name: /del catálogo/i }).first();
+    if (await selectorProducto.isVisible()) {
+      await selectorProducto.click();
+      await page.getByPlaceholder(/buscar producto/i).fill('a');
+      await page.waitForTimeout(500);
+      const primeraOpcion = page.getByRole('option').first();
+      if (await primeraOpcion.isVisible()) await primeraOpcion.click();
     }
+    await page.getByRole('button', { name: /guardar borrador|guardar|crear/i }).click();
+    await page.waitForURL(/\/sales\/cotizaciones$/, { timeout: 30000 });
+
+    await page.locator('tbody tr a').first().click();
+    await page.waitForURL(/\/sales\/cotizaciones\/[\w-]+$/, { timeout: 30000 });
+
+    await page.getByRole('button', { name: /marcar como enviada/i }).click();
+    // Esperado: estado "Enviada" — confirma que COTIZACION_ENVIADA fue procesado
+    await expect(page.locator('text=/enviada/i').first()).toBeVisible({ timeout: 8000 });
   });
 
   test('EV-06 OPORTUNIDAD_GANADA — etapa de oportunidad cambia a Ganada', async ({ page }) => {
-    await page.goto('/crm/pipeline');
-    const cardOportunidad = page.locator('[data-testid="oportunidad-card"], .kanban-card').first();
-    if (await cardOportunidad.isVisible()) {
-      // Navegar al detalle y marcar como ganada
-      await cardOportunidad.locator('a').first().click().catch(async () => {
-        await cardOportunidad.click();
-      });
+    // El kanban de /crm/pipeline depende de que existan tarjetas visibles y
+    // de drag&drop — poco confiable. Igual que O-15 en oportunidades.spec.ts,
+    // se crea una oportunidad vía helper de BD y se navega directo al detalle.
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const oportunidad = await crearOportunidad({ instanciaId: instancia.id, usuarioId: owner.id });
 
-      const btnGanada = page.getByRole('button', { name: /ganada|won/i });
-      if (await btnGanada.isVisible()) {
-        await btnGanada.click();
-        await expect(page.locator('text=/ganada|won/i').first()).toBeVisible({ timeout: 8000 });
-        // Esperado: evento OPORTUNIDAD_GANADA publicado
-        test.info().annotations.push({
-          type: 'note',
-          description: 'Verificar en logs: [RabbitMQ] Publicando OPORTUNIDAD_GANADA',
-        });
-      }
+    await page.goto(`/crm/oportunidades/${oportunidad.id}`);
+
+    const btnGanada = page.getByRole('button', { name: /ganada|won/i });
+    if (await btnGanada.isVisible()) {
+      await btnGanada.click();
+      await expect(page.locator('text=/ganada|won/i').first()).toBeVisible({ timeout: 8000 });
+      // Esperado: evento OPORTUNIDAD_GANADA publicado
+      test.info().annotations.push({
+        type: 'note',
+        description: 'Verificar en logs: [RabbitMQ] Publicando OPORTUNIDAD_GANADA',
+      });
     }
   });
 
   test('EV-07 MENSAJE_RECIBIDO — mensaje aparece en inbox en tiempo real', async ({ page }) => {
-    await page.goto('/inbox');
+    await page.goto('/crm/inbox');
     await page.waitForTimeout(2000);
 
     // Verificar que el inbox carga sin errores de SSE
@@ -129,8 +186,38 @@ test.describe('Publicación de eventos — verificación por efectos en UI', () 
 
 test.describe('Consumidores y suscriptores', () => {
   test('EV-08 Historial de pedido tiene entrada PEDIDO_CREADO con número y total', async ({ page }) => {
+    // Mismo problema que EV-02: el primer pedido de la lista puede ser un
+    // fixture insertado directamente por otras suites sin pasar por la
+    // Server Action — se crea un pedido real para garantizar el evento.
     await page.goto('/sales/pedidos');
+    await page.getByRole('link', { name: /nuevo pedido|crear/i }).or(page.getByRole('button', { name: /nuevo pedido|crear/i })).first().click();
+
+    const inputCliente = page.getByLabel(/cliente|contacto/i).first();
+    if (await inputCliente.isVisible()) {
+      await inputCliente.fill('Cliente');
+      await page.waitForTimeout(400);
+      const primeraOpcion = page.getByRole('option').first();
+      if (await primeraOpcion.isVisible()) await primeraOpcion.click();
+    }
+
+    const btnAgregarItem = page.getByRole('button', { name: /agregar ítem|agregar producto/i });
+    if (await btnAgregarItem.isVisible()) {
+      await btnAgregarItem.click();
+      await page.waitForTimeout(300);
+      const buscadorProducto = page.getByPlaceholder(/buscar producto/i).last();
+      if (await buscadorProducto.isVisible()) {
+        await buscadorProducto.fill('a');
+        await page.waitForTimeout(400);
+        const primera = page.getByRole('option').first();
+        if (await primera.isVisible()) await primera.click();
+      }
+    }
+
+    await page.getByRole('button', { name: /guardar|crear pedido/i }).click();
+    await page.waitForURL(/\/sales\/pedidos$/, { timeout: 30000 });
+
     await page.locator('tbody tr a').first().click();
+    await page.waitForURL(/\/sales\/pedidos\/[\w-]+$/, { timeout: 30000 });
 
     // Esperado: registro con accion = "PEDIDO_CREADO", valorNuevo con número y total
     await expect(

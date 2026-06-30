@@ -38,11 +38,12 @@ test.describe('Listado de conversaciones', () => {
 
   test('IN-04 Filtrar por estado — Abierta / Cerrada / Sin asignar', async ({ page }) => {
     await page.goto('/crm/inbox');
-    const filtroEstado = page.getByRole('combobox', { name: /estado/i })
-      .or(page.getByRole('button', { name: /abierta|estado/i }));
-    if (await filtroEstado.isVisible()) {
-      await filtroEstado.click();
-      await page.getByRole('option', { name: /abierta/i }).click();
+    // El filtro son tabs de texto (Todos / Abiertas / Esperando / Cerradas),
+    // NO un combobox con role="option". Hacer clic en el tab aplica el filtro
+    // directamente — no abre ningún dropdown secundario.
+    const tabAbiertas = page.getByRole('button', { name: /^abiertas$/i });
+    if (await tabAbiertas.isVisible()) {
+      await tabAbiertas.click();
       await page.waitForTimeout(600);
       await expect(page).toHaveURL(/\/inbox/);
     }

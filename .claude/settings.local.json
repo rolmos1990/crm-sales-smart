@@ -120,7 +120,13 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code} \\(%{time_total}s\\)\\\\n\" http://localhost:3000/productos --max-time 20)",
       "Bash(npx tsc *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code} \\(%{time_total}s\\)\\\\n\" http://localhost:3000/sales/pedidos --max-time 30)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code} \\(%{time_total}s\\)\\\\n\" http://localhost:3000/login --max-time 40)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code} \\(%{time_total}s\\)\\\\n\" http://localhost:3000/login --max-time 40)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime\")",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "Bash(grep -n \"Crear pedido\\\\|nuevo pedido\\\\|/sales/pedidos/nuevo\\\\|sales\\\\\\\\\\\\\\\\pedidos\\\\\\\\\\\\\\\\nuevo\" \"c:/Users/ramon.olmos/source/repos/Vento/crm-sales-smart/tests/e2e/sales/pedidos.spec.ts\")",
+      "PowerShell(Get-Process -Id 15460 -ErrorAction SilentlyContinue)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
