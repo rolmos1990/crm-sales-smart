@@ -49,6 +49,19 @@ export async function guardarAgenteIA(usuarioId: string, datos: unknown) {
   return { exito: true };
 }
 
+export async function obtenerAgentesIAComerciales() {
+  const sesion = await requireSesion();
+  return prisma.agenteIAConfig.findMany({
+    where: { instanciaId: sesion.instanciaId, tipo: "COMERCIAL" },
+    select: {
+      id: true,
+      objetivo: true,
+      usuario: { select: { nombre: true } },
+    },
+    orderBy: { usuario: { nombre: "asc" } },
+  });
+}
+
 export async function cargarConfigAgenteIA(usuarioId: string) {
   const sesion = await requireSesion();
 

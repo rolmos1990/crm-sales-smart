@@ -51,6 +51,7 @@ import {
   obtenerPipelinesParaDisparadorAction,
 } from "../disparadores/actions";
 import { toggleAutoRespuestaIAStage } from "../actions";
+import { obtenerAgentesIAComerciales } from "@/configuracion/ia/agente-actions";
 import {
   ETIQUETAS_TIPO,
   type Disparador,
@@ -247,16 +248,33 @@ function SeccionStage({
 }) {
   const [abierto, setAbierto] = useState(true);
   const [iaHabilitada, setIaHabilitada] = useState(stage.respuestaIAHabilitada ?? false);
+  const [agenteSeleccionado, setAgenteSeleccionado] = useState<string | null>(stage.agenteIAConfigId ?? null);
+  const [agentes, setAgentes] = useState<{ id: string; objetivo: string | null; usuario: { nombre: string } }[]>([]);
   const [toggleandoIA, startToggleIA] = useTransition();
   const color = stage.color ?? "#818cf8";
+
+  useEffect(() => {
+    obtenerAgentesIAComerciales().then(setAgentes).catch(() => {});
+  }, []);
 
   function handleToggleIA(valor: boolean) {
     setIaHabilitada(valor);
     startToggleIA(async () => {
-      const resultado = await toggleAutoRespuestaIAStage(stage.id, valor);
+      const resultado = await toggleAutoRespuestaIAStage(stage.id, valor, agenteSeleccionado);
       if (!resultado.exito) {
         setIaHabilitada(!valor);
         toast.error(resultado.error ?? "Error al actualizar auto-respuesta IA");
+      }
+    });
+  }
+
+  function handleCambiarAgente(agenteId: string) {
+    const id = agenteId === "__ninguno__" ? null : agenteId;
+    setAgenteSeleccionado(id);
+    startToggleIA(async () => {
+      const resultado = await toggleAutoRespuestaIAStage(stage.id, true, id);
+      if (!resultado.exito) {
+        toast.error(resultado.error ?? "Error al asignar agente IA");
       }
     });
   }
@@ -310,26 +328,73 @@ function SeccionStage({
 
           {/* Auto-respuesta IA */}
           <div className={cn(
-            "flex items-center justify-between px-3 py-2.5 rounded-xl border transition-colors",
+            "rounded-xl border transition-colors overflow-hidden",
             iaHabilitada
               ? "border-lime-500/30 bg-lime-500/5"
               : "border-stone-200 dark:border-white/8 bg-stone-50 dark:bg-white/2"
           )}>
-            <div className="flex items-center gap-2">
-              <Bot className={cn("h-3.5 w-3.5", iaHabilitada ? "text-lime-400" : "text-stone-400")} />
-              <div>
-                <p className="text-xs font-medium text-stone-700 dark:text-stone-300">Auto-respuesta IA</p>
-                <p className="text-xs text-stone-400 dark:text-stone-500">
-                  {iaHabilitada ? "Activa — responde automáticamente los mensajes entrantes" : "Inactiva"}
+            <div className="flex items-center justify-between px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <Bot className={cn("h-3.5 w-3.5", iaHabilitada ? "text-lime-400" : "text-stone-400")} />
+                <div>
+                  <p className="text-xs font-medium text-stone-700 dark:text-stone-300">Auto-respuesta IA</p>
+                  <p className="text-xs text-stone-400 dark:text-stone-500">
+                    {iaHabilitada ? "Activa — responde mensajes automáticamente" : "Inactiva"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={iaHabilitada}
+                onCheckedChange={handleToggleIA}
+                disabled={toggleandoIA}
+                className="data-[state=checked]:bg-lime-500"
+              />
+            </div>
+
+            {/* Selector de agente — visible solo cuando IA está activa */}
+            {iaHabilitada && agentes.length > 0 && (
+              <div className="px-3 pb-3 pt-0.5 border-t border-lime-500/15">
+                <p className="text-[11px] text-stone-500 dark:text-stone-500 mb-1.5">Agente asignado</p>
+                <Select
+                  value={agenteSeleccionado ?? "__ninguno__"}
+                  onValueChange={handleCambiarAgente}
+                  disabled={toggleandoIA}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-stone-300">
+                    <span className="flex-1 text-left truncate">
+                      {agenteSeleccionado
+                        ? (agentes.find((a) => a.id === agenteSeleccionado)?.usuario.nombre ?? "Agente seleccionado")
+                        : "Cualquier agente comercial IA"}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__ninguno__" className="text-xs text-stone-400">
+                      Cualquier agente comercial IA
+                    </SelectItem>
+                    {agentes.map((a) => (
+                      <SelectItem key={a.id} value={a.id} className="text-xs">
+                        {a.usuario.nombre}
+                        {a.objetivo && (
+                          <span className="text-stone-500"> — {a.objetivo}</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Cuando IA está activa pero no hay agentes configurados */}
+            {iaHabilitada && agentes.length === 0 && (
+              <div className="px-3 pb-2.5 pt-0.5 border-t border-lime-500/15">
+                <p className="text-[11px] text-stone-500">
+                  Sin agentes IA configurados.{" "}
+                  <a href="/configuracion?tab=usuarios" className="text-lime-500 hover:underline">
+                    Crear uno en Configuración → Usuarios
+                  </a>
                 </p>
               </div>
-            </div>
-            <Switch
-              checked={iaHabilitada}
-              onCheckedChange={handleToggleIA}
-              disabled={toggleandoIA}
-              className="data-[state=checked]:bg-lime-500"
-            />
+            )}
           </div>
         </div>
       )}
