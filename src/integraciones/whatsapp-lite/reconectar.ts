@@ -1,11 +1,19 @@
 import fs from "fs";
 
+interface OpcionesReconexion {
+  // Cuando es true, solo crea el socket para envío — no registra el listener
+  // de mensajes entrantes. Usar en el worker para evitar duplicar el procesamiento
+  // que ya hace Next.js.
+  soloEnvio?: boolean;
+}
+
 // Reconecta todas las sesiones de WhatsApp Lite que tienen auth guardado en disco.
 // Se llama una sola vez al arrancar el servidor (globalThis guard).
-export async function reconectarSesionesWA(): Promise<void> {
+export async function reconectarSesionesWA(opciones: OpcionesReconexion = {}): Promise<void> {
+  const guardKey = opciones.soloEnvio ? "_waReconectWorkerIniciado" : "_waReconectIniciado";
   const g = globalThis as Record<string, unknown>;
-  if (g._waReconectIniciado) return;
-  g._waReconectIniciado = true;
+  if (g[guardKey]) return;
+  g[guardKey] = true;
 
   try {
     const { prisma } = await import("@/shared/db/prisma");
@@ -21,8 +29,8 @@ export async function reconectarSesionesWA(): Promise<void> {
         console.log(`[WA Reconect] Sin auth en disco para "${cuenta.nombre}", omitiendo`);
         continue;
       }
-      console.log(`[WA Reconect] Reconectando "${cuenta.nombre}"…`);
-      reconectarSocket(cfg.sessionId, cuenta.id, cuenta.instanciaId, cfg.authPath).catch((e) =>
+      console.log(`[WA Reconect] Reconectando "${cuenta.nombre}"${opciones.soloEnvio ? " (solo envío)" : ""}…`);
+      reconectarSocket(cfg.sessionId, cuenta.id, cuenta.instanciaId, cfg.authPath, opciones).catch((e) =>
         console.error(`[WA Reconect] Error en "${cuenta.nombre}":`, e)
       );
     }
@@ -35,7 +43,8 @@ async function reconectarSocket(
   sessionId: string,
   cuentaCanalId: string,
   instanciaId: string,
-  authPath: string
+  authPath: string,
+  opciones: OpcionesReconexion = {}
 ): Promise<void> {
   const { sesionManagerWA } = await import("./sesion-manager");
 
@@ -102,34 +111,36 @@ async function reconectarSocket(
       }
     });
 
-    // Entrante: publicar como job para que el worker lo procese
-    socket.ev.on("messages.upsert", async ({ messages, type }) => {
-      if (type !== "notify") return;
-      for (const msg of messages) {
-        if (msg.key.remoteJid === "status@broadcast") continue;
-        if (msg.key.remoteJid?.endsWith("@g.us")) continue; // ignorar mensajes de grupos
+    // En modo solo-envío (worker) no escuchar mensajes entrantes — Next.js ya los procesa.
+    if (!opciones.soloEnvio) {
+      socket.ev.on("messages.upsert", async ({ messages, type }) => {
+        if (type !== "notify") return;
+        for (const msg of messages) {
+          if (msg.key.remoteJid === "status@broadcast") continue;
+          if (msg.key.remoteJid?.endsWith("@g.us")) continue; // ignorar mensajes de grupos
 
-        // Reacción entrante del contacto
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const esReaccion = !!(msg.message as any)?.reactionMessage;
-        if (esReaccion && !msg.key.fromMe) {
-          try {
-            const { procesarReaccionEntranteWA } = await import("./procesar-reaccion-wa");
-            await procesarReaccionEntranteWA(msg, instanciaId);
-          } catch (e) {
-            console.error("[WA Reconect] Error procesando reacción entrante:", e);
+          // Reacción entrante del contacto
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const esReaccion = !!(msg.message as any)?.reactionMessage;
+          if (esReaccion && !msg.key.fromMe) {
+            try {
+              const { procesarReaccionEntranteWA } = await import("./procesar-reaccion-wa");
+              await procesarReaccionEntranteWA(msg, instanciaId);
+            } catch (e) {
+              console.error("[WA Reconect] Error procesando reacción entrante:", e);
+            }
+            continue;
           }
-          continue;
-        }
 
-        if (msg.key.fromMe) continue;
-        try {
-          await encolarMensajeEntrante(msg, cuentaCanalId, instanciaId);
-        } catch (e) {
-          console.error("[WA Reconect] Error encolando mensaje entrante:", e);
+          if (msg.key.fromMe) continue;
+          try {
+            await encolarMensajeEntrante(msg, cuentaCanalId, instanciaId);
+          } catch (e) {
+            console.error("[WA Reconect] Error encolando mensaje entrante:", e);
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   await conectar();
