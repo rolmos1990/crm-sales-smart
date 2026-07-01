@@ -131,6 +131,14 @@ export async function procesarMensajeEntrante(
     });
   }
 
+  // 4.5 Deduplicar por idExterno ANTES de crear oportunidades (evita duplicados en procesamiento concurrente)
+  if (idExterno) {
+    const msgExistente = await prisma.mensajeConversacion.findFirst({
+      where: { conversacionId: conversacion.id, idExterno },
+    });
+    if (msgExistente) return { mensaje: msgExistente, conversacion };
+  }
+
   // 5. Buscar oportunidad activa por contacto principal
   const opContacto = await prisma.oportunidadContacto.findFirst({
     where: {
@@ -191,6 +199,7 @@ export async function procesarMensajeEntrante(
       });
     } else {
       // Primer contacto o sin historial ganado → crear oportunidad (lead entrante)
+      // Pre-cargar configuración de pipeline fuera de la sección crítica (lecturas idempotentes)
       const stagesInclude = { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" } as const, take: 1 } };
 
       const cuentaCanalCfg = cuentaCanalId
@@ -217,22 +226,50 @@ export async function procesarMensajeEntrante(
         obtenerMonedaPrincipal(instanciaId),
       ]);
 
-      oportunidadActiva = await prisma.oportunidad.create({
-        data: {
-          titulo: `Oportunidad ${count + 1}`,
-          etapa: "PROSPECTO",
-          valor: 0,
-          moneda,
-          instanciaId,
-          pipelineId: pipelineDefault?.id ?? null,
-          stageId: stageInicial?.id ?? null,
-          probabilidad: stageInicial?.probabilidad ?? 20,
-          contactos: { create: { contactoId, principal: true } },
-        },
+      // Sección crítica: bloquear fila de conversación para serializar llamadas concurrentes
+      // que llegaron hasta aquí en paralelo (Baileys puede emitir el mismo mensaje 3 veces).
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT 1 FROM "Conversacion" WHERE id = ${conversacion.id} FOR UPDATE`;
+
+        // Re-verificar si otra llamada concurrente ya creó la oportunidad mientras hacíamos las lecturas
+        const opExistente = await tx.oportunidadContacto.findFirst({
+          where: {
+            contactoId,
+            principal: true,
+            oportunidad: { instanciaId, etapa: { notIn: ["GANADO", "PERDIDO"] } },
+          },
+          include: { oportunidad: true },
+          orderBy: { oportunidad: { actualizadoEn: "desc" } },
+        });
+
+        if (opExistente) {
+          oportunidadActiva = opExistente.oportunidad;
+          await tx.oportunidadConversacion.upsert({
+            where: { oportunidadId_conversacionId: { oportunidadId: opExistente.oportunidad.id, conversacionId: conversacion.id } },
+            create: { oportunidadId: opExistente.oportunidad.id, conversacionId: conversacion.id },
+            update: {},
+          });
+          return;
+        }
+
+        oportunidadActiva = await tx.oportunidad.create({
+          data: {
+            titulo: `Oportunidad ${count + 1}`,
+            etapa: "PROSPECTO",
+            valor: 0,
+            moneda,
+            instanciaId,
+            pipelineId: pipelineDefault?.id ?? null,
+            stageId: stageInicial?.id ?? null,
+            probabilidad: stageInicial?.probabilidad ?? 20,
+            contactos: { create: { contactoId, principal: true } },
+          },
+        });
+        await tx.oportunidadConversacion.create({
+          data: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id },
+        });
       });
-      await prisma.oportunidadConversacion.create({
-        data: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id },
-      });
+
       try {
         revalidatePath("/crm/oportunidades");
         revalidatePath("/crm/pipeline");
@@ -240,7 +277,7 @@ export async function procesarMensajeEntrante(
     }
   }
 
-  // 7. Guardar mensaje — deduplicar por idExterno para evitar duplicados en reintentos del worker
+  // 7. Guardar mensaje — segunda barrera dedup para la ventana de carrera entre paso 4.5 y aquí
   if (idExterno) {
     const existente = await prisma.mensajeConversacion.findFirst({
       where: { conversacionId: conversacion.id, idExterno },
