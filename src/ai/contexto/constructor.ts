@@ -79,9 +79,10 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
     const mensajes: MensajeContexto[] = conversacionRaw.mensajes
       .slice(0, decision.mensajesAIncluir)
       .reverse()
+      .filter((m) => m.contenido && m.contenido.trim().length > 0)
       .map((m) => ({
         rol: m.remitente === "CONTACTO" ? "user" : "assistant",
-        contenido: m.contenido ?? "",
+        contenido: m.contenido!,
         creadoEn: m.creadoEn,
       }));
 

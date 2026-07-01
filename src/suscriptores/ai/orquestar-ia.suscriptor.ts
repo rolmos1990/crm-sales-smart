@@ -11,12 +11,12 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
   readonly routingKeys = [RK.EVENTO_MENSAJE_RECIBIDO];
 
   async manejar(envelope: EventoEnvelope<MensajeRecibidoPayload>): Promise<void> {
-    const { instanciaId, conversacionId } = envelope.payload;
+    const { instanciaId, conversacionId, oportunidadId } = envelope.payload;
 
     const { prisma } = await import("@/shared/db/prisma");
 
-    // Verificación paralela: configuración global IA + datos de conversación
-    const [configIA, conv] = await Promise.all([
+    // Verificación paralela: configuración global IA + datos de conversación + stage de oportunidad
+    const [configIA, conv, opConStage] = await Promise.all([
       prisma.configuracionIA.findUnique({
         where: { instanciaId },
         select: { habilitado: true, limiteTokensDiarios: true },
@@ -42,12 +42,35 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
           },
         },
       }),
+      // Cuando el payload ya trae oportunidadId, usar esa oportunidad directamente
+      // evita depender del orden indeterminado de conv.oportunidades[0]
+      oportunidadId
+        ? prisma.oportunidad.findFirst({
+            where: { id: oportunidadId, instanciaId },
+            select: {
+              stage: {
+                select: { respuestaIAHabilitada: true, agenteIAConfigId: true },
+              },
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
-    if (!configIA?.habilitado) return;
+    if (!configIA?.habilitado) {
+      console.log(`[OrquestarIA] IA deshabilitada globalmente — instancia ${instanciaId}`);
+      return;
+    }
 
-    const stage = conv?.oportunidades[0]?.oportunidad?.stage;
-    if (!stage?.respuestaIAHabilitada) return;
+    // Preferir el stage de la oportunidad del payload; fallback al de la conversación
+    const stage =
+      opConStage?.stage ?? conv?.oportunidades[0]?.oportunidad?.stage ?? null;
+
+    if (!stage?.respuestaIAHabilitada) {
+      console.log(
+        `[OrquestarIA] Stage sin respuestaIAHabilitada — conversacion ${conversacionId}, oportunidadId ${oportunidadId ?? "sin oportunidad en payload"}, stage: ${JSON.stringify(stage)}`,
+      );
+      return;
+    }
 
     // Verificar límite diario de tokens si está configurado
     if (configIA.limiteTokensDiarios) {
@@ -81,10 +104,17 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
         const canal = conv?.cuentaCanal?.canal;
         const canales = parsearCanales(agente.canalesPermitidos);
         if (canales.length > 0 && canal && !canales.includes(canal)) {
-          return; // Canal no permitido para este agente
+          console.log(
+            `[OrquestarIA] Canal "${canal}" no permitido para agente ${agenteIAConfigId} — permitidos: [${canales.join(", ")}]`,
+          );
+          return;
         }
       }
     }
+
+    console.log(
+      `[OrquestarIA] Publicando GENERAR_RESPUESTA_IA — conversacion ${conversacionId}, agente ${agenteIAConfigId ?? "default COMERCIAL"}`,
+    );
 
     void publicadorEventos.publicar("GENERAR_RESPUESTA_IA", instanciaId, {
       conversacionId,
