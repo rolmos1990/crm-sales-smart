@@ -477,6 +477,10 @@ model PipelineStage {
   pipelineId String
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
 
+  respuestaIAHabilitada Boolean         @default(false)
+  agenteIAConfigId      String?
+  agenteIAConfig        AgenteIAConfig? @relation(fields: [agenteIAConfigId], references: [id], onDelete: SetNull)
+
   oportunidades Oportunidad[]
   campos        CampoPersonalizado[]
   disparadores  Disparador[]
@@ -1555,6 +1559,11 @@ enum TipoMemoriaIA {
   PROCEDURAL
 }
 
+enum TipoAgenteIA {
+  COMERCIAL
+  GERENCIA
+}
+
 // =====================
 // MODELOS DE IA
 // =====================
@@ -1592,6 +1601,7 @@ model ProveedorIA {
   timeoutMs              Int             @default(30000)
   reintentosMax          Int             @default(2)
   casosDeUso             Json?
+  tipoAgenteIA           TipoAgenteIA?
   creadoEn               DateTime        @default(now())
   actualizadoEn          DateTime        @updatedAt
 
@@ -1600,7 +1610,7 @@ model ProveedorIA {
 
   usoIA UsoIA[]
 
-  @@unique([instanciaId, proveedor])
+  @@unique([instanciaId, proveedor, tipoAgenteIA])
   @@index([instanciaId])
   @@index([instanciaId, activo, prioridad])
 }
@@ -1612,9 +1622,9 @@ model AgenteIAConfig {
   personalidad        String?
   objetivo            String?
   especialidad        String?
+  tipo                TipoAgenteIA     @default(COMERCIAL)
   temperaturaOverride Float?
   modeloPreferido     String?
-  proveedorPreferido  ProveedorIAEnum?
   herramientas        Json?
   canalesPermitidos   Json?
   memoriaHabilitada   Boolean          @default(true)
@@ -1629,8 +1639,9 @@ model AgenteIAConfig {
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  memorias MemoriaAgenteIA[]
-  usoIA    UsoIA[]
+  memorias       MemoriaAgenteIA[]
+  usoIA          UsoIA[]
+  pipelineStages PipelineStage[]
 }
 
 // Memoria persistente del agente IA

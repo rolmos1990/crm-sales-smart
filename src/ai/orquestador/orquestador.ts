@@ -1,7 +1,7 @@
 import "@/ai/proveedores/inicializar";
 import { crearProveedor } from "@/ai/proveedores/registro";
 import type { IProveedorIA } from "@/ai/proveedores/types";
-import type { ProveedorIAEnum } from "@/generated/prisma/enums";
+import type { TipoAgenteIA } from "@/generated/prisma/enums";
 import { obtenerProveedoresActivos } from "@/ai/queries";
 
 // Estado del circuit breaker en memoria (en producción: Redis)
@@ -42,7 +42,7 @@ export interface SeleccionProveedor {
 
 export async function seleccionarProveedor(
   instanciaId: string,
-  preferido?: ProveedorIAEnum,
+  tipoAgente?: TipoAgenteIA,
 ): Promise<SeleccionProveedor> {
   const proveedores = await obtenerProveedoresActivos(instanciaId);
 
@@ -50,11 +50,11 @@ export async function seleccionarProveedor(
     throw new Error(`No hay proveedores IA activos para la instancia ${instanciaId}`);
   }
 
-  // Ordenar: el preferido primero, luego por prioridad
-  const ordenados = preferido
+  // Prioridad: proveedor con scope exacto al tipo de agente → proveedor general (null) → resto
+  const ordenados = tipoAgente
     ? [
-        ...proveedores.filter((p) => p.proveedor === preferido),
-        ...proveedores.filter((p) => p.proveedor !== preferido),
+        ...proveedores.filter((p) => p.tipoAgenteIA === tipoAgente),
+        ...proveedores.filter((p) => p.tipoAgenteIA === null),
       ]
     : proveedores;
 

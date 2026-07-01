@@ -1,4 +1,6 @@
 import { prisma } from "@/shared/db/prisma";
+import { resolverDecisionContexto } from "./router";
+import { construirSystemPrompt } from "@/ai/prompt/builder";
 import type { ContextoIA, MensajeContexto } from "./tipos";
 
 interface OpcionesContexto {
@@ -11,16 +13,9 @@ interface OpcionesContexto {
 }
 
 export async function construirContexto(opciones: OpcionesContexto): Promise<ContextoIA> {
-  const {
-    instanciaId,
-    conversacionId,
-    contactoId,
-    oportunidadId,
-    agenteIAConfigId,
-    maxMensajes = 20,
-  } = opciones;
+  const { instanciaId, conversacionId, contactoId, oportunidadId, agenteIAConfigId } = opciones;
 
-  const [conversacionData, contacto, oportunidad, agenteConfig] = await Promise.all([
+  const [conversacionRaw, contacto, oportunidad, agenteConfig] = await Promise.all([
     conversacionId
       ? prisma.conversacion.findUnique({
           where: { id: conversacionId },
@@ -28,9 +23,11 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
             id: true,
             cuentaCanal: { select: { canal: true } },
             contacto: { select: { nombre: true } },
+            _count: { select: { mensajes: true } },
+            // Fetch generous max; ContextRouter trimará en memoria
             mensajes: {
               orderBy: { creadoEn: "desc" },
-              take: maxMensajes,
+              take: 30,
               select: { contenido: true, remitente: true, creadoEn: true },
             },
           },
@@ -56,15 +53,31 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
     agenteIAConfigId
       ? prisma.agenteIAConfig.findUnique({
           where: { id: agenteIAConfigId },
-          select: { sistemaPrompt: true },
+          select: {
+            sistemaPrompt: true,
+            personalidad: true,
+            objetivo: true,
+            especialidad: true,
+            instrucciones: true,
+            limiteTokensCtx: true,
+          },
         })
       : null,
   ]);
 
+  const totalMensajes = conversacionRaw?._count?.mensajes ?? 0;
+  const decision = resolverDecisionContexto({
+    totalMensajes,
+    tieneResumen: false,
+    esPrimerMensajeDeContacto: totalMensajes <= 1,
+    limiteTokensCtx: agenteConfig?.limiteTokensCtx ?? 4000,
+  });
+
   const contexto: ContextoIA = {};
 
-  if (conversacionData) {
-    const mensajes: MensajeContexto[] = conversacionData.mensajes
+  if (conversacionRaw) {
+    const mensajes: MensajeContexto[] = conversacionRaw.mensajes
+      .slice(0, decision.mensajesAIncluir)
       .reverse()
       .map((m) => ({
         rol: m.remitente === "CONTACTO" ? "user" : "assistant",
@@ -73,9 +86,9 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
       }));
 
     contexto.conversacion = {
-      id: conversacionData.id,
-      contactoNombre: conversacionData.contacto?.nombre,
-      canal: conversacionData.cuentaCanal?.canal,
+      id: conversacionRaw.id,
+      contactoNombre: conversacionRaw.contacto?.nombre,
+      canal: conversacionRaw.cuentaCanal?.canal,
       mensajes,
     };
   }
@@ -98,8 +111,22 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
     };
   }
 
-  if (agenteConfig?.sistemaPrompt) {
-    contexto.sistemaPrompt = agenteConfig.sistemaPrompt;
+  if (agenteConfig) {
+    contexto.sistemaPrompt = construirSystemPrompt(
+      {
+        objetivo: agenteConfig.objetivo,
+        personalidad: agenteConfig.personalidad,
+        especialidad: agenteConfig.especialidad,
+        instrucciones: agenteConfig.instrucciones,
+        sistemaPrompt: agenteConfig.sistemaPrompt,
+      },
+      {
+        nombreContacto: contacto?.nombre,
+        empresaContacto: contacto?.empresa?.nombre ?? undefined,
+        tituloOportunidad: oportunidad?.titulo,
+        etapaOportunidad: oportunidad?.etapa,
+      },
+    );
   }
 
   return contexto;
@@ -112,22 +139,6 @@ export function serializarContextoComoMensajes(
 
   if (contexto.sistemaPrompt) {
     mensajes.push({ rol: "system", contenido: contexto.sistemaPrompt });
-  }
-
-  if (contexto.contacto || contexto.oportunidad) {
-    const partes: string[] = [];
-    if (contexto.contacto) {
-      partes.push(
-        `Contacto: ${contexto.contacto.nombre}` +
-          (contexto.contacto.empresa ? ` (${contexto.contacto.empresa})` : ""),
-      );
-    }
-    if (contexto.oportunidad) {
-      partes.push(
-        `Oportunidad: ${contexto.oportunidad.titulo} — Etapa: ${contexto.oportunidad.etapa}`,
-      );
-    }
-    mensajes.push({ rol: "system", contenido: partes.join("\n") });
   }
 
   if (contexto.conversacion?.mensajes) {

@@ -55,6 +55,8 @@ export interface PipelineStage {
   esPerdido: boolean;
   activo: boolean;
   pipelineId: string;
+  respuestaIAHabilitada?: boolean;
+  agenteIAConfigId?: string | null;
 }
 
 export interface PipelineConStages {

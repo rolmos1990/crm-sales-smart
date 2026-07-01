@@ -131,7 +131,20 @@
       "Skill(claude-api:*)",
       "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"ai/\" } | Select-Object -First 30)",
       "PowerShell(Test-NetConnection -ComputerName \"db.gbghddqlerklgkopxgug.supabase.co\" -Port 5432)",
-      "PowerShell(Test-NetConnection -ComputerName \"aws-1-us-west-2.pooler.supabase.com\" -Port 5432)"
+      "PowerShell(Test-NetConnection -ComputerName \"aws-1-us-west-2.pooler.supabase.com\" -Port 5432)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"configuracion/ia|tab-ia|lista-proveedores|form-configuracion|form-proveedor\" } | Select-Object -First 20)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"configuracion/ia|tab-ia|lista-proveedores|form-configuracion|form-proveedor|tab-ia\" } | Select-Object -First 20)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; npx tsc --noEmit 2>&1 | Select-String \"error TS\" | Where-Object { $_ -notmatch \"scripts/|mocks/|resend|moneda\" } | Select-Object -First 20)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; npx tsc --noEmit 2>&1 | Select-String \"error TS\" | Where-Object { $_ -notmatch \"scripts/|mocks/|resend\\\\.provider|moneda\" })",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\" ; npx tsc --noEmit 2>&1 | Select-String \"error TS\" | Where-Object { $_ -notmatch \"scripts/|mocks/|resend\\\\.provider|moneda\" } | Select-Object -First 15)",
+      "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\\\\prisma\\\\migrations\\\\20260701200000_add_tipo_agente_ia\" -Force)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"mock-prisma|resend|select-moneda|scripts/reparar\" } | Select-Object -First 60)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"mock-prisma|resend|select-moneda|scripts/reparar\" } | Select-Object -First 50)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"^src/\\(configuracion|suscriptores|ai|eventos|crm/pipeline\\)\" })",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Out-String | Select-String -Pattern \"src/\\(configuracion|suscriptores/ai|eventos/contratos/generar\\)\" -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Value })",
+      "Bash(findstr /V \"scripts/reparar mock-prisma resend.provider select-moneda Partial\")",
+      "Bash(findstr \"error TS\")",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"dialog-nuevo\" })"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

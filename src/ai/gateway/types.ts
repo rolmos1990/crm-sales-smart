@@ -8,7 +8,6 @@ export interface SolicitudIA {
   mensajes: MensajeIA[];
   temperatura?: number;
   maxTokens?: number;
-  proveedorPreferido?: ProveedorIAEnum;
   entidadTipo?: string;
   entidadId?: string;
 }

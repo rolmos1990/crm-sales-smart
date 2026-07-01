@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   ArrowRightCircle,
   X,
+  Bot,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,7 @@ import {
   obtenerTagsParaDisparadorAction,
   obtenerPipelinesParaDisparadorAction,
 } from "../disparadores/actions";
+import { toggleAutoRespuestaIAStage } from "../actions";
 import {
   ETIQUETAS_TIPO,
   type Disparador,
@@ -244,7 +246,20 @@ function SeccionStage({
   onEliminar: (id: string) => void;
 }) {
   const [abierto, setAbierto] = useState(true);
+  const [iaHabilitada, setIaHabilitada] = useState(stage.respuestaIAHabilitada ?? false);
+  const [toggleandoIA, startToggleIA] = useTransition();
   const color = stage.color ?? "#818cf8";
+
+  function handleToggleIA(valor: boolean) {
+    setIaHabilitada(valor);
+    startToggleIA(async () => {
+      const resultado = await toggleAutoRespuestaIAStage(stage.id, valor);
+      if (!resultado.exito) {
+        setIaHabilitada(!valor);
+        toast.error(resultado.error ?? "Error al actualizar auto-respuesta IA");
+      }
+    });
+  }
 
   return (
     <div className="rounded-xl border border-stone-200 dark:border-white/10 overflow-hidden">
@@ -292,6 +307,30 @@ function SeccionStage({
             <Plus className="h-3.5 w-3.5" />
             Agregar disparador
           </button>
+
+          {/* Auto-respuesta IA */}
+          <div className={cn(
+            "flex items-center justify-between px-3 py-2.5 rounded-xl border transition-colors",
+            iaHabilitada
+              ? "border-lime-500/30 bg-lime-500/5"
+              : "border-stone-200 dark:border-white/8 bg-stone-50 dark:bg-white/2"
+          )}>
+            <div className="flex items-center gap-2">
+              <Bot className={cn("h-3.5 w-3.5", iaHabilitada ? "text-lime-400" : "text-stone-400")} />
+              <div>
+                <p className="text-xs font-medium text-stone-700 dark:text-stone-300">Auto-respuesta IA</p>
+                <p className="text-xs text-stone-400 dark:text-stone-500">
+                  {iaHabilitada ? "Activa — responde automáticamente los mensajes entrantes" : "Inactiva"}
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={iaHabilitada}
+              onCheckedChange={handleToggleIA}
+              disabled={toggleandoIA}
+              className="data-[state=checked]:bg-lime-500"
+            />
+          </div>
         </div>
       )}
     </div>

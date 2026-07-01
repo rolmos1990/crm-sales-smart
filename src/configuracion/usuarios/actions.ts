@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { crearSupabaseAdminClient } from "@/shared/auth/provider/supabase-admin";
 import { CrearUsuarioSchema, EditarUsuarioSchema } from "./schema";
+import { AgenteIAConfigSchema } from "@/configuracion/ia/agente-schema";
 import type { ResultadoAccion, ResultadoCrearUsuario } from "./types";
 
 async function obtenerOrigin(): Promise<string> {
@@ -122,6 +124,80 @@ export async function crearUsuario(
     return { exito: true, datos: { inviteLink } };
   } catch {
     return { exito: false, error: "Error al crear el usuario" };
+  }
+}
+
+export async function crearAgenteConIA(
+  datosUsuario: unknown,
+  configIA?: unknown,
+): Promise<ResultadoAccion<{ usuarioId: string }>> {
+  const sesion = await requireSesion();
+  if (sesion.rol !== "OWNER" && sesion.rol !== "ADMIN") {
+    return { exito: false, error: "Solo el Owner o Admin pueden gestionar usuarios" };
+  }
+
+  const validadoUsuario = CrearUsuarioSchema.safeParse(datosUsuario);
+  if (!validadoUsuario.success) {
+    return { exito: false, error: validadoUsuario.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const { nombre, email, cargo } = validadoUsuario.data;
+
+  const emailExistente = await prisma.usuarioInstancia.findFirst({
+    where: { instanciaId: sesion.instanciaId, usuario: { email } },
+  });
+  if (emailExistente) {
+    return { exito: false, error: "Ya existe un usuario con ese email en esta instancia" };
+  }
+
+  let validadoConfig: ReturnType<typeof AgenteIAConfigSchema.safeParse> | null = null;
+  if (configIA !== undefined) {
+    validadoConfig = AgenteIAConfigSchema.safeParse(configIA);
+    if (!validadoConfig.success) {
+      return { exito: false, error: "Configuración IA inválida" };
+    }
+  }
+
+  try {
+    const usuario = await prisma.usuario.create({
+      data: {
+        nombre,
+        email,
+        tipo: "AGENTE",
+        cargo: cargo || null,
+        telefono: null,
+        estado: "ACTIVO",
+        rol: "AGENTE",
+      },
+    });
+    await prisma.usuarioInstancia.create({
+      data: { usuarioId: usuario.id, instanciaId: sesion.instanciaId, rol: "AGENTE", activo: true },
+    });
+
+    if (validadoConfig?.success) {
+      const d = validadoConfig.data;
+      await prisma.agenteIAConfig.create({
+        data: {
+          usuarioId: usuario.id,
+          instanciaId: sesion.instanciaId,
+          tipo: "COMERCIAL",
+          sistemaPrompt: d.sistemaPrompt ?? null,
+          personalidad: d.personalidad ?? null,
+          objetivo: d.objetivo ?? null,
+          especialidad: d.especialidad ?? null,
+          temperaturaOverride: d.temperaturaOverride ?? null,
+          modeloPreferido: d.modeloPreferido ?? null,
+          memoriaHabilitada: d.memoriaHabilitada,
+          limiteTokensCtx: d.limiteTokensCtx,
+          canalesPermitidos: d.canalesPermitidos ?? Prisma.JsonNull,
+        },
+      });
+    }
+
+    revalidatePath("/configuracion");
+    return { exito: true, datos: { usuarioId: usuario.id } };
+  } catch {
+    return { exito: false, error: "Error al crear el agente" };
   }
 }
 

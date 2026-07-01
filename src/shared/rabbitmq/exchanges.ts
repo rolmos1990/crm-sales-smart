@@ -16,6 +16,7 @@ export const QUEUES = {
   // IA
   AI_RESPUESTA: "crm.ai.comando.respuesta",
   AI_RESUMEN: "crm.ai.comando.resumen",
+  AI_ORQUESTAR: "crm.ai.orquestar",
 } as const;
 
 // Routing keys — prefijo "evento." para domain events, "comando." para async commands

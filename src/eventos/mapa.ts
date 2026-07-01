@@ -41,6 +41,7 @@ import type { ComandoProcesarEntrantePayload }     from "./contratos/procesar-en
 import type { ComandoMarcarLeidoPayload }          from "./contratos/marcar-leido.comando";
 import type { ComandoEnviarEmailPayload }          from "./contratos/enviar-email.comando";
 import type { ComandoInicializarInstanciaPayload } from "./contratos/inicializar-instancia.comando";
+import type { ComandoGenerarRespuestaIAPayload }   from "./contratos/generar-respuesta-ia.comando";
 
 export interface MapaPayloads {
   // Contactos
@@ -85,6 +86,7 @@ export interface MapaPayloads {
   MARCAR_LEIDO:            ComandoMarcarLeidoPayload;
   ENVIAR_EMAIL:            ComandoEnviarEmailPayload;
   INICIALIZAR_INSTANCIA:   ComandoInicializarInstanciaPayload;
+  GENERAR_RESPUESTA_IA:    ComandoGenerarRespuestaIAPayload;
 }
 
 export type NombreEvento = keyof MapaPayloads;

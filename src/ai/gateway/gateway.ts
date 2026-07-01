@@ -3,7 +3,27 @@ import { registrarUsoIA, calcularCosto } from "@/ai/auditoria/logger";
 import { obtenerConfiguracionIA, obtenerAgenteIAConfig } from "@/ai/queries";
 import { SolicitudIASchema } from "./schema";
 import type { SolicitudIA, RespuestaIA } from "./types";
-import type { ChatResult } from "@/ai/proveedores/types";
+import type {
+  ChatResult,
+  ChatConHerramientasResult,
+  MensajeIATool,
+  DefinicionHerramienta,
+} from "@/ai/proveedores/types";
+import type { TareaIA } from "@/generated/prisma/enums";
+
+export interface SolicitudConHerramientas {
+  instanciaId: string;
+  agenteIAConfigId?: string;
+  tarea: TareaIA;
+  mensajes: MensajeIATool[];
+  herramientas: DefinicionHerramienta[];
+  temperatura?: number;
+  maxTokens?: number;
+  entidadTipo?: string;
+  entidadId?: string;
+}
+
+export type RespuestaConHerramientas = ChatConHerramientasResult & { usoIAId: string };
 
 export async function generarRespuesta(solicitud: SolicitudIA): Promise<RespuestaIA> {
   const validado = SolicitudIASchema.parse(solicitud);
@@ -20,7 +40,7 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
   const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil } =
     await seleccionarProveedor(
       validado.instanciaId,
-      agente?.proveedorPreferido ?? validado.proveedorPreferido ?? undefined,
+      agente?.tipo ?? undefined,
     );
 
   const modelo =
@@ -87,4 +107,77 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
     tiempoMs: resultado.tiempoMs,
     usoIAId,
   };
+}
+
+// Variante del gateway con soporte de tool calling (Anthropic only por ahora).
+// Cada llamada se audita por separado en UsoIA ya que cada iteración consume tokens.
+export async function generarConHerramientas(
+  solicitud: SolicitudConHerramientas,
+): Promise<RespuestaConHerramientas> {
+  const config = await obtenerConfiguracionIA(solicitud.instanciaId);
+  if (!config?.habilitado) throw new Error("IA no habilitada para esta instancia");
+
+  const agente = solicitud.agenteIAConfigId
+    ? await obtenerAgenteIAConfig(solicitud.agenteIAConfigId)
+    : null;
+
+  const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil } =
+    await seleccionarProveedor(solicitud.instanciaId, agente?.tipo ?? undefined);
+
+  if (!proveedor.chatConHerramientas) {
+    throw new Error(`Proveedor ${proveedor.nombre} no soporta tool calling`);
+  }
+
+  const modelo = agente?.modeloPreferido ?? config.modeloDefault ?? "claude-sonnet-4-6";
+  const temperatura = agente?.temperaturaOverride ?? solicitud.temperatura ?? config.temperaturaDefault ?? 0.7;
+
+  let resultado: ChatConHerramientasResult;
+  try {
+    resultado = await proveedor.chatConHerramientas({
+      mensajes: solicitud.mensajes,
+      herramientas: solicitud.herramientas,
+      modelo,
+      temperatura,
+      maxTokens: solicitud.maxTokens,
+    });
+    registrarExito(proveedorId);
+  } catch (err) {
+    registrarFalla(proveedorId);
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    await registrarUsoIA({
+      instanciaId: solicitud.instanciaId,
+      proveedorIAId: proveedorId,
+      agenteIAConfigId: solicitud.agenteIAConfigId,
+      tarea: solicitud.tarea,
+      resultado: { contenido: "", tokensInput: 0, tokensOutput: 0, modelo, proveedor: proveedor.nombre, tiempoMs: 0 },
+      exito: false,
+      error: errorMsg,
+      entidadTipo: solicitud.entidadTipo,
+      entidadId: solicitud.entidadId,
+    });
+    throw err;
+  }
+
+  const costo = calcularCosto(resultado.tokensInput, resultado.tokensOutput, costoInputPorMil, costoOutputPorMil);
+
+  const usoIAId = await registrarUsoIA({
+    instanciaId: solicitud.instanciaId,
+    proveedorIAId: proveedorId,
+    agenteIAConfigId: solicitud.agenteIAConfigId,
+    tarea: solicitud.tarea,
+    resultado: {
+      contenido: resultado.contenido ?? "",
+      tokensInput: resultado.tokensInput,
+      tokensOutput: resultado.tokensOutput,
+      modelo: resultado.modelo,
+      proveedor: resultado.proveedor,
+      tiempoMs: resultado.tiempoMs,
+    },
+    exito: true,
+    entidadTipo: solicitud.entidadTipo,
+    entidadId: solicitud.entidadId,
+    costoEstimado: costo,
+  });
+
+  return { ...resultado, usoIAId };
 }

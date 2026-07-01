@@ -46,3 +46,13 @@ export async function obtenerResumenUsoIA(instanciaId: string) {
     totalTokensOutput: resultado._sum.tokensOutput ?? 0,
   };
 }
+
+export async function obtenerTokensUsadosHoy(instanciaId: string): Promise<number> {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const resultado = await prisma.usoIA.aggregate({
+    where: { instanciaId, exito: true, creadoEn: { gte: hoy } },
+    _sum: { tokensInput: true, tokensOutput: true },
+  });
+  return (resultado._sum.tokensInput ?? 0) + (resultado._sum.tokensOutput ?? 0);
+}

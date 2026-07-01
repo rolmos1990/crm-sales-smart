@@ -1,4 +1,4 @@
-import type { Rol, EstadoUsuario, TipoUsuario } from "@/generated/prisma/enums";
+import type { Rol, EstadoUsuario, TipoUsuario, TipoAgenteIA } from "@/generated/prisma/enums";
 
 export type UsuarioInstanciaDetalle = {
   id: string;
@@ -12,6 +12,7 @@ export type UsuarioInstanciaDetalle = {
   estado: EstadoUsuario;
   activo: boolean;
   ultimoLogin: Date | null;
+  agenteIAConfig: { id: string; tipo: TipoAgenteIA } | null;
 };
 
 export type ResultadoAccion<T = undefined> =

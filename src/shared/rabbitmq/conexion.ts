@@ -66,6 +66,18 @@ async function configurarTopologia(ch: amqplib.Channel): Promise<void> {
   // Comandos de sistema
   await ch.assertQueue(QUEUES.SISTEMA_INICIALIZAR, queueOpts);
   await ch.bindQueue(QUEUES.SISTEMA_INICIALIZAR, EXCHANGE, RK.COMANDO_SISTEMA_INICIALIZAR);
+
+  // IA: generación de respuesta
+  await ch.assertQueue(QUEUES.AI_RESPUESTA, queueOpts);
+  await ch.bindQueue(QUEUES.AI_RESPUESTA, EXCHANGE, RK.COMANDO_AI_GENERAR_RESPUESTA);
+
+  // IA: resumen de conversación
+  await ch.assertQueue(QUEUES.AI_RESUMEN, queueOpts);
+  await ch.bindQueue(QUEUES.AI_RESUMEN, EXCHANGE, RK.COMANDO_AI_RESUMIR);
+
+  // IA: orquestación — escucha MensajeRecibido con su propia cola para no bloquear SSE
+  await ch.assertQueue(QUEUES.AI_ORQUESTAR, queueOpts);
+  await ch.bindQueue(QUEUES.AI_ORQUESTAR, EXCHANGE, RK.EVENTO_MENSAJE_RECIBIDO);
 }
 
 async function conectar(): Promise<amqplib.Channel> {

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef, useMemo, useCallback } from "react";
-import { Send, Lock, Paperclip, X, ImageIcon, Loader2 } from "lucide-react";
+import { useState, useRef, useMemo, useCallback, useTransition } from "react";
+import { Send, Lock, Paperclip, X, ImageIcon, Loader2, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { generarSugerenciaIA } from "../actions-ia";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { SelectorPlantillas, registrarUsoPlantilla } from "./selector-plantillas";
@@ -46,6 +48,7 @@ export function InputMensaje({
   const [filtroSelector, setFiltroSelector] = useState("");
   const [imagenAdjunta, setImagenAdjunta] = useState<string | null>(null);
   const [interpolando, setInterpolando] = useState(false);
+  const [generandoIA, startGenerandoIA] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const instanciaId = useMemo(
@@ -133,6 +136,18 @@ export function InputMensaje({
     setFiltroSelector("");
   };
 
+  const handleSugerenciaIA = () => {
+    startGenerandoIA(async () => {
+      const resultado = await generarSugerenciaIA(conversacionId);
+      if (!resultado.ok) {
+        toast.error(resultado.error);
+        return;
+      }
+      setTexto(resultado.contenido);
+      textareaRef.current?.focus();
+    });
+  };
+
   const puedeEnviar = (texto.trim() || imagenAdjunta) && !enviando && !interpolando;
 
   return (
@@ -173,19 +188,42 @@ export function InputMensaje({
           seleccionada={cuentaSeleccionadaId}
           onSeleccionar={onCambiarCuenta}
         />
-        <button
-          type="button"
-          onClick={() => setEsNota((v) => !v)}
-          className={cn(
-            "flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors",
-            esNota
-              ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
-              : "border-white/10 text-stone-500 hover:text-stone-300 hover:bg-white/5"
+        <div className="flex items-center gap-1.5">
+          {instanciaId && (
+            <button
+              type="button"
+              onClick={handleSugerenciaIA}
+              disabled={generandoIA || interpolando || enviando}
+              title="Generar respuesta con IA"
+              className={cn(
+                "flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all",
+                generandoIA
+                  ? "border-lime-500/30 bg-lime-500/10 text-lime-400 cursor-wait"
+                  : "border-white/10 text-stone-500 hover:text-lime-400 hover:border-lime-500/30 hover:bg-lime-500/5"
+              )}
+            >
+              {generandoIA ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Sparkles className="h-3 w-3" />
+              )}
+              {generandoIA ? "Generando…" : "Sugerir IA"}
+            </button>
           )}
-        >
-          <Lock className="h-3 w-3" />
-          Nota interna
-        </button>
+          <button
+            type="button"
+            onClick={() => setEsNota((v) => !v)}
+            className={cn(
+              "flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors",
+              esNota
+                ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                : "border-white/10 text-stone-500 hover:text-stone-300 hover:bg-white/5"
+            )}
+          >
+            <Lock className="h-3 w-3" />
+            Nota interna
+          </button>
+        </div>
       </div>
 
       {/* Área de texto */}

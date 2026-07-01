@@ -372,3 +372,32 @@ export async function actualizarCampoStage(id: string, datos: unknown) {
 export async function eliminarCampoStage(id: string) {
   return eliminarCampo(id);
 }
+
+// ── Auto-respuesta IA por etapa ──────────────────────────────────────────────
+
+export async function toggleAutoRespuestaIAStage(
+  stageId: string,
+  habilitada: boolean,
+  agenteIAConfigId?: string | null,
+) {
+  const { sesion, acceso } = await requireAdminPipeline();
+  if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
+
+  // Verificar que el stage pertenece a la instancia
+  const stage = await prisma.pipelineStage.findFirst({
+    where: { id: stageId, pipeline: { instanciaId: sesion.instanciaId } },
+    select: { id: true },
+  });
+  if (!stage) return { exito: false as const, error: "Etapa no encontrada" };
+
+  await prisma.pipelineStage.update({
+    where: { id: stageId },
+    data: {
+      respuestaIAHabilitada: habilitada,
+      agenteIAConfigId: habilitada ? (agenteIAConfigId ?? null) : null,
+    },
+  });
+
+  revalidatePath("/crm/pipeline");
+  return { exito: true as const };
+}

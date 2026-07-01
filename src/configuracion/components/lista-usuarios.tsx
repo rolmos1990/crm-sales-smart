@@ -16,6 +16,8 @@ import {
   Bot,
   User,
   UserPlus,
+  Sparkles,
+  Settings2,
 } from "lucide-react";
 import {
   Table,
@@ -51,6 +53,7 @@ import {
 import { DialogEditarUsuario } from "./dialog-editar-usuario";
 import { DialogInvitarUsuario } from "./dialog-invitar-usuario";
 import { DialogNuevoAgente } from "./dialog-nuevo-agente";
+import { SheetEditarAgente } from "./sheet-editar-agente";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 
 interface ListaUsuariosProps {
@@ -59,13 +62,26 @@ interface ListaUsuariosProps {
 
 type Filtro = "todos" | "usuarios" | "agentes";
 
-function badgeTipo(tipo: "USUARIO" | "AGENTE") {
-  if (tipo === "AGENTE")
+function badgeTipo(u: UsuarioInstanciaDetalle) {
+  if (u.tipo === "AGENTE") {
+    if (u.agenteIAConfig?.tipo === "COMERCIAL") {
+      return (
+        <div className="flex flex-col gap-1">
+          <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 gap-1 w-fit">
+            <Bot className="h-3 w-3" /> Agente
+          </Badge>
+          <Badge className="bg-lime-500/15 text-lime-300 border-lime-500/30 gap-1 w-fit text-[10px] py-0">
+            <Sparkles className="h-2.5 w-2.5" /> IA Comercial
+          </Badge>
+        </div>
+      );
+    }
     return (
       <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 gap-1">
         <Bot className="h-3 w-3" /> Agente
       </Badge>
     );
+  }
   return (
     <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 gap-1">
       <User className="h-3 w-3" /> Usuario
@@ -110,6 +126,7 @@ export function ListaUsuarios({ usuarios: usuariosIniciales }: ListaUsuariosProp
   const [usuarios, setUsuarios] = useState(usuariosIniciales);
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [usuarioEditar, setUsuarioEditar] = useState<UsuarioInstanciaDetalle | null>(null);
+  const [agenteEditar, setAgenteEditar] = useState<UsuarioInstanciaDetalle | null>(null);
   const [abrirInvitar, setAbrirInvitar] = useState(false);
   const [abrirAgente, setAbrirAgente] = useState(false);
   const [linkDialog, setLinkDialog] = useState<{ link: string; nombre: string } | null>(null);
@@ -263,7 +280,7 @@ export function ListaUsuarios({ usuarios: usuariosIniciales }: ListaUsuariosProp
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{badgeTipo(u.tipo)}</TableCell>
+                  <TableCell>{badgeTipo(u)}</TableCell>
                   <TableCell>{badgeRol(u.rol)}</TableCell>
                   <TableCell>{badgeEstado(u.estado, u.activo)}</TableCell>
                   <TableCell className="text-xs text-stone-500">
@@ -290,12 +307,21 @@ export function ListaUsuarios({ usuarios: usuariosIniciales }: ListaUsuariosProp
                           align="end"
                           className="bg-stone-900/95 backdrop-blur border-white/10"
                         >
-                          <DropdownMenuItem
-                            onClick={() => setUsuarioEditar(u)}
-                            className="text-stone-200 focus:bg-white/8 cursor-pointer gap-2"
-                          >
-                            <Pencil className="h-4 w-4" /> Editar
-                          </DropdownMenuItem>
+                          {u.tipo === "AGENTE" ? (
+                            <DropdownMenuItem
+                              onClick={() => setAgenteEditar(u)}
+                              className="text-stone-200 focus:bg-white/8 cursor-pointer gap-2"
+                            >
+                              <Settings2 className="h-4 w-4" /> Configurar agente
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => setUsuarioEditar(u)}
+                              className="text-stone-200 focus:bg-white/8 cursor-pointer gap-2"
+                            >
+                              <Pencil className="h-4 w-4" /> Editar
+                            </DropdownMenuItem>
+                          )}
 
                           {u.tipo === "USUARIO" && (
                             <>
@@ -347,12 +373,21 @@ export function ListaUsuarios({ usuarios: usuariosIniciales }: ListaUsuariosProp
         </div>
       )}
 
-      {/* Dialogs */}
+      {/* Dialogs y Sheets */}
       <DialogEditarUsuario
         usuario={usuarioEditar}
         onCerrar={() => setUsuarioEditar(null)}
         onExito={() => {
           setUsuarioEditar(null);
+          recargar();
+        }}
+      />
+
+      <SheetEditarAgente
+        agente={agenteEditar}
+        onCerrar={() => setAgenteEditar(null)}
+        onExito={() => {
+          setAgenteEditar(null);
           recargar();
         }}
       />

@@ -17,6 +17,7 @@ export async function obtenerUsuariosInstancia(
           telefono: true,
           estado: true,
           ultimoLogin: true,
+          agenteIAConfig: { select: { id: true, tipo: true } },
         },
       },
     },
@@ -40,5 +41,6 @@ export async function obtenerUsuariosInstancia(
       estado: ui.usuario.estado,
       activo: ui.activo,
       ultimoLogin: ui.usuario.ultimoLogin,
+      agenteIAConfig: ui.usuario.agenteIAConfig ?? null,
     }));
 }

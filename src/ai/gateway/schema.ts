@@ -12,7 +12,6 @@ export const SolicitudIASchema = z.object({
   mensajes: z.array(MensajeIASchema).min(1),
   temperatura: z.number().min(0).max(2).optional(),
   maxTokens: z.number().int().positive().max(8096).optional(),
-  proveedorPreferido: z.enum(["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "LOCAL"]).optional(),
   entidadTipo: z.string().optional(),
   entidadId: z.string().optional(),
 });
