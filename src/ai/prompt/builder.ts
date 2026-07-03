@@ -8,6 +8,7 @@ export interface ConfigAgenteParaPrompt {
   especialidad?: string | null;
   instrucciones?: unknown;  // JSONB: string[] | { lista: string[] }
   sistemaPrompt?: string | null;
+  configuracionTono?: unknown;  // ConfiguracionTonoInput serializado desde BD
 }
 
 export interface ContextoDinamicoPrompt {
@@ -25,7 +26,10 @@ export function construirSystemPrompt(
 
   partes.push(buildRol(config));
 
-  if (config.personalidad) {
+  const bloqueTono = construirBloqueTono(config.configuracionTono);
+  if (bloqueTono) {
+    partes.push(bloqueTono);
+  } else if (config.personalidad) {
     partes.push(`Tu estilo y personalidad: ${config.personalidad}.`);
   }
 
@@ -33,15 +37,19 @@ export function construirSystemPrompt(
     partes.push(`Área de especialidad: ${config.especialidad}.`);
   }
 
-  partes.push(
-    [
-      "Restricciones:",
-      "- Opera únicamente con información de esta empresa.",
-      "- No divulgues datos de otros clientes o instancias.",
-      "- Responde siempre en el mismo idioma que el cliente.",
-      "- Sé conciso. Evita respuestas innecesariamente largas.",
-    ].join("\n"),
-  );
+  const restricciones = [
+    "Restricciones:",
+    "- Opera únicamente con información de esta empresa.",
+    "- No divulgues datos de otros clientes o instancias.",
+    "- Responde siempre en el mismo idioma que el cliente.",
+  ];
+
+  const tono = parsearTono(config.configuracionTono);
+  if (!(tono?.respuestaLarga ?? false)) {
+    restricciones.push("- Sé conciso. Evita respuestas innecesariamente largas.");
+  }
+
+  partes.push(restricciones.join("\n"));
 
   const instrucciones = parsearLista(config.instrucciones);
   if (instrucciones.length > 0) {
@@ -86,6 +94,51 @@ function buildRol(config: Pick<ConfigAgenteParaPrompt, "objetivo">): string {
     return `Eres un asistente especializado en ${config.objetivo}. Tu misión es ayudar a los clientes de forma profesional y efectiva.`;
   }
   return "Eres un asistente comercial. Tu misión es ayudar a los clientes de forma profesional y efectiva.";
+}
+
+interface TonoConfig {
+  tono?: string | null;
+  formalidad?: string | null;
+  usoEmojis?: boolean;
+  respuestaLarga?: boolean;
+  llamaClientePorNombre?: boolean;
+  tuteo?: boolean;
+  usaHumor?: boolean;
+}
+
+function parsearTono(valor: unknown): TonoConfig | null {
+  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return null;
+  return valor as TonoConfig;
+}
+
+function construirBloqueTono(valor: unknown): string {
+  const t = parsearTono(valor);
+  if (!t) return "";
+
+  const partes: string[] = [];
+
+  const mapasTono: Record<string, string> = {
+    "Cálido":      "Usa un tono cálido, cercano y empático.",
+    "Profesional": "Usa un tono profesional y seguro.",
+    "Directo":     "Sé directo y ve al punto, sin rodeos.",
+    "Empático":    "Muestra empatía y comprensión activa.",
+    "Entusiasta":  "Transmite entusiasmo y energía positiva.",
+  };
+  const mapaFormalidad: Record<string, string> = {
+    "Formal":      "Usa lenguaje formal, evita coloquialismos.",
+    "Semi Formal": "Usa un lenguaje semi-formal: profesional pero accesible.",
+    "Informal":    "Usa un tono casual y conversacional.",
+  };
+
+  if (t.tono && mapasTono[t.tono]) partes.push(mapasTono[t.tono]);
+  if (t.formalidad && mapaFormalidad[t.formalidad]) partes.push(mapaFormalidad[t.formalidad]);
+  if (t.usoEmojis ?? false) partes.push("Puedes usar emojis con moderación para dar calidez.");
+  else partes.push("No uses emojis.");
+  if (t.llamaClientePorNombre ?? false) partes.push("Cuando conozcas el nombre del cliente, úsalo para dirigirte a él/ella.");
+  if (t.tuteo ?? false) partes.push("Tutea al cliente (usa 'tú' en vez de 'usted').");
+  if (t.usaHumor ?? false) partes.push("Puedes usar humor ligero y apropiado cuando sea natural.");
+
+  return partes.length > 0 ? "Estilo de comunicación:\n" + partes.map((p) => `- ${p}`).join("\n") : "";
 }
 
 function parsearLista(valor: unknown): string[] {

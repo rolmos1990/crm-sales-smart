@@ -3,6 +3,7 @@ export interface ContextoTool {
   agenteId?: string;
   conversacionId: string;
   contactoId?: string;
+  oportunidadId?: string;
   herramientasPermitidas: string[];
 }
 

@@ -144,7 +144,9 @@
       "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Out-String | Select-String -Pattern \"src/\\(configuracion|suscriptores/ai|eventos/contratos/generar\\)\" -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Value })",
       "Bash(findstr /V \"scripts/reparar mock-prisma resend.provider select-moneda Partial\")",
       "Bash(findstr \"error TS\")",
-      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"dialog-nuevo\" })"
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"dialog-nuevo\" })",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"scripts/\" } | Select-Object -First 50)",
+      "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"src/ai/|src/configuracion/ia/|src/suscriptores/ai/\" })"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

@@ -1630,6 +1630,7 @@ model AgenteIAConfig {
   memoriaHabilitada   Boolean          @default(true)
   limiteTokensCtx     Int              @default(4000)
   instrucciones       Json?
+  configuracionTono   Json?
   creadoEn            DateTime         @default(now())
   actualizadoEn       DateTime         @updatedAt
 

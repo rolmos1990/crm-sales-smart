@@ -75,6 +75,7 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
         agenteId,
         conversacionId,
         contactoId: conversacion.contactoId ?? undefined,
+        oportunidadId,
         herramientasPermitidas,
         mensajesBase,
         generarConHerramientas,
@@ -140,6 +141,7 @@ interface EjecutarConToolsParams {
   agenteId?: string;
   conversacionId: string;
   contactoId?: string;
+  oportunidadId?: string;
   herramientasPermitidas: string[];
   mensajesBase: Array<{ rol: "system" | "user" | "assistant"; contenido: string }>;
   generarConHerramientas: typeof import("@/ai/gateway/gateway")["generarConHerramientas"];
@@ -162,6 +164,7 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<string>
     agenteId: params.agenteId,
     conversacionId: params.conversacionId,
     contactoId: params.contactoId,
+    oportunidadId: params.oportunidadId,
     herramientasPermitidas: params.herramientasPermitidas,
   };
 

@@ -59,6 +59,7 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
             objetivo: true,
             especialidad: true,
             instrucciones: true,
+            configuracionTono: true,
             limiteTokensCtx: true,
           },
         })
@@ -120,6 +121,7 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
         especialidad: agenteConfig.especialidad,
         instrucciones: agenteConfig.instrucciones,
         sistemaPrompt: agenteConfig.sistemaPrompt,
+        configuracionTono: agenteConfig.configuracionTono,
       },
       {
         nombreContacto: contacto?.nombre,

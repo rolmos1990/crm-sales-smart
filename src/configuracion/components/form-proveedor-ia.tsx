@@ -1,10 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, Zap, Eye, EyeOff } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupButton,
+} from "@/components/ui/input-group";
 import { crearProveedorIA } from "@/configuracion/ia/actions";
 import { ProveedorIASchema, type ProveedorIAInput } from "@/configuracion/ia/schema";
 
@@ -48,6 +54,7 @@ interface FormProveedorIAProps {
 
 export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAProps) {
   const [isPending, startTransition] = useTransition();
+  const [mostrarApiKey, setMostrarApiKey] = useState(false);
 
   const form = useForm<ProveedorIAInput>({
     resolver: zodResolver(ProveedorIASchema),
@@ -191,12 +198,24 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
                     API Key{proveedorSeleccionado === "LOCAL" && <span className="text-stone-500 normal-case ml-1">(no requerida para LOCAL)</span>}
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder={proveedorSeleccionado === "ANTHROPIC" ? "sk-ant-..." : proveedorSeleccionado === "OPENAI" ? "sk-..." : ""}
-                      className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 font-mono"
-                    />
+                    <InputGroup>
+                      <InputGroupInput
+                        {...field}
+                        type={mostrarApiKey ? "text" : "password"}
+                        placeholder={proveedorSeleccionado === "ANTHROPIC" ? "sk-ant-..." : proveedorSeleccionado === "OPENAI" ? "sk-..." : ""}
+                        className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 font-mono"
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                          type="button"
+                          size="icon-xs"
+                          aria-label={mostrarApiKey ? "Ocultar API Key" : "Mostrar API Key"}
+                          onClick={() => setMostrarApiKey((v) => !v)}
+                        >
+                          {mostrarApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
                   </FormControl>
                   <FormDescription className="text-stone-500 text-xs">
                     Se almacena de forma segura y nunca se muestra después de guardar

@@ -33,6 +33,8 @@ export async function guardarAgenteIA(usuarioId: string, datos: unknown) {
     memoriaHabilitada: validado.data.memoriaHabilitada,
     limiteTokensCtx: validado.data.limiteTokensCtx,
     canalesPermitidos: validado.data.canalesPermitidos ?? Prisma.JsonNull,
+    herramientas: validado.data.herramientas ?? Prisma.JsonNull,
+    configuracionTono: validado.data.configuracionTono ?? Prisma.JsonNull,
   };
 
   await prisma.agenteIAConfig.upsert({
@@ -85,6 +87,8 @@ export async function cargarConfigAgenteIA(usuarioId: string) {
       memoriaHabilitada: true,
       limiteTokensCtx: true,
       canalesPermitidos: true,
+      herramientas: true,
+      configuracionTono: true,
     },
   });
 }
