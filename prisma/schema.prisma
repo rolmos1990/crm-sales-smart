@@ -1540,6 +1540,7 @@ enum ProveedorIAEnum {
   OPENAI
   GEMINI
   DEEPSEEK
+  NVIDIA
   LOCAL
 }
 

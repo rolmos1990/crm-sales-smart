@@ -37,14 +37,14 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
     ? await obtenerAgenteIAConfig(validado.agenteIAConfigId)
     : null;
 
-  const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil } =
+  const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil, modeloDefault: proveedorModelo } =
     await seleccionarProveedor(
       validado.instanciaId,
       agente?.tipo ?? undefined,
     );
 
   const modelo =
-    agente?.modeloPreferido ?? config.modeloDefault ?? "claude-sonnet-4-6";
+    agente?.modeloPreferido ?? config.modeloDefault ?? proveedorModelo ?? "claude-sonnet-4-6";
 
   const temperatura =
     agente?.temperaturaOverride ?? validado.temperatura ?? config.temperaturaDefault ?? 0.7;
@@ -121,14 +121,14 @@ export async function generarConHerramientas(
     ? await obtenerAgenteIAConfig(solicitud.agenteIAConfigId)
     : null;
 
-  const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil } =
+  const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil, modeloDefault: proveedorModelo } =
     await seleccionarProveedor(solicitud.instanciaId, agente?.tipo ?? undefined);
 
   if (!proveedor.chatConHerramientas) {
     throw new Error(`Proveedor ${proveedor.nombre} no soporta tool calling`);
   }
 
-  const modelo = agente?.modeloPreferido ?? config.modeloDefault ?? "claude-sonnet-4-6";
+  const modelo = agente?.modeloPreferido ?? config.modeloDefault ?? proveedorModelo ?? "claude-sonnet-4-6";
   const temperatura = agente?.temperaturaOverride ?? solicitud.temperatura ?? config.temperaturaDefault ?? 0.7;
 
   let resultado: ChatConHerramientasResult;

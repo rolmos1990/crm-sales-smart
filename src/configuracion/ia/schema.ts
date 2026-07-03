@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const ConfiguracionIASchema = z.object({
   habilitado: z.boolean(),
-  proveedorDefault: z.enum(["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "LOCAL"]).optional(),
+  proveedorDefault: z.enum(["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "NVIDIA", "LOCAL"]).optional(),
   modeloDefault: z.string().min(1).optional(),
   temperaturaDefault: z.number().min(0).max(2).optional(),
   limiteTokensDiarios: z.number().int().positive().optional().nullable(),
@@ -13,7 +13,7 @@ export const ConfiguracionIASchema = z.object({
 export type ConfiguracionIAInput = z.infer<typeof ConfiguracionIASchema>;
 
 export const ProveedorIASchema = z.object({
-  proveedor: z.enum(["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "LOCAL"]),
+  proveedor: z.enum(["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "NVIDIA", "LOCAL"]),
   tipoAgenteIA: z.enum(["COMERCIAL", "GERENCIA"]).nullable().optional(),
   apiKey: z.string().min(1, "La API key es requerida").optional().or(z.literal("")),
   baseUrl: z.string().url("URL inválida").optional().or(z.literal("")),

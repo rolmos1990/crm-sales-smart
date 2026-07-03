@@ -42,7 +42,8 @@ const MODELOS_POR_PROVEEDOR: Record<string, string> = {
   ANTHROPIC: "claude-sonnet-4-6, claude-haiku-4-5-20251001, claude-opus-4-8",
   OPENAI: "gpt-4o, gpt-4o-mini, gpt-4-turbo",
   GEMINI: "gemini-1.5-pro, gemini-1.5-flash",
-  DEEPSEEK: "deepseek-chat, deepseek-coder",
+  DEEPSEEK: "deepseek-chat, deepseek-reasoner, deepseek-v3, deepseek-v4, deepseek-r1, deepseek-coder",
+  NVIDIA: "meta/llama-3.3-70b-instruct, deepseek-ai/deepseek-v4-pro, deepseek-ai/deepseek-r1, nvidia/llama-3.1-nemotron-70b-instruct, meta/llama-3.1-405b-instruct",
   LOCAL: "llama3, mistral",
 };
 
@@ -124,7 +125,7 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="bg-stone-900 border-white/10">
-                        {["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "LOCAL"].map((p) => (
+                        {["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "NVIDIA", "LOCAL"].map((p) => (
                           <SelectItem key={p} value={p} className="text-stone-50 focus:bg-white/10">
                             {p}
                           </SelectItem>

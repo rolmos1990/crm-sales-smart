@@ -38,6 +38,7 @@ export interface SeleccionProveedor {
   proveedorId: string;
   costoInputPorMil: number | null;
   costoOutputPorMil: number | null;
+  modeloDefault: string | undefined;
 }
 
 export async function seleccionarProveedor(
@@ -59,8 +60,14 @@ export async function seleccionarProveedor(
     : proveedores;
 
   for (const config of ordenados) {
-    if (estaCircuitBreakerAbierto(config.id)) continue;
-    if (!config.apiKeyEncriptada && config.proveedor !== "LOCAL") continue;
+    if (estaCircuitBreakerAbierto(config.id)) {
+      console.warn(`[SeleccionarProveedor] ${config.proveedor} (${config.id}) — circuit breaker abierto, omitido`);
+      continue;
+    }
+    if (!config.apiKeyEncriptada && config.proveedor !== "LOCAL") {
+      console.warn(`[SeleccionarProveedor] ${config.proveedor} (${config.id}) — sin apiKeyEncriptada, omitido`);
+      continue;
+    }
 
     try {
       const instancia = crearProveedor(
@@ -80,13 +87,20 @@ export async function seleccionarProveedor(
         costoOutputPorMil: config.costoOutputPorMilToken
           ? Number(config.costoOutputPorMilToken)
           : null,
+        modeloDefault: config.modelosDisponibles
+          ? (config.modelosDisponibles as string[])[0]
+          : undefined,
       };
-    } catch {
+    } catch (err) {
+      console.error(`[SeleccionarProveedor] ${config.proveedor} (${config.id}) — error al inicializar:`, err);
       registrarFalla(config.id);
     }
   }
 
-  throw new Error(`No se pudo seleccionar un proveedor IA disponible para ${instanciaId}`);
+  throw new Error(
+    `No se pudo seleccionar un proveedor IA disponible para ${instanciaId}. ` +
+    `Se evaluaron ${ordenados.length} proveedor(es) activo(s) — revisar logs del servidor para el motivo.`,
+  );
 }
 
 export { registrarFalla, registrarExito };
