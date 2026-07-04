@@ -51,11 +51,12 @@ export async function seleccionarProveedor(
     throw new Error(`No hay proveedores IA activos para la instancia ${instanciaId}`);
   }
 
-  // Prioridad: proveedor con scope exacto al tipo de agente → proveedor general (null) → resto
+  // Prioridad: proveedor con scope exacto al tipo de agente → proveedor general (null) → cualquier otro activo
   const ordenados = tipoAgente
     ? [
         ...proveedores.filter((p) => p.tipoAgenteIA === tipoAgente),
         ...proveedores.filter((p) => p.tipoAgenteIA === null),
+        ...proveedores.filter((p) => p.tipoAgenteIA !== tipoAgente && p.tipoAgenteIA !== null),
       ]
     : proveedores;
 
