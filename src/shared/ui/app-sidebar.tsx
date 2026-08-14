@@ -196,7 +196,7 @@ export function AppLayout({
             </div>
             <div className="flex flex-col leading-none gap-0.5">
               <span className="text-[13px] font-semibold tracking-tight text-stone-900 dark:text-white">
-                Vento
+                KariaApp
               </span>
               <span className="text-[10px] text-stone-400 dark:text-white/30 tracking-wide font-medium">
                 CRM & Sales

@@ -71,7 +71,7 @@ async function reconectarSocket(
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: "silent" }),
-      browser: ["Vento", "Chrome", "22.04.4"] as [string, string, string],
+      browser: ["KariaApp", "Chrome", "22.04.4"] as [string, string, string],
       syncFullHistory: false,
       getMessage: async (_key) => undefined, // fallback para reenvíos internos de Baileys
     });

@@ -7,7 +7,7 @@ import { AuthLayout } from "@/shared/auth/components/auth-layout";
 import { obtenerSesionActual } from "@/shared/auth/sesion";
 
 export const metadata: Metadata = {
-  title: "Iniciar sesión — Vento",
+  title: "Iniciar sesión — KariaApp",
 };
 
 export default async function LoginPage() {

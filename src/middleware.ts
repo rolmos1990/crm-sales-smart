@@ -2,7 +2,21 @@ import { type NextRequest, NextResponse } from "next/server";
 import { refrescarSesion } from "@/shared/auth/provider";
 
 // Rutas públicas que no requieren sesión activa.
-const RUTAS_PUBLICAS = ["/login", "/registro", "/auth/callback", "/auth/invitacion", "/auth/reset-password", "/auth/magiclink", "/auth/configurar-cuenta", "/privacy-policy"];
+// "/api/webhooks" también es pública: los webhooks de Meta/WhatsApp llegan sin
+// cookie de sesión y se validan con su propia firma/token, no con nuestro login.
+const RUTAS_PUBLICAS = [
+  "/login",
+  "/registro",
+  "/auth/callback",
+  "/auth/invitacion",
+  "/auth/reset-password",
+  "/auth/magiclink",
+  "/auth/configurar-cuenta",
+  "/privacy-policy",
+  "/terms-of-service",
+  "/data-deletion-status",
+  "/api/webhooks",
+];
 
 function esRutaPublica(pathname: string) {
   return RUTAS_PUBLICAS.some((ruta) => pathname.startsWith(ruta));

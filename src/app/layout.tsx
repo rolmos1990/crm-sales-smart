@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vento",
+  title: "KariaApp",
   description: "Gestión de clientes, oportunidades y ventas",
 };
 

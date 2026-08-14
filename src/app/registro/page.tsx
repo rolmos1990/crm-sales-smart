@@ -5,7 +5,7 @@ import { FormRegistro } from "@/shared/auth/components/form-registro";
 import { AuthLayout } from "@/shared/auth/components/auth-layout";
 
 export const metadata: Metadata = {
-  title: "Crea tu cuenta — Vento",
+  title: "Crea tu cuenta — KariaApp",
 };
 
 export default function RegistroPage() {

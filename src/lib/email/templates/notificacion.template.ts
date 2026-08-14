@@ -30,7 +30,7 @@ export function renderNotificacion(data: PayloadNotificacion): EmailTemplate {
           <tr>
             <td>
               <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#84cc16;">
-                Vento CRM
+                KariaApp CRM
               </p>
               <h2 style="margin:0 0 16px;font-size:20px;font-weight:600;color:#f8fafc;letter-spacing:-0.02em;">
                 ${data.titulo}

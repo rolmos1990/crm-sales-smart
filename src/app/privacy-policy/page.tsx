@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidad — Vento",
+  title: "Política de Privacidad — KariaApp",
   description:
-    "Cómo Karia App (Vento) recopila, usa y protege los datos de contactos y conversaciones, incluyendo los obtenidos a través de la integración con las plataformas de Meta (Instagram y WhatsApp).",
+    "Cómo Karia App recopila, usa y protege los datos de contactos y conversaciones, incluyendo los obtenidos a través de la integración con las plataformas de Meta (Instagram y WhatsApp).",
 };
 
 const ACTUALIZADO = "14 de agosto de 2026";
-const EMAIL_CONTACTO = "ramon.olmos90@gmail.com";
+const EMAIL_CONTACTO = "kariacrmmanager@gmail.com";
 
 const SECCIONES = [
   { id: "quienes-somos", titulo: "1. Quiénes somos" },
@@ -57,7 +57,7 @@ export default function PrivacyPolicyPage() {
             href="/"
             className="text-xs font-semibold uppercase tracking-widest text-lime-600 dark:text-lime-400"
           >
-            Vento
+            KariaApp
           </Link>
           <h1 className="text-3xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">
             Política de Privacidad
@@ -89,10 +89,9 @@ export default function PrivacyPolicyPage() {
         <div className="space-y-10">
           <Seccion id="quienes-somos" titulo="1. Quiénes somos">
             <p>
-              Esta Política de Privacidad aplica a <strong>Vento</strong>, un software de
-              gestión de clientes y ventas (CRM) operado por{" "}
-              <strong>Karia App</strong> (en adelante, &quot;nosotros&quot;,
-              &quot;la aplicación&quot; o &quot;el responsable del tratamiento&quot;). Vento permite a un
+              Esta Política de Privacidad aplica a <strong>Karia App</strong>, un software de
+              gestión de clientes y ventas (CRM) (en adelante, &quot;nosotros&quot;,
+              &quot;la aplicación&quot; o &quot;el responsable del tratamiento&quot;). Karia App permite a un
               negocio gestionar sus contactos, oportunidades comerciales y conversaciones con
               clientes, incluyendo las que se originan en canales de mensajería como WhatsApp e
               Instagram a través de las plataformas de Meta.
@@ -109,18 +108,18 @@ export default function PrivacyPolicyPage() {
 
           <Seccion id="alcance" titulo="2. Alcance de esta política">
             <p>
-              Vento es utilizado por negocios (&quot;el cliente&quot;) para administrar su propia
-              relación con sus clientes finales (&quot;contactos&quot;). El cliente que usa Vento es
+              Karia App es utilizado por negocios (&quot;el cliente&quot;) para administrar su propia
+              relación con sus clientes finales (&quot;contactos&quot;). El cliente que usa Karia App es
               responsable de la información que ingresa o conecta al sistema (por ejemplo, sus
               contactos, empresas y cuentas de mensajería). Esta política describe cómo
-              Vento, como proveedor de la plataforma, recopila, procesa, almacena y protege esa
+              Karia App, como proveedor de la plataforma, recopila, procesa, almacena y protege esa
               información en su infraestructura, incluyendo los datos obtenidos mediante la
               integración con la Plataforma de Meta (Instagram y WhatsApp Business).
             </p>
           </Seccion>
 
           <Seccion id="datos-que-recopilamos" titulo="3. Datos que recopilamos">
-            <p>Dependiendo de cómo se use Vento, podemos tratar los siguientes datos:</p>
+            <p>Dependiendo de cómo se use Karia App, podemos tratar los siguientes datos:</p>
             <ul className="list-disc space-y-1.5 pl-5">
               <li>
                 <strong>Datos de cuenta:</strong> nombre, correo electrónico y rol de los
@@ -145,7 +144,7 @@ export default function PrivacyPolicyPage() {
 
           <Seccion id="datos-de-meta" titulo="4. Datos obtenidos a través de Meta (Instagram / WhatsApp)">
             <p>
-              Cuando un negocio conecta su cuenta de Instagram o WhatsApp Business a Vento
+              Cuando un negocio conecta su cuenta de Instagram o WhatsApp Business a Karia App
               mediante el inicio de sesión de Meta, solicitamos únicamente los permisos
               necesarios para ofrecer la función de bandeja de conversaciones, entre ellos:{" "}
               <code className="rounded bg-muted px-1.5 py-0.5 text-xs">instagram_basic</code>,{" "}
@@ -182,7 +181,7 @@ export default function PrivacyPolicyPage() {
             <ul className="list-disc space-y-1.5 pl-5">
               <li>Mostrar la bandeja de conversaciones y el historial de mensajes dentro del CRM del negocio.</li>
               <li>Vincular conversaciones con contactos, empresas y oportunidades comerciales.</li>
-              <li>Permitir que los agentes del negocio respondan mensajes desde Vento.</li>
+              <li>Permitir que los agentes del negocio respondan mensajes desde Karia App.</li>
               <li>
                 Cuando el negocio activa funciones de inteligencia artificial (respuestas
                 automáticas, resúmenes o clasificación de conversaciones), el contenido relevante
@@ -218,7 +217,7 @@ export default function PrivacyPolicyPage() {
           <Seccion id="conservacion" titulo="7. Conservación de los datos">
             <p>
               Conservamos los datos de contactos, oportunidades y conversaciones mientras el
-              negocio mantenga una cuenta activa en Vento, o hasta que solicite su eliminación.
+              negocio mantenga una cuenta activa en Karia App, o hasta que solicite su eliminación.
               Al eliminar una cuenta, la conversación y los datos personales asociados se borran
               de forma definitiva de nuestra base de datos en un plazo razonable, salvo que
               debamos conservar cierta información por obligación legal.
@@ -229,7 +228,7 @@ export default function PrivacyPolicyPage() {
             <p>Puedes solicitar la eliminación de tus datos de dos formas:</p>
             <ul className="list-disc space-y-1.5 pl-5">
               <li>
-                <strong>Si eres cliente final</strong> (escribiste a un negocio que usa Vento por
+                <strong>Si eres cliente final</strong> (escribiste a un negocio que usa Karia App por
                 WhatsApp o Instagram) y quieres que borremos tu conversación e información de
                 contacto: escríbenos a{" "}
                 <a href={`mailto:${EMAIL_CONTACTO}`} className="text-lime-600 hover:underline dark:text-lime-400">
@@ -240,12 +239,12 @@ export default function PrivacyPolicyPage() {
                 en un plazo máximo de 30 días.
               </li>
               <li>
-                <strong>Si eres el negocio</strong> que usa Vento, puedes eliminar contactos,
+                <strong>Si eres el negocio</strong> que usa Karia App, puedes eliminar contactos,
                 conversaciones u otros registros directamente desde el CRM, o solicitar el borrado
                 completo de tu cuenta escribiendo al mismo correo.
               </li>
               <li>
-                También puedes revocar el acceso de Vento a tu cuenta de Instagram/Facebook en
+                También puedes revocar el acceso de Karia App a tu cuenta de Instagram/Facebook en
                 cualquier momento desde{" "}
                 <a
                   href="https://www.facebook.com/settings?tab=business_tools"
@@ -256,6 +255,14 @@ export default function PrivacyPolicyPage() {
                   Configuración de Meta → Aplicaciones y sitios web
                 </a>
                 . Al revocar el acceso, dejaremos de recibir nuevos mensajes de esa cuenta.
+              </li>
+              <li>
+                Meta también puede notificarnos directamente cuando revocas el acceso, a través de
+                nuestra{" "}
+                <Link href="/data-deletion-status" className="text-lime-600 hover:underline dark:text-lime-400">
+                  URL de eliminación de datos
+                </Link>
+                .
               </li>
             </ul>
           </Seccion>
@@ -284,7 +291,7 @@ export default function PrivacyPolicyPage() {
 
           <Seccion id="menores" titulo="11. Menores de edad">
             <p>
-              Vento está dirigido a negocios y a los usuarios que administran sus operaciones
+              Karia App está dirigido a negocios y a los usuarios que administran sus operaciones
               comerciales; no está diseñado para ser usado por menores de edad, y no recopilamos
               intencionalmente datos de menores para fines propios de la plataforma.
             </p>
@@ -305,13 +312,17 @@ export default function PrivacyPolicyPage() {
               <a href={`mailto:${EMAIL_CONTACTO}`} className="text-lime-600 hover:underline dark:text-lime-400">
                 {EMAIL_CONTACTO}
               </a>
+              . También puedes revisar nuestras{" "}
+              <Link href="/terms-of-service" className="text-lime-600 hover:underline dark:text-lime-400">
+                Condiciones de Servicio
+              </Link>
               .
             </p>
           </Seccion>
         </div>
 
         <footer className="mt-16 border-t border-border pt-6 text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Karia App · Vento CRM
+          © {new Date().getFullYear()} Karia App
         </footer>
       </div>
     </main>

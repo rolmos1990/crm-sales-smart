@@ -28,7 +28,7 @@ export function Marca({ claro = false }: { claro?: boolean }) {
       <span
         className={`text-base font-bold tracking-tight ${claro ? "text-stone-50" : "text-stone-900 dark:text-stone-50"}`}
       >
-        Vento
+        KariaApp
       </span>
     </div>
   );
@@ -74,7 +74,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           </ul>
 
           <p className="text-xs text-stone-500">
-            © {new Date().getFullYear()} Vento. Todos los derechos reservados.
+            © {new Date().getFullYear()} KariaApp. Todos los derechos reservados.
           </p>
         </div>
 
