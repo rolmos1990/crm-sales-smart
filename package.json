@@ -19,6 +19,7 @@
     "worker": "tsx src/worker/disparadores.ts",
     "script:cleanup": "tsx scripts/cleanup-data.ts",
     "script:simular-ig": "tsx scripts/simular-mensaje-instagram.ts",
+    "script:simular-wa": "tsx scripts/simular-mensaje-whatsapp.ts",
     "script:mock-stubs": "node scripts/create-mock-stubs.mjs",
     "script:limpiar-conversaciones": "tsx scripts/limpiar-conversaciones.ts",
     "script:crear-primer-usuario": "tsx scripts/crear-primer-usuario.ts",

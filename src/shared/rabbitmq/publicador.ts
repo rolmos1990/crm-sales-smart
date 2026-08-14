@@ -3,6 +3,7 @@ import { obtenerCanal } from "./conexion";
 import { EXCHANGE, TIPO_EVENTO_A_RK } from "./exchanges";
 import type { EventoEnvelope } from "./tipos";
 import type { MapaPayloads, NombreEvento } from "@/eventos/mapa";
+import { prisma } from "@/shared/db/prisma";
 
 class PublicadorEventos {
   async publicar<K extends NombreEvento>(
@@ -20,6 +21,22 @@ class PublicadorEventos {
       version: 1,
       payload,
     };
+
+    // Persistir en EventoLog antes de enviar a RabbitMQ — bitácora y base para reenvíos futuros
+    try {
+      await prisma.eventoLog.create({
+        data: {
+          id:         envelope.eventId,
+          tipo,
+          payload:    envelope as object,
+          ocurridoEn: new Date(envelope.ocurridoEn),
+          instanciaId,
+        },
+      });
+    } catch (err) {
+      console.error(`[PublicadorEventos] No se pudo guardar EventoLog para ${tipo}:`, err);
+      // No lanzar — el log falla en silencio, el evento se publica igual
+    }
 
     try {
       const ch = await obtenerCanal();
