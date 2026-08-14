@@ -159,7 +159,8 @@
       "Bash(nc -zv -w 5 aws-1-us-west-2.pooler.supabase.com 6543)",
       "Bash(timeout 20 npx prisma migrate status)",
       "Bash(git ls-tree *)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(lsof -iTCP -sTCP:LISTEN -P)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
