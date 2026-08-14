@@ -293,6 +293,10 @@ export function PipelineKanbanDinamico({
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
   const moverMutation = useMoverAStageMutation();
 
+  // Las etapas Ganado/Perdido con visible=false no se muestran como columna,
+  // pero la oportunidad se sigue pudiendo mover ahí (drag a otra vía o popover "Mover a").
+  const stagesColumnas = pipeline.stages.filter((s) => !(s.esGanado || s.esPerdido) || s.visible);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
@@ -391,9 +395,9 @@ export function PipelineKanbanDinamico({
     <>
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <KanbanScrollContainer
-          stageColors={pipeline.stages.map((s) => s.color ?? "#818cf8")}
+          stageColors={stagesColumnas.map((s) => s.color ?? "#818cf8")}
         >
-          {pipeline.stages.map((stage) => (
+          {stagesColumnas.map((stage) => (
             <ColumnaStage
               key={stage.id}
               stage={stage}

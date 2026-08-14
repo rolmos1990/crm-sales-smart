@@ -470,6 +470,10 @@ model PipelineStage {
   esInicial     Boolean  @default(false)
   esGanado      Boolean  @default(false)
   esPerdido     Boolean  @default(false)
+  // Solo aplica a etapas esGanado/esPerdido: permite ocultarlas como columna
+  // del kanban sin perder la posibilidad de mover una oportunidad a esa etapa
+  // (drag&drop directo o vía el popover "Mover a").
+  visible       Boolean  @default(true)
   activo        Boolean  @default(true)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt

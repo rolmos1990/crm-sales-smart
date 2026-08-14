@@ -11,6 +11,9 @@ export const SchemaStage = z.object({
   probabilidad: z.number().int().min(0).max(100).default(20),
   esGanado: z.boolean().default(false),
   esPerdido: z.boolean().default(false),
+  // Solo tiene efecto cuando esGanado o esPerdido son true: oculta la etapa
+  // como columna del kanban (sigue disponible para mover una oportunidad ahí).
+  visible: z.boolean().default(true),
 });
 
 export const SchemaCampoPersonalizado = z.object({

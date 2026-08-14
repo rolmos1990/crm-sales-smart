@@ -26,6 +26,8 @@ import {
   Loader2,
   Trophy,
   XCircle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -149,6 +151,11 @@ function SortableStageItem({
             <XCircle className="h-2.5 w-2.5" /> Perdido
           </span>
         )}
+        {(stage.esGanado || stage.esPerdido) && !stage.visible && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-stone-500/10 border border-stone-500/20 px-1.5 py-0.5 text-xs font-medium text-stone-500 dark:text-stone-400">
+            <EyeOff className="h-2.5 w-2.5" /> Oculta del kanban
+          </span>
+        )}
         <span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums w-8 text-right">
           {stage.probabilidad}%
         </span>
@@ -187,15 +194,27 @@ function DialogEditarStage({
   const [probabilidad, setProbabilidad] = useState(stage?.probabilidad ?? 20);
   const [esGanado, setEsGanado] = useState(stage?.esGanado ?? false);
   const [esPerdido, setEsPerdido] = useState(stage?.esPerdido ?? false);
+  const [visible, setVisible] = useState(stage?.visible ?? true);
   const [isPending, startTransition] = useTransition();
+
+  const esTerminal = esGanado || esPerdido;
 
   const handleGuardar = () => {
     if (!stage || !nombre.trim()) return;
+    // "visible" solo tiene sentido para etapas Ganado/Perdido; para el resto queda siempre true.
+    const visibleFinal = esTerminal ? visible : true;
     startTransition(async () => {
-      const resultado = await actualizarStage(stage.id, { nombre: nombre.trim(), color, probabilidad, esGanado, esPerdido });
+      const resultado = await actualizarStage(stage.id, {
+        nombre: nombre.trim(),
+        color,
+        probabilidad,
+        esGanado,
+        esPerdido,
+        visible: visibleFinal,
+      });
       if (resultado.exito) {
         toast.success("Etapa actualizada");
-        onGuardado({ ...stage, nombre: nombre.trim(), color, probabilidad, esGanado, esPerdido });
+        onGuardado({ ...stage, nombre: nombre.trim(), color, probabilidad, esGanado, esPerdido, visible: visibleFinal });
         onOpenChange(false);
       } else {
         toast.error(resultado.error);
@@ -267,6 +286,39 @@ function DialogEditarStage({
               <XCircle className="h-3.5 w-3.5" /> Etapa perdido
             </button>
           </div>
+
+          {esTerminal && (
+            <button
+              onClick={() => setVisible(!visible)}
+              className={cn(
+                "w-full flex items-center gap-2.5 rounded-xl py-2 px-3 text-xs font-medium border transition-all text-left",
+                visible
+                  ? "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5"
+                  : "bg-stone-500/8 border-stone-500/25 text-stone-600 dark:text-stone-300"
+              )}
+            >
+              {visible ? <Eye className="h-3.5 w-3.5 flex-shrink-0" /> : <EyeOff className="h-3.5 w-3.5 flex-shrink-0" />}
+              <span className="flex-1">
+                {visible ? "Visible como columna en el kanban" : "Oculta del kanban"}
+                <span className="block text-[10px] font-normal opacity-70 mt-0.5">
+                  Aun oculta, se puede mover una oportunidad a esta etapa desde &quot;Mover a&quot;.
+                </span>
+              </span>
+              <div
+                className={cn(
+                  "flex-shrink-0 h-4 w-7 rounded-full transition-colors relative",
+                  visible ? "bg-lime-500" : "bg-stone-300 dark:bg-white/15"
+                )}
+              >
+                <div
+                  className={cn(
+                    "absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform",
+                    visible ? "translate-x-3.5" : "translate-x-0.5"
+                  )}
+                />
+              </div>
+            </button>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl">
@@ -377,6 +429,7 @@ export function PanelConfigPipeline({
           probabilidad: 20,
           esGanado: false,
           esPerdido: false,
+          visible: true,
           esInicial: false,
           descripcion: null,
           activo: true,

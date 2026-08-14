@@ -149,13 +149,24 @@
       "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"src/ai/|src/configuracion/ia/|src/suscriptores/ai/\" })",
       "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"deepseek|inicializar\" })",
       "PowerShell(cd \"c:\\\\Users\\\\ramon.olmos\\\\source\\\\repos\\\\Vento\\\\crm-sales-smart\"; npx tsc --noEmit --skipLibCheck 2>&1 | Where-Object { $_ -match \"deepseek|inicializar\" })",
-      "Bash(node -e \"const o = require\\('openai'\\); const tc = {}; console.log\\(Object.keys\\(o\\)\\)\")"
+      "Bash(node -e \"const o = require\\('openai'\\); const tc = {}; console.log\\(Object.keys\\(o\\)\\)\")",
+      "Bash(cat)",
+      "Bash(cp /tmp/inspect.ts /Users/ramonolmos/Repositories/crm-sales-smart/scripts/_inspect-tmp.ts)",
+      "Bash(sed -i '' 's#./src/generated/prisma/client#../src/generated/prisma/client#' scripts/_inspect-tmp.ts)",
+      "Bash(rm -f /Users/ramonolmos/Repositories/crm-sales-smart/scripts/_inspect-tmp.ts /tmp/inspect.ts)",
+      "Bash(nc -zv -w 5 db.gbghddqlerklgkopxgug.supabase.co 5432)",
+      "Bash(nc -zv -w 5 aws-1-us-west-2.pooler.supabase.com 5432)",
+      "Bash(nc -zv -w 5 aws-1-us-west-2.pooler.supabase.com 6543)",
+      "Bash(timeout 20 npx prisma migrate status)",
+      "Bash(git ls-tree *)",
+      "Bash(npx eslint *)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/oportunidades/[id]",
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/productos/[id]",
-      "\\tmp"
+      "\\tmp",
+      "/Users/ramonolmos/Repositories/crm-sales-smart/scripts"
     ]
   }
 }

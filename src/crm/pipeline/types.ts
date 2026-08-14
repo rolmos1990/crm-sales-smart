@@ -53,6 +53,8 @@ export interface PipelineStage {
   esInicial: boolean;
   esGanado: boolean;
   esPerdido: boolean;
+  /** Solo aplica si esGanado o esPerdido: oculta la columna en el kanban. */
+  visible: boolean;
   activo: boolean;
   pipelineId: string;
   respuestaIAHabilitada?: boolean;
