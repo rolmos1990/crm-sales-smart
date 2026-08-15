@@ -434,6 +434,7 @@ export function PanelOportunidad({
             {/* ── Pestaña: Contactos ───────────────────────────────── */}
             <div className={cn("flex-1 flex flex-col overflow-hidden", activeTab !== "contacto" && "hidden")}>
               <GestorContactosPanel
+                key={oportunidad.id}
                 oportunidadId={oportunidad.id}
                 contactosIniciales={contactosIniciales}
                 todosContactos={contactos}

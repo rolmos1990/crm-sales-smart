@@ -820,6 +820,7 @@ function WorkspaceContenido({
                 >
                   <div className="-mx-4">
                     <GestorContactosPanel
+                      key={oportunidad.id}
                       oportunidadId={oportunidad.id}
                       contactosIniciales={critica.contactosIniciales}
                       todosContactos={contactos}
