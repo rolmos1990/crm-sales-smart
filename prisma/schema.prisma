@@ -198,6 +198,15 @@ enum EstadoConversacion {
   EN_ESPERA
 }
 
+// Flujo de OAuth usado para obtener el access token de una CuentaCanal de
+// Instagram. "MetaFacebook" = flujo heredado (Facebook Login + Página
+// vinculada). "Instagram" = Instagram API with Instagram Login (Business
+// Login for Instagram) — no requiere Página de Facebook.
+enum ProveedorAuthCanal {
+  MetaFacebook
+  Instagram
+}
+
 enum EstadoImportacion {
   EN_PROCESO
   COMPLETADO
@@ -1398,6 +1407,14 @@ model CuentaCanal {
   configuracion Json // tokens, credenciales
   activa        Boolean @default(true)
 
+  // Proveedor de autenticación usado para obtener el token (solo relevante
+  // para canal "instagram"; el resto de canales queda en su default). No
+  // migra tokens existentes: las cuentas conectadas antes de este campo
+  // quedan como "MetaFacebook" (su flujo real) vía el default de la migración.
+  proveedorAuth   ProveedorAuthCanal @default(MetaFacebook)
+  tokenExpiraEn   DateTime? // vencimiento del access token, si el proveedor lo informa
+  tokenRenovadoEn DateTime? // última vez que se renovó/reemplazó el access token
+
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
@@ -1415,6 +1432,15 @@ model CuentaCanal {
   @@index([instanciaId])
   @@index([canal])
   @@index([stageId])
+  // Nota: además de este índice existe un índice único parcial
+  // (instanciaId, identificador) WHERE canal = 'instagram', creado a mano en
+  // la migración 20260817120000_add_instagram_auth_provider porque Prisma no
+  // soporta índices únicos parciales en el schema DSL. Se restringe solo a
+  // "instagram" para no arriesgar canales (whatsapp_lite, email) que hoy no
+  // garantizan esa unicidad en datos existentes. Si se corre
+  // `prisma migrate dev` después de tocar este modelo, revisar el diff
+  // propuesto antes de aceptar — Prisma puede proponer eliminar ese índice
+  // por no estar declarado aquí.
 }
 
 // Agrupador de mensajes por contacto + canal/cuenta

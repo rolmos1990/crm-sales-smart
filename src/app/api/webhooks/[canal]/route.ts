@@ -66,7 +66,10 @@ export async function GET(
     const mode = searchParams.get("hub.mode");
     const token = searchParams.get("hub.verify_token");
     const challenge = searchParams.get("hub.challenge");
-    if (mode === "subscribe" && token === process.env.WEBHOOK_VERIFY_TOKEN) {
+    const tokenValido =
+      (!!process.env.WEBHOOK_VERIFY_TOKEN && token === process.env.WEBHOOK_VERIFY_TOKEN) ||
+      (canal === "instagram" && !!process.env.META_INSTAGRAM_VERIFY_TOKEN && token === process.env.META_INSTAGRAM_VERIFY_TOKEN);
+    if (mode === "subscribe" && tokenValido) {
       return new Response(challenge ?? "", { status: 200 });
     }
     return new Response("Forbidden", { status: 403 });

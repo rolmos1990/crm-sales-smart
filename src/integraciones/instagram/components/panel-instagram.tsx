@@ -13,29 +13,41 @@ interface CuentaIG {
   activa: boolean;
   username?: string | null;
   profilePicUrl?: string | null;
+  proveedorAuth?: "MetaFacebook" | "Instagram";
 }
 
 interface PanelInstagramProps {
-  instanciaId: string;
   cuentas: CuentaIG[];
-  metaConfigurado: boolean;
+  instagramConfigurado: boolean;
   /** Mensaje de resultado tras OAuth redirect */
-  notificacion?: "conectado" | "sin_instagram" | "cancelado" | "error" | null;
+  notificacion?:
+    | "conectado"
+    | "sin_instagram"
+    | "cancelado"
+    | "cuenta_personal"
+    | "state"
+    | "sesion"
+    | "token"
+    | "perfil"
+    | "no_configurado"
+    | "parametros"
+    | "oauth"
+    | "error"
+    | null;
 }
 
-// ── Botón "Continuar con Instagram / Meta" ────────────────────────────────────
+// ── Botón "Conectar Instagram" ────────────────────────────────────────────────
+// Inicia el login directo de Instagram (Business Login for Instagram) — no
+// pasa por el diálogo de Facebook. `instanciaId` ya no viaja por query
+// param: la ruta deriva la organización de la sesión actual.
 
 function BotonConectarInstagram({
-  instanciaId,
-  label = "Continuar con Meta",
+  label = "Conectar Instagram",
   disabled = false,
 }: {
-  instanciaId: string;
   label?: string;
   disabled?: boolean;
 }) {
-  const oauthUrl = `/api/integraciones/instagram/oauth?instanciaId=${instanciaId}`;
-
   if (disabled) {
     return (
       <button
@@ -49,12 +61,9 @@ function BotonConectarInstagram({
   }
 
   return (
-    <a href={oauthUrl} className="inline-block">
-      <button className="flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white text-sm font-semibold transition-all hover:scale-[1.02] shadow-lg">
-        {/* Meta "f" logo en SVG mínimo */}
-        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white" aria-hidden="true">
-          <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073c0 6.027 4.388 11.024 10.125 11.927v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.953h-1.514c-1.491 0-1.956.93-1.956 1.884v2.25h3.328l-.532 3.49h-2.796v8.437C19.612 23.097 24 18.1 24 12.073z" />
-        </svg>
+    <a href="/api/integraciones/instagram/login" className="inline-block">
+      <button className="flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-gradient-to-br from-[#833AB4] via-[#E1306C] to-[#F77737] hover:brightness-110 text-white text-sm font-semibold transition-all hover:scale-[1.02] shadow-lg">
+        <span className="text-base leading-none">📸</span>
         {label}
       </button>
     </a>
@@ -108,6 +117,11 @@ function TarjetaCuentaIG({
         <p className="text-[11px] text-stone-500 flex items-center gap-1 mt-0.5">
           <MessageCircle className="h-3 w-3" />
           Mensajes directos activos
+          {cuenta.proveedorAuth === "MetaFacebook" && (
+            <span className="ml-1 text-stone-600" title="Conectada con el flujo anterior (Facebook Login). Sigue funcionando; reconecta con el botón de arriba para pasarla a Instagram Login.">
+              · vía Facebook (heredado)
+            </span>
+          )}
         </p>
       </div>
 
@@ -167,9 +181,8 @@ function AvisoSinConfiguracion() {
 // ── Panel principal ────────────────────────────────────────────────────────────
 
 export function PanelInstagram({
-  instanciaId,
   cuentas: cuentasIniciales,
-  metaConfigurado,
+  instagramConfigurado,
   notificacion,
 }: PanelInstagramProps) {
   const [cuentas, setCuentas] = useState(cuentasIniciales);
@@ -179,13 +192,24 @@ export function PanelInstagram({
     if (notificacion === "conectado") {
       toast.success("¡Instagram conectado exitosamente!");
     } else if (notificacion === "cancelado") {
-      toast.info("Conexión cancelada");
+      toast.info("Conexión cancelada. No se otorgaron permisos.");
     } else if (notificacion === "sin_instagram") {
       toast.error(
         "No encontramos una cuenta de Instagram Business asociada a tu Página de Facebook. Asegúrate de tener el perfil de Instagram como cuenta de empresa o creador.",
         { duration: 8000 }
       );
-    } else if (notificacion === "error") {
+    } else if (notificacion === "cuenta_personal") {
+      toast.error(
+        "Esa cuenta de Instagram es personal. Conviértela en cuenta profesional (Business o Creador) desde la app de Instagram e inténtalo de nuevo.",
+        { duration: 8000 }
+      );
+    } else if (notificacion === "state" || notificacion === "sesion") {
+      toast.error("La conexión expiró o no se pudo verificar. Inténtalo de nuevo.");
+    } else if (notificacion === "token" || notificacion === "perfil") {
+      toast.error("No se pudo completar la conexión con Instagram. Inténtalo de nuevo en unos minutos.");
+    } else if (notificacion === "no_configurado") {
+      toast.error("Esta integración aún no está configurada. Contacta a soporte técnico.");
+    } else if (notificacion === "parametros" || notificacion === "oauth" || notificacion === "error") {
       toast.error("Ocurrió un error al conectar. Inténtalo de nuevo.");
     }
   }, [notificacion]);
@@ -218,12 +242,9 @@ export function PanelInstagram({
           ))}
 
           {/* Conectar cuenta adicional */}
-          {metaConfigurado && (
+          {instagramConfigurado && (
             <div className="pt-1">
-              <BotonConectarInstagram
-                instanciaId={instanciaId}
-                label="Conectar otra cuenta"
-              />
+              <BotonConectarInstagram label="Conectar otra cuenta" />
             </div>
           )}
         </div>
@@ -240,8 +261,8 @@ export function PanelInstagram({
             </p>
           </div>
 
-          {metaConfigurado ? (
-            <BotonConectarInstagram instanciaId={instanciaId} />
+          {instagramConfigurado ? (
+            <BotonConectarInstagram />
           ) : (
             <AvisoSinConfiguracion />
           )}
@@ -249,7 +270,7 @@ export function PanelInstagram({
       )}
 
       {/* Aviso de no configurado cuando hay cuentas */}
-      {!metaConfigurado && cuentasActivas.length === 0 && (
+      {!instagramConfigurado && cuentasActivas.length === 0 && (
         <AvisoSinConfiguracion />
       )}
 

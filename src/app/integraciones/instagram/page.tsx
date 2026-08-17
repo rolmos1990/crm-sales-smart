@@ -10,7 +10,7 @@ async function obtenerCuentasIG(instanciaId: string) {
   const cuentas = await prisma.cuentaCanal.findMany({
     where: { instanciaId, canal: "instagram" },
     orderBy: { creadoEn: "asc" },
-    select: { id: true, nombre: true, identificador: true, activa: true, configuracion: true },
+    select: { id: true, nombre: true, identificador: true, activa: true, configuracion: true, proveedorAuth: true },
   });
 
   return cuentas.map((c) => {
@@ -22,18 +22,31 @@ async function obtenerCuentasIG(instanciaId: string) {
       activa: c.activa,
       username: cfg?.username as string | null | undefined,
       profilePicUrl: cfg?.profilePicUrl as string | null | undefined,
+      proveedorAuth: c.proveedorAuth,
     };
   });
 }
 
 type SearchParams = Promise<{ conectadas?: string; error?: string }>;
 
+const ERRORES_CONOCIDOS = new Set([
+  "cancelado",
+  "sin_instagram",
+  "cuenta_personal",
+  "state",
+  "sesion",
+  "token",
+  "perfil",
+  "no_configurado",
+  "parametros",
+  "oauth",
+]);
+
 function resolverNotificacion(params: { conectadas?: string; error?: string }) {
   if (params.conectadas) return "conectado" as const;
   const err = params.error;
   if (!err) return null;
-  if (err === "cancelado") return "cancelado" as const;
-  if (err === "sin_instagram") return "sin_instagram" as const;
+  if (ERRORES_CONOCIDOS.has(err)) return err as "cancelado" | "sin_instagram" | "cuenta_personal" | "state" | "sesion" | "token" | "perfil" | "no_configurado" | "parametros" | "oauth";
   return "error" as const;
 }
 
@@ -41,8 +54,10 @@ export default async function InstagramPage({ searchParams }: { searchParams: Se
   const params = await searchParams;
   const notificacion = resolverNotificacion(params);
 
-  // Meta configurado = APP_ID + APP_SECRET disponibles en servidor
-  const metaConfigurado = !!(process.env.META_APP_ID && process.env.META_APP_SECRET);
+  // Instagram Login configurado = App ID + Secret de la app de Instagram
+  // disponibles en el servidor. Es independiente de META_APP_ID/SECRET
+  // (flujo heredado de Facebook Login), que puede seguir configurado o no.
+  const instagramConfigurado = !!(process.env.META_INSTAGRAM_APP_ID && process.env.META_INSTAGRAM_APP_SECRET);
 
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
@@ -107,9 +122,8 @@ export default async function InstagramPage({ searchParams }: { searchParams: Se
       {/* Panel principal */}
       <div className="rounded-2xl border border-white/10 bg-white/3 backdrop-blur-xl p-6">
         <PanelInstagram
-          instanciaId={instanciaId}
           cuentas={cuentas}
-          metaConfigurado={metaConfigurado}
+          instagramConfigurado={instagramConfigurado}
           notificacion={notificacion}
         />
       </div>

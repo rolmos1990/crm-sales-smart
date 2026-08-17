@@ -1,7 +1,6 @@
 import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, ReaccionCanalPayload } from "./types";
 import type { MensajeEntranteNormalizado, TipoMensaje } from "../types";
-
-const IG_API = "https://graph.facebook.com/v20.0";
+import { resolverApiBaseIG } from "./instagram-estrategia-auth";
 
 export class InstagramProvider implements ICanalProvider {
   readonly canal = "instagram";
@@ -19,12 +18,21 @@ export class InstagramProvider implements ICanalProvider {
   };
 
   async enviarMensaje(payload: MensajeSalientePayload): Promise<{ idExterno: string }> {
-    const cfg = payload.configuracion as { accessToken?: string; instagramBusinessAccountId?: string };
+    const cfg = payload.configuracion as {
+      accessToken?: string;
+      instagramBusinessAccountId?: string;
+      proveedorAuth?: string;
+    };
     const { accessToken, instagramBusinessAccountId } = cfg;
 
     if (!accessToken || !instagramBusinessAccountId) {
       throw new Error("[Instagram] accessToken e instagramBusinessAccountId requeridos en configuracion");
     }
+
+    // Host base según el flujo con el que se conectó la cuenta — ver
+    // instagram-estrategia-auth.ts. El resto del envío es idéntico entre
+    // proveedores (mismo path, mismo body, Bearer token).
+    const IG_API = resolverApiBaseIG(cfg.proveedorAuth);
 
     let messageBody: Record<string, unknown>;
 

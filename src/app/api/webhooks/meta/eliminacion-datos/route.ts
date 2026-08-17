@@ -62,11 +62,16 @@ function verificarSignedRequest(signedRequest: string, appSecret: string): Signe
 }
 
 export async function POST(req: NextRequest) {
-  const appSecret = process.env.META_APP_SECRET;
+  // Puede llegar firmado con el secret de la app "clásica" (Facebook
+  // Login/WhatsApp) o con el de la app de Instagram Login — son apps de Meta
+  // distintas, cada una con su propio App Secret.
+  const appSecrets = [process.env.META_APP_SECRET, process.env.META_INSTAGRAM_APP_SECRET].filter(
+    (s): s is string => !!s,
+  );
   const appUrl = process.env.APP_URL ?? "";
 
-  if (!appSecret) {
-    console.error("[Meta Eliminación Datos] META_APP_SECRET no configurado");
+  if (appSecrets.length === 0) {
+    console.error("[Meta Eliminación Datos] Ningún APP_SECRET configurado (META_APP_SECRET / META_INSTAGRAM_APP_SECRET)");
     return NextResponse.json({ error: "No configurado" }, { status: 500 });
   }
 
@@ -88,7 +93,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Falta signed_request" }, { status: 400 });
   }
 
-  const payload = verificarSignedRequest(signedRequest, appSecret);
+  const payload = appSecrets
+    .map((secret) => verificarSignedRequest(signedRequest, secret))
+    .find((resultado): resultado is SignedRequestPayload => resultado !== null);
   if (!payload) {
     console.warn("[Meta Eliminación Datos] signed_request inválido o firma incorrecta");
     return NextResponse.json({ error: "Firma inválida" }, { status: 400 });

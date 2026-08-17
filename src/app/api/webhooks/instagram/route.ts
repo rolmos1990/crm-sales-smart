@@ -51,7 +51,14 @@ export async function GET(req: NextRequest) {
     params: { mode, token: token ? "***" : null, challenge },
   }, null, 2));
 
-  if (mode === "subscribe" && token === process.env.WEBHOOK_VERIFY_TOKEN) {
+  // Acepta el verify token compartido (WEBHOOK_VERIFY_TOKEN) o uno dedicado
+  // para la app de Instagram Login (META_INSTAGRAM_VERIFY_TOKEN), por si se
+  // configuró uno distinto al registrar el webhook en esa app de Meta.
+  const tokenValido =
+    (!!process.env.WEBHOOK_VERIFY_TOKEN && token === process.env.WEBHOOK_VERIFY_TOKEN) ||
+    (!!process.env.META_INSTAGRAM_VERIFY_TOKEN && token === process.env.META_INSTAGRAM_VERIFY_TOKEN);
+
+  if (mode === "subscribe" && tokenValido) {
     console.log("[IG Webhook] Verificación exitosa");
     return new Response(challenge ?? "", { status: 200 });
   }

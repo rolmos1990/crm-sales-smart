@@ -29,7 +29,11 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
       destinatario,
       contenido: contenido ?? "",
       tipo: tipo as Parameters<typeof provider.enviarMensaje>[0]["tipo"],
-      configuracion: cuentaCanal.configuracion as Record<string, unknown>,
+      // proveedorAuth vive en la columna de CuentaCanal (no en el JSON de
+      // configuracion) — se mezcla acá para que el provider de Instagram
+      // pueda elegir el host de Graph API correcto sin que cada canal tenga
+      // que saber de esta diferencia. Ver instagram-estrategia-auth.ts.
+      configuracion: { ...(cuentaCanal.configuracion as Record<string, unknown>), proveedorAuth: cuentaCanal.proveedorAuth },
       mediaUrl,
     });
     console.log(`[EnviarMensaje] Enviado OK → idExterno: ${result.idExterno}`);

@@ -186,6 +186,35 @@ export function vaciarActividades(instanciaId: string) {
   return llamar<{ ok: true }>("vaciarActividades", [instanciaId]);
 }
 
+// ─── Instagram (CuentaCanal) ───────────────────────────────────────────────
+
+export function crearCuentaCanalInstagram(overrides: {
+  instanciaId: string;
+  identificador: string;
+  nombre?: string;
+  activa?: boolean;
+  proveedorAuth?: "MetaFacebook" | "Instagram";
+  configuracion?: Record<string, unknown>;
+}) {
+  return llamar<RegistroBase>("crearCuentaCanalInstagram", [overrides]);
+}
+
+export function contarCuentasCanalInstagram(instanciaId: string, identificador: string) {
+  return llamar<number>("contarCuentasCanalInstagram", [instanciaId, identificador]);
+}
+
+export function eliminarCuentaCanal(id: string) {
+  return llamar<{ ok: true }>("eliminarCuentaCanal", [id]);
+}
+
+export function contarMensajesPorIdExterno(idExterno: string) {
+  return llamar<number>("contarMensajesPorIdExterno", [idExterno]);
+}
+
+export function eliminarMensajesPorIdExterno(idExterno: string) {
+  return llamar<{ ok: true }>("eliminarMensajesPorIdExterno", [idExterno]);
+}
+
 export function vaciarOportunidades(instanciaId: string) {
   return llamar<{ ok: true }>("vaciarOportunidades", [instanciaId]);
 }

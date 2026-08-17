@@ -60,10 +60,26 @@ EMAIL_PROVIDER="resend"                      # resend | sendgrid | smtp | consol
 EMAIL_FROM="Vento CRM <noreply@tudominio.com>"
 RESEND_API_KEY="re_..."
 
-# ─── Webhooks Meta (WhatsApp / Instagram) ────────────────────────────────────
+# ─── Webhooks Meta (WhatsApp / Instagram vía Facebook Login — flujo heredado) ─
 WEBHOOK_VERIFY_TOKEN="token-secreto-para-meta"
 META_APP_ID="..."
 META_APP_SECRET="..."
+
+# ─── Instagram Login (Business Login for Instagram) ──────────────────────────
+# App aparte en Meta for Developers, tipo "Instagram" — NO reutiliza
+# META_APP_ID/META_APP_SECRET, que pertenecen a la app de Facebook Login.
+# Ver docs/instagram-login.md (o la sección "Instagram" de este README) para
+# el detalle de configuración en Meta Developers.
+META_INSTAGRAM_APP_ID="..."
+META_INSTAGRAM_APP_SECRET="..."
+# Opcional — solo si el redirect_uri registrado en Meta difiere de
+# `${APP_URL}/api/integraciones/instagram/login/callback`
+META_INSTAGRAM_REDIRECT_URI=""
+# Opcional — solo si se configuró un hub.verify_token distinto al de
+# WEBHOOK_VERIFY_TOKEN para el webhook de esta app en Meta Developers.
+# Si no se define, el webhook de Instagram acepta WEBHOOK_VERIFY_TOKEN igual
+# que antes (recomendado: usar el mismo valor en ambas apps de Meta).
+META_INSTAGRAM_VERIFY_TOKEN=""
 
 # ─── WhatsApp Lite (Baileys) ──────────────────────────────────────────────────
 WA_AUTH_PATH="./data/wa-sessions"            # ruta donde se guardan las sesiones WA

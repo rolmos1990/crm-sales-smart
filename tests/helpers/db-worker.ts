@@ -321,6 +321,47 @@ async function asegurarSegundoPipeline(instanciaId: string) {
   return { ok: true };
 }
 
+// ─── Instagram (CuentaCanal) ───────────────────────────────────────────────
+
+async function crearCuentaCanalInstagram(overrides: {
+  instanciaId: string;
+  identificador: string;
+  nombre?: string;
+  activa?: boolean;
+  proveedorAuth?: "MetaFacebook" | "Instagram";
+  configuracion?: Record<string, unknown>;
+}) {
+  return prisma.cuentaCanal.create({
+    data: {
+      instanciaId: overrides.instanciaId,
+      canal: "instagram",
+      identificador: overrides.identificador,
+      nombre: overrides.nombre ?? `@test-${overrides.identificador}`,
+      activa: overrides.activa ?? true,
+      proveedorAuth: overrides.proveedorAuth ?? "Instagram",
+      configuracion: (overrides.configuracion ?? {}) as never,
+    },
+  });
+}
+
+async function contarCuentasCanalInstagram(instanciaId: string, identificador: string) {
+  return prisma.cuentaCanal.count({ where: { instanciaId, canal: "instagram", identificador } });
+}
+
+async function eliminarCuentaCanal(id: string) {
+  await prisma.cuentaCanal.deleteMany({ where: { id } });
+  return { ok: true };
+}
+
+async function contarMensajesPorIdExterno(idExterno: string) {
+  return prisma.mensajeConversacion.count({ where: { idExterno } });
+}
+
+async function eliminarMensajesPorIdExterno(idExterno: string) {
+  await prisma.mensajeConversacion.deleteMany({ where: { idExterno } });
+  return { ok: true };
+}
+
 async function vaciarActividades(instanciaId: string) {
   await prisma.actividad.deleteMany({ where: { instanciaId } });
   return { ok: true };
@@ -355,6 +396,11 @@ const OPERACIONES: Record<string, (...args: any[]) => Promise<unknown>> = {
   crearPedidoConEntregaEditable,
   vaciarActividades,
   vaciarOportunidades,
+  crearCuentaCanalInstagram,
+  contarCuentasCanalInstagram,
+  eliminarCuentaCanal,
+  contarMensajesPorIdExterno,
+  eliminarMensajesPorIdExterno,
 };
 
 const rl = readline.createInterface({ input: process.stdin });
