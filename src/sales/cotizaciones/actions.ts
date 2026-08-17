@@ -46,7 +46,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
         impuesto: impuestoMonto,
         total,
         notas: notas || null,
-        contactoId: contactoId || null,
+        contactoId, // requerido por el schema — la cotización siempre nace ligada a un contacto
         empresaId: empresaId || null,
         oportunidadId: oportunidadId || null,
         metadata: destinatario ? { destinatario } : undefined,
@@ -95,7 +95,9 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
     let updateData: Record<string, unknown> = {
       ...resto,
       notas: notas !== undefined ? notas || null : undefined,
-      contactoId: contactoId !== undefined ? contactoId || null : undefined,
+      // contactoId nunca se limpia: el schema exige que, si viene, sea un id no vacío
+      // (se puede cambiar de contacto, pero la cotización nunca se queda sin uno).
+      contactoId: contactoId !== undefined ? contactoId : undefined,
       empresaId: empresaId !== undefined ? empresaId || null : undefined,
       oportunidadId: oportunidadId !== undefined ? oportunidadId || null : undefined,
     };

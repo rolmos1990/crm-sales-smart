@@ -11,6 +11,7 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -41,12 +42,6 @@ interface FormCotizacionProps {
   /** Moneda preferida de la instancia; se usa solo al crear */
   monedaDefault?: string;
 }
-
-const nv = (v: number | undefined | null): number | string =>
-  v !== undefined && v !== null && !Number.isNaN(v) ? v : "";
-
-const parseNum = (e: React.ChangeEvent<HTMLInputElement>): number =>
-  Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber;
 
 const tieneContactoOrigen = (c?: Partial<DestinatarioCotizacionInput>) =>
   !!(c?.nombre || c?.apellido || c?.telefono || c?.email);
@@ -165,10 +160,9 @@ export function FormCotizacion({
             <FormItem>
               <FormLabel>IGV (%)</FormLabel>
               <FormControl>
-                <Input
-                  type="number" min="0" max="100" step="0.1"
-                  value={nv(field.value)}
-                  onChange={(e) => field.onChange(parseNum(e))}
+                <DecimalInput
+                  value={field.value}
+                  onChange={field.onChange}
                 />
               </FormControl>
               <FormMessage />
@@ -205,7 +199,7 @@ export function FormCotizacion({
           )} />
           <FormField control={form.control} name="contactoId" render={({ field }) => (
             <FormItem>
-              <FormLabel>Contacto</FormLabel>
+              <FormLabel>Contacto *</FormLabel>
               <FormControl>
                 <Combobox
                   opciones={contactos}
@@ -215,6 +209,7 @@ export function FormCotizacion({
                   disabled={contactoFijo}
                 />
               </FormControl>
+              <FormMessage />
             </FormItem>
           )} />
         </div>
@@ -372,24 +367,24 @@ export function FormCotizacion({
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <Input
-                          type="number" min="0.01" step="0.01" className="h-8 text-sm text-right"
-                          value={nv(lineas[idx]?.cantidad)}
-                          onChange={(e) => form.setValue(`lineas.${idx}.cantidad`, parseNum(e))}
+                        <DecimalInput
+                          className="h-8 text-sm text-right"
+                          value={lineas[idx]?.cantidad}
+                          onChange={(valor) => form.setValue(`lineas.${idx}.cantidad`, valor)}
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <Input
-                          type="number" min="0" step="0.01" className="h-8 text-sm text-right"
-                          value={nv(lineas[idx]?.precioUnitario)}
-                          onChange={(e) => form.setValue(`lineas.${idx}.precioUnitario`, parseNum(e))}
+                        <DecimalInput
+                          className="h-8 text-sm text-right"
+                          value={lineas[idx]?.precioUnitario}
+                          onChange={(valor) => form.setValue(`lineas.${idx}.precioUnitario`, valor)}
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <Input
-                          type="number" min="0" max="100" step="0.1" className="h-8 text-sm text-right"
-                          value={nv(lineas[idx]?.descuento)}
-                          onChange={(e) => form.setValue(`lineas.${idx}.descuento`, parseNum(e))}
+                        <DecimalInput
+                          className="h-8 text-sm text-right"
+                          value={lineas[idx]?.descuento}
+                          onChange={(valor) => form.setValue(`lineas.${idx}.descuento`, valor)}
                         />
                       </td>
                       <td className="px-3 py-1.5 text-right font-medium tabular-nums">

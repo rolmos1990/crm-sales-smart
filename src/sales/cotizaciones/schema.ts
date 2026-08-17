@@ -21,7 +21,9 @@ export const CrearCotizacionSchema = z.object({
   moneda: z.string().optional(),
   impuesto: z.number().min(0).max(100),
   notas: z.string().max(2000).optional().or(z.literal("")),
-  contactoId: z.string().optional().or(z.literal("")),
+  // La cotización siempre se relaciona a un contacto (no a la oportunidad puntual):
+  // así su historial se conserva aunque el contacto abra una nueva oportunidad.
+  contactoId: z.string().min(1, "Selecciona un contacto"),
   empresaId: z.string().optional().or(z.literal("")),
   oportunidadId: z.string().optional().or(z.literal("")),
   destinatario: DestinatarioCotizacionSchema.optional(),
