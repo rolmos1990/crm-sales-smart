@@ -14,6 +14,7 @@ import { cambiarEstadoCotizacion } from "@/sales/cotizaciones/actions";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
 import { BotonCopiarCotizacion } from "@/sales/cotizaciones/components/boton-copiar-cotizacion";
 import { BotonAprobarCotizacion } from "@/sales/cotizaciones/components/boton-aprobar-cotizacion";
+import { BotonEliminarCotizacion } from "@/sales/cotizaciones/components/boton-eliminar-cotizacion";
 import { cn } from "@/lib/utils";
 
 const TRANSICIONES_MANUALES: Record<string, string[]> = {
@@ -24,7 +25,8 @@ const TRANSICIONES_MANUALES: Record<string, string[]> = {
   VENCIDA: [],
 };
 
-const ESTADOS_EDITABLES = new Set(["BORRADOR", "ENVIADA"]);
+// Solo se puede modificar/descartar una cotización mientras no haya sido enviada
+const ESTADOS_EDITABLES = new Set(["BORRADOR"]);
 
 export default async function CotizacionDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -118,6 +120,7 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
             lineas={lineasParaCopiar}
           />
           <BotonAprobarCotizacion cotizacionId={id} estado={cotizacion.estado} />
+          <BotonEliminarCotizacion cotizacionId={id} numero={cotizacion.numero} estado={cotizacion.estado} />
           {siguientesManuales.map((sig) => {
             const conf = ESTADO_COTIZACION_CONFIG[sig as keyof typeof ESTADO_COTIZACION_CONFIG];
             return (

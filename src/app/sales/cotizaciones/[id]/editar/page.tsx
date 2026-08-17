@@ -33,6 +33,8 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
   }
 
   if (!cotizacion) notFound();
+  // Solo se puede editar mientras la cotización siga en borrador (no enviada)
+  if (cotizacion.estado !== "BORRADOR") redirect(`/sales/cotizaciones/${id}`);
 
   const metadata = (cotizacion as any).metadata as Record<string, unknown> | null;
   const destinatarioGuardado = metadata?.destinatario as Record<string, string> | undefined;

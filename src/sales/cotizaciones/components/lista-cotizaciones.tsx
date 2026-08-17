@@ -55,6 +55,8 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
   };
 
   const puedeAprobar = cotizacion.estado === "ENVIADA" || cotizacion.estado === "BORRADOR";
+  // Solo se puede modificar/descartar mientras no haya sido enviada
+  const esModificable = cotizacion.estado === "BORRADOR";
 
   return (
     <DropdownMenu>
@@ -65,9 +67,11 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
         <DropdownMenuItem onClick={() => router.push(`/sales/cotizaciones/${cotizacion.id}`)}>
           <ExternalLink className="mr-2 h-4 w-4" />Ver detalle
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push(`/sales/cotizaciones/${cotizacion.id}/editar`)}>
-          <Pencil className="mr-2 h-4 w-4" />Editar
-        </DropdownMenuItem>
+        {esModificable && (
+          <DropdownMenuItem onClick={() => router.push(`/sales/cotizaciones/${cotizacion.id}/editar`)}>
+            <Pencil className="mr-2 h-4 w-4" />Editar
+          </DropdownMenuItem>
+        )}
         {cotizacion.estado === "BORRADOR" && (
           <DropdownMenuItem onClick={handleEnviar}>
             <Send className="mr-2 h-4 w-4" />Marcar enviada
@@ -88,17 +92,21 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
             onConfirmar={handleAprobar}
           />
         )}
-        <DropdownMenuSeparator />
-        <ConfirmacionDialog
-          trigger={
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />Eliminar
-            </DropdownMenuItem>
-          }
-          titulo="¿Eliminar cotización?"
-          descripcion={`Se eliminará la cotización ${cotizacion.numero}.`}
-          onConfirmar={handleEliminar}
-        />
+        {esModificable && (
+          <>
+            <DropdownMenuSeparator />
+            <ConfirmacionDialog
+              trigger={
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />Eliminar
+                </DropdownMenuItem>
+              }
+              titulo="¿Eliminar cotización?"
+              descripcion={`Se eliminará la cotización ${cotizacion.numero}.`}
+              onConfirmar={handleEliminar}
+            />
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

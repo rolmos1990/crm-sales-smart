@@ -8,7 +8,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   X, Phone, Video, Search, MoreHorizontal, ExternalLink, Loader2,
   ChevronDown, Building2, Layers, Mail, Globe,
-  Save, Tag as TagIcon, User, FileText, CheckCircle2,
+  Save, Tag as TagIcon, User, FileText, CheckCircle2, Pencil, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -58,6 +58,7 @@ import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nuev
 import {
   cambiarEstadoCotizacion,
   aprobarCotizacion,
+  eliminarCotizacion,
   obtenerCotizacionesPorOportunidadAction,
 } from "@/sales/cotizaciones/actions";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
@@ -302,6 +303,7 @@ function WorkspaceContenido({
   const { oportunidad, todosPipelines } = critica;
   const { puedeModificar } = useSesion();
   const puedeMod = puedeModificar("oportunidades");
+  const puedeModCotizaciones = puedeModificar("cotizaciones");
   const formBloqueado = !puedeMod;
 
   const [stageActualId, setStageActualId] = useState<string | null>(initialStageId);
@@ -943,14 +945,45 @@ function WorkspaceContenido({
                                   {conf?.etiqueta ?? c.estado}
                                 </span>
                               </div>
-                              <a
-                                href={`/sales/cotizaciones/${c.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="shrink-0 h-5 w-5 flex items-center justify-center rounded text-stone-500 hover:text-stone-200 hover:bg-white/8 transition-colors"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                {puedeModCotizaciones && c.estado === "BORRADOR" && (
+                                  <>
+                                    <a
+                                      href={`/sales/cotizaciones/${c.id}/editar`}
+                                      className="h-5 w-5 flex items-center justify-center rounded text-stone-500 hover:text-stone-200 hover:bg-white/8 transition-colors"
+                                      title="Editar cotización"
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </a>
+                                    <ConfirmacionDialog
+                                      trigger={
+                                        <button
+                                          type="button"
+                                          className="h-5 w-5 flex items-center justify-center rounded text-stone-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                          title="Eliminar cotización"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      }
+                                      titulo="¿Eliminar cotización?"
+                                      descripcion={`Se eliminará la cotización ${c.numero}.`}
+                                      onConfirmar={async () => {
+                                        const r = await eliminarCotizacion(c.id);
+                                        if (r.exito) { toast.success("Cotización eliminada"); refrescarCotizaciones(); }
+                                        else toast.error(r.error);
+                                      }}
+                                    />
+                                  </>
+                                )}
+                                <a
+                                  href={`/sales/cotizaciones/${c.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="h-5 w-5 flex items-center justify-center rounded text-stone-500 hover:text-stone-200 hover:bg-white/8 transition-colors"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              </div>
                             </div>
                             <div className="flex items-center justify-between mt-1.5 gap-2">
                               <span className="text-xs text-stone-500 tabular-nums">

@@ -86,6 +86,9 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
     const sesion = auth.sesion;
     const cotizacionExistente = await prisma.cotizacion.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
     if (!cotizacionExistente) return { exito: false, error: "Cotización no encontrada" };
+    if (cotizacionExistente.estado !== "BORRADOR") {
+      return { exito: false, error: "Solo se pueden modificar cotizaciones en estado borrador" };
+    }
 
     const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, ...resto } = validado.data;
 
@@ -312,8 +315,16 @@ export async function eliminarCotizacion(id: string): Promise<ResultadoAccion> {
   if (!auth.ok) return { exito: false, error: auth.error };
 
   try {
+    const sesion = auth.sesion;
+    const cotizacion = await prisma.cotizacion.findFirst({ where: { id, instanciaId: sesion.instanciaId } });
+    if (!cotizacion) return { exito: false, error: "Cotización no encontrada" };
+    if (cotizacion.estado !== "BORRADOR") {
+      return { exito: false, error: "Solo se pueden eliminar cotizaciones en estado borrador" };
+    }
+
     await prisma.cotizacion.delete({ where: { id } });
     revalidatePath("/sales/cotizaciones");
+    if (cotizacion.oportunidadId) revalidatePath(`/crm/oportunidades/${cotizacion.oportunidadId}`);
     return { exito: true, datos: undefined };
   } catch {
     return { exito: false, error: "Error al eliminar la cotización" };

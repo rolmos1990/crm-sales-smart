@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -14,6 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { SelectorContacto } from "@/crm/contactos/components/selector-contacto";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import { MONEDAS, MONEDA_DEFAULT } from "@/shared/moneda/constants";
 import { CrearOportunidadSchema, type CrearOportunidadInput } from "../schema";
@@ -51,6 +53,8 @@ export function FormOportunidad({
   monedaDefault = MONEDA_DEFAULT,
 }: FormOportunidadProps) {
   const router = useRouter();
+  // Lista local de contactos — crece cuando se crea uno nuevo inline, sin recargar la página
+  const [contactosDisponibles, setContactosDisponibles] = useState<OpcionCombobox[]>(contactos);
   // enModoPipeline: viene del Kanban con pipeline fijo en URL → solo selector de stage
   const enModoPipeline = !!pipeline && !!pipelineId;
   const crearMutation = useCrearOportunidadMutation();
@@ -299,7 +303,13 @@ export function FormOportunidad({
             <FormItem>
               <FormLabel>Contacto principal</FormLabel>
               <FormControl>
-                <Combobox opciones={contactos} valor={field.value ?? ""} onChange={field.onChange} placeholder="Seleccionar contacto..." />
+                <SelectorContacto
+                  contactos={contactosDisponibles}
+                  valor={field.value ?? ""}
+                  onChange={field.onChange}
+                  onContactoCreado={(opcion) => setContactosDisponibles((prev) => [...prev, opcion])}
+                  placeholder="Seleccionar contacto..."
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
