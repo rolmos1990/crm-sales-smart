@@ -379,7 +379,24 @@ export function GestorContactosPanel({
           </div>
 
           <Form {...form}>
-            <form id="form-nuevo-contacto" onSubmit={form.handleSubmit(handleCrearNuevo)} className="space-y-4">
+            {/*
+              Este panel se renderiza dentro del <form> del workspace de la oportunidad
+              (edición de datos generales). Un <form> anidado es HTML inválido — el
+              navegador lo mal-interpreta y el botón "Crear y asignar" termina sin
+              disparar handleCrearNuevo (o dispara el submit del form exterior).
+              Por eso aquí usamos un <div> y disparamos la validación/envío por JS.
+            */}
+            <div
+              className="space-y-4"
+              onKeyDown={(e) => {
+                // Sin <form> propio, Enter burbujearía y dispararía el submit
+                // del form exterior (guardar oportunidad) en vez de crear el contacto.
+                if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+                  e.preventDefault();
+                  form.handleSubmit(handleCrearNuevo)();
+                }
+              }}
+            >
               <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="nombre" render={({ field }) => (
                   <FormItem>
@@ -463,7 +480,7 @@ export function GestorContactosPanel({
                   <FormMessage />
                 </FormItem>
               )} />
-            </form>
+            </div>
           </Form>
         </div>
 
@@ -472,8 +489,8 @@ export function GestorContactosPanel({
             Cancelar
           </Button>
           <Button
-            type="submit"
-            form="form-nuevo-contacto"
+            type="button"
+            onClick={form.handleSubmit(handleCrearNuevo)}
             size="sm"
             disabled={form.formState.isSubmitting}
             className="bg-lime-500 text-stone-950 hover:bg-lime-400 rounded-xl px-5 font-semibold shadow-sm transition-all"
