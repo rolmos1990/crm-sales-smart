@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
   const instanciaId = searchParams.get("instanciaId");
 
   const appId = process.env.META_APP_ID;
-  const appUrl = process.env.APP_URL ?? "";
+  // Fallback al origin de la request si APP_URL no está configurada — evita
+  // construir una URL relativa (NextResponse.redirect exige URL absoluta).
+  const appUrl = process.env.APP_URL || req.nextUrl.origin;
 
   if (!appId || !appUrl) {
     return NextResponse.redirect(
