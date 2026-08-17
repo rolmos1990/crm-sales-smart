@@ -234,6 +234,19 @@
   display: none;
 }
 
+/* Scroll sin barra visible — mantiene overflow-y: auto, solo oculta el track/thumb nativo */
+.sidebar-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Premium SaaS gradient background — dark mode only */
 .dark .app-gradient-bg {
   background: radial-gradient(

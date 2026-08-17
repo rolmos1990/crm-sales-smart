@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useTransition } from "react";
+import { ReactNode, useEffect, useRef, useState, useTransition } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -74,6 +74,46 @@ const NAVEGACION = [
     ],
   },
 ];
+
+/**
+ * Detecta si el contenedor scrollable tiene contenido oculto debajo, para
+ * mostrar/ocultar el degradado indicador. Se recalcula al hacer scroll, al
+ * cambiar el tamaño del contenedor/ventana y cuando cambian las dependencias
+ * (por ejemplo, cuando el menú filtrado por rol cambia de tamaño).
+ */
+function useScrollFade<T extends HTMLElement>(deps: unknown[]) {
+  const ref = useRef<T | null>(null);
+  const [hasMoreBelow, setHasMoreBelow] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const checkOverflow = () => {
+      setHasMoreBelow(
+        el.scrollHeight > el.clientHeight &&
+          el.scrollTop + el.clientHeight < el.scrollHeight - 2
+      );
+    };
+
+    checkOverflow();
+
+    el.addEventListener("scroll", checkOverflow, { passive: true });
+    window.addEventListener("resize", checkOverflow);
+
+    const resizeObserver = new ResizeObserver(checkOverflow);
+    resizeObserver.observe(el);
+
+    return () => {
+      el.removeEventListener("scroll", checkOverflow);
+      window.removeEventListener("resize", checkOverflow);
+      resizeObserver.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return { ref, hasMoreBelow };
+}
 
 function NavItem({
   href,
@@ -184,6 +224,9 @@ export function AppLayout({
     ),
   })).filter((grupo) => grupo.items.length > 0);
 
+  const navItemsCount = navFiltrado.reduce((total, grupo) => total + grupo.items.length, 0);
+  const { ref: navRef, hasMoreBelow } = useScrollFade<HTMLElement>([navItemsCount]);
+
   return (
     <div className="app-gradient-bg flex h-screen overflow-hidden bg-stone-50 dark:bg-[oklch(0.063_0.002_264)]">
       {/* Sidebar */}
@@ -206,20 +249,36 @@ export function AppLayout({
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-4">
-          {navFiltrado.map((grupo) => (
-            <div key={grupo.grupo}>
-              <p className="px-2.5 mb-1 text-[10px] font-semibold text-stone-400 dark:text-white/25 uppercase tracking-[0.08em]">
-                {grupo.grupo}
-              </p>
-              <div className="space-y-px">
-                {grupo.items.map((item) => (
-                  <NavItem key={item.href} {...item} />
-                ))}
+        <div className="relative flex-1 min-h-0">
+          <nav
+            ref={navRef}
+            className="sidebar-scroll absolute inset-0 py-3 px-2.5 space-y-4"
+          >
+            {navFiltrado.map((grupo) => (
+              <div key={grupo.grupo}>
+                <p className="px-2.5 mb-1 text-[10px] font-semibold text-stone-400 dark:text-white/25 uppercase tracking-[0.08em]">
+                  {grupo.grupo}
+                </p>
+                <div className="space-y-px">
+                  {grupo.items.map((item) => (
+                    <NavItem key={item.href} {...item} />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </nav>
+            ))}
+          </nav>
+
+          {/* Indicador de contenido adicional debajo — degradado sutil, sin iconos */}
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-0 h-[50px] transition-opacity duration-150 ease-out motion-reduce:transition-none",
+              "bg-gradient-to-t from-white dark:from-[oklch(0.085_0.002_264)] to-transparent",
+              "shadow-[0_6px_10px_-6px_rgba(0,0,0,0.12)] dark:shadow-[0_6px_10px_-6px_rgba(0,0,0,0.45)]",
+              hasMoreBelow ? "opacity-100" : "opacity-0"
+            )}
+          />
+        </div>
 
         {/* Footer */}
         <div className="border-t border-stone-200 dark:border-white/[0.06] p-2.5">
