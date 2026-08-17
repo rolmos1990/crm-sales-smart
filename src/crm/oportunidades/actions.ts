@@ -208,6 +208,33 @@ export async function obtenerOportunidadAction(id: string) {
   });
 }
 
+export async function obtenerContactosDeOportunidadAction(oportunidadId: string) {
+  const sesion = await requireSesion();
+  const oportunidad = await prisma.oportunidad.findFirst({
+    where: { id: oportunidadId, instanciaId: sesion.instanciaId },
+    select: {
+      contactos: {
+        include: {
+          contacto: {
+            select: {
+              id: true, nombre: true, apellido: true,
+              email: true, telefonoPrincipal: true, telefonoSecundario: true,
+              cargo: true, estado: true, notas: true,
+            },
+          },
+        },
+        orderBy: { principal: "desc" },
+      },
+    },
+  });
+
+  return (oportunidad?.contactos ?? []).map((rel) => ({
+    contactoId: rel.contactoId,
+    principal: rel.principal,
+    contacto: rel.contacto,
+  }));
+}
+
 export async function agregarContactoAOportunidad(
   oportunidadId: string,
   contactoId: string,

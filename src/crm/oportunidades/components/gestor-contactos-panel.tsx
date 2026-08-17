@@ -32,6 +32,7 @@ import {
   agregarContactoAOportunidad,
   removerContactoDeOportunidad,
   marcarContactoPrincipal,
+  obtenerContactosDeOportunidadAction,
 } from "../actions";
 import { crearContacto, actualizarContacto } from "@/crm/contactos/actions";
 
@@ -240,6 +241,20 @@ export function GestorContactosPanel({
 
   // ── Handlers ──────────────────────────────────────────────────
 
+  // Relee del servidor la lista real de contactos de la oportunidad. Se usa
+  // en vez de construir el estado "a mano" en el cliente para que, si algo
+  // falla en el guardado (permisos, condición de carrera, etc.), la UI
+  // refleje de inmediato la verdad del servidor en vez de un éxito falso.
+  const refrescarContactos = async () => {
+    try {
+      const frescos = await obtenerContactosDeOportunidadAction(oportunidadId);
+      setContactos(frescos as ContactoEnPanel[]);
+    } catch {
+      // El guardado ya se confirmó antes de llamar esto — si el refetch
+      // falla no revertimos nada, solo no se refresca la vista al instante.
+    }
+  };
+
   const handleAgregar = async (contactoId: string) => {
     if (!contactoId) return;
     setProcesando("__agregar__");
@@ -247,23 +262,7 @@ export function GestorContactosPanel({
     setProcesando(null);
     if (!r.exito) { toast.error(r.error); return; }
 
-    const info = todosContactos.find((c) => c.valor === contactoId);
-    const parts = (info?.etiqueta ?? "").split(" ");
-    const esPrimero = contactos.length === 0;
-    setContactos((prev) => [
-      ...prev,
-      {
-        contactoId,
-        principal: esPrimero,
-        contacto: {
-          id: contactoId,
-          nombre: parts[0] ?? "",
-          apellido: parts.slice(1).join(" "),
-          email: null, telefonoPrincipal: null, telefonoSecundario: null,
-          cargo: null, estado: "ACTIVO", notas: null,
-        },
-      },
-    ]);
+    await refrescarContactos();
     setModoAgregar(false);
     toast.success("Contacto agregado");
   };
@@ -313,25 +312,7 @@ export function GestorContactosPanel({
     const ra = await agregarContactoAOportunidad(oportunidadId, r.datos.id);
     if (!ra.exito) { toast.error(ra.error); return; }
 
-    const esPrimero = contactos.length === 0;
-    setContactos((prev) => [
-      ...prev,
-      {
-        contactoId: r.datos.id,
-        principal: esPrimero,
-        contacto: {
-          id: r.datos.id,
-          nombre: r.datos.nombre,
-          apellido: r.datos.apellido,
-          email: r.datos.email,
-          telefonoPrincipal: r.datos.telefonoPrincipal,
-          telefonoSecundario: r.datos.telefonoSecundario,
-          cargo: r.datos.cargo,
-          estado: r.datos.estado,
-          notas: r.datos.notas,
-        },
-      },
-    ]);
+    await refrescarContactos();
     setModoCrear(false);
     form.reset(DEFAULTS_NUEVO);
     toast.success("Contacto creado y asignado");
