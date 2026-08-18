@@ -198,6 +198,9 @@ export async function obtenerOportunidadAction(id: string) {
               id: true, nombre: true, apellido: true,
               email: true, telefonoPrincipal: true, telefonoSecundario: true,
               cargo: true, estado: true, notas: true,
+              // @usuario/ID por canal (ej. Instagram) — mismo dato que ya se
+              // muestra en el Inbox, faltaba acá para el contacto del Workspace.
+              identificadoresCanal: { select: { canal: true, identificador: true, handle: true } },
             },
           },
         },
@@ -220,6 +223,9 @@ export async function obtenerContactosDeOportunidadAction(oportunidadId: string)
               id: true, nombre: true, apellido: true,
               email: true, telefonoPrincipal: true, telefonoSecundario: true,
               cargo: true, estado: true, notas: true,
+              // @usuario/ID por canal (ej. Instagram) — mismo dato que ya se
+              // muestra en el Inbox, faltaba acá para el contacto del Workspace.
+              identificadoresCanal: { select: { canal: true, identificador: true, handle: true } },
             },
           },
         },

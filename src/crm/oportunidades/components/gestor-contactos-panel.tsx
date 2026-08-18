@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   Star, Phone, Mail, UserPlus, MoreHorizontal,
   ExternalLink, Trash2, ArrowLeft, Plus, Loader2,
-  Pencil, Check, X, MessageCircle,
+  Pencil, Check, X, MessageCircle, Camera,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -51,6 +51,7 @@ export interface ContactoEnPanel {
     cargo: string | null;
     estado: string;
     notas: string | null;
+    identificadoresCanal?: Array<{ canal: string; identificador: string; handle: string | null }>;
   };
 }
 
@@ -558,6 +559,20 @@ export function GestorContactosPanel({
                 {c.cargo && (
                   <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{c.cargo}</p>
                 )}
+
+                {/* @usuario/ID de Instagram — referencia no editable, igual que en el Inbox */}
+                {(() => {
+                  const ig = c.identificadoresCanal?.find((i) => i.canal === "instagram");
+                  if (!ig) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-stone-500 dark:text-stone-400 min-w-0">
+                      <Camera className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
+                      <span className="font-mono truncate">
+                        {ig.handle ? `@${ig.handle}` : `ID: ${ig.identificador}`}
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* Edición rápida de contacto */}
                 <div className="mt-2.5 space-y-0.5 border-t border-stone-100 dark:border-white/8 pt-2.5">
