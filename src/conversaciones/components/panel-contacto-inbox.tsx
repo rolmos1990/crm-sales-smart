@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { esLid, formatearIdentificadorWA } from "@/lib/whatsapp-utils";
 import { actualizarContacto, buscarContactosAction } from "@/crm/contactos/actions";
 import { vincularConversacionAContacto, clasificarConversacion } from "../actions";
+import { AvatarContacto } from "./avatar-contacto";
 import type { ConversacionResumen, ClasificacionConversacion } from "../types";
 
 type Contacto = ConversacionResumen["contacto"];
@@ -120,9 +121,6 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onClas
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [clasificando, startClasificando] = useTransition();
 
-  const iniciales =
-    `${contacto.nombre[0] ?? ""}${contacto.apellido[0] ?? ""}`.toUpperCase() || "?";
-
   const nombreCompleto =
     `${contacto.nombre} ${contacto.apellido}`.trim() || contacto.telefonoPrincipal || "Sin nombre";
 
@@ -181,6 +179,7 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onClas
         apellido: candidato.apellido,
         email: candidato.email,
         telefonoPrincipal: candidato.telefonoPrincipal,
+        avatarUrl: null,
       });
       setMostrarBusqueda(false);
       setBusqueda("");
@@ -194,9 +193,12 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onClas
       {/* Header del contacto */}
       <div className="px-4 pt-4 pb-3 border-b border-stone-200 dark:border-white/8 shrink-0">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-lime-500/20 to-emerald-500/10 dark:from-lime-500/30 dark:to-emerald-500/20 border border-lime-500/25 dark:border-lime-500/20 flex items-center justify-center text-sm font-bold text-lime-700 dark:text-lime-300 shrink-0">
-            {iniciales}
-          </div>
+          <AvatarContacto
+            nombre={contacto.nombre}
+            apellido={contacto.apellido}
+            avatarUrl={contacto.avatarUrl}
+            className="h-10 w-10 text-sm font-bold"
+          />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold text-stone-900 dark:text-stone-100 leading-tight truncate">{nombreCompleto}</p>
             {conversacion.cuentaCanal && (

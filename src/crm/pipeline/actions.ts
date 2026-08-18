@@ -144,11 +144,21 @@ export async function reordenarStages(pipelineId: string, stageIds: string[]) {
   if (!acceso.permitido) return { exito: false as const, error: acceso.error! };
 
   try {
-    await prisma.$transaction(
-      stageIds.map((id, index) =>
+    // PipelineStage tiene un unique constraint en (pipelineId, orden). Asignar
+    // el orden final directamente, una etapa a la vez, puede chocar contra el
+    // valor que OTRA etapa todavía tiene en ese instante (ej. un swap simple
+    // A↔B) y Postgres rechaza el UPDATE a mitad de camino. Se resuelve en dos
+    // fases: primero se mueven todas a valores negativos temporales —
+    // garantizado que no chocan entre sí ni con ningún orden real— y luego se
+    // asigna el orden definitivo.
+    await prisma.$transaction([
+      ...stageIds.map((id, index) =>
+        prisma.pipelineStage.update({ where: { id }, data: { orden: -(index + 1) } })
+      ),
+      ...stageIds.map((id, index) =>
         prisma.pipelineStage.update({ where: { id }, data: { orden: index } })
-      )
-    );
+      ),
+    ]);
     revalidatePath("/crm/pipeline");
     return { exito: true as const };
   } catch {

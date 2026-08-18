@@ -164,6 +164,7 @@ export function PanelConversacion({
           id: contactoId,
           nombre: nombreContacto.split(" ")[0] ?? "",
           apellido: nombreContacto.split(" ").slice(1).join(" "),
+          avatarUrl: null,
           telefonoPrincipal: telefonoContacto ?? null,
           email: null,
         },

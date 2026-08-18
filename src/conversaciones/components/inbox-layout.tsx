@@ -12,6 +12,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/shared/ui/empty-state";
+import { AvatarContacto } from "./avatar-contacto";
 import { BurbujaMensaje } from "./burbuja-mensaje";
 import { EventoSistema } from "./evento-sistema";
 import { InputMensaje } from "./input-mensaje";
@@ -601,9 +602,6 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               const nombreContacto = `${conv.contacto.nombre} ${conv.contacto.apellido}`.trim();
               const sinIdentificar = !nombreContacto;
               const nombre = nombreContacto || conv.contacto.telefonoPrincipal || "Sin nombre";
-              const iniciales = nombreContacto
-                ? `${conv.contacto.nombre[0] ?? ""}${conv.contacto.apellido[0] ?? ""}`.toUpperCase()
-                : "?";
               const cfg = ESTADO_CFG[conv.estado] ?? ESTADO_CFG.CERRADA;
               const canal = infoCanal(conv.cuentaCanal?.canal);
               const noLeido = conv.ultimoMensaje?.remitente === "CONTACTO" && conv.ultimoMensaje?.estado !== "LEIDO";
@@ -624,14 +622,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     )}
                   >
                     {/* Avatar */}
-                    <div className={cn(
-                      "h-9 w-9 rounded-full border flex items-center justify-center text-xs font-semibold shrink-0",
-                      sinIdentificar
-                        ? "bg-stone-100 dark:bg-white/[0.06] border-stone-200 dark:border-white/10 text-stone-400 dark:text-white/30"
-                        : "bg-gradient-to-br from-lime-500/20 to-emerald-500/10 dark:from-lime-500/25 dark:to-emerald-500/15 border-lime-500/25 dark:border-lime-400/20 text-lime-700 dark:text-lime-300"
-                    )}>
-                      {iniciales}
-                    </div>
+                    <AvatarContacto
+                      nombre={conv.contacto.nombre}
+                      apellido={conv.contacto.apellido}
+                      avatarUrl={conv.contacto.avatarUrl}
+                      className="h-9 w-9 text-xs"
+                    />
 
                     <div className="flex-1 min-w-0">
                       {/* Nombre + tiempo */}
@@ -707,9 +703,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
           <>
             {/* Encabezado del chat */}
             <div className="px-4 py-3 border-b border-stone-200 dark:border-white/[0.07] shrink-0 flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-lime-500/20 to-emerald-500/10 dark:from-lime-500/25 dark:to-emerald-500/15 border border-lime-500/25 dark:border-lime-400/20 flex items-center justify-center text-xs font-semibold text-lime-700 dark:text-lime-300 shrink-0">
-                {`${convActiva.contacto.nombre[0] ?? ""}${convActiva.contacto.apellido[0] ?? ""}`.toUpperCase() || "?"}
-              </div>
+              <AvatarContacto
+                nombre={convActiva.contacto.nombre}
+                apellido={convActiva.contacto.apellido}
+                avatarUrl={convActiva.contacto.avatarUrl}
+                className="h-8 w-8 text-xs"
+              />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">{convNombre}</p>

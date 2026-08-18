@@ -57,6 +57,7 @@ export interface ContactoResumen {
   apellido: string;
   telefonoPrincipal: string | null;
   email: string | null;
+  avatarUrl: string | null;
 }
 
 export interface OportunidadGanadaResumen {

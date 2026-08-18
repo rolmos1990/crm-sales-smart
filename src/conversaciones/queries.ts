@@ -8,6 +8,7 @@ const contactoSelect = {
   apellido: true,
   telefonoPrincipal: true,
   email: true,
+  avatarUrl: true,
   identificadoresCanal: {
     select: { identificador: true, canal: true, handle: true },
   },
@@ -69,6 +70,7 @@ function mapearConversacion(conv: any): ConversacionResumen {
       apellido: conv.contacto.apellido,
       telefonoPrincipal: conv.contacto.telefonoPrincipal,
       email: conv.contacto.email,
+      avatarUrl: conv.contacto.avatarUrl ?? null,
     },
     cuentaCanal: conv.cuentaCanal,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
