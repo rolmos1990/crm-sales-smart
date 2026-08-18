@@ -35,7 +35,7 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
 
-COPY --from=builder /app/public               ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder /app/package.json         ./package.json
 COPY --from=builder /app/node_modules         ./node_modules
 COPY --from=builder /app/src/generated        ./src/generated
