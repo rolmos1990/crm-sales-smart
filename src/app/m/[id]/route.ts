@@ -16,9 +16,15 @@ export async function GET(
     return new NextResponse(null, { status: 404 });
   }
 
+  // Detrás de Coolify/Traefik el Host real no siempre llega al contenedor,
+  // así que `req.url` puede resolver a `http://localhost:80` (mismo problema
+  // que tuvimos con el redirect_uri de Instagram). Para URLs relativas
+  // (proveedor local) se usa APP_URL como base y solo se cae a `req.nextUrl.origin`
+  // si esa variable no está configurada.
+  const appUrl = process.env.APP_URL || req.nextUrl.origin;
   const destino = media.urlOptimizada.startsWith("http")
     ? media.urlOptimizada
-    : new URL(media.urlOptimizada, req.url).toString();
+    : new URL(media.urlOptimizada, appUrl).toString();
 
   return NextResponse.redirect(destino, {
     status: 301,
