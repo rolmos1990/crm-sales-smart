@@ -68,97 +68,92 @@ function TarjetaOportunidad({
           "block cursor-pointer rounded-xl border select-none",
           "bg-white dark:bg-[oklch(0.130_0.004_264)]",
           "border-stone-200/80 dark:border-white/[0.07]",
+          "shadow-sm dark:shadow-[0_2px_10px_-6px_rgba(0,0,0,0.55)]",
           "hover:border-stone-300 dark:hover:border-white/[0.13]",
           "hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
-          "transition-all duration-150 p-3.5 space-y-2.5"
+          "transition-all duration-150 p-3.5 space-y-3"
         )}
       >
-        {/* Indicador de color de stage */}
+        {/* Indicador de etapa — línea fina, color desaturado, sin resplandor */}
         <div
           className="h-[2px] rounded-full -mt-0.5 mb-0.5"
           style={{ backgroundColor: stageColor, opacity: 0.5 }}
         />
 
-        {/* Oportunidad como referencia secundaria + contacto destacado (si hay) */}
-        {oportunidad.contacto ? (
-          <div className="space-y-0.5">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-stone-400 dark:text-white/30 truncate">
-              {oportunidad.titulo}
-            </p>
-            <div className="flex items-center gap-1.5 min-w-0">
-              <User className="h-3.5 w-3.5 shrink-0 text-stone-400 dark:text-white/35" />
-              <p className="text-[14px] font-semibold leading-snug truncate text-stone-900 dark:text-white/90">
-                {oportunidad.contacto.nombre} {oportunidad.contacto.apellido}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="text-[13px] font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-white/90">
+        {/* Identidad: qué pide el cliente (título) + quién es (contacto / empresa) */}
+        <div className="space-y-1.5">
+          <p className="text-[14px] font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-white/90">
             {oportunidad.titulo}
           </p>
-        )}
-
-        <div className="text-base font-bold tabular-nums" style={{ color: stageColor }}>
-          {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
-        </div>
-
-        <div className="space-y-1">
-          {oportunidad.empresa && (
-            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-white/35">
-              <Building2 className="h-3 w-3 shrink-0" />
-              <span className="truncate">{oportunidad.empresa.nombre}</span>
+          {(oportunidad.contacto || oportunidad.empresa) && (
+            <div className="space-y-0.5">
+              {oportunidad.contacto && (
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <User className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/30" />
+                  <span className="text-[12px] text-stone-500 dark:text-white/40 truncate">
+                    {oportunidad.contacto.nombre} {oportunidad.contacto.apellido}
+                  </span>
+                </div>
+              )}
+              {oportunidad.empresa && (
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Building2 className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/30" />
+                  <span className="text-[12px] text-stone-500 dark:text-white/40 truncate">
+                    {oportunidad.empresa.nombre}
+                  </span>
+                </div>
+              )}
             </div>
           )}
+        </div>
+
+        {/* Separador sutil entre identidad e información comercial */}
+        <div className="border-t border-stone-100 dark:border-white/[0.05]" />
+
+        {/* Monto (izquierda) + vencimiento (derecha, cápsula neutral) */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[15px] font-semibold tabular-nums text-stone-900 dark:text-white/90">
+            {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
+          </span>
           {oportunidad.fechaCierre && (
-            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-white/35">
+            <span className="inline-flex items-center gap-1 rounded-md border border-stone-200 dark:border-white/[0.08] bg-stone-50 dark:bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] font-medium text-stone-500 dark:text-white/40 shrink-0">
               <CalendarDays className="h-3 w-3 shrink-0" />
-              {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
-            </div>
+              Vence {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
+            </span>
           )}
         </div>
 
-        {/* Etiquetas */}
+        {/* Etiquetas — diseño neutral, sin límite de cantidad */}
         {oportunidad.tags && oportunidad.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {oportunidad.tags.slice(0, 3).map(({ tagId, tag }) => (
+          <div className="flex flex-wrap gap-1.5">
+            {oportunidad.tags.map(({ tagId, tag }) => (
               <span
                 key={tagId}
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                style={tag.color ? {
-                  backgroundColor: `${tag.color}18`,
-                  color: tag.color,
-                } : {
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                  color: "#9ca3af",
-                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 dark:border-white/[0.08] bg-stone-100/80 dark:bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-stone-600 dark:text-white/50"
               >
-                <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color ?? "#6b7280" }} />
+                <span
+                  className="h-1.5 w-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: tag.color ?? "#78716c", opacity: 0.75 }}
+                />
                 {tag.nombre}
               </span>
             ))}
-            {oportunidad.tags.length > 3 && (
-              <span className="text-[10px] text-stone-400 dark:text-white/25 self-center">
-                +{oportunidad.tags.length - 3}
-              </span>
-            )}
           </div>
         )}
 
+        {/* Progreso — relleno del color de etapa desaturado, sin resplandor */}
         <div className="flex items-center gap-2.5">
           <div className="flex-1 bg-stone-100 dark:bg-white/[0.07] rounded-full h-1 overflow-hidden">
             <div
               className="rounded-full h-1 transition-all"
-              style={{ width: `${oportunidad.probabilidad}%`, backgroundColor: stageColor }}
+              style={{ width: `${oportunidad.probabilidad}%`, backgroundColor: stageColor, opacity: 0.55 }}
             />
           </div>
           <span className="text-[10px] font-medium text-stone-400 dark:text-white/30 tabular-nums w-7 text-right">
             {oportunidad.probabilidad}%
           </span>
           {oportunidad.nuevoMensaje && (
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-500" />
-            </span>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/80 dark:bg-emerald-400/70 shrink-0" />
           )}
         </div>
       </div>
@@ -168,15 +163,20 @@ function TarjetaOportunidad({
 
 function TarjetaOverlay({ oportunidad }: { oportunidad: OportunidadEnStage }) {
   return (
-    <div className="w-[272px] rotate-[1.5deg] rounded-xl border border-lime-400/20 bg-white dark:bg-[oklch(0.155_0.004_264)] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)] p-3.5 space-y-2">
-      <p className="text-[13px] font-semibold line-clamp-1 text-stone-900 dark:text-white/90">
+    <div className="w-[272px] rotate-[1.5deg] rounded-xl border border-stone-200 dark:border-white/[0.1] bg-white dark:bg-[oklch(0.155_0.004_264)] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)] p-3.5 space-y-2">
+      <p className="text-[14px] font-semibold line-clamp-1 text-stone-900 dark:text-white/90">
         {oportunidad.titulo}
       </p>
-      <p className="text-base font-bold text-lime-600 dark:text-lime-400 tabular-nums">
+      <p className="text-[15px] font-semibold text-stone-900 dark:text-white/90 tabular-nums">
         {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
       </p>
+      {oportunidad.contacto && (
+        <p className="text-[12px] text-stone-500 dark:text-white/40">
+          {oportunidad.contacto.nombre} {oportunidad.contacto.apellido}
+        </p>
+      )}
       {oportunidad.empresa && (
-        <p className="text-[11px] text-stone-500 dark:text-white/35">{oportunidad.empresa.nombre}</p>
+        <p className="text-[12px] text-stone-500 dark:text-white/40">{oportunidad.empresa.nombre}</p>
       )}
     </div>
   );
