@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft } from "lucide-react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,9 +10,12 @@ import { PipelineSwitcher } from "./pipeline-switcher";
 import { PanelConfigPipeline } from "./panel-config-pipeline";
 import { PipelineKanbanDinamico } from "./pipeline-kanban-dinamico";
 import { PipelineKanban } from "./pipeline-kanban";
+import { PipelineFiltrosDrawer } from "./pipeline-filtros-drawer";
+import { CLAVES_FILTROS_OPORTUNIDAD } from "../schema";
 import type { PipelineConStages, OportunidadEnStage } from "../types";
 import type { Oportunidad, Etapa } from "@/crm/oportunidades/types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
+import type { Tag } from "@/crm/tags/types";
 import { useSesion } from "@/shared/auth/sesion-context";
 
 interface PipelineWrapperProps {
@@ -22,7 +25,10 @@ interface PipelineWrapperProps {
   oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
+  contactosFiltro?: OpcionCombobox[];
+  tags?: Tag[];
   defaultCountryCode?: string;
+  hayFiltrosAplicados?: boolean;
 }
 
 export function PipelineWrapper({
@@ -32,9 +38,14 @@ export function PipelineWrapper({
   oportunidadesLegacy,
   empresas,
   contactos,
+  contactosFiltro,
+  tags = [],
   defaultCountryCode = "PA",
+  hayFiltrosAplicados = false,
 }: PipelineWrapperProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { puedeModificar } = useSesion();
   const puedeMod = puedeModificar("oportunidades");
   const [modoConfig, setModoConfig] = useState(false);
@@ -58,6 +69,25 @@ export function PipelineWrapper({
     setModoConfig(false);
     router.push("/crm/pipeline");
   };
+
+  const limpiarFiltros = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const clave of CLAVES_FILTROS_OPORTUNIDAD) params.delete(clave);
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  };
+
+  // El Kanban guarda estado local (localOps) para el drag & drop; sin un
+  // key que cambie junto con el pipeline/filtros, React lo re-usa entre
+  // navegaciones y queda mostrando datos obsoletos.
+  const claveKanban = `${pipelineActualId ?? "sin-pipeline"}:${CLAVES_FILTROS_OPORTUNIDAD.map(
+    (clave) => searchParams.get(clave) ?? ""
+  ).join("|")}`;
+
+  const totalOportunidadesDinamicas = oportunidadesDinamicas
+    ? [...oportunidadesDinamicas.values()].reduce((total, arr) => total + arr.length, 0)
+    : 0;
+  const sinResultadosPorFiltros = hayFiltrosAplicados && totalOportunidadesDinamicas === 0;
 
   return (
     <div className="flex flex-col gap-4 p-5 h-full overflow-hidden">
@@ -85,6 +115,15 @@ export function PipelineWrapper({
             <CheckCheck className="h-3.5 w-3.5" />
             Listo
           </Button>
+        )}
+
+        {/* Filtros */}
+        {!modoConfig && pipelineActual && pipelineActual.stages.length > 0 && (
+          <PipelineFiltrosDrawer
+            contactos={contactosFiltro ?? contactos}
+            empresas={empresas}
+            tags={tags}
+          />
         )}
 
         {/* Nueva oportunidad */}
@@ -149,8 +188,24 @@ export function PipelineWrapper({
                 </Button>
               )}
             </div>
+          ) : sinResultadosPorFiltros ? (
+            <div className="flex flex-col items-center justify-center h-full text-center gap-3">
+              <SearchX className="h-9 w-9 text-stone-300 dark:text-white/[0.08]" />
+              <p className="text-[13px] font-medium text-stone-500 dark:text-white/35">
+                No hay oportunidades que coincidan con los filtros.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={limpiarFiltros}
+                className="rounded-lg border border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70 gap-1.5 text-[12px]"
+              >
+                Limpiar filtros
+              </Button>
+            </div>
           ) : (
             <PipelineKanbanDinamico
+              key={claveKanban}
               pipeline={pipelineActual}
               oportunidadesPorStage={oportunidadesDinamicas ?? new Map()}
               empresas={empresas}

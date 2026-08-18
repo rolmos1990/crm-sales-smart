@@ -1,8 +1,10 @@
 import { PipelineWrapper } from "@/crm/pipeline/components/pipeline-wrapper";
 import { obtenerPipelines, obtenerOportunidadesPorPipeline } from "@/crm/pipeline/queries";
+import { SchemaFiltrosOportunidad } from "@/crm/pipeline/schema";
 import { obtenerOportunidadesPorEtapa } from "@/crm/oportunidades/queries";
 import { obtenerEmpresas } from "@/crm/empresas/queries";
 import { obtenerContactos } from "@/crm/contactos/queries";
+import { obtenerTags } from "@/crm/tags/queries";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
@@ -10,6 +12,7 @@ import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import type { OportunidadEnStage, PipelineConStages } from "@/crm/pipeline/types";
 import type { Etapa, Oportunidad } from "@/crm/oportunidades/types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
+import type { Tag } from "@/crm/tags/types";
 
 const PAIS_A_ISO: Record<string, string> = {
   "Panamá": "PA", "Perú": "PE", "Colombia": "CO", "México": "MX",
@@ -33,13 +36,21 @@ export default async function PipelinePage(props: {
   let oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null = null;
   let empresasOpciones: OpcionCombobox[] = [];
   let contactosOpciones: OpcionCombobox[] = [];
+  let contactosFiltroOpciones: OpcionCombobox[] = [];
+  let tags: Tag[] = [];
   let defaultCountryCode = "PA";
 
+  // Filtros del pipeline: viajan como query params y se validan antes de
+  // llegar al `where` de Prisma (ver crm/pipeline/queries.ts).
+  const filtrosParsed = SchemaFiltrosOportunidad.safeParse(searchParams);
+  const filtros = filtrosParsed.success ? filtrosParsed.data : undefined;
+
   try {
-    const [pipelinesData, empresas, contactos, config] = await Promise.all([
+    const [pipelinesData, empresas, contactos, tagsData, config] = await Promise.all([
       obtenerPipelines(sesion.instanciaId),
       obtenerEmpresas(sesion.instanciaId),
       obtenerContactos(sesion.instanciaId),
+      obtenerTags(sesion.instanciaId),
       obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
 
@@ -49,6 +60,13 @@ export default async function PipelinePage(props: {
       valor: c.id,
       etiqueta: `${c.nombre} ${c.apellido}`,
     }));
+    contactosFiltroOpciones = contactos.map((c) => ({
+      valor: c.id,
+      etiqueta: `${c.nombre} ${c.apellido}`,
+      subtitulo: c.email ?? undefined,
+      busqueda: [c.telefonoPrincipal, c.telefonoSecundario].filter((v): v is string => !!v),
+    }));
+    tags = tagsData as unknown as Tag[];
     if (config?.pais) defaultCountryCode = PAIS_A_ISO[config.pais] ?? "PA";
 
     const pipelineDefault = pipelines.find((p) => p.esDefault);
@@ -57,7 +75,7 @@ export default async function PipelinePage(props: {
     const pipelineValido = pipelineId && pipelines.some((p) => p.id === pipelineId);
 
     if (pipelineValido && pipelineId) {
-      oportunidadesDinamicas = await obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId);
+      oportunidadesDinamicas = await obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId, filtros);
     } else {
       const datos = await obtenerOportunidadesPorEtapa(sesion.instanciaId);
       oportunidadesLegacy = datos as unknown as Map<Etapa, Oportunidad[]>;
@@ -74,7 +92,10 @@ export default async function PipelinePage(props: {
       oportunidadesLegacy={oportunidadesLegacy}
       empresas={empresasOpciones}
       contactos={contactosOpciones}
+      contactosFiltro={contactosFiltroOpciones}
+      tags={tags}
       defaultCountryCode={defaultCountryCode}
+      hayFiltrosAplicados={!!filtros && Object.keys(filtros).length > 0}
     />
   );
 }

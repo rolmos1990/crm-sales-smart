@@ -17,6 +17,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 export interface OpcionCombobox {
   valor: string;
   etiqueta: string;
+  /** Texto secundario opcional, mostrado debajo de la etiqueta (ej. email). */
+  subtitulo?: string;
+  /** Palabras clave adicionales para la búsqueda (ej. teléfono), no se muestran. */
+  busqueda?: string[];
 }
 
 interface ComboboxProps {
@@ -64,7 +68,7 @@ export function Combobox({
                 <CommandItem
                   key={opcion.valor}
                   value={opcion.valor}
-                  keywords={[opcion.etiqueta]}
+                  keywords={[opcion.etiqueta, ...(opcion.subtitulo ? [opcion.subtitulo] : []), ...(opcion.busqueda ?? [])]}
                   onSelect={(valorActual) => {
                     onChange(valorActual === valor ? "" : valorActual);
                     setAbierto(false);
@@ -76,7 +80,12 @@ export function Combobox({
                       valor === opcion.valor ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {opcion.etiqueta}
+                  <div className="flex flex-col">
+                    <span>{opcion.etiqueta}</span>
+                    {opcion.subtitulo && (
+                      <span className="text-xs text-muted-foreground">{opcion.subtitulo}</span>
+                    )}
+                  </div>
                 </CommandItem>
               ))}
             </CommandGroup>
