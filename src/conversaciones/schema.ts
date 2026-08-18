@@ -2,7 +2,13 @@ import { z } from "zod";
 
 export const EnviarMensajeSchema = z.object({
   conversacionId: z.string().cuid2(),
-  contenido: z.string().min(1).max(4096).optional(),
+  // "" se normaliza a undefined: un mensaje puede ser solo imagen sin texto
+  // (ej. plantilla con imagen y sin contenido), .min(1) rechazaría eso.
+  contenido: z
+    .string()
+    .max(4096)
+    .optional()
+    .transform((v) => (v === "" ? undefined : v)),
   tipo: z.enum(["TEXTO", "IMAGEN", "VIDEO", "AUDIO", "NOTA_VOZ", "DOCUMENTO", "PLANTILLA", "BOTON"]).default("TEXTO"),
   esNotaInterna: z.boolean().default(false),
   // Acepta tanto URLs absolutas (https://...) como rutas relativas (/uploads/...)

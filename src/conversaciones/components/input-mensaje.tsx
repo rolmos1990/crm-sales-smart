@@ -84,7 +84,9 @@ export function InputMensaje({
 
   const handleEnviar = async () => {
     const contenido = texto.trim();
-    if (!contenido || enviando) return;
+    // Debe coincidir con `puedeEnviar` más abajo: se puede mandar solo con
+    // imagen adjunta (ej. plantilla sin texto), no hace falta contenido.
+    if ((!contenido && !imagenAdjunta) || enviando) return;
     await onEnviar({
       contenido,
       esNotaInterna: esNota,
