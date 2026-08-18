@@ -151,7 +151,7 @@ export function InputMensaje({
   const puedeEnviar = (texto.trim() || imagenAdjunta) && !enviando && !interpolando;
 
   return (
-    <div className="border-t border-white/10 p-2 space-y-2 relative">
+    <div className="border-t border-stone-200 dark:border-white/10 p-2 space-y-2 relative">
       {/* Selector de plantillas flotante */}
       {selectorVisible && plantillas.length > 0 && (
         <SelectorPlantillas
@@ -168,13 +168,13 @@ export function InputMensaje({
 
       {/* Preview de imagen adjunta */}
       {imagenAdjunta && (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-lime-500/10 border border-lime-500/20">
-          <ImageIcon className="h-3.5 w-3.5 text-lime-400 shrink-0" />
-          <span className="text-xs text-lime-300 flex-1 truncate">Imagen adjunta</span>
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-lime-50 dark:bg-lime-500/10 border border-lime-200 dark:border-lime-500/20">
+          <ImageIcon className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400 shrink-0" />
+          <span className="text-xs text-lime-700 dark:text-lime-300 flex-1 truncate">Imagen adjunta</span>
           <button
             type="button"
             onClick={() => setImagenAdjunta(null)}
-            className="text-lime-400/70 hover:text-lime-300 transition-colors"
+            className="text-lime-600/70 dark:text-lime-400/70 hover:text-lime-700 dark:hover:text-lime-300 transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -198,8 +198,8 @@ export function InputMensaje({
               className={cn(
                 "flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all",
                 generandoIA
-                  ? "border-lime-500/30 bg-lime-500/10 text-lime-400 cursor-wait"
-                  : "border-white/10 text-stone-500 hover:text-lime-400 hover:border-lime-500/30 hover:bg-lime-500/5"
+                  ? "border-lime-500/30 bg-lime-50 dark:bg-lime-500/10 text-lime-700 dark:text-lime-400 cursor-wait"
+                  : "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-500 hover:text-lime-700 dark:hover:text-lime-400 hover:border-lime-500/30 hover:bg-lime-50 dark:hover:bg-lime-500/5"
               )}
             >
               {generandoIA ? (
@@ -216,8 +216,8 @@ export function InputMensaje({
             className={cn(
               "flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors",
               esNota
-                ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                : "border-white/10 text-stone-500 hover:text-stone-300 hover:bg-white/5"
+                ? "bg-amber-50 dark:bg-amber-500/15 border-amber-300 dark:border-amber-500/30 text-amber-700 dark:text-amber-300"
+                : "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/5"
             )}
           >
             <Lock className="h-3 w-3" />
@@ -231,8 +231,8 @@ export function InputMensaje({
         className={cn(
           "flex items-end gap-2 rounded-xl border px-3 py-2 transition-colors",
           esNota
-            ? "border-amber-500/20 bg-amber-500/5"
-            : "border-white/10 bg-white/3 focus-within:border-lime-500/30"
+            ? "border-amber-300 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/5"
+            : "border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/3 focus-within:border-lime-400/50 dark:focus-within:border-lime-500/30"
         )}
       >
         <textarea
@@ -248,18 +248,18 @@ export function InputMensaje({
           }
           rows={1}
           className={cn(
-            "flex-1 resize-none bg-transparent text-sm text-stone-100 placeholder:text-stone-500 outline-none max-h-32 scrollbar-thin",
-            interpolando && "text-stone-500 italic"
+            "flex-1 resize-none bg-transparent text-sm text-stone-800 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 outline-none max-h-32 inbox-scroll",
+            interpolando && "text-stone-400 dark:text-stone-500 italic"
           )}
           style={{ fieldSizing: "content" } as React.CSSProperties}
         />
         <div className="flex items-center gap-1 shrink-0">
           {interpolando ? (
-            <Loader2 className="h-4 w-4 text-lime-400 animate-spin" />
+            <Loader2 className="h-4 w-4 text-lime-600 dark:text-lime-400 animate-spin" />
           ) : (
             <button
               type="button"
-              className="text-stone-500 hover:text-stone-300 p-1 rounded transition-colors"
+              className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 p-1 rounded transition-colors"
               title="Adjuntar archivo"
             >
               <Paperclip className="h-4 w-4" />
@@ -275,7 +275,7 @@ export function InputMensaje({
                 ? esNota
                   ? "bg-amber-500/80 text-stone-900 hover:bg-amber-400"
                   : "bg-lime-500/90 text-stone-900 hover:bg-lime-400 shadow-lg hover:scale-[1.05]"
-                : "text-stone-600 cursor-not-allowed"
+                : "text-stone-300 dark:text-stone-600 cursor-not-allowed"
             )}
           >
             <Send className="h-4 w-4" />

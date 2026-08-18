@@ -9,19 +9,19 @@ const CONFIG = {
   CERRADA: {
     Icon: Lock,
     label: "Conversación cerrada",
-    color: "text-stone-400",
+    color: "text-stone-500 dark:text-stone-400",
     prefijo: "Cerrada por",
   },
   REABIERTA: {
     Icon: RotateCcw,
     label: "Conversación reabierta",
-    color: "text-stone-400",
+    color: "text-stone-500 dark:text-stone-400",
     prefijo: "Nuevo mensaje del cliente",
   },
   RESPONDIDA: {
     Icon: Check,
     label: "Marcada como respondida",
-    color: "text-stone-400",
+    color: "text-stone-500 dark:text-stone-400",
     prefijo: "Respondida por",
   },
 } as const;
@@ -55,15 +55,15 @@ export function EventoSistema({ mensaje }: EventoSistemaProps) {
 
   return (
     <div className="flex items-center gap-3 my-5 px-1">
-      <div className="flex-1 h-px bg-white/8" />
+      <div className="flex-1 h-px bg-stone-200 dark:bg-white/8" />
       <div className="flex flex-col items-center gap-0.5">
         <div className="flex items-center gap-1.5">
           <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
           <span className={`text-[12px] font-medium ${cfg.color}`}>{cfg.label}</span>
         </div>
-        <span className="text-[10px] text-stone-500">{subtitulo}</span>
+        <span className="text-[10px] text-stone-400 dark:text-stone-500">{subtitulo}</span>
       </div>
-      <div className="flex-1 h-px bg-white/8" />
+      <div className="flex-1 h-px bg-stone-200 dark:bg-white/8" />
     </div>
   );
 }

@@ -222,10 +222,10 @@ export function BadgesReacciones({
                     "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs",
                     "transition-all hover:scale-105 active:scale-95",
                     g.tipo === "INTERNA"
-                      ? "bg-amber-500/6 border-amber-400/30 text-amber-200 hover:bg-amber-500/12"
+                      ? "bg-amber-50 dark:bg-amber-500/6 border-amber-200 dark:border-amber-400/30 text-amber-700 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-500/12"
                       : g.esPropio
-                        ? "bg-lime-500/8 border-lime-400/40 text-lime-200 hover:bg-lime-500/15"
-                        : "bg-white/6 border-white/12 text-stone-300 hover:bg-white/10"
+                        ? "bg-lime-50 dark:bg-lime-500/8 border-lime-300 dark:border-lime-400/40 text-lime-700 dark:text-lime-200 hover:bg-lime-100 dark:hover:bg-lime-500/15"
+                        : "bg-stone-100 dark:bg-white/6 border-stone-200 dark:border-white/12 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-white/10"
                   )}
                 >
                   <span className="leading-none">{g.emoji}</span>

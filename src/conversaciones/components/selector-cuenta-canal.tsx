@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 import type { CuentaCanalResumen } from "../types";
 
 const iconoCanal = (canal: string): React.ReactNode => {
-  if (canal.startsWith("whatsapp")) return <MessageCircle className="h-3.5 w-3.5 text-green-400" />;
-  if (canal === "email") return <Mail className="h-3.5 w-3.5 text-blue-400" />;
-  return <MessageCircle className="h-3.5 w-3.5 text-stone-400" />;
+  if (canal.startsWith("whatsapp")) return <MessageCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-green-400" />;
+  if (canal === "email") return <Mail className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />;
+  return <MessageCircle className="h-3.5 w-3.5 text-stone-400 dark:text-stone-400" />;
 };
 
 interface SelectorCuentaCanalProps {
@@ -22,7 +22,7 @@ export function SelectorCuentaCanal({ cuentas, seleccionada, onSeleccionar }: Se
   const cuenta = cuentas.find((c) => c.id === seleccionada);
 
   if (cuentas.length === 0) {
-    return <span className="text-xs text-stone-500 px-2">Sin cuentas configuradas</span>;
+    return <span className="text-xs text-stone-400 dark:text-stone-500 px-2">Sin cuentas configuradas</span>;
   }
 
   return (
@@ -30,7 +30,7 @@ export function SelectorCuentaCanal({ cuentas, seleccionada, onSeleccionar }: Se
       <button
         type="button"
         onClick={() => setAbierto((v) => !v)}
-        className="flex items-center gap-1.5 text-xs text-stone-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-2 py-1.5 transition-colors"
+        className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/10 border border-stone-200 dark:border-white/10 rounded-lg px-2 py-1.5 transition-colors"
       >
         {cuenta ? (
           <>
@@ -38,26 +38,26 @@ export function SelectorCuentaCanal({ cuentas, seleccionada, onSeleccionar }: Se
             <span className="max-w-[120px] truncate">{cuenta.nombre}</span>
           </>
         ) : (
-          <span className="text-stone-400">Seleccionar canal</span>
+          <span className="text-stone-400 dark:text-stone-400">Seleccionar canal</span>
         )}
         <ChevronDown className={cn("h-3 w-3 transition-transform", abierto && "rotate-180")} />
       </button>
       {abierto && (
-        <div className="absolute bottom-full mb-1 left-0 z-50 min-w-[180px] bg-stone-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
+        <div className="absolute bottom-full mb-1 left-0 z-50 min-w-[180px] bg-white dark:bg-stone-900 border border-stone-200 dark:border-white/10 rounded-xl shadow-lg dark:shadow-xl overflow-hidden">
           {cuentas.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => { onSeleccionar(c.id); setAbierto(false); }}
               className={cn(
-                "w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-white/5 transition-colors",
-                seleccionada === c.id && "bg-lime-500/10 text-lime-300"
+                "w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-stone-50 dark:hover:bg-white/5 transition-colors text-stone-700 dark:text-stone-200",
+                seleccionada === c.id && "bg-lime-50 dark:bg-lime-500/10 text-lime-700 dark:text-lime-300"
               )}
             >
               {iconoCanal(c.canal)}
               <div>
                 <p className="font-medium">{c.nombre}</p>
-                <p className="text-stone-500 text-[10px]">{c.identificador}</p>
+                <p className="text-stone-400 dark:text-stone-500 text-[10px]">{c.identificador}</p>
               </div>
             </button>
           ))}
