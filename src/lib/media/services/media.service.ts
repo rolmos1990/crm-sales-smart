@@ -2,14 +2,14 @@ import { prisma } from "@/shared/db/prisma";
 import { getStorageProvider } from "../providers/factory";
 import { procesarImagen } from "../processor/image.processor";
 import { validarArchivo, calcularHash, sanitizarNombre } from "../processor/validators";
-import { getProveedorActivo } from "../config";
+import { getProveedorActivo, MEDIA_CONFIG } from "../config";
 import type { MediaUploadInput, MediaUploadResult } from "../types";
 
 function buildKeys(instanciaId: string, modulo: string, fileId: string) {
   const base = `${instanciaId}/${modulo}`;
   return {
-    optimized: `${base}/optimized/${fileId}.webp`,
-    thumbnail: `${base}/thumbs/${fileId}.webp`,
+    optimized: `${base}/optimized/${fileId}.${MEDIA_CONFIG.optimized.ext}`,
+    thumbnail: `${base}/thumbs/${fileId}.${MEDIA_CONFIG.thumbnail.ext}`,
     original: (ext: string) => `${base}/originals/${fileId}.${ext}`,
   };
 }
@@ -26,16 +26,23 @@ export async function subirMedia(input: MediaUploadInput): Promise<MediaUploadRe
   const hash = calcularHash(bufferOriginal);
 
   // 3. Deduplicación: ¿ya existe esta imagen para este tenant, subida con el
-  // MISMO proveedor que está activo ahora? Si el proveedor cambió (ej. se
-  // migró de `local` a `s3`), el archivo bajo el proveedor viejo puede ya no
-  // existir físicamente (storage local efímero) — no basta con reusar sus
-  // URLs, hay que volver a subirlo al proveedor activo.
+  // MISMO proveedor Y el mismo formato de salida que están activos ahora?
+  // - Proveedor cambió (ej. se migró de `local` a `s3`): el archivo bajo el
+  //   proveedor viejo puede ya no existir físicamente (storage local efímero).
+  // - Formato de salida cambió (ej. optimized de webp a jpeg, ver
+  //   MEDIA_CONFIG.optimized): el archivo viejo puede ser incompatible con
+  //   canales externos aunque el proveedor sea el mismo.
+  // En ambos casos no basta con reusar las URLs guardadas, hay que reprocesar.
   const proveedorActivo = getProveedorActivo();
   const existente = await prisma.mediaArchivo.findUnique({
     where: { instanciaId_hash: { instanciaId, hash } },
   });
 
-  if (existente && existente.proveedor === proveedorActivo) {
+  if (
+    existente &&
+    existente.proveedor === proveedorActivo &&
+    existente.mimeOptimizado === MEDIA_CONFIG.optimized.mime
+  ) {
     return {
       id: existente.id,
       urlOptimizada: existente.urlOptimizada,
@@ -64,8 +71,8 @@ export async function subirMedia(input: MediaUploadInput): Promise<MediaUploadRe
 
   // 6. Subir optimizado + thumbnail en paralelo (+ original opcional)
   const uploads: Promise<void>[] = [
-    provider.upload({ key: keys.optimized, buffer: optimized.buffer, contentType: "image/webp" }).then(() => undefined),
-    provider.upload({ key: keys.thumbnail, buffer: thumbnail.buffer, contentType: "image/webp" }).then(() => undefined),
+    provider.upload({ key: keys.optimized, buffer: optimized.buffer, contentType: optimized.mime }).then(() => undefined),
+    provider.upload({ key: keys.thumbnail, buffer: thumbnail.buffer, contentType: thumbnail.mime }).then(() => undefined),
   ];
 
   let keyOriginalGuardado: string | null = null;
@@ -94,7 +101,7 @@ export async function subirMedia(input: MediaUploadInput): Promise<MediaUploadRe
     nombreOriginal: sanitizarNombre(file.name),
     mimeOriginal: file.type,
     pesoOriginal: file.size,
-    mimeOptimizado: "image/webp" as const,
+    mimeOptimizado: optimized.mime,
     pesoOptimizado: optimized.peso,
     ancho: optimized.ancho,
     alto: optimized.alto,
@@ -147,4 +154,44 @@ export async function vincularMediaArchivo(
     where: { id: mediaId },
     data: { entidadId, entidadTipo },
   });
+}
+
+/**
+ * Borra un MediaArchivo definitivamente: los 3 objetos en el storage
+ * (optimizado, thumbnail, original si existe) + el registro en base de
+ * datos. No queda nada "cacheado" que reaparezca: como cada subida genera
+ * una key nueva (fileId aleatorio), una re-subida del mismo archivo después
+ * de esto nunca puede chocar con la key vieja ni con la deduplicación por
+ * hash (el registro ya no existe para matchear).
+ */
+export async function eliminarMediaArchivo(mediaId: string, instanciaId: string): Promise<void> {
+  const media = await prisma.mediaArchivo.findFirst({
+    where: { id: mediaId, instanciaId },
+    select: { keyOptimizado: true, keyThumbnail: true, keyOriginal: true, proveedor: true },
+  });
+  if (!media) return;
+
+  const provider = getStorageProvider();
+  await Promise.allSettled(
+    [media.keyOptimizado, media.keyThumbnail, media.keyOriginal]
+      .filter((k): k is string => !!k)
+      .map((key) => provider.delete(key))
+  );
+
+  await prisma.mediaArchivo.delete({ where: { id: mediaId } });
+}
+
+/**
+ * Igual que `eliminarMediaArchivo` pero ubicando el registro por la URL
+ * guardada en la entidad (ej. `Plantilla.imagenUrl`), para los casos donde
+ * no se guardó el `mediaId` explícitamente.
+ */
+export async function eliminarMediaPorUrl(url: string, instanciaId: string): Promise<void> {
+  const media = await prisma.mediaArchivo.findFirst({
+    where: { instanciaId, urlOptimizada: url },
+    select: { id: true },
+  });
+  if (!media) return;
+
+  await eliminarMediaArchivo(media.id, instanciaId);
 }

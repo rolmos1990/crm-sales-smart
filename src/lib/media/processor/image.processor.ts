@@ -6,18 +6,22 @@ async function procesarVariante(
   pipeline: sharp.Sharp,
   opts: { maxWidth: number; maxHeight: number; quality: number }
 ): Promise<ProcessedImage> {
+  // JPEG y no WebP: esta variante se usa como adjunto al enviar mensajes por
+  // WhatsApp/Instagram, y Meta rechaza WebP como adjunto de imagen normal
+  // (solo lo acepta para stickers). Ver comentario en MEDIA_CONFIG.optimized.
   const buffer = await pipeline
     .clone()
     .rotate()                               // corrige orientación EXIF
     .resize(opts.maxWidth, opts.maxHeight, { fit: "inside", withoutEnlargement: true })
-    .webp({ quality: opts.quality, effort: 4 })
+    .flatten({ background: "#ffffff" })     // jpeg no soporta transparencia
+    .jpeg({ quality: opts.quality, mozjpeg: true })
     .toBuffer();
 
   const meta = await sharp(buffer).metadata();
 
   return {
     buffer,
-    mime: "image/webp",
+    mime: "image/jpeg",
     ancho: meta.width ?? 0,
     alto: meta.height ?? 0,
     peso: buffer.length,

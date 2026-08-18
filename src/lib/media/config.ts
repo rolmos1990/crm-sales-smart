@@ -17,13 +17,18 @@ export const MEDIA_CONFIG = {
     "image/gif",
   ] as const,
 
-  // Procesamiento — imagen optimizada
+  // Procesamiento — imagen optimizada. JPEG y no WebP a propósito: esta es
+  // la variante que se usa como `mediaUrl` al enviar mensajes por WhatsApp/
+  // Instagram, y la Messaging API de Meta rechaza adjuntos WebP (solo lo
+  // acepta para stickers) — con WebP el envío de plantillas con imagen falla
+  // silenciosamente del lado de Meta. El thumbnail sí se queda en WebP porque
+  // es de uso interno (preview en el CRM), nunca se manda a un canal externo.
   optimized: {
     quality: 80,
     maxWidth: 1200,
     maxHeight: 1200,
-    mime: "image/webp" as const,
-    ext: "webp",
+    mime: "image/jpeg" as const,
+    ext: "jpg",
   },
 
   // Procesamiento — thumbnail
