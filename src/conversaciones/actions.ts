@@ -8,7 +8,7 @@ import { EnviarMensajeSchema } from "./schema";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { obtenerProvider } from "./providers/registry";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
-import { obtenerConversacionPorId } from "./queries";
+import { obtenerConversacionPorId, obtenerConversacionesInbox } from "./queries";
 import { requireSesion } from "@/shared/auth/sesion";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 
@@ -703,6 +703,13 @@ export async function marcarMensajesLeidos(
 
 export async function obtenerConversacionAction(conversacionId: string): Promise<ConversacionResumen | null> {
   return obtenerConversacionPorId(conversacionId);
+}
+
+// ── Refrescar el listado completo del Inbox (auto-refresh periódico) ───────────
+
+export async function obtenerConversacionesInboxAction(): Promise<ConversacionResumen[]> {
+  const sesion = await requireSesion();
+  return obtenerConversacionesInbox(sesion.instanciaId);
 }
 
 // ── Clasificar conversación ────────────────────────────────────────────────────

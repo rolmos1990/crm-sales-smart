@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -292,6 +292,15 @@ export function PipelineKanbanDinamico({
   const [activeCard, setActiveCard] = useState<OportunidadEnStage | null>(null);
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
   const moverMutation = useMoverAStageMutation();
+
+  // Resincroniza con los datos frescos del servidor (ej. tras el auto-refresh
+  // periódico, que trae nuevoMensaje/oportunidades actualizadas) — pero nunca
+  // mientras hay un drag en curso, para no pisar el estado optimista a mitad
+  // de un movimiento.
+  useEffect(() => {
+    if (!activeCard) setLocalOps(oportunidadesPorStage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oportunidadesPorStage]);
 
   // Las etapas Ganado/Perdido con visible=false no se muestran como columna,
   // pero la oportunidad se sigue pudiendo mover ahí (drag a otra vía o popover "Mover a").

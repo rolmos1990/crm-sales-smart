@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition, useMemo } from "react";
+import { useState, useEffect, useRef, useTransition, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare, MessagesSquare, ChevronUp, Loader2, UserCircle2,
@@ -26,8 +26,11 @@ import {
   clasificarConversacion,
   crearOportunidadDesdeConversacion,
   obtenerConversacionAction,
+  obtenerConversacionesInboxAction,
   toggleReaccion,
 } from "../actions";
+import { useAutoRefresh } from "@/shared/hooks/use-auto-refresh";
+import { IndicadorAutoRefresh } from "@/shared/components/indicador-auto-refresh";
 import type { ConversacionResumen, MensajeConMeta, MensajeReaccionResumen, CuentaCanalResumen, ClasificacionConversacion } from "../types";
 
 // ── Tipos y configuración de estados ─────────────────────────────────────────
@@ -300,6 +303,28 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     return () => source.close();
   }, [instanciaId, seleccionada, queryClient]);
 
+  // ── Auto-refresh: red de seguridad sobre el SSE ─────────────────────────────
+  // El SSE ya empuja mensajes nuevos en tiempo real, pero si la conexión se
+  // cae silenciosamente (proxys, redes inestables) no hay forma de notarlo
+  // desde la UI. Este poll periódico re-trae la lista completa y la reemplaza,
+  // así "nuevoMensaje"/conversaciones que llegaron igual aparecen solas.
+  const refrescarConversaciones = useCallback(async () => {
+    try {
+      const frescas = await obtenerConversacionesInboxAction();
+      setConversaciones(frescas);
+    } catch {
+      // silencioso — el próximo tick lo reintenta
+    }
+  }, []);
+
+  const {
+    restante: autoRefreshRestante,
+    intervaloSegundos: autoRefreshIntervalo,
+    activo: autoRefreshActivo,
+    setActivo: setAutoRefreshActivo,
+    cambiarIntervalo: cambiarAutoRefreshIntervalo,
+  } = useAutoRefresh("inbox-auto-refresh-segundos", refrescarConversaciones);
+
   // ── Reacciones a mensajes ─────────────────────────────────────────────────
 
   const todosLosMensajesRef = [...mensajesAnteriores, ...mensajesRecientes];
@@ -505,19 +530,29 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
         {/* Buscador + filtros */}
         <div className="px-4 pt-4 pb-3 border-b border-stone-200 dark:border-white/[0.06] shrink-0 space-y-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400 dark:text-white/25 pointer-events-none" />
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar conversaciones..."
-              className={cn(
-                "w-full h-8 rounded-lg border pl-8 pr-3 text-xs transition-colors outline-none",
-                "bg-white dark:bg-white/[0.04] border-stone-200 dark:border-white/[0.08]",
-                "text-stone-700 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-white/25",
-                "focus:border-lime-400/50 dark:focus:border-lime-400/40 focus:ring-2 focus:ring-lime-400/15"
-              )}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400 dark:text-white/25 pointer-events-none" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar conversaciones..."
+                className={cn(
+                  "w-full h-8 rounded-lg border pl-8 pr-3 text-xs transition-colors outline-none",
+                  "bg-white dark:bg-white/[0.04] border-stone-200 dark:border-white/[0.08]",
+                  "text-stone-700 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-white/25",
+                  "focus:border-lime-400/50 dark:focus:border-lime-400/40 focus:ring-2 focus:ring-lime-400/15"
+                )}
+              />
+            </div>
+            <IndicadorAutoRefresh
+              restante={autoRefreshRestante}
+              intervaloSegundos={autoRefreshIntervalo}
+              activo={autoRefreshActivo}
+              onCambiarIntervalo={cambiarAutoRefreshIntervalo}
+              onToggleActivo={() => setAutoRefreshActivo((v) => !v)}
+              className="shrink-0"
             />
           </div>
 

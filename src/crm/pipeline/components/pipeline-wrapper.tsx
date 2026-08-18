@@ -17,6 +17,8 @@ import type { Oportunidad, Etapa } from "@/crm/oportunidades/types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { Tag } from "@/crm/tags/types";
 import { useSesion } from "@/shared/auth/sesion-context";
+import { useAutoRefresh } from "@/shared/hooks/use-auto-refresh";
+import { IndicadorAutoRefresh } from "@/shared/components/indicador-auto-refresh";
 
 interface PipelineWrapperProps {
   pipelines: PipelineConStages[];
@@ -89,6 +91,14 @@ export function PipelineWrapper({
     : 0;
   const sinResultadosPorFiltros = hayFiltrosAplicados && totalOportunidadesDinamicas === 0;
 
+  // Auto-refresh: vuelve a pedirle al servidor los datos de la ruta actual
+  // (router.refresh no navega ni pierde el estado de scroll/UI) para que
+  // "nuevoMensaje" y las oportunidades recién llegadas aparezcan solas.
+  const { restante, intervaloSegundos, activo, setActivo, cambiarIntervalo } = useAutoRefresh(
+    "pipeline-auto-refresh-segundos",
+    () => router.refresh()
+  );
+
   return (
     <div className="flex flex-col gap-4 p-5 h-full overflow-hidden">
       {/* ── Header ─────────────────────────────────────────────── */}
@@ -101,6 +111,16 @@ export function PipelineWrapper({
         />
 
         <div className="flex-1" />
+
+        {!modoConfig && (
+          <IndicadorAutoRefresh
+            restante={restante}
+            intervaloSegundos={intervaloSegundos}
+            activo={activo}
+            onCambiarIntervalo={cambiarIntervalo}
+            onToggleActivo={() => setActivo((v) => !v)}
+          />
+        )}
 
         {/* Modo config: botón "Listo" */}
         {modoConfig && esDinamico && (
