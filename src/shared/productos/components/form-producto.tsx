@@ -114,7 +114,10 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
                 <Input
                   type="number" min="0" step="0.01" placeholder="0.00"
                   value={field.value ?? ""}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                  onChange={(e) => {
+                    const valor = e.target.valueAsNumber;
+                    field.onChange(Number.isNaN(valor) ? undefined : valor);
+                  }}
                 />
               </FormControl>
               <FormMessage />
@@ -228,7 +231,10 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
                     step="1"
                     placeholder="0"
                     value={field.value ?? 0}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    onChange={(e) => {
+                      const valor = e.target.valueAsNumber;
+                      field.onChange(Number.isNaN(valor) ? undefined : valor);
+                    }}
                   />
                 </FormControl>
                 <FormMessage />

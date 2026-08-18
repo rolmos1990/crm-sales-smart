@@ -114,13 +114,16 @@ function SortableStageItem({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        borderLeftColor: stage.color ?? "#818cf8",
+      }}
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
-        "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10",
+        "flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-lg border-l-4 border-y border-r transition-all",
+        "bg-white dark:bg-white/5 border-y-stone-200 dark:border-y-white/10 border-r-stone-200 dark:border-r-white/10",
         isDragging
-          ? "opacity-50 shadow-xl border-lime-400/40 dark:border-lime-400/30 z-50"
-          : "hover:border-stone-300 dark:hover:border-white/20"
+          ? "opacity-50 shadow-xl border-y-lime-400/40 dark:border-y-lime-400/30 border-r-lime-400/40 dark:border-r-lime-400/30 z-50"
+          : "hover:border-y-stone-300 dark:hover:border-y-white/20 hover:border-r-stone-300 dark:hover:border-r-white/20"
       )}
     >
       <button
@@ -132,7 +135,7 @@ function SortableStageItem({
       </button>
 
       <div
-        className="h-3 w-3 rounded-full flex-shrink-0 ring-1 ring-white/20"
+        className="h-2.5 w-2.5 rounded-full flex-shrink-0 ring-1 ring-black/5 dark:ring-white/20"
         style={{ backgroundColor: stage.color ?? "#818cf8" }}
       />
 
@@ -519,7 +522,7 @@ export function PanelConfigPipeline({
           <Label className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-widest">
             Etapas · arrastra para reordenar
           </Label>
-          <span className="text-xs text-stone-400 dark:text-stone-500">
+          <span className="text-xs font-medium text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-white/8 rounded-full px-2.5 py-1">
             {stages.length} etapas
           </span>
         </div>

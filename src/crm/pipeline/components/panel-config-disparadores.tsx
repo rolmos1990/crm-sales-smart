@@ -360,7 +360,7 @@ function SeccionStage({
                   onValueChange={handleCambiarAgente}
                   disabled={toggleandoIA}
                 >
-                  <SelectTrigger className="h-8 text-xs bg-white/5 border-white/10 text-stone-300">
+                  <SelectTrigger className="h-8 text-xs bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 text-stone-700 dark:text-stone-300">
                     <span className="flex-1 text-left truncate">
                       {agenteSeleccionado
                         ? (agentes.find((a) => a.id === agenteSeleccionado)?.usuario.nombre ?? "Agente seleccionado")

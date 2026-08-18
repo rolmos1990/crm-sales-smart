@@ -134,15 +134,14 @@ function SortableEtapaItem({
       {/* Guía visual de indentación */}
       <div
         className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
-          "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10",
+          "flex items-center gap-3 pl-3 pr-3 py-2.5 rounded-lg border-l-4 border-y border-r transition-all",
+          "bg-white dark:bg-white/5 border-y-stone-200 dark:border-y-white/10 border-r-stone-200 dark:border-r-white/10",
           isDragging
-            ? "shadow-xl border-lime-400/40"
-            : "hover:border-stone-300 dark:hover:border-white/20",
-          isProjected && "border-lime-400/60 dark:border-lime-400/40 bg-lime-50/30 dark:bg-lime-400/5",
-          depth > 0 && "border-l-2"
+            ? "shadow-xl border-y-lime-400/40 border-r-lime-400/40"
+            : "hover:border-y-stone-300 dark:hover:border-y-white/20 hover:border-r-stone-300 dark:hover:border-r-white/20",
+          isProjected && "border-l-lime-400 dark:border-l-lime-400/70 bg-lime-50/30 dark:bg-lime-400/5"
         )}
-        style={depth > 0 ? { borderLeftColor: etapa.color ?? "#4ade80" } : undefined}
+        style={!isProjected ? { borderLeftColor: etapa.color ?? "#4ade80" } : undefined}
       >
         <button
           {...attributes}
@@ -153,7 +152,7 @@ function SortableEtapaItem({
           <GripVertical className="h-4 w-4" />
         </button>
 
-        <div className="h-3 w-3 rounded-full flex-shrink-0 ring-1 ring-white/20" style={{ backgroundColor: etapa.color ?? "#4ade80" }} />
+        <div className="h-2.5 w-2.5 rounded-full flex-shrink-0 ring-1 ring-black/5 dark:ring-white/20" style={{ backgroundColor: etapa.color ?? "#4ade80" }} />
 
         <span className="flex-1 text-sm font-medium text-stone-800 dark:text-stone-200 truncate">{etapa.nombre}</span>
 
@@ -591,7 +590,9 @@ export function PanelConfigEtapas({ flujoVentaId, etapasIniciales }: PanelConfig
               Arrastra a la <strong>derecha</strong> para crear sub-etapas (máx. {MAX_DEPTH} niveles)
             </p>
           </div>
-          <span className="text-xs text-stone-400">{items.length} etapas</span>
+          <span className="text-xs font-medium text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-white/8 rounded-full px-2.5 py-1">
+            {items.length} etapas
+          </span>
         </div>
 
         <DndContext
