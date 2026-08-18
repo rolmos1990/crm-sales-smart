@@ -199,6 +199,7 @@ export function PanelConversacion({
   };
 
   const sinConversacion = !conversacionActiva;
+  const conversacionActivaObj = conversaciones.find((c) => c.id === conversacionActiva) ?? null;
 
   return (
     <div className="flex flex-col h-full bg-stone-50/60 dark:bg-white/[0.02] border-r border-stone-200 dark:border-white/[0.07] min-w-0">
@@ -210,9 +211,12 @@ export function PanelConversacion({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">{nombreContacto}</p>
-          {conversacionActiva && conversaciones.find(c => c.id === conversacionActiva)?.cuentaCanal && (
+          {conversacionActivaObj?.cuentaCanal && (
             <p className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
-              {conversaciones.find(c => c.id === conversacionActiva)?.cuentaCanal?.nombre}
+              {conversacionActivaObj.cuentaCanal.nombre}
+              {conversacionActivaObj.cuentaCanal.canal === "instagram" && conversacionActivaObj.identificadorCanal && (
+                <span className="font-mono"> · ID: {conversacionActivaObj.identificadorCanal}</span>
+              )}
             </p>
           )}
         </div>

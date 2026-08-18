@@ -27,9 +27,14 @@ export async function procesarMensajeEntrante(
 
   // 2. Si no existe el mapping, buscar contacto por teléfono antes de crear uno nuevo
   if (!identificador) {
+    // Solo los canales de WhatsApp usan un número de teléfono como identificador.
+    // Instagram (IGSID), email u otros canales futuros traen un identificador propio
+    // que NO es un teléfono — guardarlo en telefonoPrincipal produciría un "número"
+    // falso e indistinguible de uno real.
+    const esCanalTelefonico = canal.startsWith("whatsapp");
     // Los JIDs @lid son IDs internos de WhatsApp (privacidad activada), no son teléfonos
-    const esLid = identificadorContacto.endsWith("@lid");
-    const soloNumeros = esLid ? null : normalizarTelefono(identificadorContacto);
+    const esLid = esCanalTelefonico && identificadorContacto.endsWith("@lid");
+    const soloNumeros = esCanalTelefonico && !esLid ? normalizarTelefono(identificadorContacto) : null;
 
     const contactoExistente = soloNumeros
       ? await prisma.contacto.findFirst({
@@ -56,8 +61,9 @@ export async function procesarMensajeEntrante(
     } else {
       // Si no hay pushName, crear contacto placeholder sin nombre para que el agente lo identifique
       const nombreInicial = pushName ?? "";
-      // Si es @lid no guardamos el identificador como teléfono (no es un número real)
-      const telefonoGuardar = canal !== "email" && !esLid
+      // Solo guardamos el identificador como teléfono si el canal es telefónico y no es @lid
+      // (el identificador ya queda de todos modos en ContactoIdentificadorCanal para ese canal)
+      const telefonoGuardar = esCanalTelefonico && !esLid
         ? (soloNumeros ? `+${soloNumeros}` : identificadorContacto)
         : null;
 

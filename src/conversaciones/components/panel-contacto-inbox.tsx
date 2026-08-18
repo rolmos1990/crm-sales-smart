@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X, Smartphone, Trophy, ShoppingBag, Headphones, TrendingUp } from "lucide-react";
+import { User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X, Smartphone, Camera, Trophy, ShoppingBag, Headphones, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -240,6 +240,26 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onClas
               label="Teléfono real"
               valor={contacto.telefonoPrincipal}
               placeholder="Agregar cuando lo consigas"
+              icono={<Phone className="h-3.5 w-3.5" />}
+              onGuardar={(v) => actualizarCampo("telefonoPrincipal", v)}
+            />
+          </>
+        ) : conversacion.cuentaCanal?.canal === "instagram" ? (
+          <>
+            {/* ID de Instagram como referencia no editable — Instagram no comparte teléfono */}
+            <div className="flex items-center gap-2 py-2 px-3 rounded-xl">
+              <Camera className="h-3.5 w-3.5 text-stone-400 dark:text-stone-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-stone-500 dark:text-stone-500 truncate font-mono">
+                  ID de Instagram: {conversacion.identificadorCanal ?? "—"}
+                </p>
+                <p className="text-[9px] text-stone-400 dark:text-stone-600">Instagram no comparte el teléfono del contacto</p>
+              </div>
+            </div>
+            <CampoEditable
+              label="Teléfono"
+              valor={contacto.telefonoPrincipal}
+              placeholder="Agregar teléfono si lo consigues"
               icono={<Phone className="h-3.5 w-3.5" />}
               onGuardar={(v) => actualizarCampo("telefonoPrincipal", v)}
             />
