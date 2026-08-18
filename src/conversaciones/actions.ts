@@ -905,10 +905,14 @@ export async function toggleReaccion(
         const identificador =
           mensaje.conversacion.contacto.identificadoresCanal.find((i) => i.canal === canal)?.identificador ?? "";
 
-        const jid =
-          identificador.endsWith("@lid") || identificador.endsWith("@s.whatsapp.net")
-            ? identificador
-            : identificador.replace(/\D/g, "") + "@s.whatsapp.net";
+        // El campo "jid" es en realidad el identificador de destino en el canal —
+        // solo WhatsApp usa formato JID; el resto de canales (ej. Instagram) pasa
+        // su identificador tal cual (IGSID, no un número de teléfono).
+        const jid = canal.startsWith("whatsapp")
+          ? (identificador.endsWith("@lid") || identificador.endsWith("@s.whatsapp.net")
+              ? identificador
+              : identificador.replace(/\D/g, "") + "@s.whatsapp.net")
+          : identificador;
 
         const fromMe = mensaje.remitente === "AGENTE";
         const emojiAEnviar = fueBorrado ? "" : emoji;

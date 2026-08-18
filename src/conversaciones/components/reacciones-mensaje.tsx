@@ -15,7 +15,9 @@ import type { MensajeReaccionResumen } from "../types";
 
 const EMOJIS_RAPIDOS = ["😀", "❤️", "👍"];
 
-const EMOJIS_GRID = [
+// Exportado para reutilizarse también en el selector de emojis del composer
+// (input-mensaje.tsx) — mismo set curado, sin duplicar la lista.
+export const EMOJIS_GRID = [
   "😀", "😃", "😄", "😁", "😆", "😂", "🤣",
   "😊", "😍", "❤️", "👍", "👎", "🔥", "🎉",
   "😮", "😢", "😡", "🙏", "💯", "🚀", "👏",

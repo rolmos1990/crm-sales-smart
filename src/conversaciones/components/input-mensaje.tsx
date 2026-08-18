@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useMemo, useCallback, useTransition } from "react";
-import { Send, Lock, Paperclip, X, ImageIcon, Loader2, Sparkles } from "lucide-react";
+import { Send, Lock, Paperclip, X, ImageIcon, Loader2, Sparkles, Smile } from "lucide-react";
 import { toast } from "sonner";
 import { generarSugerenciaIA } from "../actions-ia";
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 import { SelectorPlantillas, registrarUsoPlantilla } from "./selector-plantillas";
 import type { PlantillaItem } from "./selector-plantillas";
 import { SelectorCuentaCanal } from "./selector-cuenta-canal";
+import { EMOJIS_GRID } from "./reacciones-mensaje";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { CuentaCanalResumen } from "../types";
 import {
   interpolarPlantilla,
@@ -48,8 +50,25 @@ export function InputMensaje({
   const [filtroSelector, setFiltroSelector] = useState("");
   const [imagenAdjunta, setImagenAdjunta] = useState<string | null>(null);
   const [interpolando, setInterpolando] = useState(false);
+  const [emojiPickerAbierto, setEmojiPickerAbierto] = useState(false);
   const [generandoIA, startGenerandoIA] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Inserta el emoji en la posición del cursor (no solo al final) y devuelve
+  // el foco al textarea con el cursor justo después del emoji insertado.
+  const insertarEmoji = (emoji: string) => {
+    const textarea = textareaRef.current;
+    const inicio = textarea?.selectionStart ?? texto.length;
+    const fin = textarea?.selectionEnd ?? texto.length;
+    const nuevoTexto = texto.slice(0, inicio) + emoji + texto.slice(fin);
+    setTexto(nuevoTexto);
+    setEmojiPickerAbierto(false);
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      const nuevaPos = inicio + emoji.length;
+      textarea?.setSelectionRange(nuevaPos, nuevaPos);
+    });
+  };
 
   const instanciaId = useMemo(
     () => cuentas.find((c) => c.id === cuentaSeleccionadaId)?.instanciaId ?? null,
@@ -257,13 +276,37 @@ export function InputMensaje({
           {interpolando ? (
             <Loader2 className="h-4 w-4 text-lime-600 dark:text-lime-400 animate-spin" />
           ) : (
-            <button
-              type="button"
-              className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 p-1 rounded transition-colors"
-              title="Adjuntar archivo"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
+            <>
+              <Popover open={emojiPickerAbierto} onOpenChange={setEmojiPickerAbierto}>
+                <PopoverTrigger
+                  className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 p-1 rounded transition-colors"
+                  title="Insertar emoji"
+                >
+                  <Smile className="h-4 w-4" />
+                </PopoverTrigger>
+                <PopoverContent align="end" side="top" className="w-64 p-2 bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10">
+                  <div className="grid grid-cols-7 gap-0.5">
+                    {EMOJIS_GRID.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => insertarEmoji(emoji)}
+                        className="h-8 w-8 rounded-lg flex items-center justify-center text-lg hover:bg-stone-100 dark:hover:bg-white/10 hover:scale-110 active:scale-95 transition-all"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <button
+                type="button"
+                className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 p-1 rounded transition-colors"
+                title="Adjuntar archivo"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+            </>
           )}
           <button
             type="button"

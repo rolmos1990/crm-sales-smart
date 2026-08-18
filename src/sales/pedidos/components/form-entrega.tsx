@@ -79,6 +79,14 @@ export function FormEntrega({ pedidoId, entrega, transportistas }: FormEntregaPr
     });
   };
 
+  // El tipo de transportista usa el mismo enum que el método de entrega —
+  // solo tiene sentido ofrecer transportistas cuyo tipo coincide con el
+  // método elegido (ej. "Courier externo" → solo transportistas COURIER_EXTERNO).
+  const metodoSeleccionado = form.watch("metodoEntrega");
+  const transportistasFiltrados = transportistas.filter(
+    (t) => t.activo && t.tipo === metodoSeleccionado
+  );
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -89,7 +97,18 @@ export function FormEntrega({ pedidoId, entrega, transportistas }: FormEntregaPr
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Método de entrega</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select
+                  onValueChange={(v) => {
+                    field.onChange(v);
+                    // Si el transportista ya elegido no coincide con el nuevo
+                    // método, se limpia — evita guardar una combinación inválida.
+                    const actual = transportistas.find((t) => t.id === form.getValues("transportistaId"));
+                    if (actual && actual.tipo !== v) {
+                      form.setValue("transportistaId", null);
+                    }
+                  }}
+                  defaultValue={field.value}
+                >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue>{METODO_LABELS[field.value] ?? field.value}</SelectValue>
@@ -130,7 +149,7 @@ export function FormEntrega({ pedidoId, entrega, transportistas }: FormEntregaPr
           />
         </div>
 
-        {transportistas.length > 0 && (
+        {transportistasFiltrados.length > 0 ? (
           <FormField
             control={form.control}
             name="transportistaId"
@@ -152,7 +171,7 @@ export function FormEntrega({ pedidoId, entrega, transportistas }: FormEntregaPr
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="__ninguno__">Sin transportista</SelectItem>
-                    {transportistas.filter(t => t.activo).map((t) => (
+                    {transportistasFiltrados.map((t) => (
                       <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
                     ))}
                   </SelectContent>
@@ -161,6 +180,10 @@ export function FormEntrega({ pedidoId, entrega, transportistas }: FormEntregaPr
               </FormItem>
             )}
           />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No hay transportistas activos de tipo &quot;{METODO_LABELS[metodoSeleccionado] ?? metodoSeleccionado}&quot;.
+          </p>
         )}
 
         <div className="grid grid-cols-2 gap-4">

@@ -138,9 +138,55 @@ export class InstagramProvider implements ICanalProvider {
     return true;
   }
 
+  /**
+   * Reacciona (o quita la reacción) a un mensaje del contacto desde la cuenta
+   * del negocio. Instagram sí soporta esto vía Graph API:
+   * https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api/
+   *   POST /{IG_ID}/messages
+   *   { recipient: { id }, sender_action: "react" | "unreact", payload: { message_id, reaction? } }
+   * Requiere permisos instagram_business_basic + instagram_business_manage_messages
+   * (ya solicitados en el scope del login) y que el mensaje esté dentro de la
+   * ventana de 24h de mensajería — fuera de ese margen Meta devuelve error y
+   * simplemente queda la reacción visible solo en el CRM (no se relanza).
+   */
   async enviarReaccion(payload: ReaccionCanalPayload): Promise<void> {
-    // Instagram no tiene una API pública para enviar reacciones desde la cuenta del negocio.
-    // Las reacciones desde el negocio se muestran solo internamente en el CRM (tipo INTERNA).
-    console.log(`[Instagram] enviarReaccion no soportada para canal externo (${payload.emoji})`);
+    const cfg = payload.configuracion as {
+      accessToken?: string;
+      instagramBusinessAccountId?: string;
+      proveedorAuth?: string;
+    };
+    const { accessToken, instagramBusinessAccountId } = cfg;
+
+    if (!accessToken || !instagramBusinessAccountId) {
+      throw new Error("[Instagram] accessToken e instagramBusinessAccountId requeridos en configuracion");
+    }
+
+    const IG_API = resolverApiBaseIG(cfg.proveedorAuth);
+    const quitar = payload.emoji === "";
+
+    const body = {
+      recipient: { id: payload.jid },
+      sender_action: quitar ? "unreact" : "react",
+      payload: {
+        message_id: payload.idExternoMensaje,
+        ...(quitar ? {} : { reaction: payload.emoji }),
+      },
+    };
+
+    const res = await fetch(`${IG_API}/${instagramBusinessAccountId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`[Instagram] Error al ${quitar ? "quitar" : "enviar"} reacción: ${JSON.stringify(err)}`);
+    }
+
+    console.log(`[Instagram] Reacción ${quitar ? "removida" : `"${payload.emoji}" enviada`} → msg: ${payload.idExternoMensaje}`);
   }
 }
