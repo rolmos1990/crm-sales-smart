@@ -1381,9 +1381,10 @@ model MediaArchivo {
 
 // Identificador externo del contacto por canal (teléfono, email, instagramId, etc.)
 model ContactoIdentificadorCanal {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   canal         String // "whatsapp", "email", "instagram", "tiktok"
   identificador String // número, email, userId externo
+  handle        String? // @usuario visible del contacto en el canal, si el canal lo expone (ej. Instagram)
 
   contactoId String
   contacto   Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)

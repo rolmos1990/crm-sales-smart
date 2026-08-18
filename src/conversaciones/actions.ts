@@ -17,7 +17,7 @@ import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 export async function procesarMensajeEntrante(
   payload: MensajeEntranteNormalizado & { instanciaId: string }
 ) {
-  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl, mediaUrl, mediaMimeType, mediaDuracion } = payload;
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl, handleCanal, mediaUrl, mediaMimeType, mediaDuracion } = payload;
 
   // 1. Buscar contacto por identificador de canal
   let identificador = await prisma.contactoIdentificadorCanal.findUnique({
@@ -55,7 +55,7 @@ export async function procesarMensajeEntrante(
     if (contactoExistente) {
       // Crear el mapping para que futuras búsquedas sean O(1)
       identificador = await prisma.contactoIdentificadorCanal.create({
-        data: { canal, identificador: identificadorContacto, contactoId: contactoExistente.id, instanciaId },
+        data: { canal, identificador: identificadorContacto, contactoId: contactoExistente.id, instanciaId, handle: handleCanal ?? null },
         include: { contacto: true },
       });
     } else {
@@ -78,7 +78,7 @@ export async function procesarMensajeEntrante(
         },
       });
       identificador = await prisma.contactoIdentificadorCanal.create({
-        data: { canal, identificador: identificadorContacto, contactoId: contacto.id, instanciaId },
+        data: { canal, identificador: identificadorContacto, contactoId: contacto.id, instanciaId, handle: handleCanal ?? null },
         include: { contacto: true },
       });
     }
@@ -92,6 +92,14 @@ export async function procesarMensajeEntrante(
     await prisma.contacto.update({
       where: { id: identificador.contacto.id },
       data: actualizarContacto,
+    });
+  }
+
+  // Auto-completar el handle (@usuario) si el mapping ya existía sin él
+  if (handleCanal && !identificador.handle) {
+    await prisma.contactoIdentificadorCanal.update({
+      where: { id: identificador.id },
+      data: { handle: handleCanal },
     });
   }
 

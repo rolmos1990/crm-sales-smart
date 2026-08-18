@@ -20,6 +20,7 @@ export class ProcesarEntranteSuscriptor extends ConsumidorBase<ComandoProcesarEn
       idExterno: payload.idExterno,
       pushName: payload.pushName,
       avatarUrl: payload.avatarUrl,
+      handleCanal: payload.handleCanal,
       mediaUrl: payload.mediaUrl,
       mediaMimeType: payload.mediaMimeType,
       mediaDuracion: payload.mediaDuracion,

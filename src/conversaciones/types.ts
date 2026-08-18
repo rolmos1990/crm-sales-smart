@@ -101,6 +101,8 @@ export interface ConversacionResumen {
   oportunidades: OportunidadConversacionResumen[];
   _count?: { mensajes: number };
   identificadorCanal?: string | null;
+  /** @usuario visible del contacto en el canal (ej. Instagram), si el canal lo expone. */
+  handleCanal?: string | null;
 }
 
 export interface MensajeEntranteNormalizado {
@@ -118,4 +120,6 @@ export interface MensajeEntranteNormalizado {
   mediaArchivoId?: string;
   pushName?: string;
   avatarUrl?: string;
+  /** @usuario visible del contacto en el canal (ej. Instagram), si el canal lo expone. */
+  handleCanal?: string;
 }

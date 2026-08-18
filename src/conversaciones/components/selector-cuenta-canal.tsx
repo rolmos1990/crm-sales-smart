@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MessageCircle, Mail } from "lucide-react";
+import { ChevronDown, MessageCircle, Mail, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CuentaCanalResumen } from "../types";
 
+// Mismo criterio de ícono/color por canal que el resto del Inbox (ver
+// infoCanal en inbox-layout.tsx) — así el agente reconoce el canal igual en
+// la lista de conversaciones y acá, en el selector sobre el input de envío.
 const iconoCanal = (canal: string): React.ReactNode => {
   if (canal.startsWith("whatsapp")) return <MessageCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-green-400" />;
+  if (canal === "instagram") return <Camera className="h-3.5 w-3.5 text-pink-600 dark:text-pink-400" />;
   if (canal === "email") return <Mail className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />;
   return <MessageCircle className="h-3.5 w-3.5 text-stone-400 dark:text-stone-400" />;
 };

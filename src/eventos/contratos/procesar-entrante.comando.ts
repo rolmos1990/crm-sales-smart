@@ -8,6 +8,7 @@ export interface ComandoProcesarEntrantePayload extends Record<string, unknown> 
   idExterno?: string;
   pushName?: string;
   avatarUrl?: string;
+  handleCanal?: string;
   mediaUrl?: string;
   mediaMimeType?: string;
   mediaDuracion?: number;

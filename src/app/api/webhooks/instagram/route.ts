@@ -46,7 +46,7 @@ interface IGWebhookPayload {
 async function obtenerPerfilRemitenteIG(
   igsid: string,
   cuentaCanal: { configuracion: unknown },
-): Promise<{ pushName?: string; avatarUrl?: string }> {
+): Promise<{ pushName?: string; avatarUrl?: string; handleCanal?: string }> {
   const cfg = cuentaCanal.configuracion as { accessToken?: string; proveedorAuth?: string } | null;
   if (!cfg?.accessToken) return {};
 
@@ -70,6 +70,9 @@ async function obtenerPerfilRemitenteIG(
     return {
       pushName: data.name || data.username || undefined,
       avatarUrl: data.profile_pic || undefined,
+      // Se guarda aparte del nombre para mostrar el @usuario aunque el
+      // contacto tenga un nombre real (data.name) como nombre de pila.
+      handleCanal: data.username || undefined,
     };
   } catch (e) {
     console.warn(`[IG Webhook] Error de red obteniendo perfil de ${igsid}:`, e);

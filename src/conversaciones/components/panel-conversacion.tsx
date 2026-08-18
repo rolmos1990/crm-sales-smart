@@ -214,8 +214,11 @@ export function PanelConversacion({
           {conversacionActivaObj?.cuentaCanal && (
             <p className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
               {conversacionActivaObj.cuentaCanal.nombre}
-              {conversacionActivaObj.cuentaCanal.canal === "instagram" && conversacionActivaObj.identificadorCanal && (
-                <span className="font-mono"> · ID: {conversacionActivaObj.identificadorCanal}</span>
+              {conversacionActivaObj.cuentaCanal.canal === "instagram" && (conversacionActivaObj.handleCanal || conversacionActivaObj.identificadorCanal) && (
+                <span className="font-mono">
+                  {" · "}
+                  {conversacionActivaObj.handleCanal ? `@${conversacionActivaObj.handleCanal}` : `ID: ${conversacionActivaObj.identificadorCanal}`}
+                </span>
               )}
             </p>
           )}

@@ -9,7 +9,7 @@ const contactoSelect = {
   telefonoPrincipal: true,
   email: true,
   identificadoresCanal: {
-    select: { identificador: true, canal: true },
+    select: { identificador: true, canal: true, handle: true },
   },
 } as const;
 
@@ -47,9 +47,10 @@ const conversacionInclude = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapearConversacion(conv: any): ConversacionResumen {
   const canal = conv.cuentaCanal?.canal ?? "";
-  const identificadorCanal =
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    conv.contacto.identificadoresCanal.find((id: any) => id.canal === canal)?.identificador ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const identificadorEncontrado = conv.contacto.identificadoresCanal.find((id: any) => id.canal === canal);
+  const identificadorCanal = identificadorEncontrado?.identificador ?? null;
+  const handleCanal = identificadorEncontrado?.handle ?? null;
 
   return {
     id: conv.id,
@@ -78,6 +79,7 @@ function mapearConversacion(conv: any): ConversacionResumen {
     _count: conv._count,
     ultimoMensaje: (conv.mensajes[0] as MensajeConMeta | null) ?? null,
     identificadorCanal,
+    handleCanal,
   };
 }
 
