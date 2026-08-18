@@ -4,7 +4,7 @@ import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarIcon, Filter, X } from "lucide-react";
+import { CalendarIcon, Filter, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -188,14 +188,19 @@ export function PipelineFiltrosDrawer({ contactos, empresas, tags }: PipelineFil
         side="right"
         className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-sm bg-white dark:bg-[oklch(0.110_0.003_264)] border-l border-stone-200 dark:border-white/10 shadow-2xl"
       >
-        <SheetHeader className="flex-row items-center justify-between border-b border-stone-100 dark:border-white/10 px-5 py-4 flex-shrink-0 space-y-0">
+        <SheetHeader className="flex-row items-center gap-2.5 border-b border-stone-100 dark:border-white/10 px-5 py-4 pr-12 flex-shrink-0 space-y-0">
           <SheetTitle className="text-stone-900 dark:text-stone-50">Filtros</SheetTitle>
           <button
             type="button"
             onClick={limpiar}
-            className="text-[12.5px] font-medium text-stone-400 dark:text-white/35 hover:text-stone-700 dark:hover:text-white/70 transition-colors"
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] font-medium transition-colors",
+              "border-stone-200 dark:border-white/10 text-stone-500 dark:text-white/45",
+              "hover:border-stone-300 dark:hover:border-white/20 hover:bg-stone-50 dark:hover:bg-white/[0.05] hover:text-stone-700 dark:hover:text-white/80"
+            )}
           >
-            Limpiar
+            <RotateCcw className="h-3 w-3" />
+            Limpiar filtros
           </button>
         </SheetHeader>
 
