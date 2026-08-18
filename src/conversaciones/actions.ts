@@ -442,6 +442,7 @@ export async function enviarMensaje(input: {
         conversacionId: validado.conversacionId,
         contenido: validado.contenido ?? null,
         tipo: validado.tipo,
+        mediaUrl: validado.mediaUrl ?? null,
         remitente: validado.esNotaInterna ? "SISTEMA" : "AGENTE",
         estado: "ENVIADO",
         esNotaInterna: validado.esNotaInterna,
