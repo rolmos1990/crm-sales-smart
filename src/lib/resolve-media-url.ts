@@ -1,31 +1,37 @@
 /**
- * Convierte una URL de media relativa en una URL absoluta usando STORAGE_URL del .env.
+ * Convierte una URL de media relativa en una URL absoluta.
  *
- * Por qué: Las imágenes se almacenan en la base de datos como rutas relativas
+ * Por qué: Las imágenes de proveedor `local` se almacenan como rutas relativas
  * (ej: /uploads/instancia/plantillas/imagen.webp) para que sean portables entre
  * entornos. Cuando se necesita enviar la imagen a canales externos (WhatsApp, email)
  * se debe entregar una URL pública completa que el servicio externo pueda descargar.
  *
- * Configurar en .env:
- *   STORAGE_URL=https://tu-dominio.com   # producción
- *   STORAGE_URL=http://localhost:3000     # desarrollo local (solo alcanzable si hay túnel)
+ * Base URL: usa STORAGE_URL si está definida explícitamente (útil si el storage
+ * vive en un dominio distinto al de la app); si no, cae a APP_URL (la misma
+ * variable ya usada para los callbacks de OAuth). Dejar STORAGE_URL sin definir
+ * evita que quede una URL vieja/localhost olvidada en el entorno — ese fue
+ * justamente el bug que rompía la carga de imágenes en producción.
+ *
+ * Configurar en .env (opcional, solo si el storage NO vive en el mismo dominio
+ * que APP_URL):
+ *   STORAGE_URL=https://cdn.tu-dominio.com
  */
 export function resolverUrlMedia(
   url: string | null | undefined
 ): string | undefined {
   if (!url) return undefined;
 
-  // Si ya es una URL absoluta, devolverla tal cual
+  // Si ya es una URL absoluta (proveedor S3/R2), devolverla tal cual
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
 
-  // Ruta relativa → necesita base URL
-  const base = (process.env.STORAGE_URL ?? "").replace(/\/$/, "");
+  // Ruta relativa (proveedor local) → necesita base URL
+  const base = (process.env.STORAGE_URL || process.env.APP_URL || "").replace(/\/$/, "");
 
   if (!base) {
     console.warn(
-      "[resolverUrlMedia] STORAGE_URL no está configurado en .env — " +
+      "[resolverUrlMedia] Ni STORAGE_URL ni APP_URL están configurados — " +
         "no se puede construir una URL absoluta para medios externos. " +
         `URL relativa ignorada: ${url}`
     );

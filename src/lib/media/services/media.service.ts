@@ -25,12 +25,17 @@ export async function subirMedia(input: MediaUploadInput): Promise<MediaUploadRe
   const bufferOriginal = Buffer.from(await file.arrayBuffer());
   const hash = calcularHash(bufferOriginal);
 
-  // 3. Deduplicación: ¿ya existe esta imagen para este tenant?
+  // 3. Deduplicación: ¿ya existe esta imagen para este tenant, subida con el
+  // MISMO proveedor que está activo ahora? Si el proveedor cambió (ej. se
+  // migró de `local` a `s3`), el archivo bajo el proveedor viejo puede ya no
+  // existir físicamente (storage local efímero) — no basta con reusar sus
+  // URLs, hay que volver a subirlo al proveedor activo.
+  const proveedorActivo = getProveedorActivo();
   const existente = await prisma.mediaArchivo.findUnique({
     where: { instanciaId_hash: { instanciaId, hash } },
   });
 
-  if (existente) {
+  if (existente && existente.proveedor === proveedorActivo) {
     return {
       id: existente.id,
       urlOptimizada: existente.urlOptimizada,
@@ -79,35 +84,44 @@ export async function subirMedia(input: MediaUploadInput): Promise<MediaUploadRe
   const urlThumbnail = provider.getPublicUrl(keys.thumbnail);
   const urlOriginal = keyOriginalGuardado ? provider.getPublicUrl(keyOriginalGuardado) : null;
 
-  // 8. Registrar en base de datos
-  const registro = await prisma.mediaArchivo.create({
-    data: {
-      instanciaId,
-      modulo,
-      entidadTipo: entidadTipo ?? null,
-      entidadId: entidadId ?? null,
-      nombreOriginal: sanitizarNombre(file.name),
-      mimeOriginal: file.type,
-      pesoOriginal: file.size,
-      anchoOriginal: null,
-      altoOriginal: null,
-      mimeOptimizado: "image/webp",
-      pesoOptimizado: optimized.peso,
-      ancho: optimized.ancho,
-      alto: optimized.alto,
-      keyOptimizado: keys.optimized,
-      keyThumbnail: keys.thumbnail,
-      keyOriginal: keyOriginalGuardado,
-      urlOptimizada,
-      urlThumbnail,
-      urlOriginal,
-      hash,
-      proveedor: getProveedorActivo(),
-      canalOrigen: canalOrigen ?? null,
-      estadoProcesado: "LISTO",
-      creadoPorId: creadoPorId ?? null,
-    },
-  });
+  // 8. Registrar en base de datos — si ya había un registro con este hash pero
+  // de un proveedor viejo, se actualiza (el hash es único por tenant, no se
+  // puede crear una fila nueva con el mismo instanciaId+hash).
+  const datosArchivo = {
+    modulo,
+    entidadTipo: entidadTipo ?? null,
+    entidadId: entidadId ?? null,
+    nombreOriginal: sanitizarNombre(file.name),
+    mimeOriginal: file.type,
+    pesoOriginal: file.size,
+    mimeOptimizado: "image/webp" as const,
+    pesoOptimizado: optimized.peso,
+    ancho: optimized.ancho,
+    alto: optimized.alto,
+    keyOptimizado: keys.optimized,
+    keyThumbnail: keys.thumbnail,
+    keyOriginal: keyOriginalGuardado,
+    urlOptimizada,
+    urlThumbnail,
+    urlOriginal,
+    proveedor: proveedorActivo,
+    estadoProcesado: "LISTO" as const,
+  };
+
+  const registro = existente
+    ? await prisma.mediaArchivo.update({
+        where: { id: existente.id },
+        data: datosArchivo,
+      })
+    : await prisma.mediaArchivo.create({
+        data: {
+          instanciaId,
+          hash,
+          canalOrigen: canalOrigen ?? null,
+          creadoPorId: creadoPorId ?? null,
+          ...datosArchivo,
+        },
+      });
 
   return {
     id: registro.id,
