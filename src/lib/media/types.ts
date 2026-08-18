@@ -34,11 +34,20 @@ export interface UploadResult {
   etag?: string;
 }
 
+export interface DownloadResult {
+  buffer: Buffer;
+  contentType: string;
+}
+
 export interface IStorageProvider {
   upload(params: UploadParams): Promise<UploadResult>;
   delete(key: string): Promise<void>;
   getPublicUrl(key: string): string;
   exists(key: string): Promise<boolean>;
+  // Usado por la ruta proxy /cdn/[...key] para servir el archivo bajo el
+  // propio dominio de la app cuando el proveedor no soporta dominio
+  // personalizado (ej. Hetzner/S3 genérico). Devuelve null si no existe.
+  download(key: string): Promise<DownloadResult | null>;
   readonly nombre: StorageProveedor;
 }
 

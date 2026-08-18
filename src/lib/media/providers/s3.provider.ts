@@ -3,9 +3,16 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { S3_CONFIG } from "../config";
-import type { IStorageProvider, UploadParams, UploadResult, StorageProveedor } from "../types";
+import type {
+  IStorageProvider,
+  UploadParams,
+  UploadResult,
+  StorageProveedor,
+  DownloadResult,
+} from "../types";
 
 /**
  * Storage S3-compatible genérico — Hetzner Object Storage, MinIO, DigitalOcean
@@ -52,8 +59,15 @@ export class S3Provider implements IStorageProvider {
     );
   }
 
+  // Si S3_PUBLIC_URL apunta a un dominio propio (ej. un reverse proxy Caddy
+  // delante del bucket — Hetzner no soporta dominio personalizado nativo, ver
+  // docs.hetzner.com/storage/object-storage/howto-configurations/domain-cname/),
+  // se devuelve la URL absoluta directa: el navegador descarga el archivo sin
+  // pasar por esta app. Si no hay dominio propio configurado, se cae al proxy
+  // interno /cdn/[...key] (ver S3Provider.download) como fallback funcional.
   getPublicUrl(key: string): string {
-    return `${S3_CONFIG.publicUrl}/${key}`;
+    if (S3_CONFIG.publicUrl) return `${S3_CONFIG.publicUrl}/${key}`;
+    return `/cdn/${key}`;
   }
 
   async exists(key: string): Promise<boolean> {
@@ -64,6 +78,22 @@ export class S3Provider implements IStorageProvider {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async download(key: string): Promise<DownloadResult | null> {
+    try {
+      const res = await this.client.send(
+        new GetObjectCommand({ Bucket: S3_CONFIG.bucketName, Key: key })
+      );
+      if (!res.Body) return null;
+      const bytes = await res.Body.transformToByteArray();
+      return {
+        buffer: Buffer.from(bytes),
+        contentType: res.ContentType ?? "application/octet-stream",
+      };
+    } catch {
+      return null;
     }
   }
 }

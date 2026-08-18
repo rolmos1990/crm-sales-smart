@@ -3,9 +3,16 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { R2_CONFIG } from "../config";
-import type { IStorageProvider, UploadParams, UploadResult, StorageProveedor } from "../types";
+import type {
+  IStorageProvider,
+  UploadParams,
+  UploadResult,
+  StorageProveedor,
+  DownloadResult,
+} from "../types";
 
 export class R2Provider implements IStorageProvider {
   readonly nombre: StorageProveedor = "r2";
@@ -56,6 +63,22 @@ export class R2Provider implements IStorageProvider {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async download(key: string): Promise<DownloadResult | null> {
+    try {
+      const res = await this.client.send(
+        new GetObjectCommand({ Bucket: R2_CONFIG.bucketName, Key: key })
+      );
+      if (!res.Body) return null;
+      const bytes = await res.Body.transformToByteArray();
+      return {
+        buffer: Buffer.from(bytes),
+        contentType: res.ContentType ?? "application/octet-stream",
+      };
+    } catch {
+      return null;
     }
   }
 }
