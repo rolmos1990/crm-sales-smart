@@ -124,13 +124,18 @@ export async function GET(req: NextRequest) {
     const llJson = (await llRes.json().catch(() => ({}))) as {
       access_token?: string;
       expires_in?: number;
+      error?: unknown;
+      error_message?: string;
     };
 
     const accessToken = llJson.access_token ?? shortLived.access_token;
     const expiresInSeconds = llJson.expires_in ?? 3600; // fallback conservador si no elevó a long-lived
 
     if (!llJson.access_token) {
-      console.warn("[IG Login] No se pudo elevar a long-lived token — se continúa con el short-lived (expira en ~1h)");
+      console.warn(
+        "[IG Login] No se pudo elevar a long-lived token — se continúa con el short-lived (expira en ~1h). Detalle:",
+        llJson.error ?? llJson.error_message ?? "sin detalle",
+      );
     }
 
     // ── 3. Obtener perfil de la cuenta profesional ─────────────────────────
@@ -157,7 +162,13 @@ export async function GET(req: NextRequest) {
 
     // ── 4. Rechazar cuentas no profesionales ───────────────────────────────
     if (!esTipoDeCuentaValido(perfil.account_type)) {
-      console.warn(`[IG Login] Cuenta ${igUserId} no es Business/Creator (account_type: ${perfil.account_type ?? "desconocido"})`);
+      console.warn(
+        `[IG Login] Cuenta ${igUserId} no es Business/Creator (account_type: ${perfil.account_type ?? "desconocido"}).`,
+        // Si /me devolvió un error (token sin permisos, cuenta no elegible, etc.)
+        // en vez de un perfil, account_type viene vacío sin más contexto — logueamos
+        // el cuerpo crudo para distinguir "cuenta personal real" de "la llamada falló".
+        perfil.error ? { error: perfil.error } : { perfilCrudo: perfil },
+      );
       return redirigir(returnBase, "cuenta_personal");
     }
 
