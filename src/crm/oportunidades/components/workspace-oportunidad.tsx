@@ -123,26 +123,26 @@ function Seccion({
   bloqueado?: boolean;
 }) {
   return (
-    <div className="border-b border-white/8 last:border-0">
+    <div className="border-b border-stone-200 dark:border-white/8 last:border-0">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-white/3 transition-colors"
+        className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-stone-50 dark:hover:bg-white/3 transition-colors"
       >
-        <span className="flex items-center justify-center h-5 w-5 rounded-md bg-white/5 text-stone-400 shrink-0">
+        <span className="flex items-center justify-center h-5 w-5 rounded-md bg-stone-100 dark:bg-white/5 text-stone-500 dark:text-stone-400 shrink-0">
           {icono}
         </span>
-        <span className="flex-1 text-xs font-semibold uppercase tracking-widest text-stone-400">
+        <span className="flex-1 text-xs font-semibold uppercase tracking-widest text-stone-500 dark:text-stone-400">
           {titulo}
         </span>
         {badge !== undefined && badge > 0 && (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/8 text-stone-400">
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-stone-100 dark:bg-white/8 text-stone-500 dark:text-stone-400">
             {badge}
           </span>
         )}
         <ChevronDown
           className={cn(
-            "h-3.5 w-3.5 text-stone-500 transition-transform duration-200",
+            "h-3.5 w-3.5 text-stone-400 dark:text-stone-500 transition-transform duration-200",
             abierto && "rotate-180"
           )}
         />
@@ -240,13 +240,13 @@ export function WorkspaceOportunidad({
 
         {/* Modal flotante */}
         <DialogPrimitive.Popup className="fixed inset-0 z-50 flex items-center justify-center p-3 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 duration-200">
-          <div className="w-[96vw] h-[94vh] max-w-[1800px] rounded-2xl border border-white/10 shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,_theme(colors.stone.900)_0%,_theme(colors.neutral.950)_60%,_theme(colors.black)_100%)]">
+          <div className="w-[96vw] h-[94vh] max-w-[1800px] rounded-2xl border border-stone-200 dark:border-white/10 shadow-2xl dark:shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden bg-white dark:bg-[radial-gradient(ellipse_at_top,_theme(colors.stone.900)_0%,_theme(colors.neutral.950)_60%,_theme(colors.black)_100%)]">
 
             {/* Spinner inicial — solo hasta que los datos críticos lleguen */}
             {cargando && (
               <div className="flex flex-1 items-center justify-center gap-3">
-                <Loader2 className="h-5 w-5 animate-spin text-lime-400" />
-                <span className="text-sm text-stone-400">Cargando workspace…</span>
+                <Loader2 className="h-5 w-5 animate-spin text-lime-600 dark:text-lime-400" />
+                <span className="text-sm text-stone-500 dark:text-stone-400">Cargando workspace…</span>
               </div>
             )}
 
@@ -468,10 +468,10 @@ function WorkspaceContenido({
   return (
     <div className="flex flex-col h-full">
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-white/10 bg-stone-950/60 backdrop-blur-xl">
+      <div className="shrink-0 border-b border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-stone-950/60">
         <div className="flex items-center gap-3 px-4 py-3">
           {/* Avatar */}
-          <div className="h-10 w-10 rounded-xl bg-lime-500/15 border border-lime-400/20 flex items-center justify-center text-lime-300 font-bold text-sm shrink-0">
+          <div className="h-10 w-10 rounded-xl bg-lime-500/10 dark:bg-lime-500/15 border border-lime-500/25 dark:border-lime-400/20 flex items-center justify-center text-lime-700 dark:text-lime-300 font-bold text-sm shrink-0">
             {(contactoPrincipal?.nombre?.[0] ?? "?").toUpperCase()}
             {(contactoPrincipal?.apellido?.[0] ?? "").toUpperCase()}
           </div>
@@ -479,30 +479,30 @@ function WorkspaceContenido({
           {/* Nombre + contexto */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-base font-semibold text-stone-50 leading-tight">
+              <span className="text-base font-semibold text-stone-900 dark:text-stone-50 leading-tight">
                 {nombreContacto}
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
                 Online
               </span>
             </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {empresa && (
-                <span className="flex items-center gap-1 text-xs text-stone-400">
+                <span className="flex items-center gap-1 text-xs text-stone-500 dark:text-stone-400">
                   <Building2 className="h-3 w-3" />
                   {empresa.nombre}
                 </span>
               )}
               {empresa && stageActual && (
-                <span className="text-stone-700">·</span>
+                <span className="text-stone-300 dark:text-stone-700">·</span>
               )}
               {pipelineActual && (
-                <span className="text-xs text-stone-500">{pipelineActual.nombre}</span>
+                <span className="text-xs text-stone-400 dark:text-stone-500">{pipelineActual.nombre}</span>
               )}
               {stageActual && (
                 <>
-                  <span className="text-stone-700">›</span>
+                  <span className="text-stone-300 dark:text-stone-700">›</span>
                   <span
                     className="text-xs font-medium"
                     style={{ color: stageActual.color ?? "#a3a3a3" }}
@@ -511,8 +511,8 @@ function WorkspaceContenido({
                   </span>
                 </>
               )}
-              <span className="text-stone-700">·</span>
-              <span className="text-xs font-semibold text-lime-400">{valorFormateado}</span>
+              <span className="text-stone-300 dark:text-stone-700">·</span>
+              <span className="text-xs font-semibold text-lime-600 dark:text-lime-400">{valorFormateado}</span>
             </div>
           </div>
 
@@ -544,7 +544,7 @@ function WorkspaceContenido({
             {contactoPrincipal?.telefonoPrincipal && (
               <a
                 href={`tel:${contactoPrincipal.telefonoPrincipal}`}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-100 hover:bg-white/8 transition-colors"
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
                 title="Llamar"
               >
                 <Phone className="h-4 w-4" />
@@ -552,14 +552,14 @@ function WorkspaceContenido({
             )}
             <button
               type="button"
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-100 hover:bg-white/8 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
               title="Video"
             >
               <Video className="h-4 w-4" />
             </button>
             <button
               type="button"
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-100 hover:bg-white/8 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
               title="Buscar"
             >
               <Search className="h-4 w-4" />
@@ -568,19 +568,19 @@ function WorkspaceContenido({
               href={`/crm/oportunidades/${oportunidad.id}`}
               variant="ghost"
               size="icon-sm"
-              className="h-8 w-8 text-stone-400 hover:text-stone-100 hover:bg-white/8"
+              className="h-8 w-8 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-white/8"
               title="Ver página completa"
             >
               <ExternalLink className="h-4 w-4" />
             </ButtonLink>
             <button
               type="button"
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-100 hover:bg-white/8 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
               title="Más opciones"
             >
               <MoreHorizontal className="h-4 w-4" />
             </button>
-            <div className="w-px h-5 bg-white/10 mx-1" />
+            <div className="w-px h-5 bg-stone-200 dark:bg-white/10 mx-1" />
             {puedeMod && (
               <SheetNuevaCotizacion
                 oportunidadId={oportunidad.id}
@@ -599,11 +599,11 @@ function WorkspaceContenido({
                 }}
               />
             )}
-            <div className="w-px h-5 bg-white/10 mx-1" />
+            <div className="w-px h-5 bg-stone-200 dark:bg-white/10 mx-1" />
             <button
               type="button"
               onClick={onClose}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-100 hover:bg-white/8 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
               title="Cerrar"
             >
               <X className="h-4 w-4" />
@@ -629,33 +629,33 @@ function WorkspaceContenido({
           ) : (
             <div className="flex flex-col flex-1 p-4 gap-3 animate-pulse">
               <div className="flex items-end gap-2">
-                <div className="h-8 w-8 rounded-full bg-white/8 shrink-0" />
+                <div className="h-8 w-8 rounded-full bg-stone-200 dark:bg-white/8 shrink-0" />
                 <div className="space-y-1.5">
-                  <div className="h-3 w-48 rounded bg-white/8" />
-                  <div className="h-10 w-64 rounded-xl bg-white/8" />
+                  <div className="h-3 w-48 rounded bg-stone-200 dark:bg-white/8" />
+                  <div className="h-10 w-64 rounded-xl bg-stone-200 dark:bg-white/8" />
                 </div>
               </div>
               <div className="flex items-end gap-2 flex-row-reverse">
                 <div className="space-y-1.5">
-                  <div className="h-3 w-32 rounded bg-white/8 ml-auto" />
-                  <div className="h-10 w-52 rounded-xl bg-white/8" />
+                  <div className="h-3 w-32 rounded bg-stone-200 dark:bg-white/8 ml-auto" />
+                  <div className="h-10 w-52 rounded-xl bg-stone-200 dark:bg-white/8" />
                 </div>
               </div>
               <div className="flex items-end gap-2">
-                <div className="h-8 w-8 rounded-full bg-white/8 shrink-0" />
+                <div className="h-8 w-8 rounded-full bg-stone-200 dark:bg-white/8 shrink-0" />
                 <div className="space-y-1.5">
-                  <div className="h-3 w-36 rounded bg-white/8" />
-                  <div className="h-16 w-72 rounded-xl bg-white/8" />
+                  <div className="h-3 w-36 rounded bg-stone-200 dark:bg-white/8" />
+                  <div className="h-16 w-72 rounded-xl bg-stone-200 dark:bg-white/8" />
                 </div>
               </div>
               <div className="flex items-end gap-2 flex-row-reverse">
                 <div className="space-y-1.5">
-                  <div className="h-3 w-24 rounded bg-white/8 ml-auto" />
-                  <div className="h-10 w-44 rounded-xl bg-white/8" />
+                  <div className="h-3 w-24 rounded bg-stone-200 dark:bg-white/8 ml-auto" />
+                  <div className="h-10 w-44 rounded-xl bg-stone-200 dark:bg-white/8" />
                 </div>
               </div>
               <div className="flex-1" />
-              <div className="h-12 rounded-xl bg-white/5 border border-white/8" />
+              <div className="h-12 rounded-xl bg-stone-100 dark:bg-white/5 border border-stone-200 dark:border-white/8" />
             </div>
           )}
         </div>
@@ -670,7 +670,7 @@ function WorkspaceContenido({
             >
               {/* Título editable */}
               <fieldset disabled={formBloqueado} className="contents">
-              <div className="px-4 pt-4 pb-3 border-b border-white/8 shrink-0">
+              <div className="px-4 pt-4 pb-3 border-b border-stone-200 dark:border-white/8 shrink-0">
                 <FormField
                   control={form.control}
                   name="titulo"
@@ -680,7 +680,7 @@ function WorkspaceContenido({
                         <textarea
                           {...field}
                           rows={2}
-                          className="w-full border-0 bg-transparent p-0 text-lg font-semibold leading-snug text-stone-100 placeholder:text-stone-600 focus:outline-none resize-none"
+                          className="w-full border-0 bg-transparent p-0 text-lg font-semibold leading-snug text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-600 focus:outline-none resize-none"
                           placeholder="Título de la oportunidad"
                           value={field.value ?? ""}
                         />
@@ -693,7 +693,7 @@ function WorkspaceContenido({
               </fieldset>
 
               {/* Secciones acordeón — scrollables */}
-              <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
+              <div className="flex-1 inbox-scroll">
 
                 {/* ── Información General ────────────────────────────── */}
                 <Seccion
@@ -711,11 +711,11 @@ function WorkspaceContenido({
                         name="valor"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Valor</FormLabel>
+                            <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">Valor</FormLabel>
                             <FormControl>
                               <Input
                                 type="number" min="0" step="0.01"
-                                className="bg-white/4 border-white/10 rounded-xl h-8 text-sm"
+                                className="bg-stone-50 dark:bg-white/4 border-stone-200 dark:border-white/10 rounded-xl h-8 text-sm"
                                 value={field.value ?? ""}
                                 onChange={(e) => field.onChange(e.target.valueAsNumber)}
                                 onBlur={field.onBlur} name={field.name} ref={field.ref}
@@ -730,10 +730,10 @@ function WorkspaceContenido({
                         name="moneda"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Moneda</FormLabel>
+                            <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">Moneda</FormLabel>
                             <Select onValueChange={field.onChange} value={field.value ?? ""}>
                               <FormControl>
-                                <SelectTrigger className="bg-white/4 border-white/10 rounded-xl h-8 text-sm">
+                                <SelectTrigger className="bg-stone-50 dark:bg-white/4 border-stone-200 dark:border-white/10 rounded-xl h-8 text-sm">
                                   <SelectValue />
                                 </SelectTrigger>
                               </FormControl>
@@ -755,7 +755,7 @@ function WorkspaceContenido({
                       name="fechaCierre"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Fecha de cierre</FormLabel>
+                          <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">Fecha de cierre</FormLabel>
                           <FormControl>
                             <SmartDatePicker
                               value={field.value}
@@ -774,7 +774,7 @@ function WorkspaceContenido({
                       name="empresaId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Empresa</FormLabel>
+                          <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">Empresa</FormLabel>
                           <FormControl>
                             <Combobox
                               opciones={empresas}
@@ -794,11 +794,11 @@ function WorkspaceContenido({
                       name="notas"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">Notas</FormLabel>
+                          <FormLabel className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">Notas</FormLabel>
                           <FormControl>
                             <Textarea
                               rows={3}
-                              className="resize-none bg-white/4 border-white/10 rounded-xl text-sm text-stone-200 placeholder:text-stone-600"
+                              className="resize-none bg-stone-50 dark:bg-white/4 border-stone-200 dark:border-white/10 rounded-xl text-sm text-stone-700 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-stone-600"
                               placeholder="Notas sobre esta oportunidad..."
                               {...field}
                               value={field.value ?? ""}
@@ -845,23 +845,23 @@ function WorkspaceContenido({
                         href={`/crm/empresas/${empresa.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-sm font-semibold text-lime-400 hover:text-lime-300 transition-colors"
+                        className="flex items-center gap-1.5 text-sm font-semibold text-lime-600 dark:text-lime-400 hover:text-lime-700 dark:hover:text-lime-300 transition-colors"
                       >
                         {empresa.nombre}
                         <ExternalLink className="h-3 w-3 shrink-0" />
                       </a>
                       {empresa.industria && (
-                        <div className="flex items-center gap-2 text-xs text-stone-400">
-                          <Building2 className="h-3 w-3 shrink-0 text-stone-500" />
+                        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+                          <Building2 className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
                           {empresa.industria}
                         </div>
                       )}
                       {empresa.email && (
                         <a
                           href={`mailto:${empresa.email}`}
-                          className="flex items-center gap-2 text-xs text-stone-400 hover:text-stone-200 transition-colors"
+                          className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 transition-colors"
                         >
-                          <Mail className="h-3 w-3 shrink-0 text-stone-500" />
+                          <Mail className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
                           {empresa.email}
                         </a>
                       )}
@@ -870,9 +870,9 @@ function WorkspaceContenido({
                           href={empresa.sitioWeb}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-xs text-stone-400 hover:text-stone-200 transition-colors"
+                          className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 transition-colors"
                         >
-                          <Globe className="h-3 w-3 shrink-0 text-stone-500" />
+                          <Globe className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
                           {empresa.sitioWeb.replace(/^https?:\/\//, "")}
                         </a>
                       )}
@@ -899,9 +899,9 @@ function WorkspaceContenido({
                         />
                       ) : (
                         <div className="flex gap-1.5 flex-wrap animate-pulse">
-                          <div className="h-5 w-16 rounded-full bg-white/8" />
-                          <div className="h-5 w-20 rounded-full bg-white/8" />
-                          <div className="h-5 w-12 rounded-full bg-white/8" />
+                          <div className="h-5 w-16 rounded-full bg-stone-200 dark:bg-white/8" />
+                          <div className="h-5 w-20 rounded-full bg-stone-200 dark:bg-white/8" />
+                          <div className="h-5 w-12 rounded-full bg-stone-200 dark:bg-white/8" />
                         </div>
                       )}
                     </div>
@@ -920,27 +920,27 @@ function WorkspaceContenido({
                   <div className="space-y-2 pt-1">
                     {diferida === null ? (
                       <div className="space-y-2 animate-pulse">
-                        <div className="h-12 rounded-lg bg-white/6 border border-white/8" />
-                        <div className="h-12 rounded-lg bg-white/4 border border-white/6" />
+                        <div className="h-12 rounded-lg bg-stone-100 dark:bg-white/6 border border-stone-200 dark:border-white/8" />
+                        <div className="h-12 rounded-lg bg-stone-50 dark:bg-white/4 border border-stone-200 dark:border-white/6" />
                       </div>
                     ) : cotizaciones.length === 0 ? (
-                      <p className="text-xs text-stone-500 text-center py-3">Sin cotizaciones</p>
+                      <p className="text-xs text-stone-400 dark:text-stone-500 text-center py-3">Sin cotizaciones</p>
                     ) : (
                       cotizaciones.map((c) => {
                         const conf = ESTADO_COTIZACION_CONFIG[c.estado as keyof typeof ESTADO_COTIZACION_CONFIG];
                         const esEditable = c.estado === "BORRADOR" || c.estado === "ENVIADA";
                         return (
-                          <div key={c.id} className="rounded-lg bg-white/4 border border-white/8 px-3 py-2">
+                          <div key={c.id} className="rounded-lg bg-stone-50 dark:bg-white/4 border border-stone-200 dark:border-white/8 px-3 py-2">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-xs font-mono text-stone-300 truncate">{c.numero}</span>
+                                <span className="text-xs font-mono text-stone-700 dark:text-stone-300 truncate">{c.numero}</span>
                                 <span className={cn(
                                   "shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-                                  c.estado === "BORRADOR" && "bg-stone-500/20 text-stone-400",
-                                  c.estado === "ENVIADA" && "bg-blue-500/20 text-blue-400",
-                                  c.estado === "APROBADA" && "bg-green-500/20 text-green-400",
-                                  c.estado === "RECHAZADA" && "bg-red-500/20 text-red-400",
-                                  c.estado === "VENCIDA" && "bg-yellow-500/20 text-yellow-400",
+                                  c.estado === "BORRADOR" && "bg-stone-100 dark:bg-stone-500/20 text-stone-600 dark:text-stone-400",
+                                  c.estado === "ENVIADA" && "bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400",
+                                  c.estado === "APROBADA" && "bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-400",
+                                  c.estado === "RECHAZADA" && "bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-400",
+                                  c.estado === "VENCIDA" && "bg-yellow-50 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400",
                                 )}>
                                   {conf?.etiqueta ?? c.estado}
                                 </span>
@@ -950,7 +950,7 @@ function WorkspaceContenido({
                                   <>
                                     <a
                                       href={`/sales/cotizaciones/${c.id}/editar`}
-                                      className="h-5 w-5 flex items-center justify-center rounded text-stone-500 hover:text-stone-200 hover:bg-white/8 transition-colors"
+                                      className="h-5 w-5 flex items-center justify-center rounded text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
                                       title="Editar cotización"
                                     >
                                       <Pencil className="h-3 w-3" />
@@ -959,7 +959,7 @@ function WorkspaceContenido({
                                       trigger={
                                         <button
                                           type="button"
-                                          className="h-5 w-5 flex items-center justify-center rounded text-stone-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                          className="h-5 w-5 flex items-center justify-center rounded text-stone-400 dark:text-stone-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                                           title="Eliminar cotización"
                                         >
                                           <Trash2 className="h-3 w-3" />
@@ -979,14 +979,14 @@ function WorkspaceContenido({
                                   href={`/sales/cotizaciones/${c.id}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="h-5 w-5 flex items-center justify-center rounded text-stone-500 hover:text-stone-200 hover:bg-white/8 transition-colors"
+                                  className="h-5 w-5 flex items-center justify-center rounded text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
                                 >
                                   <ExternalLink className="h-3 w-3" />
                                 </a>
                               </div>
                             </div>
                             <div className="flex items-center justify-between mt-1.5 gap-2">
-                              <span className="text-xs text-stone-500 tabular-nums">
+                              <span className="text-xs text-stone-400 dark:text-stone-500 tabular-nums">
                                 {c.moneda} {c.total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                               </span>
                               {esEditable && (
@@ -994,7 +994,7 @@ function WorkspaceContenido({
                                   {c.estado === "BORRADOR" && (
                                     <button
                                       type="button"
-                                      className="text-[10px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-stone-400 hover:text-stone-200 border border-white/10 transition-colors"
+                                      className="text-[10px] px-2 py-0.5 rounded bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/10 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 border border-stone-200 dark:border-white/10 transition-colors"
                                       onClick={async () => {
                                         const r = await cambiarEstadoCotizacion(c.id, "ENVIADA");
                                         if (r.exito) { toast.success("Marcada como enviada"); refrescarCotizaciones(); }
@@ -1006,7 +1006,7 @@ function WorkspaceContenido({
                                   )}
                                   <button
                                     type="button"
-                                    className="text-[10px] px-2 py-0.5 rounded bg-lime-500/15 hover:bg-lime-500/25 text-lime-400 hover:text-lime-300 border border-lime-400/20 transition-colors flex items-center gap-1"
+                                    className="text-[10px] px-2 py-0.5 rounded bg-lime-50 dark:bg-lime-500/15 hover:bg-lime-100 dark:hover:bg-lime-500/25 text-lime-700 dark:text-lime-400 hover:text-lime-800 dark:hover:text-lime-300 border border-lime-300 dark:border-lime-400/20 transition-colors flex items-center gap-1"
                                     onClick={async () => {
                                       const r = await aprobarCotizacion(c.id);
                                       if (r.exito) {
@@ -1057,14 +1057,14 @@ function WorkspaceContenido({
 
               {/* Footer: guardar / eliminar */}
               {puedeMod && (
-                <div className="shrink-0 border-t border-white/10 px-4 py-3 flex items-center justify-between gap-2 bg-stone-950/40">
+                <div className="shrink-0 border-t border-stone-200 dark:border-white/10 px-4 py-3 flex items-center justify-between gap-2 bg-stone-50 dark:bg-stone-950/40">
                   <ConfirmacionDialog
                     trigger={
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg text-xs"
+                        className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-300 rounded-lg text-xs"
                       >
                         Eliminar
                       </Button>
