@@ -82,5 +82,6 @@ export interface OportunidadEnStage {
   pipelineId: string | null;
   nuevoMensaje: boolean;
   empresa: { id: string; nombre: string } | null;
+  contacto: { id: string; nombre: string; apellido: string } | null;
   tags: Array<{ tagId: string; tag: { id: string; nombre: string; color: string | null } }>;
 }

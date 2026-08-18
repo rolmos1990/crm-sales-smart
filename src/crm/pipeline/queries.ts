@@ -115,6 +115,11 @@ export async function obtenerOportunidadesPorPipeline(
       pipelineId: true,
       nuevoMensaje: true,
       empresa: { select: { id: true, nombre: true } },
+      contactos: {
+        orderBy: { principal: "desc" },
+        take: 1,
+        select: { contacto: { select: { id: true, nombre: true, apellido: true } } },
+      },
       tags: { select: { tagId: true, tag: { select: { id: true, nombre: true, color: true } } } },
     },
     orderBy: { actualizadoEn: "desc" },
@@ -122,9 +127,10 @@ export async function obtenerOportunidadesPorPipeline(
 
   const porStage = new Map<string, OportunidadEnStage[]>();
   for (const op of rows) {
+    const { contactos, ...resto } = op;
     const key = op.stageId ?? "__sin_stage__";
     const arr = porStage.get(key) ?? [];
-    arr.push({ ...op, valor: Number(op.valor) });
+    arr.push({ ...resto, valor: Number(op.valor), contacto: contactos[0]?.contacto ?? null });
     porStage.set(key, arr);
   }
   return porStage;

@@ -15,7 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, Building2, Plus } from "lucide-react";
+import { CalendarDays, Building2, Plus, User } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -79,9 +79,24 @@ function TarjetaOportunidad({
           style={{ backgroundColor: stageColor, opacity: 0.5 }}
         />
 
-        <p className="text-[13px] font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-white/90">
-          {oportunidad.titulo}
-        </p>
+        {/* Oportunidad como referencia secundaria + contacto destacado (si hay) */}
+        {oportunidad.contacto ? (
+          <div className="space-y-0.5">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-stone-400 dark:text-white/30 truncate">
+              {oportunidad.titulo}
+            </p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <User className="h-3.5 w-3.5 shrink-0 text-stone-400 dark:text-white/35" />
+              <p className="text-[14px] font-semibold leading-snug truncate text-stone-900 dark:text-white/90">
+                {oportunidad.contacto.nombre} {oportunidad.contacto.apellido}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-[13px] font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-white/90">
+            {oportunidad.titulo}
+          </p>
+        )}
 
         <div className="text-base font-bold tabular-nums" style={{ color: stageColor }}>
           {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
@@ -361,9 +376,10 @@ export function PipelineKanbanDinamico({
     setLocalOps((prev) => {
       const next = new Map(prev);
       let tagsExistentes: OportunidadEnStage["tags"] = [];
+      let contactoExistente: OportunidadEnStage["contacto"] = null;
       for (const ops of next.values()) {
         const found = ops.find((o) => o.id === updated.id);
-        if (found) { tagsExistentes = found.tags; break; }
+        if (found) { tagsExistentes = found.tags; contactoExistente = found.contacto; break; }
       }
       for (const [key, ops] of next) {
         next.set(key, ops.filter((o) => o.id !== updated.id));
@@ -381,6 +397,7 @@ export function PipelineKanbanDinamico({
           pipelineId: updated.pipelineId ?? pipeline.id,
           nuevoMensaje: false,
           empresa: updated.empresa,
+          contacto: updated.contactos?.[0]?.contacto ?? contactoExistente,
           tags: updated.tags ?? tagsExistentes,
         },
         ...(next.get(targetStage) ?? []),
