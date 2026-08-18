@@ -4,7 +4,7 @@ import { calcularHash, sanitizarNombre } from "../processor/validators";
 import { getProveedorActivo } from "../config";
 import type { CanalOrigen, MediaModulo } from "../types";
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_BYTES = 50 * 1024 * 1024; // 50 MB — video/documentos pesan más que el audio original (10 MB)
 
 const MIMES_AUDIO = new Set([
   "audio/ogg",
@@ -18,8 +18,37 @@ const MIMES_AUDIO = new Set([
   "audio/x-wav",
 ]);
 
+const MIMES_VIDEO = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/3gpp",
+  "video/x-msvideo",
+  "video/mpeg",
+]);
+
+// Documentos recibidos por canales de conversación (WhatsApp/Instagram) — no se
+// reprocesan, se guardan tal cual llegan. Whitelist explícita en vez de aceptar
+// cualquier mime, igual que el resto de validadores de este módulo.
+const MIMES_DOCUMENTO = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/zip",
+  "text/plain",
+  "text/csv",
+  "application/octet-stream", // fallback genérico que usan algunos proveedores cuando no detectan el mime real
+]);
+
+const MIMES_PERMITIDOS = new Set([...MIMES_AUDIO, ...MIMES_VIDEO, ...MIMES_DOCUMENTO]);
+
 function extDesde(mimeType: string): string {
   const mapa: Record<string, string> = {
+    // audio
     "audio/ogg": "ogg",
     "audio/ogg; codecs=opus": "ogg",
     "audio/mpeg": "mp3",
@@ -29,6 +58,24 @@ function extDesde(mimeType: string): string {
     "audio/aac": "aac",
     "audio/wav": "wav",
     "audio/x-wav": "wav",
+    // video
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+    "video/3gpp": "3gp",
+    "video/x-msvideo": "avi",
+    "video/mpeg": "mpeg",
+    // documentos
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.ms-powerpoint": "ppt",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/zip": "zip",
+    "text/plain": "txt",
+    "text/csv": "csv",
   };
   return mapa[mimeType] ?? "bin";
 }
@@ -59,11 +106,11 @@ export async function guardarArchivoRaw(
   const { buffer, mimeType, nombreArchivo, instanciaId, modulo, canalOrigen, entidadTipo, entidadId } = input;
 
   const mimeBase = mimeType.split(";")[0].trim();
-  if (!MIMES_AUDIO.has(mimeType) && !MIMES_AUDIO.has(mimeBase)) {
+  if (!MIMES_PERMITIDOS.has(mimeType) && !MIMES_PERMITIDOS.has(mimeBase)) {
     throw new Error(`Tipo de archivo no soportado para almacenamiento raw: ${mimeType}`);
   }
   if (buffer.length === 0) throw new Error("El buffer está vacío.");
-  if (buffer.length > MAX_BYTES) throw new Error("Archivo demasiado grande. Máximo 10 MB.");
+  if (buffer.length > MAX_BYTES) throw new Error(`Archivo demasiado grande. Máximo ${MAX_BYTES / (1024 * 1024)} MB.`);
 
   const hash = calcularHash(buffer);
 

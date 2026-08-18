@@ -4,6 +4,7 @@ import { obtenerProvider } from "@/conversaciones/providers/registry";
 import { TIPOS_EVENTO, TIPOS_COMANDO } from "@/shared/eventos/registro";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { resolverApiBaseIG } from "@/conversaciones/providers/instagram-estrategia-auth";
+import type { TipoMensaje } from "@/generated/prisma/enums";
 
 export const runtime = "nodejs";
 
@@ -77,6 +78,56 @@ async function obtenerPerfilRemitenteIG(
   } catch (e) {
     console.warn(`[IG Webhook] Error de red obteniendo perfil de ${igsid}:`, e);
     return {};
+  }
+}
+
+// ── Descarga del adjunto (URL temporal de Meta) y re-subida a nuestro storage ──
+//
+// `att.payload.url` que manda Meta es una URL firmada de su CDN, sin auth
+// adicional, pero temporal y ajena a nosotros. La descargamos aquí (mismo
+// patrón que WhatsApp Lite en encolar-mensaje.ts) y la guardamos en S3 antes
+// de encolar el mensaje — el worker nunca ve ni persiste la URL de Meta.
+async function descargarYAlmacenarMediaIG(
+  url: string,
+  tipo: TipoMensaje,
+  instanciaId: string,
+): Promise<{ url: string; mimeType: string; mediaArchivoId: string } | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length === 0) return null;
+
+    const mimeType = res.headers.get("content-type")?.split(";")[0].trim() || "application/octet-stream";
+
+    if (tipo === "IMAGEN") {
+      const { subirImagenConversacion } = await import("@/lib/media/services/media-conversacion.service");
+      const resultado = await subirImagenConversacion({
+        buffer,
+        mimeTypeProveedor: mimeType,
+        instanciaId,
+        canal: "instagram",
+        contactoId: null, // se completa en procesarMensajeEntrante cuando el contacto está resuelto
+      });
+      if (resultado.rechazada || !resultado.urlOptimizada) return null;
+      return { url: resultado.urlOptimizada, mimeType: "image/webp", mediaArchivoId: resultado.mediaArchivoId };
+    }
+
+    // Video, audio o documento: se guarda tal cual, sin reprocesar
+    const { guardarArchivoRaw } = await import("@/lib/media/services/media-raw.service");
+    const resultado = await guardarArchivoRaw({
+      buffer,
+      mimeType,
+      nombreArchivo: `${tipo.toLowerCase()}-${Date.now()}`,
+      instanciaId,
+      modulo: "conversaciones",
+      canalOrigen: "instagram",
+    });
+    return { url: resultado.urlOptimizada, mimeType, mediaArchivoId: resultado.id };
+  } catch (e) {
+    console.error("[IG Webhook] Error descargando/almacenando adjunto:", e);
+    return null;
   }
 }
 
@@ -191,6 +242,27 @@ export async function POST(req: NextRequest) {
 
       // Normalizar el evento individual
       const normalizado = provider.mapearEntrante({ ...event, cuentaCanalId: cuentaCanal.id });
+
+      // Descargar el adjunto de la URL temporal de Meta y re-subirlo a nuestro
+      // storage — la URL que queda guardada en el mensaje debe ser propia de la
+      // app (S3), nunca la de Meta/Instagram (expira y es de un tercero).
+      if (normalizado.mediaUrl && normalizado.tipo !== "TEXTO") {
+        const reubicado = await descargarYAlmacenarMediaIG(
+          normalizado.mediaUrl,
+          normalizado.tipo,
+          cuentaCanal.instanciaId,
+        );
+        if (reubicado) {
+          normalizado.mediaUrl = reubicado.url;
+          normalizado.mediaMimeType = reubicado.mimeType;
+          normalizado.mediaArchivoId = reubicado.mediaArchivoId;
+        } else {
+          // No dejamos la URL de Meta como fallback — mejor sin adjunto que
+          // exponer una URL de terceros que además puede haber expirado.
+          console.error(`[IG Webhook] No se pudo descargar/almacenar el adjunto → mid: ${mid ?? "sin-id"}`);
+          normalizado.mediaUrl = undefined;
+        }
+      }
 
       // Si el contacto ya existe y ya tiene nombre + foto, no vale la pena
       // gastar una llamada a Graph API por cada mensaje suyo.

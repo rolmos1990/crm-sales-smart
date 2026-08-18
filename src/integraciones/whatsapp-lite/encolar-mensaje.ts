@@ -40,14 +40,20 @@ export async function encolarMensajeEntrante(
   const audioMsg   = message?.audioMessage as Record<string, unknown> | undefined;
   const pttMsg     = message?.pttMessage   as Record<string, unknown> | undefined;
   const imageMsg   = message?.imageMessage  as Record<string, unknown> | undefined;
+  const videoMsg   = message?.videoMessage  as Record<string, unknown> | undefined;
+  const docMsg     = message?.documentMessage as Record<string, unknown> | undefined;
 
-  const esAudio  = !!audioMsg || !!pttMsg;
-  const esImagen = !!imageMsg;
-  const esPtt    = (!!audioMsg && audioMsg?.ptt === true) || !!pttMsg;
+  const esAudio     = !!audioMsg || !!pttMsg;
+  const esImagen    = !!imageMsg;
+  const esVideo     = !!videoMsg;
+  const esDocumento = !!docMsg;
+  const esPtt       = (!!audioMsg && audioMsg?.ptt === true) || !!pttMsg;
 
   const tipo = esAudio
     ? (esPtt ? "NOTA_VOZ" : "AUDIO")
     : esImagen ? "IMAGEN"
+    : esVideo ? "VIDEO"
+    : esDocumento ? "DOCUMENTO"
     : "TEXTO";
 
   const pushName = (msg.pushName && msg.pushName !== "") ? msg.pushName : undefined;
@@ -92,12 +98,36 @@ export async function encolarMensajeEntrante(
           modulo: "conversaciones",
           canalOrigen: "whatsapp",
         });
+        mediaArchivoId = resultado.id;
         mediaUrl = resultado.urlOptimizada;
         mediaMimeType = descarga.mimeType;
         mediaDuracion = descarga.duracion;
       }
     } catch (e) {
       console.error("[encolarMensaje] Error descargando audio WA:", e);
+    }
+  }
+
+  if (esVideo || esDocumento) {
+    try {
+      const { descargarMediaWA } = await import("./descargar-media-wa");
+      const { guardarArchivoRaw } = await import("@/lib/media/services/media-raw.service");
+      const descarga = await descargarMediaWA(msg);
+      if (descarga) {
+        const resultado = await guardarArchivoRaw({
+          buffer: descarga.buffer,
+          mimeType: descarga.mimeType,
+          nombreArchivo: `${esVideo ? "video" : "documento"}-${idExterno ?? Date.now()}`,
+          instanciaId,
+          modulo: "conversaciones",
+          canalOrigen: "whatsapp",
+        });
+        mediaArchivoId = resultado.id;
+        mediaUrl = resultado.urlOptimizada;
+        mediaMimeType = descarga.mimeType;
+      }
+    } catch (e) {
+      console.error(`[encolarMensaje] Error descargando ${esVideo ? "video" : "documento"} WA:`, e);
     }
   }
 
