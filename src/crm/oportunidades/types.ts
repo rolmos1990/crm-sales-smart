@@ -19,6 +19,9 @@ export interface Oportunidad {
   usuarioId: string | null;
   stageId?: string | null;
   pipelineId?: string | null;
+  /** Etapa real cuando la oportunidad vive en un pipeline dinámico — tiene
+   *  precedencia sobre el enum legacy `etapa`, que no se mantiene sincronizado. */
+  stage?: { id: string; nombre: string; color: string | null } | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: any;
   contactos?: Array<{ contacto: { id: string; nombre: string; apellido: string } }>;

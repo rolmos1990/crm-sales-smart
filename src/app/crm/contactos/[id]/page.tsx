@@ -373,12 +373,14 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                 <div className="space-y-2.5">
                   {oportunidades.map((rel: any) => {
                     const op = rel.oportunidad;
-                    // Usar flags del stage pipeline si existen — tienen precedencia sobre el enum etapa
-                    const etapaEfectiva = op.stage?.esGanado ? "GANADO"
-                      : op.stage?.esPerdido ? "PERDIDO"
-                      : op.etapa;
-                    const etapaConf = ETAPAS_PIPELINE.find((e) => e.valor === etapaEfectiva);
-                    const colorHex = ETAPA_HEX[etapaEfectiva] ?? op.stage?.color ?? "#94a3b8";
+                    // La etapa real de una oportunidad con pipeline dinámico es la del
+                    // stage actual (op.stage), no el enum legacy `etapa` — ese solo se
+                    // sincroniza al llegar a un stage ganado/perdido, así que para
+                    // cualquier otro stage (ej. "Reservado") queda desactualizado.
+                    const etapaEtiqueta = op.stage?.nombre
+                      ?? ETAPAS_PIPELINE.find((e) => e.valor === op.etapa)?.etiqueta
+                      ?? op.etapa;
+                    const colorHex = op.stage?.color ?? ETAPA_HEX[op.etapa] ?? "#94a3b8";
                     const valor = Number(op.valor);
                     return (
                       <Link key={op.id} href={`/crm/oportunidades/${op.id}`}>
@@ -390,11 +392,12 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                           <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: colorHex }} />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">{op.titulo}</p>
-                            {etapaConf && (
-                              <span className={cn("inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold mt-1", etapaConf.color)}>
-                                {etapaConf.etiqueta}
-                              </span>
-                            )}
+                            <span
+                              className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold mt-1"
+                              style={{ backgroundColor: `${colorHex}1a`, color: colorHex }}
+                            >
+                              {etapaEtiqueta}
+                            </span>
                           </div>
                           <div className="text-right flex-shrink-0">
                             <p className="text-sm font-bold text-lime-600 dark:text-lime-400 tabular-nums">

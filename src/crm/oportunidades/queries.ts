@@ -7,6 +7,9 @@ export async function obtenerOportunidades(instanciaId: string) {
     include: {
       empresa: { select: { id: true, nombre: true } },
       contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },
+      // Etapa real cuando la oportunidad vive en un pipeline dinámico — el
+      // enum legacy `etapa` no se mantiene sincronizado con el stage actual.
+      stage: { select: { id: true, nombre: true, color: true } },
     },
     orderBy: { creadoEn: "desc" },
   });
@@ -57,6 +60,7 @@ export async function obtenerOportunidadPorId(id: string, instanciaId: string) {
       actividades: { orderBy: { fecha: "desc" }, take: 10 },
       tags: { include: { tag: true } },
       campos: { include: { campo: true }, orderBy: { campo: { orden: "asc" } } },
+      stage: { select: { id: true, nombre: true, color: true } },
     },
   });
 }

@@ -77,6 +77,10 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
     // Conversaciones aún no disponibles
   }
 
+  // La etapa real de una oportunidad con pipeline dinámico es la de su stage
+  // actual — el enum legacy `etapa` no se mantiene sincronizado salvo al
+  // llegar a un stage ganado/perdido (ver moverAStage en crm/pipeline/actions.ts).
+  const stageActual = (oportunidad as any).stage as { nombre: string; color: string | null } | null;
   const etapaConf = ETAPAS_PIPELINE.find((e) => e.valor === oportunidad.etapa);
   const productos = (oportunidad as any).productos ?? [];
   const contactos = (oportunidad as any).contactos ?? [];
@@ -130,7 +134,14 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
             <div>
               <h1 className="text-2xl font-semibold">{oportunidad.titulo}</h1>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {etapaConf && (
+                {stageActual ? (
+                  <Badge
+                    className="text-xs border-0"
+                    style={{ backgroundColor: `${stageActual.color ?? "#78716c"}1a`, color: stageActual.color ?? "#78716c" }}
+                  >
+                    {stageActual.nombre}
+                  </Badge>
+                ) : etapaConf && (
                   <Badge className={cn("text-xs", etapaConf.color)}>{etapaConf.etiqueta}</Badge>
                 )}
                 {empresa && (
