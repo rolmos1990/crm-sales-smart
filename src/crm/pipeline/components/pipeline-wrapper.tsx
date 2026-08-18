@@ -24,6 +24,7 @@ interface PipelineWrapperProps {
   pipelines: PipelineConStages[];
   pipelineActualId: string | null;
   oportunidadesDinamicas: Map<string, OportunidadEnStage[]> | null;
+  totalesPorStage?: Map<string, number> | null;
   oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
@@ -37,6 +38,7 @@ export function PipelineWrapper({
   pipelines: pipelinesIniciales,
   pipelineActualId,
   oportunidadesDinamicas,
+  totalesPorStage,
   oportunidadesLegacy,
   empresas,
   contactos,
@@ -228,6 +230,7 @@ export function PipelineWrapper({
               key={claveKanban}
               pipeline={pipelineActual}
               oportunidadesPorStage={oportunidadesDinamicas ?? new Map()}
+              totalesPorStage={totalesPorStage ?? new Map()}
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}

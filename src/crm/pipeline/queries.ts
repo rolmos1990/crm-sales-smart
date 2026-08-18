@@ -58,11 +58,16 @@ export async function obtenerCamposPorPipeline(pipelineId: string, instanciaId: 
   return campos.map(normalizarCampo);
 }
 
-export async function obtenerOportunidadesPorPipeline(
+/**
+ * Arma el `where` compartido por las consultas del pipeline (lista de tarjetas
+ * y totales agregados) a partir de los mismos filtros — evita que ambas
+ * consultas puedan divergir en qué oportunidades cuentan.
+ */
+function construirWhereOportunidadesPipeline(
   pipelineId: string,
   instanciaId: string,
   filtros?: FiltrosOportunidadParams,
-) {
+): Prisma.OportunidadWhereInput {
   // instanciaId siempre va en el where: es el límite multi-tenant y nunca
   // debe quedar a merced de los filtros que arma el usuario.
   const where: Prisma.OportunidadWhereInput = { pipelineId, instanciaId };
@@ -102,6 +107,16 @@ export async function obtenerOportunidadesPorPipeline(
     where.tags = { some: { tagId: { in: tagIds } } };
   }
 
+  return where;
+}
+
+export async function obtenerOportunidadesPorPipeline(
+  pipelineId: string,
+  instanciaId: string,
+  filtros?: FiltrosOportunidadParams,
+) {
+  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, filtros);
+
   const rows = await prisma.oportunidad.findMany({
     where,
     select: {
@@ -132,6 +147,35 @@ export async function obtenerOportunidadesPorPipeline(
     const arr = porStage.get(key) ?? [];
     arr.push({ ...resto, valor: Number(op.valor), contacto: contactos[0]?.contacto ?? null });
     porStage.set(key, arr);
+  }
+  return porStage;
+}
+
+/**
+ * Total de valor por etapa — un `GROUP BY stageId + SUM(valor)` resuelto en la
+ * base de datos, sin traer las filas de oportunidad. A diferencia de sumar
+ * `valor` sobre la lista completa ya cargada para las tarjetas, esta consulta
+ * no depende de tener todas las filas en memoria — se mantiene liviana aunque
+ * el volumen de oportunidades crezca mucho a futuro (ej. si las columnas del
+ * Kanban se paginan o virtualizan más adelante).
+ */
+export async function obtenerTotalesPorStage(
+  pipelineId: string,
+  instanciaId: string,
+  filtros?: FiltrosOportunidadParams,
+): Promise<Map<string, number>> {
+  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, filtros);
+
+  const totales = await prisma.oportunidad.groupBy({
+    by: ["stageId"],
+    where,
+    _sum: { valor: true },
+  });
+
+  const porStage = new Map<string, number>();
+  for (const t of totales) {
+    const key = t.stageId ?? "__sin_stage__";
+    porStage.set(key, Number(t._sum.valor ?? 0));
   }
   return porStage;
 }

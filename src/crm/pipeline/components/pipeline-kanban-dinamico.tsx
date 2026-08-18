@@ -15,7 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, Building2, Plus, User } from "lucide-react";
+import { CalendarDays, Building2, Plus, User, Receipt } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -53,12 +53,26 @@ function TarjetaOportunidad({
     data: oportunidad,
   });
 
+  // La posición (translate) va por style inline — dnd-kit la recalcula en cada
+  // frame del drag para que la tarjeta siga al cursor 1:1 — por eso el scale
+  // se aplica en el mismo transform (una utilidad de Tailwind no se puede
+  // combinar con un transform inline, uno pisa al otro) pero SIN transition
+  // en `transform`: animar esa propiedad mientras se actualiza en cada frame
+  // metería un delay perceptible entre el cursor y la tarjeta. Solo la
+  // opacidad se anima — eso alcanza para transmitir "se está arrastrando"
+  // sin deformar nada ni introducir lag.
+  const translate = CSS.Translate.toString(transform);
+  const dragTransform = isDragging && translate ? `${translate} scale(0.97)` : translate;
+
   return (
     <div
       ref={setNodeRef}
       data-testid="oportunidad-card"
-      style={{ transform: CSS.Translate.toString(transform) }}
-      className={cn("mb-2 touch-none", isDragging && "opacity-20")}
+      style={{ transform: dragTransform }}
+      className={cn(
+        "mb-2 touch-none transition-opacity duration-150 ease-out",
+        isDragging && "opacity-60"
+      )}
       {...(puedeMod ? attributes : {})}
       {...(puedeMod ? listeners : {})}
       onClick={() => onCardClick(oportunidad)}
@@ -67,12 +81,11 @@ function TarjetaOportunidad({
         className={cn(
           "block cursor-pointer rounded-xl border select-none",
           "bg-white dark:bg-[oklch(0.130_0.004_264)]",
-          "border-stone-200/80 dark:border-white/[0.07]",
           "shadow-sm dark:shadow-[0_2px_10px_-6px_rgba(0,0,0,0.55)]",
-          "hover:border-stone-300 dark:hover:border-white/[0.13]",
           "hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
           "transition-all duration-150 p-3.5 space-y-3"
         )}
+        style={{ borderColor: `${stageColor}35` }}
       >
         {/* Indicador de etapa — línea fina, color desaturado, sin resplandor */}
         <div
@@ -163,7 +176,11 @@ function TarjetaOportunidad({
 
 function TarjetaOverlay({ oportunidad }: { oportunidad: OportunidadEnStage }) {
   return (
-    <div className="w-[272px] rotate-[1.5deg] rounded-xl border border-stone-200 dark:border-white/[0.1] bg-white dark:bg-[oklch(0.155_0.004_264)] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)] p-3.5 space-y-2">
+    // Sin rotación — solo un scale leve (reducción) + opacidad, para que se
+    // lea como "levantada del tablero" sin verse deformada. El transform acá
+    // es puramente cosmético (escala): el posicionamiento real sobre el
+    // cursor lo maneja el propio DragOverlay de dnd-kit por fuera de este nodo.
+    <div className="w-[272px] scale-[0.97] opacity-95 rounded-xl border border-stone-200 dark:border-white/[0.1] bg-white dark:bg-[oklch(0.155_0.004_264)] shadow-[0_16px_32px_-10px_rgba(0,0,0,0.5)] p-3.5 space-y-2">
       <p className="text-[14px] font-semibold line-clamp-1 text-stone-900 dark:text-white/90">
         {oportunidad.titulo}
       </p>
@@ -187,18 +204,19 @@ function TarjetaOverlay({ oportunidad }: { oportunidad: OportunidadEnStage }) {
 function ColumnaStage({
   stage,
   items,
+  total,
   pipelineId,
   onCardClick,
   puedeMod = true,
 }: {
   stage: PipelineStage;
   items: OportunidadEnStage[];
+  total: number;
   pipelineId: string;
   onCardClick: (op: OportunidadEnStage) => void;
   puedeMod?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
-  const totalValor = items.reduce((sum, o) => sum + o.valor, 0);
   const color = stage.color ?? "#818cf8";
 
   return (
@@ -247,11 +265,13 @@ function ColumnaStage({
             )}
           </div>
 
-          {items.length > 0 && (
-            <p className="mt-1.5 text-[11px] font-semibold tabular-nums" style={{ color, opacity: 0.85 }} data-testid="column-total">
-              {formatearMoneda(totalValor, "PEN")}
-            </p>
-          )}
+          <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" data-testid="column-total">
+            <Receipt className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/25" />
+            <span className="text-stone-400 dark:text-white/30 font-medium">Total</span>
+            <span className="font-semibold tabular-nums text-stone-600 dark:text-white/60">
+              {formatearMoneda(total, "PEN")}
+            </span>
+          </div>
         </div>
 
         <ScrollArea className="h-[calc(100vh-290px)]">
@@ -289,6 +309,7 @@ function ColumnaStage({
 interface PipelineKanbanDinamicoProps {
   pipeline: PipelineConStages;
   oportunidadesPorStage: Map<string, OportunidadEnStage[]>;
+  totalesPorStage?: Map<string, number>;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
@@ -298,12 +319,14 @@ interface PipelineKanbanDinamicoProps {
 export function PipelineKanbanDinamico({
   pipeline,
   oportunidadesPorStage,
+  totalesPorStage = new Map(),
   empresas,
   contactos,
   defaultCountryCode = "PA",
   puedeMod = true,
 }: PipelineKanbanDinamicoProps) {
   const [localOps, setLocalOps] = useState(oportunidadesPorStage);
+  const [localTotales, setLocalTotales] = useState(totalesPorStage);
   const [activeCard, setActiveCard] = useState<OportunidadEnStage | null>(null);
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
   const moverMutation = useMoverAStageMutation();
@@ -316,6 +339,11 @@ export function PipelineKanbanDinamico({
     if (!activeCard) setLocalOps(oportunidadesPorStage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oportunidadesPorStage]);
+
+  useEffect(() => {
+    if (!activeCard) setLocalTotales(totalesPorStage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalesPorStage]);
 
   // Las etapas Ganado/Perdido con visible=false no se muestran como columna,
   // pero la oportunidad se sigue pudiendo mover ahí (drag a otra vía o popover "Mover a").
@@ -356,12 +384,21 @@ export function PipelineKanbanDinamico({
       return next;
     });
 
+    setLocalTotales((prev) => {
+      const next = new Map(prev);
+      const anteriorKey = oportunidad.stageId ?? "__sin_stage__";
+      next.set(anteriorKey, (next.get(anteriorKey) ?? 0) - oportunidad.valor);
+      next.set(nuevoStageId, (next.get(nuevoStageId) ?? 0) + oportunidad.valor);
+      return next;
+    });
+
     moverMutation.mutate(
       { oportunidadId: oportunidad.id, nuevoStageId, pipelineId: pipeline.id },
       {
         onError: (err) => {
           toast.error(err.message ?? "Error al mover la oportunidad");
           setLocalOps(oportunidadesPorStage);
+          setLocalTotales(totalesPorStage);
         },
         onSuccess: () => {
           const stage = pipeline.stages.find((s) => s.id === nuevoStageId);
@@ -373,13 +410,21 @@ export function PipelineKanbanDinamico({
 
   const handleUpdate = (updated: Oportunidad & { stageId?: string | null }) => {
     if (updated.stageId === undefined) return;
+    let stageAnterior: string | null = null;
+    let valorAnterior = 0;
     setLocalOps((prev) => {
       const next = new Map(prev);
       let tagsExistentes: OportunidadEnStage["tags"] = [];
       let contactoExistente: OportunidadEnStage["contacto"] = null;
-      for (const ops of next.values()) {
+      for (const [key, ops] of next) {
         const found = ops.find((o) => o.id === updated.id);
-        if (found) { tagsExistentes = found.tags; contactoExistente = found.contacto; break; }
+        if (found) {
+          tagsExistentes = found.tags;
+          contactoExistente = found.contacto;
+          stageAnterior = key;
+          valorAnterior = found.valor;
+          break;
+        }
       }
       for (const [key, ops] of next) {
         next.set(key, ops.filter((o) => o.id !== updated.id));
@@ -404,16 +449,37 @@ export function PipelineKanbanDinamico({
       ]);
       return next;
     });
+
+    setLocalTotales((prev) => {
+      const next = new Map(prev);
+      const targetStage = updated.stageId ?? "__sin_stage__";
+      if (stageAnterior) {
+        next.set(stageAnterior, (next.get(stageAnterior) ?? 0) - valorAnterior);
+      }
+      next.set(targetStage, (next.get(targetStage) ?? 0) + updated.valor);
+      return next;
+    });
   };
 
   const handleDelete = (id: string) => {
+    let stageEliminado: string | null = null;
+    let valorEliminado = 0;
     setLocalOps((prev) => {
       const next = new Map(prev);
       for (const [key, ops] of next) {
+        const found = ops.find((o) => o.id === id);
+        if (found) { stageEliminado = key; valorEliminado = found.valor; }
         next.set(key, ops.filter((o) => o.id !== id));
       }
       return next;
     });
+    if (stageEliminado) {
+      setLocalTotales((prev) => {
+        const next = new Map(prev);
+        next.set(stageEliminado!, (next.get(stageEliminado!) ?? 0) - valorEliminado);
+        return next;
+      });
+    }
     setSelected(null);
   };
 
@@ -429,6 +495,7 @@ export function PipelineKanbanDinamico({
               stage={stage}
               pipelineId={pipeline.id}
               items={localOps.get(stage.id) ?? []}
+              total={localTotales.get(stage.id) ?? 0}
               onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
               puedeMod={puedeMod}
             />
