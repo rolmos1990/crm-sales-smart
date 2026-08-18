@@ -3,6 +3,7 @@ import { prisma } from "@/shared/db/prisma";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
 import { TIPOS_EVENTO, TIPOS_COMANDO } from "@/shared/eventos/registro";
 import { publicadorEventos } from "@/shared/rabbitmq";
+import { resolverApiBaseIG } from "@/conversaciones/providers/instagram-estrategia-auth";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,47 @@ interface IGWebhookPayload {
     time?: number;
     messaging?: IGMessagingEvent[];
   }>;
+}
+
+// ── Perfil del remitente (nombre + foto) ──────────────────────────────────────
+//
+// El payload del webhook de mensajería NO trae nombre ni foto del remitente
+// (solo su IGSID) — hay que pedirlos aparte a Graph API con el token de la
+// cuenta conectada. Solo se llama cuando el contacto todavía no tiene nombre
+// o foto guardados (ver uso más abajo), para no gastar cuota de API en cada
+// mensaje de gente que ya conocemos.
+async function obtenerPerfilRemitenteIG(
+  igsid: string,
+  cuentaCanal: { configuracion: unknown },
+): Promise<{ pushName?: string; avatarUrl?: string }> {
+  const cfg = cuentaCanal.configuracion as { accessToken?: string; proveedorAuth?: string } | null;
+  if (!cfg?.accessToken) return {};
+
+  const apiBase = resolverApiBaseIG(cfg.proveedorAuth);
+
+  try {
+    const res = await fetch(
+      `${apiBase}/${igsid}?fields=name,username,profile_pic&access_token=${encodeURIComponent(cfg.accessToken)}`,
+      { cache: "no-store" },
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      name?: string;
+      username?: string;
+      profile_pic?: string;
+      error?: unknown;
+    };
+    if (!res.ok || data.error) {
+      console.warn(`[IG Webhook] No se pudo obtener el perfil de ${igsid}:`, data.error ?? `HTTP ${res.status}`);
+      return {};
+    }
+    return {
+      pushName: data.name || data.username || undefined,
+      avatarUrl: data.profile_pic || undefined,
+    };
+  } catch (e) {
+    console.warn(`[IG Webhook] Error de red obteniendo perfil de ${igsid}:`, e);
+    return {};
+  }
 }
 
 // ── GET: verificación de webhook por Meta ─────────────────────────────────────
@@ -106,7 +148,7 @@ export async function POST(req: NextRequest) {
     const cuentaCanal = await (payload.object === "instagram"
       ? prisma.cuentaCanal.findFirst({
           where: { canal: "instagram", identificador: entry.id, activa: true },
-          select: { id: true, instanciaId: true },
+          select: { id: true, instanciaId: true, configuracion: true },
         })
       : prisma.cuentaCanal.findFirst({
           where: {
@@ -114,7 +156,7 @@ export async function POST(req: NextRequest) {
             activa: true,
             configuracion: { path: ["pageId"], equals: entry.id },
           },
-          select: { id: true, instanciaId: true },
+          select: { id: true, instanciaId: true, configuracion: true },
         })
     );
 
@@ -147,8 +189,25 @@ export async function POST(req: NextRequest) {
       // Normalizar el evento individual
       const normalizado = provider.mapearEntrante({ ...event, cuentaCanalId: cuentaCanal.id });
 
+      // Si el contacto ya existe y ya tiene nombre + foto, no vale la pena
+      // gastar una llamada a Graph API por cada mensaje suyo.
+      const contactoConocido = await prisma.contactoIdentificadorCanal.findUnique({
+        where: {
+          canal_identificador_instanciaId: {
+            canal: "instagram",
+            identificador: event.sender.id,
+            instanciaId: cuentaCanal.instanciaId,
+          },
+        },
+        select: { contacto: { select: { nombre: true, avatarUrl: true } } },
+      });
+      const faltaPerfil = !contactoConocido || !contactoConocido.contacto.nombre || !contactoConocido.contacto.avatarUrl;
+
+      const perfil = faltaPerfil ? await obtenerPerfilRemitenteIG(event.sender.id, cuentaCanal) : {};
+
       await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, cuentaCanal.instanciaId, {
         ...normalizado,
+        ...perfil,
         instanciaId: cuentaCanal.instanciaId,
       });
 
