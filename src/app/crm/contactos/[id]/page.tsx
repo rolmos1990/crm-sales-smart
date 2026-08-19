@@ -14,7 +14,7 @@ import { obtenerContactoPorId } from "@/crm/contactos/queries";
 import { obtenerActividadesPorContacto } from "@/crm/actividades/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
-import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
+import { EtapaBadge } from "@/crm/oportunidades/components/etapa-badge";
 import { obtenerConversacionesResumenPorContacto, obtenerCuentasCanal } from "@/conversaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
@@ -373,13 +373,6 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                 <div className="space-y-2.5">
                   {oportunidades.map((rel: any) => {
                     const op = rel.oportunidad;
-                    // La etapa real de una oportunidad con pipeline dinámico es la del
-                    // stage actual (op.stage), no el enum legacy `etapa` — ese solo se
-                    // sincroniza al llegar a un stage ganado/perdido, así que para
-                    // cualquier otro stage (ej. "Reservado") queda desactualizado.
-                    const etapaEtiqueta = op.stage?.nombre
-                      ?? ETAPAS_PIPELINE.find((e) => e.valor === op.etapa)?.etiqueta
-                      ?? op.etapa;
                     const colorHex = op.stage?.color ?? ETAPA_HEX[op.etapa] ?? "#94a3b8";
                     const valor = Number(op.valor);
                     return (
@@ -392,12 +385,9 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                           <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: colorHex }} />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">{op.titulo}</p>
-                            <span
-                              className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold mt-1"
-                              style={{ backgroundColor: `${colorHex}1a`, color: colorHex }}
-                            >
-                              {etapaEtiqueta}
-                            </span>
+                            <div className="mt-1">
+                              <EtapaBadge etapa={op.etapa} stage={op.stage} />
+                            </div>
                           </div>
                           <div className="text-right flex-shrink-0">
                             <p className="text-sm font-bold text-lime-600 dark:text-lime-400 tabular-nums">

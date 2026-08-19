@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { METODO_ENTREGA_LABELS as METODO_LABELS } from "../constantes";
 
 // ── Tipos ───────────────────────────────────────────────────────────────
 
@@ -269,13 +270,6 @@ function DiffExpandido({ accion, valorAnterior, valorNuevo }: { accion: string; 
   }
 
   if (accion === "ENTREGA_REGISTRADA" || accion === "ENTREGA_ACTUALIZADA") {
-    const METODO_LABELS: Record<string, string> = {
-      COURIER_EXTERNO:      "Courier externo",
-      MENSAJERO_PROPIO:     "Mensajero propio",
-      RETIRO_TIENDA:        "Retiro en tienda",
-      DIGITAL:              "Entrega digital",
-      INSTALACION_SERVICIO: "Instalación / Servicio",
-    };
     const ESTADO_LABELS: Record<string, string> = {
       PENDIENTE:  "Pendiente",
       PREPARANDO: "Preparando",

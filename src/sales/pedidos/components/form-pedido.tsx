@@ -29,6 +29,7 @@ export interface PedidoParaEdicion {
   impuesto: number | null;
   notas: string | null;
   fechaEntrega: Date | null;
+  fechaExpiracion: Date | null;
   contactoId: string | null;
   empresaId: string | null;
   nombre: string | null;
@@ -72,6 +73,7 @@ export function FormPedido({
           impuesto: pedidoExistente.impuesto ?? 18,
           notas: pedidoExistente.notas ?? "",
           fechaEntrega: pedidoExistente.fechaEntrega ?? undefined,
+          fechaExpiracion: pedidoExistente.fechaExpiracion ?? undefined,
           contactoId: pedidoExistente.contactoId ?? "",
           empresaId: pedidoExistente.empresaId ?? "",
           nombre: pedidoExistente.nombre ?? "",
@@ -142,7 +144,7 @@ export function FormPedido({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <FormField control={form.control} name="moneda" render={({ field }) => (
             <FormItem>
               <FormLabel>Moneda</FormLabel>
@@ -175,6 +177,18 @@ export function FormPedido({
                   value={field.value}
                   onChange={field.onChange}
                   placeholder="Selecciona fecha de entrega"
+                />
+              </FormControl>
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="fechaExpiracion" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Fecha de expiración</FormLabel>
+              <FormControl>
+                <SmartDatePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Límite para tener en cuenta el pedido"
                 />
               </FormControl>
             </FormItem>

@@ -171,7 +171,7 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
 
 export async function obtenerOportunidadAction(id: string) {
   const sesion = await requireSesion();
-  return prisma.oportunidad.findFirst({
+  const oportunidad = await prisma.oportunidad.findFirst({
     where: { id, instanciaId: sesion.instanciaId },
     select: {
       id: true,
@@ -209,6 +209,12 @@ export async function obtenerOportunidadAction(id: string) {
       tags: { include: { tag: { select: { id: true, nombre: true, color: true } } } },
     },
   });
+
+  // El valor viaja como Server Action hacia un Client Component — un
+  // Decimal de Prisma no es serializable en ese cruce (ver también el mismo
+  // fix aplicado en crearPedido/crearCotizacion).
+  if (!oportunidad) return oportunidad;
+  return { ...oportunidad, valor: Number(oportunidad.valor) };
 }
 
 export async function obtenerContactosDeOportunidadAction(oportunidadId: string) {

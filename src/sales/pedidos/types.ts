@@ -19,6 +19,7 @@ export interface Pedido {
   estado: EstadoPedido;
   fechaPedido: Date;
   fechaEntrega: Date | null;
+  fechaExpiracion: Date | null;
   subtotal: number;
   descuento: number;
   impuesto: number;
@@ -39,6 +40,7 @@ export interface Pedido {
   empresaId: string | null;
   empresa: { id: string; nombre: string } | null;
   cotizacionId: string | null;
+  entrega?: { metodoEntrega: string } | null;
   lineas?: PedidoLinea[];
 }
 

@@ -32,6 +32,13 @@ export interface Cotizacion {
   empresaId: string | null;
   empresa: { id: string; nombre: string } | null;
   lineas?: CotizacionLinea[];
+  entrega?: {
+    metodoEntrega: string;
+    estadoEntrega: string;
+    transportistaId: string | null;
+    fechaEstimada: Date | null;
+    observaciones: string | null;
+  } | null;
 }
 
 export const ESTADO_COTIZACION_CONFIG: Record<EstadoCotizacion, { etiqueta: string; variante: "default" | "secondary" | "outline" | "destructive" }> = {

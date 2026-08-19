@@ -3,14 +3,7 @@ import { cn } from "@/lib/utils";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { FormEntrega } from "./form-entrega";
 import type { Rol } from "@/generated/prisma/enums";
-
-const METODO_LABELS: Record<string, string> = {
-  COURIER_EXTERNO:      "Courier externo",
-  MENSAJERO_PROPIO:     "Mensajero propio",
-  RETIRO_TIENDA:        "Retiro en tienda",
-  DIGITAL:              "Entrega digital",
-  INSTALACION_SERVICIO: "Instalación / Servicio",
-};
+import { METODO_ENTREGA_LABELS as METODO_LABELS } from "../constantes";
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
   PENDIENTE:  { label: "Pendiente",  color: "text-stone-400 bg-stone-100/50 dark:bg-stone-800/50 border-stone-200 dark:border-stone-700" },

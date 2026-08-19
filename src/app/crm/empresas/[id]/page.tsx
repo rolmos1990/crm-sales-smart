@@ -13,16 +13,7 @@ import { obtenerActividadesPorEmpresa } from "@/crm/actividades/queries";
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import type { Actividad } from "@/crm/actividades/types";
-import { cn } from "@/lib/utils";
-
-const ETAPA_COLOR: Record<string, string> = {
-  PROSPECTO: "bg-slate-100 text-slate-700",
-  CALIFICADO: "bg-blue-100 text-blue-700",
-  PROPUESTA: "bg-violet-100 text-violet-700",
-  NEGOCIACION: "bg-amber-100 text-amber-700",
-  GANADO: "bg-green-100 text-green-700",
-  PERDIDO: "bg-red-100 text-red-700",
-};
+import { EtapaBadge } from "@/crm/oportunidades/components/etapa-badge";
 
 export default async function EmpresaDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -211,9 +202,7 @@ export default async function EmpresaDetallePage({ params }: { params: Promise<{
                     <CardContent className="flex items-center justify-between py-3 px-4">
                       <span className="text-sm font-medium">{o.titulo}</span>
                       <div className="flex items-center gap-2">
-                        <Badge className={cn("text-xs", ETAPA_COLOR[o.etapa])}>
-                          {o.etapa.charAt(0) + o.etapa.slice(1).toLowerCase()}
-                        </Badge>
+                        <EtapaBadge etapa={o.etapa} stage={o.stage} />
                         <span className="text-sm">S/ {Number(o.valor).toLocaleString("es-PE")}</span>
                       </div>
                     </CardContent>

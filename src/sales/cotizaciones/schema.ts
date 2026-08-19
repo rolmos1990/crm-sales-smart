@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { MetodoEntregaEnum, EstadoEntregaEnum } from "@/sales/pedidos/schema";
+
+export { MetodoEntregaEnum, EstadoEntregaEnum };
 
 export const LineaCotizacionSchema = z.object({
   productoId: z.string().optional().or(z.literal("")),
@@ -15,6 +18,16 @@ export const DestinatarioCotizacionSchema = z.object({
   email: z.string().email("Email inválido").optional().or(z.literal("")),
 });
 
+// Sin numeroGuia/urlSeguimiento: a esta altura (cotización) todavía no
+// existen — se completan recién en el Pedido al aprobar (ver aprobarCotizacion).
+export const EntregaCotizacionSchema = z.object({
+  metodoEntrega: MetodoEntregaEnum.optional(),
+  estadoEntrega: EstadoEntregaEnum.optional(),
+  transportistaId: z.string().nullable().optional(),
+  fechaEstimada: z.date().optional().nullable(),
+  observaciones: z.string().max(500).optional().or(z.literal("")),
+});
+
 export const CrearCotizacionSchema = z.object({
   estado: z.enum(["BORRADOR", "ENVIADA", "APROBADA", "RECHAZADA", "VENCIDA"]).optional(),
   fechaVencimiento: z.date().optional(),
@@ -27,6 +40,7 @@ export const CrearCotizacionSchema = z.object({
   empresaId: z.string().optional().or(z.literal("")),
   oportunidadId: z.string().optional().or(z.literal("")),
   destinatario: DestinatarioCotizacionSchema.optional(),
+  entrega: EntregaCotizacionSchema.optional(),
   lineas: z.array(LineaCotizacionSchema).min(1, "Debe agregar al menos un producto"),
 });
 
@@ -36,3 +50,4 @@ export type CrearCotizacionInput = z.infer<typeof CrearCotizacionSchema>;
 export type ActualizarCotizacionInput = z.infer<typeof ActualizarCotizacionSchema>;
 export type LineaCotizacionInput = z.infer<typeof LineaCotizacionSchema>;
 export type DestinatarioCotizacionInput = z.infer<typeof DestinatarioCotizacionSchema>;
+export type EntregaCotizacionInput = z.infer<typeof EntregaCotizacionSchema>;

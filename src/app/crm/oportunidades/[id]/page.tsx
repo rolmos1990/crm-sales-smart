@@ -19,7 +19,7 @@ import { obtenerOportunidadPorId } from "@/crm/oportunidades/queries";
 import { obtenerActividadesPorOportunidad } from "@/crm/actividades/queries";
 import { obtenerTags } from "@/crm/tags/queries";
 import { GestorTagsInline } from "@/crm/tags/components/gestor-tags-inline";
-import { ETAPAS_PIPELINE } from "@/crm/oportunidades/types";
+import { EtapaBadge } from "@/crm/oportunidades/components/etapa-badge";
 import { obtenerConversacionesPorOportunidad, obtenerCuentasCanal } from "@/conversaciones/queries";
 import { obtenerCotizacionesPorOportunidad } from "@/sales/cotizaciones/queries";
 import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
@@ -77,11 +77,6 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
     // Conversaciones aún no disponibles
   }
 
-  // La etapa real de una oportunidad con pipeline dinámico es la de su stage
-  // actual — el enum legacy `etapa` no se mantiene sincronizado salvo al
-  // llegar a un stage ganado/perdido (ver moverAStage en crm/pipeline/actions.ts).
-  const stageActual = (oportunidad as any).stage as { nombre: string; color: string | null } | null;
-  const etapaConf = ETAPAS_PIPELINE.find((e) => e.valor === oportunidad.etapa);
   const productos = (oportunidad as any).productos ?? [];
   const contactos = (oportunidad as any).contactos ?? [];
   const campos = (oportunidad as any).campos ?? [];
@@ -134,16 +129,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
             <div>
               <h1 className="text-2xl font-semibold">{oportunidad.titulo}</h1>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {stageActual ? (
-                  <Badge
-                    className="text-xs border-0"
-                    style={{ backgroundColor: `${stageActual.color ?? "#78716c"}1a`, color: stageActual.color ?? "#78716c" }}
-                  >
-                    {stageActual.nombre}
-                  </Badge>
-                ) : etapaConf && (
-                  <Badge className={cn("text-xs", etapaConf.color)}>{etapaConf.etiqueta}</Badge>
-                )}
+                <EtapaBadge etapa={oportunidad.etapa} stage={(oportunidad as any).stage} />
                 {empresa && (
                   <Link href={`/crm/empresas/${empresa.id}`} className="text-sm text-primary hover:underline flex items-center gap-1">
                     <Building2 className="h-3 w-3" />{empresa.nombre}

@@ -126,6 +126,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
     impuesto: impuestoPorcentaje,
     notas: pedido.notas,
     fechaEntrega: pedido.fechaEntrega ? new Date(pedido.fechaEntrega) : null,
+    fechaExpiracion: pedido.fechaExpiracion ? new Date(pedido.fechaExpiracion) : null,
     contactoId: pedido.contactoId,
     empresaId: pedido.empresaId,
     nombre: pedido.nombre,
@@ -180,6 +181,18 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
             {pedido.fechaEntrega && (
               <span className="text-sm text-muted-foreground">
                 · Entrega {format(new Date(pedido.fechaEntrega), "dd MMM yyyy", { locale: es })}
+              </span>
+            )}
+            {pedido.fechaExpiracion && (
+              <span
+                className={cn(
+                  "text-sm",
+                  new Date(pedido.fechaExpiracion) < new Date() && !["ENTREGADO", "CANCELADO"].includes(pedido.estado)
+                    ? "text-destructive font-medium"
+                    : "text-muted-foreground"
+                )}
+              >
+                · Expira {format(new Date(pedido.fechaExpiracion), "dd MMM yyyy", { locale: es })}
               </span>
             )}
           </div>

@@ -1,11 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import { ButtonLink } from "@/components/ui/button";
-import { PageHeader } from "@/shared/ui/page-header";
 import { FormCotizacion } from "@/sales/cotizaciones/components/form-cotizacion";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { obtenerCotizacionPorId } from "@/sales/cotizaciones/queries";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
@@ -18,15 +16,17 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
 
   let cotizacion = null;
   let empresas: { id: string; nombre: string }[] = [];
-  let contactos: { id: string; nombre: string; apellido: string }[] = [];
+  let contactos: Awaited<ReturnType<typeof buscarContactos>> = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
+  let transportistas: Awaited<ReturnType<typeof obtenerTransportistas>> = [];
 
   try {
-    [cotizacion, empresas, contactos, productos] = await Promise.all([
+    [cotizacion, empresas, contactos, productos, transportistas] = await Promise.all([
       obtenerCotizacionPorId(id, sesion.instanciaId),
       buscarEmpresas("", sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),
       obtenerProductosCatalogo(sesion.instanciaId),
+      obtenerTransportistas(sesion.instanciaId),
     ]);
   } catch {
     // DB not configured
@@ -47,8 +47,24 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
     descuento: Number(l.descuento),
   }));
 
+  // El % de IGV no se guarda como tal — solo el monto ya calculado — así que
+  // se recalcula desde subtotal/impuesto para no perder el valor original al
+  // editar (si no se hiciera esto, el form caería siempre al 0% por defecto
+  // de una cotización nueva, cambiando de hecho el impuesto sin que el
+  // usuario lo haya tocado).
+  const subtotalNum = Number(cotizacion.subtotal);
+  const impuestoPorcentaje = subtotalNum > 0
+    ? Math.round((Number(cotizacion.impuesto) / subtotalNum) * 1000) / 10
+    : 0;
+
+  const entregaGuardada = (cotizacion as any).entrega as {
+    metodoEntrega: string; estadoEntrega: string; transportistaId: string | null;
+    fechaEstimada: Date | string | null; observaciones: string | null;
+  } | null;
+
   const defaultValues: Partial<CrearCotizacionInput> = {
     moneda: cotizacion.moneda,
+    impuesto: impuestoPorcentaje,
     notas: cotizacion.notas ?? "",
     contactoId: cotizacion.contactoId ?? "",
     empresaId: cotizacion.empresaId ?? "",
@@ -60,22 +76,28 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
       telefono: destinatarioGuardado?.telefono ?? "",
       email: destinatarioGuardado?.email ?? "",
     },
+    entrega: {
+      metodoEntrega: entregaGuardada?.metodoEntrega ?? "COURIER_EXTERNO",
+      estadoEntrega: entregaGuardada?.estadoEntrega ?? "PENDIENTE",
+      transportistaId: entregaGuardada?.transportistaId ?? null,
+      fechaEstimada: entregaGuardada?.fechaEstimada ? new Date(entregaGuardada.fechaEstimada) : undefined,
+      observaciones: entregaGuardada?.observaciones ?? "",
+    } as CrearCotizacionInput["entrega"],
   };
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
   const opcionesContactos = contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-2">
-        <ButtonLink variant="ghost" size="icon-sm" href={`/sales/cotizaciones/${id}`}><ArrowLeft className="h-4 w-4" /></ButtonLink>
-      </div>
-      <PageHeader titulo={`Editar ${cotizacion.numero}`} descripcion="Modifica los datos de la cotización" />
+    <div className="min-h-[calc(100vh-56px)] flex flex-col max-w-5xl mx-auto w-full">
       <FormCotizacion
         empresas={opcionesEmpresas}
         contactos={opcionesContactos}
+        contactosDetalle={contactos}
         productos={productos}
+        transportistas={transportistas}
         cotizacionId={id}
+        numero={cotizacion.numero}
         defaultValues={defaultValues}
       />
     </div>

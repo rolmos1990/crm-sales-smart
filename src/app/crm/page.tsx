@@ -15,6 +15,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
+import { MONEDA_DEFAULT } from "@/shared/moneda/constants";
+import { EtapaBadge } from "@/crm/oportunidades/components/etapa-badge";
 import { cn } from "@/lib/utils";
 
 // ---- KPI data ----
@@ -83,6 +86,7 @@ async function obtenerUltimasOportunidades(instanciaId: string) {
       orderBy: { creadoEn: "desc" },
       include: {
         empresa: { select: { nombre: true } },
+        stage: { select: { nombre: true, color: true } },
         contactos: {
           take: 1,
           include: { contacto: { select: { nombre: true, apellido: true } } },
@@ -117,18 +121,9 @@ async function obtenerActividadesHoy(instanciaId: string) {
 
 // ---- Formatting helpers ----
 
-function formatCurrency(valor: number, moneda = "PEN") {
+function formatCurrency(valor: number, moneda: string = MONEDA_DEFAULT) {
   return `${moneda} ${valor.toLocaleString("es-PE", { minimumFractionDigits: 2 })}`;
 }
-
-const ETAPA_LABELS: Record<string, string> = {
-  PROSPECTO: "Prospecto",
-  CALIFICADO: "Calificado",
-  PROPUESTA: "Propuesta",
-  NEGOCIACION: "Negociación",
-  GANADO: "Ganado",
-  PERDIDO: "Perdido",
-};
 
 const TIPO_LABELS: Record<string, string> = {
   LLAMADA: "Llamada",
@@ -138,23 +133,14 @@ const TIPO_LABELS: Record<string, string> = {
   NOTA: "Nota",
 };
 
-function getBadgeEtapaClass(etapa: string): string {
-  const mapa: Record<string, string> = {
-    PROSPECTO: "bg-sky-500/15 text-sky-400 border-sky-500/30",
-    CALIFICADO: "bg-violet-500/15 text-violet-400 border-violet-500/30",
-    PROPUESTA: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-    NEGOCIACION: "bg-orange-500/15 text-orange-400 border-orange-500/30",
-    GANADO: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-    PERDIDO: "bg-red-500/15 text-red-400 border-red-500/30",
-  };
-  return mapa[etapa] ?? "bg-stone-500/15 text-stone-400 border-stone-500/30";
-}
-
 // ---- Components ----
 
 async function KpiCards() {
   const sesion = await requireSesion();
-  const kpis = await obtenerKpis(sesion.instanciaId);
+  const [kpis, moneda] = await Promise.all([
+    obtenerKpis(sesion.instanciaId),
+    obtenerMonedaPrincipal(sesion.instanciaId),
+  ]);
 
   const tarjetas = [
     {
@@ -170,7 +156,7 @@ async function KpiCards() {
     {
       etiqueta: "Pipeline activo",
       valor: kpis.totalOportunidadesAbiertas,
-      subvalor: formatCurrency(kpis.valorPipeline),
+      subvalor: formatCurrency(kpis.valorPipeline, moneda),
       href: "/crm/pipeline",
       enlace: "Ver pipeline",
       Icono: TrendingUp,
@@ -180,7 +166,7 @@ async function KpiCards() {
     {
       etiqueta: "Ganadas este mes",
       valor: kpis.totalGanadasMes,
-      subvalor: formatCurrency(kpis.valorGanadoMes),
+      subvalor: formatCurrency(kpis.valorGanadoMes, moneda),
       href: "/crm/oportunidades",
       enlace: "Ver oportunidades",
       Icono: CheckCircle2,
@@ -272,14 +258,7 @@ async function UltimasOportunidades() {
               </div>
             </div>
             <div className="flex items-center gap-2.5 flex-shrink-0 ml-3">
-              <span
-                className={cn(
-                  "inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md border",
-                  getBadgeEtapaClass(op.etapa)
-                )}
-              >
-                {ETAPA_LABELS[op.etapa] ?? op.etapa}
-              </span>
+              <EtapaBadge etapa={op.etapa} stage={op.stage} />
               <span className="text-xs font-semibold tabular-nums text-stone-700 dark:text-stone-300">
                 {formatCurrency(Number(op.valor), op.moneda)}
               </span>

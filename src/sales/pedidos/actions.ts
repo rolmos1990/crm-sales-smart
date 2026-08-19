@@ -139,7 +139,10 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
       usuarioNombre,
     });
     revalidatePath("/sales/pedidos");
-    return { exito: true, datos: { ...pedido, subtotal, total, impuesto: impuestoMonto } as unknown as Pedido };
+    return {
+      exito: true,
+      datos: { ...pedido, subtotal, total, impuesto: impuestoMonto, descuento: Number(pedido.descuento) } as unknown as Pedido,
+    };
   } catch {
     return { exito: false, error: "Error al crear el pedido" };
   }
@@ -225,6 +228,7 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
       empresaNombre,
       moneda,
       fechaEntrega,
+      fechaExpiracion,
       estado,
     } = validado.data;
     const lineasActuales = pedidoActual.lineas;
@@ -321,6 +325,7 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     diffCampo("empresaNombre", pedidoActual.empresaNombre, empresaNombre || null);
     diffCampo("moneda", pedidoActual.moneda, moneda ?? null);
     diffCampo("fechaEntrega", pedidoActual.fechaEntrega?.toISOString() ?? null, fechaEntrega?.toISOString() ?? null);
+    diffCampo("fechaExpiracion", pedidoActual.fechaExpiracion?.toISOString() ?? null, fechaExpiracion?.toISOString() ?? null);
     diffCampo("notas", pedidoActual.notas, notas || null);
     diffCampo("contactoId", pedidoActual.contactoId, contactoId || null);
     diffCampo("empresaId", pedidoActual.empresaId, empresaId || null);
@@ -346,6 +351,7 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
           empresaNombre: empresaNombre || null,
           moneda: moneda ?? undefined,
           fechaEntrega: fechaEntrega ?? null,
+          fechaExpiracion: fechaExpiracion ?? null,
           estado: estado ?? undefined,
           subtotal,
           impuesto: impuestoMonto,

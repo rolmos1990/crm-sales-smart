@@ -19,6 +19,7 @@ export async function obtenerCotizacionPorId(id: string, instanciaId: string) {
     include: {
       ...incluirRelaciones,
       lineas: { include: { producto: { select: { id: true, nombre: true } } } },
+      entrega: { include: { transportista: { select: { id: true, nombre: true, tipo: true } } } },
     },
   });
 }
