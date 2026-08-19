@@ -28,6 +28,7 @@ import type { PrecioActualizadoPayload }   from "./contratos/precio-actualizado.
 import type { CotizacionCreadaPayload }     from "./contratos/cotizacion-creada.event";
 import type { CotizacionActualizadaPayload } from "./contratos/cotizacion-actualizada.event";
 import type { CotizacionEnviadaPayload }    from "./contratos/cotizacion-enviada.event";
+import type { CotizacionAprobadaPayload }   from "./contratos/cotizacion-aprobada.event";
 import type { PedidoCreadoPayload }      from "./contratos/pedido-creado.event";
 import type { PedidoActualizadoPayload } from "./contratos/pedido-actualizado.event";
 import type { PedidoEntregadoPayload }   from "./contratos/pedido-entregado.event";
@@ -69,6 +70,7 @@ export interface MapaPayloads {
   COTIZACION_CREADA:       CotizacionCreadaPayload;
   COTIZACION_ACTUALIZADA:  CotizacionActualizadaPayload;
   COTIZACION_ENVIADA:      CotizacionEnviadaPayload;
+  COTIZACION_APROBADA:     CotizacionAprobadaPayload;
   // Pedidos
   PEDIDO_CREADO:           PedidoCreadoPayload;
   PEDIDO_ACTUALIZADO:      PedidoActualizadoPayload;

@@ -15,12 +15,16 @@ import { ESTADO_COTIZACION_CONFIG } from "@/sales/cotizaciones/types";
 import { BotonCopiarCotizacion } from "@/sales/cotizaciones/components/boton-copiar-cotizacion";
 import { BotonAprobarCotizacion } from "@/sales/cotizaciones/components/boton-aprobar-cotizacion";
 import { BotonEliminarCotizacion } from "@/sales/cotizaciones/components/boton-eliminar-cotizacion";
+import { BotonReintentarPedido } from "@/sales/cotizaciones/components/boton-reintentar-pedido";
 import { cn } from "@/lib/utils";
 
+// Flujo: BORRADOR → REVISADA → APROBADA (genera el pedido) → ENVIADA (estado
+// final). RECHAZADA queda disponible desde los estados previos a aprobar.
 const TRANSICIONES_MANUALES: Record<string, string[]> = {
-  BORRADOR: ["ENVIADA"],
-  ENVIADA: ["RECHAZADA"],
-  APROBADA: [],
+  BORRADOR: ["REVISADA", "RECHAZADA"],
+  REVISADA: ["RECHAZADA"],
+  APROBADA: ["ENVIADA"],
+  ENVIADA: [],
   RECHAZADA: [],
   VENCIDA: [],
 };
@@ -97,6 +101,14 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
                 · Vence {format(new Date(cotizacion.fechaVencimiento), "dd MMM yyyy", { locale: es })}
               </span>
             )}
+            {(cotizacion as any).pedidos?.[0] && (
+              <Link
+                href={`/sales/pedidos/${(cotizacion as any).pedidos[0].id}`}
+                className="text-sm text-primary hover:underline"
+              >
+                · Pedido {(cotizacion as any).pedidos[0].numero}
+              </Link>
+            )}
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -120,6 +132,9 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
             lineas={lineasParaCopiar}
           />
           <BotonAprobarCotizacion cotizacionId={id} estado={cotizacion.estado} />
+          {cotizacion.estado === "APROBADA" && (cotizacion as any).pedidos?.length === 0 && (
+            <BotonReintentarPedido cotizacionId={id} />
+          )}
           <BotonEliminarCotizacion cotizacionId={id} numero={cotizacion.numero} estado={cotizacion.estado} />
           {siguientesManuales.map((sig) => {
             const conf = ESTADO_COTIZACION_CONFIG[sig as keyof typeof ESTADO_COTIZACION_CONFIG];

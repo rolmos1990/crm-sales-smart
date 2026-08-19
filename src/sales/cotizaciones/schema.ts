@@ -29,7 +29,7 @@ export const EntregaCotizacionSchema = z.object({
 });
 
 export const CrearCotizacionSchema = z.object({
-  estado: z.enum(["BORRADOR", "ENVIADA", "APROBADA", "RECHAZADA", "VENCIDA"]).optional(),
+  estado: z.enum(["BORRADOR", "REVISADA", "APROBADA", "ENVIADA", "RECHAZADA", "VENCIDA"]).optional(),
   fechaVencimiento: z.date().optional(),
   moneda: z.string().optional(),
   impuesto: z.number().min(0).max(100),

@@ -8,8 +8,7 @@ import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
 import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad } from "./queries";
-import { generarNumeroPedido } from "@/sales/pedidos/queries";
-import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
+import { generarPedidoDesdeCotizacion } from "./services/generar-pedido-desde-cotizacion.service";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
@@ -183,6 +182,14 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
 }
 
 export async function cambiarEstadoCotizacion(id: string, estado: string): Promise<ResultadoAccion> {
+  // La transición a APROBADA solo puede pasar por aprobarCotizacion — es la
+  // única que valida stock y publica CotizacionAprobada (que dispara la
+  // generación del pedido). Si esto aceptara "APROBADA" también, un caller
+  // podría dejar la cotización aprobada sin que nunca se genere el pedido.
+  if (estado === "APROBADA") {
+    return { exito: false, error: "Usa la acción de aprobar para generar el pedido correctamente" };
+  }
+
   const auth = await requirePermisoAction("cotizaciones", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
   const sesion = auth.sesion;
@@ -190,7 +197,7 @@ export async function cambiarEstadoCotizacion(id: string, estado: string): Promi
   try {
     await prisma.cotizacion.update({
       where: { id, instanciaId: sesion.instanciaId },
-      data: { estado: estado as "BORRADOR" | "ENVIADA" | "APROBADA" | "RECHAZADA" | "VENCIDA" },
+      data: { estado: estado as "BORRADOR" | "REVISADA" | "ENVIADA" | "RECHAZADA" | "VENCIDA" },
     });
 
     if (estado === "ENVIADA") {
@@ -211,7 +218,22 @@ export async function obtenerCotizacionesPorOportunidadAction(oportunidadId: str
   return datos.map((c) => ({ ...c, total: Number(c.total) }));
 }
 
-export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ pedidoId: string; numeroPedido: string }>> {
+/**
+ * Aprobar una cotización — se encarga ÚNICAMENTE de validar, cambiar el
+ * estado a APROBADA y publicar CotizacionAprobada. La generación real del
+ * pedido (copiar datos de la oportunidad, campos personalizados, líneas,
+ * entrega, etc.) vive en un único lugar: generarPedidoDesdeCotizacion,
+ * disparado por el manejador del evento — así el resultado es idéntico sin
+ * importar si se aprueba desde el Workspace de Oportunidades, el módulo de
+ * Cotizaciones, o cualquier otro lugar futuro.
+ *
+ * La validación de stock se mantiene acá, síncrona: el botón "Aprobar" debe
+ * seguir bloqueando al instante si falta stock, igual que antes. El manejador
+ * del evento vuelve a revalidar el stock de forma defensiva antes de generar
+ * el pedido (por si hay una condición de carrera entre el momento en que se
+ * aprueba y el momento en que efectivamente se procesa el evento).
+ */
+export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<void>> {
   const auth = await requirePermisoAction("cotizaciones", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
 
@@ -225,7 +247,6 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
             producto: { select: { id: true, nombre: true, manejaStock: true, cantidadDisponible: true } },
           },
         },
-        entrega: true,
       },
     });
 
@@ -248,112 +269,57 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
       return { exito: false, error: `Stock insuficiente — ${erroresStock.join(" · ")}` };
     }
 
-    const [numeroPedido, flujoTenant] = await Promise.all([
-      generarNumeroPedido(sesion.instanciaId),
-      obtenerFlujoVenta(sesion.instanciaId),
-    ]);
+    await prisma.cotizacion.update({ where: { id }, data: { estado: "APROBADA" } });
 
-    const etapaInicial = flujoTenant?.etapas.length
-      ? (flujoTenant.etapas.find((e) => e.esInicial) ?? flujoTenant.etapas[0])
-      : null;
-
-    const pedido = await prisma.$transaction(async (tx) => {
-      // Aprobar cotización
-      await tx.cotizacion.update({ where: { id }, data: { estado: "APROBADA" } });
-
-      const dest = (cotizacion.metadata as Record<string, unknown> | null)?.destinatario as Record<string, string | null> | undefined ?? {};
-
-      // Crear pedido vinculado
-      const nuevoPedido = await tx.pedido.create({
-        data: {
-          numero:             numeroPedido,
-          estado:             "CONFIRMADO",
-          instanciaId:        sesion.instanciaId,
-          moneda:             cotizacion.moneda,
-          subtotal:           cotizacion.subtotal,
-          descuento:          cotizacion.descuento,
-          impuesto:           cotizacion.impuesto,
-          total:              cotizacion.total,
-          notas:              cotizacion.notas,
-          contactoId:         cotizacion.contactoId,
-          empresaId:          cotizacion.empresaId,
-          cotizacionId:       cotizacion.id,
-          nombre:             dest.nombre || null,
-          apellido:           dest.apellido || null,
-          telefono:           dest.telefono || null,
-          email:              dest.email || null,
-          flujoVentaId:       flujoTenant?.id ?? null,
-          flujoVentaEtapaId:  etapaInicial?.id ?? null,
-          lineas: {
-            create: cotizacion.lineas.map((l) => ({
-              productoId:     l.productoId,
-              descripcion:    l.descripcion,
-              cantidad:       l.cantidad,
-              precioUnitario: l.precioUnitario,
-              descuento:      l.descuento,
-              impuesto:       l.impuesto,
-              subtotal:       l.subtotal,
-              total:          l.total,
-            })),
-          },
-          // La entrega ya capturada en la cotización pasa directo al pedido —
-          // el usuario no tiene que volver a registrarla (ver EntregaCotizacion).
-          entrega: cotizacion.entrega ? {
-            create: {
-              metodoEntrega:   cotizacion.entrega.metodoEntrega,
-              estadoEntrega:   cotizacion.entrega.estadoEntrega,
-              transportistaId: cotizacion.entrega.transportistaId,
-              fechaEstimada:   cotizacion.entrega.fechaEstimada,
-              observaciones:   cotizacion.entrega.observaciones,
-              // La cotización no captura número de guía ni URL de
-              // seguimiento (todavía no existen a esa altura) — quedan
-              // vacíos en el pedido, listos para completarse ahí.
-              numeroGuia:      null,
-              urlSeguimiento:  null,
-            },
-          } : undefined,
-        },
-      });
-
-      if (etapaInicial) {
-        await tx.pedidoHistorialEtapa.create({
-          data: {
-            pedidoId:    nuevoPedido.id,
-            etapaId:     etapaInicial.id,
-            etapaNombre: etapaInicial.nombre,
-            tipo:        "AUTOMATICO",
-            usuarioId:   sesion.usuarioId,
-          },
-        });
-      }
-
-      // Descontar stock de productos que lo manejan
-      const lineasConStock = cotizacion.lineas.filter((l) => l.producto?.manejaStock && l.productoId);
-      if (lineasConStock.length > 0) {
-        await Promise.all(
-          lineasConStock.map((l) =>
-            tx.producto.update({
-              where: { id: l.productoId! },
-              data: { cantidadDisponible: { decrement: l.cantidad } },
-            })
-          )
-        );
-      }
-
-      return nuevoPedido;
+    await publicadorEventos.publicar(EventosSistema.CotizacionAprobada, sesion.instanciaId, {
+      instanciaId: sesion.instanciaId,
+      cotizacionId: id,
+      numero: cotizacion.numero,
+      usuarioId: sesion.usuarioId,
     });
 
-    await publicadorEventos.publicar(EventosSistema.CotizacionEnviada, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: id, numero: cotizacion.numero });
-    await publicadorEventos.publicar(EventosSistema.PedidoCreado, sesion.instanciaId, { instanciaId: sesion.instanciaId, pedidoId: pedido.id, numero: numeroPedido, total: Number(cotizacion.total), usuarioId: sesion.usuarioId, usuarioNombre: null });
+    revalidatePath("/sales/cotizaciones");
+    revalidatePath(`/sales/cotizaciones/${id}`);
+    if (cotizacion.oportunidadId) revalidatePath(`/crm/oportunidades/${cotizacion.oportunidadId}`);
+
+    return { exito: true, datos: undefined };
+  } catch {
+    return { exito: false, error: "Error al aprobar la cotización" };
+  }
+}
+
+/**
+ * Reintento manual de la generación del pedido — para el caso (raro, dado que
+ * el stock ya se valida al aprobar) en que el manejador del evento haya
+ * agotado sus reintentos automáticos de RabbitMQ. Llama al mismo servicio
+ * centralizado de forma síncrona; es idempotente, así que no duplica el
+ * pedido si ya se llegó a generar.
+ */
+export async function reintentarGenerarPedido(cotizacionId: string): Promise<ResultadoAccion<{ pedidoId: string; numeroPedido: string }>> {
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  try {
+    const sesion = auth.sesion;
+    const cotizacion = await prisma.cotizacion.findFirst({
+      where: { id: cotizacionId, instanciaId: sesion.instanciaId },
+      select: { estado: true },
+    });
+    if (!cotizacion) return { exito: false, error: "Cotización no encontrada" };
+    if (cotizacion.estado !== "APROBADA") {
+      return { exito: false, error: "Solo se puede generar el pedido de una cotización aprobada" };
+    }
+
+    const resultado = await generarPedidoDesdeCotizacion(cotizacionId, sesion.instanciaId, sesion.usuarioId);
 
     revalidatePath("/sales/cotizaciones");
     revalidatePath("/sales/pedidos");
-    revalidatePath(`/sales/cotizaciones/${id}`);
-    if ((cotizacion as any).oportunidadId) revalidatePath(`/crm/oportunidades/${(cotizacion as any).oportunidadId}`);
+    revalidatePath(`/sales/cotizaciones/${cotizacionId}`);
 
-    return { exito: true, datos: { pedidoId: pedido.id, numeroPedido } };
-  } catch {
-    return { exito: false, error: "Error al aprobar la cotización" };
+    return { exito: true, datos: { pedidoId: resultado.pedidoId, numeroPedido: resultado.numeroPedido } };
+  } catch (e: unknown) {
+    const detalle = e instanceof Error ? e.message : String(e);
+    return { exito: false, error: `Error al generar el pedido: ${detalle}` };
   }
 }
 

@@ -32,6 +32,7 @@ export const EventosSistema = {
   CotizacionCreada:       "COTIZACION_CREADA",
   CotizacionActualizada:  "COTIZACION_ACTUALIZADA",
   CotizacionEnviada:      "COTIZACION_ENVIADA",
+  CotizacionAprobada:     "COTIZACION_APROBADA",
 
   // Pedidos
   PedidoCreado:           "PEDIDO_CREADO",

@@ -56,8 +56,9 @@ enum PrioridadActividad {
 
 enum EstadoCotizacion {
   BORRADOR
-  ENVIADA
+  REVISADA
   APROBADA
+  ENVIADA
   RECHAZADA
   VENCIDA
 }

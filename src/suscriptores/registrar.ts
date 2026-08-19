@@ -4,6 +4,7 @@ import { MarcarLeidoSuscriptor } from "./mensajes/marcar-leido.suscriptor";
 import { EnviarEmailSuscriptor } from "./email/enviar-email.suscriptor";
 import { InicializarInstanciaSuscriptor } from "./sistema/inicializar-instancia.suscriptor";
 import { PedidoHistorialSuscriptor } from "./pedidos/pedido-historial.suscriptor";
+import { CotizacionAprobadaSuscriptor } from "./cotizaciones/cotizacion-aprobada.suscriptor";
 import { GenerarRespuestaIASuscriptor } from "./ai/generar-respuesta-ia.suscriptor";
 import { OrquestarIASuscriptor } from "./ai/orquestar-ia.suscriptor";
 
@@ -15,6 +16,7 @@ export async function registrarTodosSuscriptores(): Promise<void> {
     new EnviarEmailSuscriptor(),
     new InicializarInstanciaSuscriptor(),
     new PedidoHistorialSuscriptor(),
+    new CotizacionAprobadaSuscriptor(),
     new GenerarRespuestaIASuscriptor(),
     new OrquestarIASuscriptor(),
   ];
