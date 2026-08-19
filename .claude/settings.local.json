@@ -160,7 +160,10 @@
       "Bash(timeout 20 npx prisma migrate status)",
       "Bash(git ls-tree *)",
       "Bash(npx eslint *)",
-      "Bash(lsof -iTCP -sTCP:LISTEN -P)"
+      "Bash(lsof -iTCP -sTCP:LISTEN -P)",
+      "Bash(awk '/model Disparador /,/^}/' prisma/schema.prisma)",
+      "Bash(awk '/enum TipoAccionDisparador/,/^}/' prisma/schema.prisma)",
+      "Bash(awk '/model DisparadorJob /,/^}/' prisma/schema.prisma)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

@@ -19,6 +19,7 @@ import {
   ArrowRightCircle,
   X,
   Bot,
+  Flag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,7 @@ const ICONO_TIPO: Record<TipoAccionDisparador, React.ElementType> = {
   ASIGNAR_ETIQUETA: Tag,
   MODIFICAR_CAMPO: SlidersHorizontal,
   CAMBIAR_ETAPA: ArrowRightCircle,
+  CERRAR_OPORTUNIDAD: Flag,
 };
 
 const COLOR_TIPO: Record<TipoAccionDisparador, string> = {
@@ -86,7 +88,13 @@ const COLOR_TIPO: Record<TipoAccionDisparador, string> = {
   ASIGNAR_ETIQUETA: "#34d399",
   MODIFICAR_CAMPO: "#fb923c",
   CAMBIAR_ETAPA: "#f472b6",
+  CERRAR_OPORTUNIDAD: "#818cf8",
 };
+
+// CERRAR_OPORTUNIDAD es exclusivo de disparadores de Flujo de Venta (pedidos)
+// — aquí no hay ejecución equivalente para oportunidades, así que se oculta
+// del selector para no ofrecer una opción que no hace nada.
+const TIPOS_OCULTOS_EN_OPORTUNIDAD: TipoAccionDisparador[] = ["CERRAR_OPORTUNIDAD"];
 
 // ── Conversión delay ──────────────────────────────────────────────────────────
 
@@ -731,7 +739,9 @@ function DialogFormDisparador({
                 </span>
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl">
-                {(Object.entries(ETIQUETAS_TIPO) as [TipoAccionDisparador, string][]).map(([val, etq]) => {
+                {(Object.entries(ETIQUETAS_TIPO) as [TipoAccionDisparador, string][])
+                  .filter(([val]) => !TIPOS_OCULTOS_EN_OPORTUNIDAD.includes(val))
+                  .map(([val, etq]) => {
                   const Ic = ICONO_TIPO[val];
                   return (
                     <SelectItem key={val} value={val}>

@@ -155,6 +155,12 @@ enum TipoAccionDisparador {
   ASIGNAR_ETIQUETA
   MODIFICAR_CAMPO
   CAMBIAR_ETAPA
+  // Solo válido en disparadores de Flujo de Venta (pedidos): al llegar el
+  // pedido a la etapa configurada, mueve la oportunidad relacionada a la
+  // etapa Ganada o Perdida de SU pipeline — resuelta dinámicamente en cada
+  // ejecución (ver ejecutor.ts), así sigue funcionando aunque el pipeline
+  // cambie de forma más adelante.
+  CERRAR_OPORTUNIDAD
 }
 
 enum EstadoDisparadorJob {

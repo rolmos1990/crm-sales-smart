@@ -16,6 +16,9 @@ import {
   SlidersHorizontal,
   ArrowRightCircle,
   X,
+  Flag,
+  Trophy,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -54,6 +57,7 @@ import type {
   ConfigWebhook,
   ConfigModificarCampo,
   ConfigCambiarEtapa,
+  ConfigCerrarOportunidad,
 } from "@/crm/pipeline/disparadores/types";
 import type { DisparadorFlujo } from "../disparadores/types";
 import { TIPOS_ACCION_FLUJO_VENTA } from "../disparadores/types";
@@ -66,6 +70,7 @@ const ICONO_TIPO: Partial<Record<TipoAccionDisparador, React.ElementType>> = {
   WEBHOOK: Webhook,
   MODIFICAR_CAMPO: SlidersHorizontal,
   CAMBIAR_ETAPA: ArrowRightCircle,
+  CERRAR_OPORTUNIDAD: Flag,
 };
 
 const COLOR_TIPO: Partial<Record<TipoAccionDisparador, string>> = {
@@ -74,6 +79,7 @@ const COLOR_TIPO: Partial<Record<TipoAccionDisparador, string>> = {
   WEBHOOK: "#c084fc",
   MODIFICAR_CAMPO: "#fb923c",
   CAMBIAR_ETAPA: "#f472b6",
+  CERRAR_OPORTUNIDAD: "#818cf8",
 };
 
 // ── Conversión delay ──────────────────────────────────────────────────────────
@@ -344,6 +350,7 @@ function DialogFormDisparadorFlujo({
   const [campoClave, setCampoClave] = useState("");
   const [campoValor, setCampoValor] = useState("");
   const [targetEtapaId, setTargetEtapaId] = useState("");
+  const [resultadoOportunidad, setResultadoOportunidad] = useState<"GANADA" | "PERDIDA">("GANADA");
 
   const [isPending, startTransition] = useTransition();
 
@@ -385,6 +392,8 @@ function DialogFormDisparadorFlujo({
       } else if (inicial.tipo === "CAMBIAR_ETAPA") {
         const c = cfg as ConfigCambiarEtapa;
         setTargetEtapaId(c.stageId);
+      } else if (inicial.tipo === "CERRAR_OPORTUNIDAD") {
+        setResultadoOportunidad((cfg as ConfigCerrarOportunidad).resultado);
       }
     } else {
       setNombre("");
@@ -398,6 +407,7 @@ function DialogFormDisparadorFlujo({
       setWebhookUrl(""); setWebhookMethod("POST"); setWebhookHeaders([]);
       setCampoModo("metadata"); setCampoClave(""); setCampoValor("");
       setTargetEtapaId("");
+      setResultadoOportunidad("GANADA");
     }
   }, [inicial, open]);
 
@@ -416,6 +426,7 @@ function DialogFormDisparadorFlujo({
       // Reutilizamos stageId del config CRM para almacenar el flujoVentaEtapaId
       return { pipelineId: flujoVentaId, stageId: targetEtapaId, stageNombre: etapaTarget?.nombre };
     }
+    if (tipo === "CERRAR_OPORTUNIDAD") return { resultado: resultadoOportunidad };
     return {};
   };
 
@@ -465,6 +476,7 @@ function DialogFormDisparadorFlujo({
     if (tipo === "WEBHOOK") return webhookUrl.trim().length > 0;
     if (tipo === "MODIFICAR_CAMPO") return campoClave.trim().length > 0;
     if (tipo === "CAMBIAR_ETAPA") return targetEtapaId.length > 0;
+    if (tipo === "CERRAR_OPORTUNIDAD") return true;
     return false;
   };
 
@@ -674,6 +686,44 @@ function DialogFormDisparadorFlujo({
                   </SelectContent>
                 </Select>
               )}
+            </div>
+          )}
+
+          {tipo === "CERRAR_OPORTUNIDAD" && (
+            <div className={sectionCls}>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                Mueve la oportunidad relacionada a la etapa marcada como Ganada
+                o Perdida en su propio pipeline — se resuelve automáticamente,
+                aunque el pipeline cambie de etapas más adelante.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResultadoOportunidad("GANADA")}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-medium transition-all",
+                    resultadoOportunidad === "GANADA"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:bg-emerald-400/10 dark:border-emerald-400/30 dark:text-emerald-400"
+                      : "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5",
+                  )}
+                >
+                  <Trophy className="h-3.5 w-3.5" />
+                  Etapa Ganada
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultadoOportunidad("PERDIDA")}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-xs font-medium transition-all",
+                    resultadoOportunidad === "PERDIDA"
+                      ? "bg-red-500/10 border-red-500/30 text-red-700 dark:bg-red-400/10 dark:border-red-400/30 dark:text-red-400"
+                      : "border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-white/5",
+                  )}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Etapa Perdida
+                </button>
+              </div>
             </div>
           )}
 
