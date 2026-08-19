@@ -829,11 +829,35 @@ model Cotizacion {
   pedidos     Pedido[]
   campos      CampoPersonalizadoValor[]
   actividades Actividad[]
+  entrega     EntregaCotizacion?
 
   @@unique([instanciaId, numero])
   @@index([instanciaId])
   @@index([estado])
   @@index([oportunidadId])
+}
+
+// Espejo de EntregaPedido — se captura ya en la cotización para que, al
+// aprobarla y generar el Pedido, la información de entrega pase directo sin
+// que el usuario tenga que volver a registrarla (ver aprobarCotizacion).
+// A esta altura (cotización, antes de despachar nada) todavía no existen
+// numeroGuia/urlSeguimiento — esos se completan recién en el Pedido.
+model EntregaCotizacion {
+  id            String        @id @default(cuid())
+  metodoEntrega MetodoEntrega @default(COURIER_EXTERNO)
+  estadoEntrega EstadoEntrega @default(PENDIENTE)
+  fechaEstimada DateTime?
+  observaciones String?
+  creadoEn      DateTime      @default(now())
+  actualizadoEn DateTime      @updatedAt
+
+  cotizacionId String    @unique
+  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+
+  transportistaId String?
+  transportista   Transportista? @relation(fields: [transportistaId], references: [id])
+
+  @@index([cotizacionId])
 }
 
 model CotizacionLinea {
@@ -874,6 +898,9 @@ model Pedido {
 
   fechaPedido   DateTime  @default(now())
   fechaEntrega  DateTime?
+  // Fecha límite para tener en cuenta el pedido (deadline configurable por el
+  // usuario) — usada para las métricas "Pendientes"/"Expirados" del listado.
+  fechaExpiracion DateTime?
   subtotal      Decimal   @default(0)
   descuento     Decimal   @default(0)
   impuesto      Decimal   @default(0)
@@ -961,7 +988,8 @@ model Transportista {
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  entregas EntregaPedido[]
+  entregas           EntregaPedido[]
+  entregasCotizacion EntregaCotizacion[]
 
   @@index([instanciaId])
 }

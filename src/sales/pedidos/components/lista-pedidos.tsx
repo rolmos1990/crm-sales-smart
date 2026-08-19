@@ -19,10 +19,33 @@ import { moverPedidoAction } from "@/sales/flujo-venta/actions";
 import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
 import type { Pedido, EstadoPedido } from "../types";
 import { ESTADO_PEDIDO_CONFIG } from "../types";
+import { METODO_ENTREGA_LABELS } from "../constantes";
 import { cn } from "@/lib/utils";
 
 const formatearMoneda = (valor: number, moneda: string) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: moneda }).format(valor);
+
+function ExpiracionCell({ pedido }: { pedido: Pedido }) {
+  if (!pedido.fechaExpiracion) return <span className="text-stone-400 dark:text-stone-600">—</span>;
+
+  const fecha = new Date(pedido.fechaExpiracion);
+  const cerrado = pedido.estado === "ENTREGADO" || pedido.estado === "CANCELADO";
+  const vencido = !cerrado && fecha < new Date();
+  const porVencer = !cerrado && !vencido && fecha.getTime() - Date.now() < 3 * 86400000; // < 3 días
+
+  return (
+    <span
+      className={cn(
+        "text-sm font-medium",
+        vencido && "text-red-500 dark:text-red-400",
+        porVencer && "text-amber-500 dark:text-amber-400",
+        (cerrado || (!vencido && !porVencer)) && "text-emerald-600 dark:text-emerald-400"
+      )}
+    >
+      {format(fecha, "dd MMM yyyy", { locale: es })}
+    </span>
+  );
+}
 
 type EtapaResumen = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null } | null;
 
@@ -148,13 +171,30 @@ const columnasFijas: ColumnDef<Pedido>[] = [
     ),
   },
   {
+    id: "metodoEntrega",
+    header: "Método de envío",
+    cell: ({ row }) => {
+      const metodo = row.original.entrega?.metodoEntrega;
+      return (
+        <span className="text-sm text-muted-foreground">
+          {metodo ? (METODO_ENTREGA_LABELS[metodo] ?? metodo) : "—"}
+        </span>
+      );
+    },
+  },
+  {
     accessorKey: "fechaPedido",
-    header: "Fecha",
+    header: "Fecha pedido",
     cell: ({ getValue }) => (
       <span className="text-sm text-muted-foreground">
         {format(new Date(getValue<Date>()), "dd MMM yyyy", { locale: es })}
       </span>
     ),
+  },
+  {
+    id: "fechaExpiracion",
+    header: "Expiración",
+    cell: ({ row }) => <ExpiracionCell pedido={row.original} />,
   },
 ];
 
@@ -175,5 +215,5 @@ export function ListaPedidos({ pedidos, etapasFlujo }: ListaPedidosProps) {
       : []),
   ];
 
-  return <DataTable columnas={columnas} datos={pedidos} filtroPor="numero" placeholderFiltro="Buscar pedido..." />;
+  return <DataTable columnas={columnas} datos={pedidos} />;
 }
