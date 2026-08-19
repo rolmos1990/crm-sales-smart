@@ -472,21 +472,33 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
   }
 
   const esNueva = !pedido.entrega;
+  const nuevaFechaEstimada = fechaEstimada ? new Date(fechaEstimada) : null;
 
-  await prisma.entregaPedido.upsert({
-    where: { pedidoId },
-    create: {
-      pedidoId,
-      ...campos,
-      transportistaId: transportistaId ?? null,
-      fechaEstimada: fechaEstimada ? new Date(fechaEstimada) : null,
-    },
-    update: {
-      ...campos,
-      transportistaId: transportistaId ?? null,
-      fechaEstimada: fechaEstimada ? new Date(fechaEstimada) : null,
-    },
-  });
+  // `EntregaPedido.fechaEstimada` (seguimiento de envío) y `Pedido.fechaEntrega`
+  // (columna "Entrega estimada" del listado, filtro y KPIs) son campos
+  // distintos que deben mantenerse en sync — de lo contrario esta sección
+  // "guarda" sin que el listado se entere (ver queries.ts:construirWhere y
+  // lista-pedidos.tsx, que solo leen Pedido.fechaEntrega).
+  await prisma.$transaction([
+    prisma.entregaPedido.upsert({
+      where: { pedidoId },
+      create: {
+        pedidoId,
+        ...campos,
+        transportistaId: transportistaId ?? null,
+        fechaEstimada: nuevaFechaEstimada,
+      },
+      update: {
+        ...campos,
+        transportistaId: transportistaId ?? null,
+        fechaEstimada: nuevaFechaEstimada,
+      },
+    }),
+    prisma.pedido.update({
+      where: { id: pedidoId },
+      data: { fechaEntrega: nuevaFechaEstimada },
+    }),
+  ]);
 
   const valorAnterior = esNueva ? undefined : {
     estadoEntrega:  pedido.entrega!.estadoEntrega,
@@ -515,6 +527,7 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
     },
   });
 
+  revalidatePath("/sales/pedidos");
   revalidatePath(`/sales/pedidos/${pedidoId}`);
   return { exito: true, datos: undefined };
 }
