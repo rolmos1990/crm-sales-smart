@@ -314,6 +314,10 @@ interface PipelineKanbanDinamicoProps {
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
   puedeMod?: boolean;
+  /** "Ver ocultos" activo — muestra también las columnas Ganado/Perdido con
+   *  visible=false (ver panel-config-pipeline.tsx), que por defecto quedan
+   *  fuera del tablero. */
+  verOcultos?: boolean;
 }
 
 export function PipelineKanbanDinamico({
@@ -324,6 +328,7 @@ export function PipelineKanbanDinamico({
   contactos,
   defaultCountryCode = "PA",
   puedeMod = true,
+  verOcultos = false,
 }: PipelineKanbanDinamicoProps) {
   const [localOps, setLocalOps] = useState(oportunidadesPorStage);
   const [localTotales, setLocalTotales] = useState(totalesPorStage);
@@ -346,8 +351,12 @@ export function PipelineKanbanDinamico({
   }, [totalesPorStage]);
 
   // Las etapas Ganado/Perdido con visible=false no se muestran como columna,
-  // pero la oportunidad se sigue pudiendo mover ahí (drag a otra vía o popover "Mover a").
-  const stagesColumnas = pipeline.stages.filter((s) => !(s.esGanado || s.esPerdido) || s.visible);
+  // pero la oportunidad se sigue pudiendo mover ahí (drag a otra vía o popover
+  // "Mover a") — "Ver ocultos" las trae de vuelta al tablero sin tocar la
+  // configuración del pipeline.
+  const stagesColumnas = verOcultos
+    ? pipeline.stages
+    : pipeline.stages.filter((s) => !(s.esGanado || s.esPerdido) || s.visible);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })

@@ -30,6 +30,14 @@ export interface PedidosFiltros {
    *  del rango `desde`/`hasta`, que filtra por fechaPedido. */
   entregaDesde?: Date;
   entregaHasta?: Date;
+  /** "Ver cerrados" desmarcado (default en la UI): oculta del listado los
+   *  pedidos ya cerrados — no afecta a obtenerPedidosKpis, cuyos totales son
+   *  históricos por diseño (ver obtenerPedidos). Se ignora si ya hay un
+   *  filtro explícito de estado/etapa. */
+  ocultarCerrados?: boolean;
+  /** Ids de etapas del flujo dinámico marcadas esFinal/esCancelacion — solo
+   *  se pasa cuando el tenant tiene un flujo activo (ver obtenerPedidos). */
+  etapaIdsCerradas?: string[];
 }
 
 // Filtros que no son de fecha — se reutiliza tal cual para "Total ventas ·
@@ -100,8 +108,22 @@ const incluirOportunidadConCampos = {
 } as const;
 
 export async function obtenerPedidos(instanciaId: string, filtros?: PedidosFiltros) {
+  const where = construirWhere(instanciaId, filtros);
+
+  // "Ver cerrados" desmarcado: oculta pedidos en etapa final/cancelación (o
+  // ENTREGADO/CANCELADO sin flujo dinámico) — solo aplica al listado, nunca
+  // a los KPIs. Si el usuario ya filtró por una etapa/estado puntual, ese
+  // filtro manda y no se oculta nada más.
+  if (filtros?.ocultarCerrados && !filtros.estado && !filtros.flujoVentaEtapaId) {
+    if (filtros.etapaIdsCerradas) {
+      if (filtros.etapaIdsCerradas.length > 0) where.flujoVentaEtapaId = { notIn: filtros.etapaIdsCerradas };
+    } else {
+      where.estado = { notIn: ["ENTREGADO", "CANCELADO"] };
+    }
+  }
+
   return prisma.pedido.findMany({
-    where: construirWhere(instanciaId, filtros),
+    where,
     include: {
       ...incluirRelaciones,
       flujoVentaEtapa: { select: { id: true, nombre: true, color: true, esFinal: true, esCancelacion: true, esSecuencial: true, permiteEditarPedido: true, orden: true, parentId: true } },

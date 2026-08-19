@@ -32,6 +32,7 @@ interface PedidosPageProps {
     entrega?: string;
     entregaDesde?: string;
     entregaHasta?: string;
+    cerrados?: string;
   }>;
 }
 
@@ -66,6 +67,19 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
     if (sp.entregaHasta) entregaHasta = inicioDiaEnZona(sumarDias(parseYMD(sp.entregaHasta), 1), zonaHoraria);
   }
 
+  // Se necesita antes de armar `filtros`: "Ver cerrados" oculta por default
+  // las etapas esFinal/esCancelacion, y para eso hay que saber cuáles son.
+  let etapasFlujo: { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null }[] = [];
+  try {
+    const flujo = await obtenerFlujoVenta(sesion.instanciaId);
+    etapasFlujo = flujo?.etapas ?? [];
+  } catch (err) {
+    console.error("[PedidosPage] Error al cargar el flujo de venta:", err);
+  }
+  const etapaIdsCerradas = etapasFlujo.length > 0
+    ? etapasFlujo.filter((e) => e.esFinal || e.esCancelacion).map((e) => e.id)
+    : undefined;
+
   const filtros: PedidosFiltros = {
     busqueda: sp.q || undefined,
     desde: sp.desde ? new Date(`${sp.desde}T00:00:00`) : undefined,
@@ -80,6 +94,10 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
     productoId: sp.productoId || undefined,
     entregaDesde,
     entregaHasta,
+    // "Ver cerrados" — desmarcado por default (ver checkbox en la barra de
+    // filtros); ?cerrados=1 lo activa y muestra también los cerrados.
+    ocultarCerrados: sp.cerrados !== "1",
+    etapaIdsCerradas,
   };
 
   const rangoMesActual = rangoMesActualEnZona(zonaHoraria);
@@ -87,16 +105,14 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
 
   let pedidos: Pedido[] = [];
   let kpis: PedidosKpis = { totalPedidos: 0, totalVentas: 0, totalVentasMesActual: 0, pendientes: 0, expirados: 0, entregados: 0 };
-  let etapasFlujo: { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null }[] = [];
   let contactosDb: Awaited<ReturnType<typeof buscarContactos>> = [];
   let productosDb: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
   let moneda = "PEN";
 
   try {
-    const [datos, kpisDatos, flujo, contactosRes, productosRes, monedaRes] = await Promise.all([
+    const [datos, kpisDatos, contactosRes, productosRes, monedaRes] = await Promise.all([
       obtenerPedidos(sesion.instanciaId, filtros),
       obtenerPedidosKpis(sesion.instanciaId, filtros, rangoMesActual),
-      obtenerFlujoVenta(sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),
       obtenerProductosCatalogo(sesion.instanciaId),
       obtenerMonedaPrincipal(sesion.instanciaId),
@@ -109,7 +125,6 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
       total:     Number(p.total),
     })) as unknown as Pedido[];
     kpis = kpisDatos;
-    etapasFlujo = flujo?.etapas ?? [];
     contactosDb = contactosRes;
     productosDb = productosRes;
     moneda = monedaRes;
@@ -119,7 +134,15 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
 
   const opcionesContactos = contactosDb.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));
   const opcionesProductos = productosDb.map((p) => ({ valor: p.id, etiqueta: p.nombre }));
-  const hayFiltrosActivos = Object.values(filtros).some(Boolean);
+  // "ocultarCerrados"/"etapaIdsCerradas" son estado derivado, no filtros que
+  // el usuario haya elegido explícitamente — no cuentan para decidir si hay
+  // que mostrar "Sin pedidos todavía" vs. "No encontramos pedidos con estos
+  // filtros" (ver EmptyState más abajo).
+  const hayFiltrosActivos = Boolean(
+    filtros.busqueda || filtros.desde || filtros.hasta || filtros.estado ||
+    filtros.flujoVentaEtapaId || filtros.metodoEntrega || filtros.contactoId ||
+    filtros.productoId || filtros.entregaDesde || filtros.entregaHasta
+  );
   const hayPedidosSinFiltrar = pedidos.length > 0 || hayFiltrosActivos;
 
   return (

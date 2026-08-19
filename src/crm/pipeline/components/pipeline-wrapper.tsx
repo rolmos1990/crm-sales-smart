@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX } from "lucide-react";
+import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX, EyeOff } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { PipelineSwitcher } from "./pipeline-switcher";
 import { PanelConfigPipeline } from "./panel-config-pipeline";
@@ -57,6 +58,20 @@ export function PipelineWrapper({
 
   const pipelineActual = pipelines.find((p) => p.id === pipelineActualId) ?? null;
   const esDinamico = !!pipelineActual;
+
+  // "Ver ocultos" es un toggle de visibilidad (no un filtro de datos): no hay
+  // forma de "filtrar por etapa" en este tablero — cada columna ya es su
+  // propia etapa — así que solo necesita combinarse con los filtros del
+  // drawer (contacto/empresa/fechas/tags), nunca competir con uno. Vive en la
+  // URL para que sea compartible/persista al recargar, igual que los filtros.
+  const hayEtapasOcultas = !!pipelineActual?.stages.some((s) => (s.esGanado || s.esPerdido) && !s.visible);
+  const verOcultos = searchParams.get("ocultos") === "1";
+  const toggleVerOcultos = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (verOcultos) params.delete("ocultos"); else params.set("ocultos", "1");
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  };
 
   const handleSwitch = (id: string | null) => {
     setModoConfig(false);
@@ -137,6 +152,29 @@ export function PipelineWrapper({
             <CheckCheck className="h-3.5 w-3.5" />
             Listo
           </Button>
+        )}
+
+        {/* Ver ocultos — solo si el pipeline tiene etapas Ganado/Perdido ocultas */}
+        {!modoConfig && pipelineActual && hayEtapasOcultas && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                onClick={toggleVerOcultos}
+                className={cn(
+                  "h-8 px-3 rounded-lg gap-1.5 text-[12.5px] font-medium border transition-colors cursor-pointer",
+                  verOcultos
+                    ? "bg-lime-500/[0.1] dark:bg-lime-400/[0.08] border-lime-500/20 dark:border-lime-400/20 text-lime-700 dark:text-lime-400"
+                    : "border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70"
+                )}
+              >
+                <EyeOff className="h-3.5 w-3.5" />
+                Ver ocultos
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                Muestra las etapas (y sus oportunidades) que están ocultas en este pipeline.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
 
         {/* Filtros */}
@@ -235,6 +273,7 @@ export function PipelineWrapper({
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}
               puedeMod={puedeMod}
+              verOcultos={verOcultos}
             />
           )
         )}

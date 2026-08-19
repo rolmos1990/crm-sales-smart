@@ -5,10 +5,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
-import { Search, Calendar as CalendarIcon, SlidersHorizontal, RotateCcw, Download } from "lucide-react";
+import { Search, Calendar as CalendarIcon, SlidersHorizontal, RotateCcw, Download, HelpCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -16,6 +17,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { cn } from "@/lib/utils";
 import { ESTADO_PEDIDO_CONFIG } from "../types";
@@ -49,7 +51,7 @@ const ENTREGA_OPCIONES = [
 ] as const;
 
 function parametroActivo(searchParams: URLSearchParams): boolean {
-  const claves = ["q", "desde", "hasta", "estado", "etapa", "metodo", "contactoId", "productoId", "entrega"];
+  const claves = ["q", "desde", "hasta", "estado", "etapa", "metodo", "contactoId", "productoId", "entrega", "cerrados"];
   return claves.some((k) => searchParams.get(k));
 }
 
@@ -82,6 +84,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
 
   const hayFiltros = parametroActivo(searchParams);
   const hayFlujoDinamico = etapasFlujo.length > 0;
+  const verCerrados = searchParams.get("cerrados") === "1";
   const etapaSeleccionada = etapasFlujo.find((e) => e.id === searchParams.get("etapa"));
 
   // Importante: si `params` queda vacío, hay que pushear el pathname solo
@@ -340,17 +343,35 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
         <p className="text-xs text-stone-500 dark:text-stone-400">
           💡 Tip: puedes exportar tus pedidos filtrados desde el menú de acciones.
         </p>
-        <DropdownMenu>
-          <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 rounded-lg")}>
-            <Download className="h-3.5 w-3.5" />
-            Exportar
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => exportarPedidosCsv(pedidosFiltrados)}>
-              Exportar a CSV ({pedidosFiltrados.length})
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-3">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                className="flex items-center gap-2 cursor-pointer select-none"
+                onClick={() => actualizarParam("cerrados", verCerrados ? null : "1")}
+              >
+                <Checkbox checked={verCerrados} className="pointer-events-none" />
+                <span className="text-xs font-medium text-stone-600 dark:text-stone-300">Ver cerrados</span>
+                <HelpCircle className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs">
+                Muestra los pedidos en etapa final o cancelados (cerrados) para ver el historial completo.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 rounded-lg")}>
+              <Download className="h-3.5 w-3.5" />
+              Exportar
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportarPedidosCsv(pedidosFiltrados)}>
+                Exportar a CSV ({pedidosFiltrados.length})
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </div>
   );
