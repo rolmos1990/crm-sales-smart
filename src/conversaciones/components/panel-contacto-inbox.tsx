@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import {
   User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X, Smartphone, Camera,
-  Trophy, ShoppingBag, Headphones, TrendingUp, ChevronDown, History,
+  Trophy, XCircle, ShoppingBag, Headphones, TrendingUp, ChevronDown, History,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -602,12 +602,13 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           </>
         )}
 
-        {/* Clasificación de conversación — solo mientras siga referenciando una
-            oportunidad ganada sin resolver. Al clasificar Comercial se crea una
-            oportunidad activa nueva y esta referencia se limpia (ver
-            crearOportunidadDesdeConversacion), así que el picker desaparece y
-            da paso a la tarjeta "Oportunidad actual" editable de abajo. */}
-        {conversacion.oportunidadGanadaRel && (
+        {/* Clasificación de conversación — visible siempre que haya una
+            clasificación aplicada (Comercial/Postventa/Soporte) o quede una
+            oportunidad finalizada (ganada o perdida) sin resolver, para no
+            perder de vista cuál es una vez aplicada (antes desaparecía en
+            cuanto se limpiaba la referencia, ej. al clasificar Comercial —
+            ver crearOportunidadDesdeConversacion). */}
+        {(conversacion.oportunidadGanadaRel || conversacion.clasificacion !== "NINGUNA") && (
           <>
             <div className="pt-2 pb-1 px-3">
               <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Clasificación de conversación</p>
@@ -633,6 +634,10 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
                             return;
                           }
                           if (result.oportunidadId) toast.success("Oportunidad creada");
+                          // Comercial sin oportunidadId no siempre es error: puede
+                          // que el contacto ya tenga una activa en otra parte — antes
+                          // esto quedaba en silencio y parecía que no había pasado nada.
+                          else if (result.aviso) toast.warning(result.aviso);
                           onConversacionActualizada(conversacion.id);
                         });
                       }}
@@ -716,36 +721,51 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           );
         })()}
 
-        {/* Oportunidad ganada relacionada (solo lectura — Postventa / Soporte / sin clasificar) */}
-        {conversacion.oportunidadGanadaRel && (
-          <>
-            <div className="pt-2 pb-1 px-3">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Oportunidad</p>
-            </div>
-            <div className="mx-2 px-3 py-2.5 rounded-xl bg-white dark:bg-white/4 border border-stone-200 dark:border-white/8 space-y-1.5">
-              <div className="flex items-center gap-2">
-                <Trophy className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
-                <p className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate flex-1">
-                  {conversacion.oportunidadGanadaRel.titulo}
-                </p>
-                <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
-                  Ganada
-                </span>
+        {/* Última oportunidad finalizada relacionada (solo lectura — Postventa
+            / Soporte / sin clasificar) — ganada o perdida se tratan igual:
+            el agente reclasifica desde acá arriba en vez de que se cree un
+            prospecto nuevo solo. */}
+        {conversacion.oportunidadGanadaRel && (() => {
+          const rel = conversacion.oportunidadGanadaRel;
+          const esPerdida = rel.stage?.esPerdido || rel.etapa === "PERDIDO";
+          const fecha = esPerdida ? rel.fechaPerdida : rel.fechaGanada;
+          return (
+            <>
+              <div className="pt-2 pb-1 px-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Oportunidad</p>
               </div>
-              {conversacion.oportunidadGanadaRel.fechaGanada && (
-                <p className="text-[10px] text-stone-500 dark:text-stone-500">
-                  Ganada el {format(new Date(conversacion.oportunidadGanadaRel.fechaGanada), "dd/MM/yyyy", { locale: es })}
-                </p>
-              )}
-              <a
-                href={`/crm/oportunidades/${conversacion.oportunidadGanadaRel.id}`}
-                className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-white/6 hover:bg-stone-100 dark:hover:bg-white/10 border border-stone-200 dark:border-white/10 rounded-lg px-3 py-1.5 transition-all"
-              >
-                Ver oportunidad
-              </a>
-            </div>
-          </>
-        )}
+              <div className="mx-2 px-3 py-2.5 rounded-xl bg-white dark:bg-white/4 border border-stone-200 dark:border-white/8 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  {esPerdida
+                    ? <XCircle className="h-3.5 w-3.5 text-red-500 dark:text-red-400 shrink-0" />
+                    : <Trophy className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 shrink-0" />}
+                  <p className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate flex-1">
+                    {rel.titulo}
+                  </p>
+                  <span className={cn(
+                    "shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border",
+                    esPerdida
+                      ? "bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20"
+                      : "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20"
+                  )}>
+                    {esPerdida ? "Perdida" : "Ganada"}
+                  </span>
+                </div>
+                {fecha && (
+                  <p className="text-[10px] text-stone-500 dark:text-stone-500">
+                    {esPerdida ? "Perdida" : "Ganada"} el {format(new Date(fecha), "dd/MM/yyyy", { locale: es })}
+                  </p>
+                )}
+                <a
+                  href={`/crm/oportunidades/${rel.id}`}
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-white/6 hover:bg-stone-100 dark:hover:bg-white/10 border border-stone-200 dark:border-white/10 rounded-lg px-3 py-1.5 transition-all"
+                >
+                  Ver oportunidad
+                </a>
+              </div>
+            </>
+          );
+        })()}
 
         {/* Oportunidades anteriores del contacto (últimas 5) */}
         <SeccionOportunidadesAnteriores

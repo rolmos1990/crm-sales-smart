@@ -14,11 +14,18 @@ const contactoSelect = {
   },
 } as const;
 
+// A pesar del nombre (heredado del campo `oportunidadGanadaRelId`), esta
+// referencia ahora apunta a la última oportunidad FINALIZADA del contacto,
+// ganada o perdida — en ambos casos se espera que el agente reclasifique la
+// conversación en vez de crear un prospecto nuevo en automático (ver
+// obtenerConversacionPorId / clasificarConversacion).
 const oportunidadGanadaRelSelect = {
   id: true,
   titulo: true,
   fechaGanada: true,
+  fechaPerdida: true,
   etapa: true,
+  stage: { select: { esGanado: true, esPerdido: true } },
 } as const;
 
 // Include compartido para todas las queries de inbox
