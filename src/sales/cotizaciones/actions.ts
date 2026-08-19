@@ -14,6 +14,7 @@ import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
+import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { ProductoCatalogo } from "@/shared/productos/types";
 import type { ResultadoAccion, Cotizacion } from "./types";
@@ -27,7 +28,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
 
   try {
     const sesion = auth.sesion;
-    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, ...resto } = validado.data;
+    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, ...resto } = validado.data;
     const numero = await generarNumeroCotizacion(sesion.instanciaId);
 
     const subtotal = lineas.reduce((acc, l) => {
@@ -36,6 +37,10 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     }, 0);
     const impuestoMonto = subtotal * (impuesto / 100);
     const total = subtotal + impuestoMonto;
+
+    // Solo se registra la entrega si el usuario realmente tocó algo de esa
+    // sección — evita crear una fila EntregaCotizacion vacía por defecto.
+    const hayEntrega = entrega && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId);
 
     const cotizacion = await prisma.cotizacion.create({
       data: {
@@ -60,6 +65,15 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
             subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
           })),
         },
+        entrega: hayEntrega ? {
+          create: {
+            metodoEntrega: entrega.metodoEntrega || "COURIER_EXTERNO",
+            estadoEntrega: entrega.estadoEntrega || "PENDIENTE",
+            transportistaId: entrega.transportistaId || null,
+            fechaEstimada: entrega.fechaEstimada || null,
+            observaciones: entrega.observaciones || null,
+          },
+        } : undefined,
       },
       include: { contacto: { select: { id: true, nombre: true, apellido: true } }, empresa: { select: { id: true, nombre: true } } },
     });
@@ -90,7 +104,7 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
       return { exito: false, error: "Solo se pueden modificar cotizaciones en estado borrador" };
     }
 
-    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, ...resto } = validado.data;
+    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, ...resto } = validado.data;
 
     let updateData: Record<string, unknown> = {
       ...resto,
@@ -105,6 +119,20 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
     if (destinatario !== undefined) {
       const metadataActual = (cotizacionExistente.metadata as Record<string, unknown>) ?? {};
       updateData.metadata = { ...metadataActual, destinatario };
+    }
+
+    if (entrega !== undefined) {
+      const hayEntrega = entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId;
+      const datosEntrega = {
+        metodoEntrega: entrega.metodoEntrega || "COURIER_EXTERNO",
+        estadoEntrega: entrega.estadoEntrega || "PENDIENTE",
+        transportistaId: entrega.transportistaId || null,
+        fechaEstimada: entrega.fechaEstimada || null,
+        observaciones: entrega.observaciones || null,
+      };
+      updateData.entrega = hayEntrega ? {
+        upsert: { create: datosEntrega, update: datosEntrega },
+      } : undefined;
     }
 
     if (lineas) {
@@ -197,6 +225,7 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
             producto: { select: { id: true, nombre: true, manejaStock: true, cantidadDisponible: true } },
           },
         },
+        entrega: true,
       },
     });
 
@@ -267,6 +296,22 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<{ p
               total:          l.total,
             })),
           },
+          // La entrega ya capturada en la cotización pasa directo al pedido —
+          // el usuario no tiene que volver a registrarla (ver EntregaCotizacion).
+          entrega: cotizacion.entrega ? {
+            create: {
+              metodoEntrega:   cotizacion.entrega.metodoEntrega,
+              estadoEntrega:   cotizacion.entrega.estadoEntrega,
+              transportistaId: cotizacion.entrega.transportistaId,
+              fechaEstimada:   cotizacion.entrega.fechaEstimada,
+              observaciones:   cotizacion.entrega.observaciones,
+              // La cotización no captura número de guía ni URL de
+              // seguimiento (todavía no existen a esa altura) — quedan
+              // vacíos en el pedido, listos para completarse ahí.
+              numeroGuia:      null,
+              urlSeguimiento:  null,
+            },
+          } : undefined,
         },
       });
 
@@ -336,20 +381,25 @@ export async function eliminarCotizacion(id: string): Promise<ResultadoAccion> {
 export async function obtenerDatosFormularioCotizacion(): Promise<{
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
+  contactosDetalle: Awaited<ReturnType<typeof buscarContactos>>;
   productos: ProductoCatalogo[];
   monedaDefault: string;
+  transportistas: Awaited<ReturnType<typeof obtenerTransportistas>>;
 }> {
   const sesion = await requireSesion();
-  const [empresas, contactos, productos, monedaDefault] = await Promise.all([
+  const [empresas, contactos, productos, monedaDefault, transportistas] = await Promise.all([
     buscarEmpresas("", sesion.instanciaId),
     buscarContactos("", sesion.instanciaId),
     obtenerProductosCatalogo(sesion.instanciaId),
     obtenerMonedaPrincipal(sesion.instanciaId),
+    obtenerTransportistas(sesion.instanciaId),
   ]);
   return {
     empresas: empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre })),
     contactos: contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` })),
+    contactosDetalle: contactos,
     productos,
     monedaDefault,
+    transportistas,
   };
 }

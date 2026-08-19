@@ -57,6 +57,9 @@ export interface SmartDatePickerProps {
   maxDate?: Date
   placeholder?: string
   className?: string
+  /** Subconjunto de chips a mostrar (por defecto, todos). Útil para reducir
+   *  ruido visual en formularios donde no hacen falta todos los accesos. */
+  presets?: PresetId[]
 }
 
 export function SmartDatePicker({
@@ -67,9 +70,13 @@ export function SmartDatePicker({
   maxDate,
   placeholder = "Selecciona una fecha",
   className,
+  presets,
 }: SmartDatePickerProps) {
   const [open, setOpen] = React.useState(false)
   const presetActivo = detectarPreset(value)
+  const presetsAMostrar = presets
+    ? PRESETS.filter((p) => presets.includes(p.id))
+    : PRESETS
 
   const handlePreset = (id: PresetId) => {
     if (id === "custom") {
@@ -94,7 +101,7 @@ export function SmartDatePicker({
     <div className={cn("flex flex-col gap-3", className)}>
       {/* Chips de acceso rápido */}
       <div className="flex flex-wrap gap-2">
-        {PRESETS.map(({ id, label }) => (
+        {presetsAMostrar.map(({ id, label }) => (
           <button
             key={id}
             type="button"

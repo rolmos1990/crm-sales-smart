@@ -24,12 +24,7 @@ interface SheetNuevaCotizacionProps {
   onCreada?: () => void;
 }
 
-interface DatosFormulario {
-  empresas: OpcionCombobox[];
-  contactos: OpcionCombobox[];
-  productos: ProductoCatalogo[];
-  monedaDefault: string;
-}
+type DatosFormulario = Awaited<ReturnType<typeof obtenerDatosFormularioCotizacion>>;
 
 export function SheetNuevaCotizacion({
   oportunidadId,
@@ -81,68 +76,56 @@ export function SheetNuevaCotizacion({
       <SheetContent
         side="right"
         className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-5xl bg-white dark:bg-stone-950 border-l border-stone-200 dark:border-white/10 shadow-2xl"
+        showCloseButton={false}
       >
-        <SheetHeader className="border-b border-stone-100 dark:border-white/10 px-6 py-4 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-lime-500/10 dark:bg-lime-400/10 p-1.5">
-              <FileText className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400" />
-            </div>
-            <div>
-              <SheetTitle className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                Nueva cotización
-              </SheetTitle>
-              {oportunidadTitulo && (
-                <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
-                  {oportunidadTitulo}
-                </p>
-              )}
-            </div>
-          </div>
+        {/* El título visual real lo pinta FormCotizacion en su propio header;
+            este solo cumple el requisito de accesibilidad del Sheet. */}
+        <SheetHeader className="sr-only">
+          <SheetTitle>Nueva cotización{oportunidadTitulo ? ` — ${oportunidadTitulo}` : ""}</SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto">
-          {cargando && (
-            <div className="flex items-center justify-center h-40 gap-3">
-              <Loader2 className="h-5 w-5 animate-spin text-lime-500 dark:text-lime-400" />
-              <span className="text-sm text-stone-400">Cargando formulario…</span>
-            </div>
-          )}
+        {cargando && (
+          <div className="flex items-center justify-center h-40 gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-lime-500 dark:text-lime-400" />
+            <span className="text-sm text-stone-400">Cargando formulario…</span>
+          </div>
+        )}
 
-          {!cargando && error && (
-            <div className="flex items-center justify-center h-40 px-6">
-              <p className="text-sm text-red-500 text-center">{error}</p>
-            </div>
-          )}
+        {!cargando && error && (
+          <div className="flex items-center justify-center h-40 px-6">
+            <p className="text-sm text-red-500 text-center">{error}</p>
+          </div>
+        )}
 
-          {!cargando && datos && (
-            <div className="px-6 py-6">
-              <FormCotizacion
-                empresas={datos.empresas}
-                contactos={datos.contactos}
-                productos={datos.productos}
-                oportunidadId={oportunidadId}
-                monedaDefault={datos.monedaDefault}
-                defaultValues={{
-                  contactoId: contactoId ?? "",
-                  empresaId: empresaId ?? "",
-                  destinatario: {
-                    nombre: destinatario?.nombre ?? "",
-                    apellido: destinatario?.apellido ?? "",
-                    telefono: destinatario?.telefono ?? "",
-                    email: destinatario?.email ?? "",
-                  },
-                }}
-                contactoOrigen={destinatario}
-                contactoFijo
-                empresaFija
-                onSuccess={() => {
-                  setOpen(false);
-                  onCreada?.();
-                }}
-              />
-            </div>
-          )}
-        </div>
+        {!cargando && datos && (
+          <FormCotizacion
+            empresas={datos.empresas}
+            contactos={datos.contactos}
+            contactosDetalle={datos.contactosDetalle}
+            productos={datos.productos}
+            transportistas={datos.transportistas}
+            oportunidadId={oportunidadId}
+            monedaDefault={datos.monedaDefault}
+            defaultValues={{
+              contactoId: contactoId ?? "",
+              empresaId: empresaId ?? "",
+              destinatario: {
+                nombre: destinatario?.nombre ?? "",
+                apellido: destinatario?.apellido ?? "",
+                telefono: destinatario?.telefono ?? "",
+                email: destinatario?.email ?? "",
+              },
+            }}
+            contactoOrigen={destinatario}
+            contactoFijo
+            empresaFija
+            onCerrar={() => setOpen(false)}
+            onSuccess={() => {
+              setOpen(false);
+              onCreada?.();
+            }}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );

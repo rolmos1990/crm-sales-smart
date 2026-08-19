@@ -1,11 +1,8 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { ButtonLink } from "@/components/ui/button";
-import { PageHeader } from "@/shared/ui/page-header";
 import { FormCotizacion } from "@/sales/cotizaciones/components/form-cotizacion";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
@@ -22,16 +19,18 @@ export default async function NuevaCotizacionPage({
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "cotizaciones", "modificar").permitido) redirect("/acceso-denegado");
   let empresas: { id: string; nombre: string }[] = [];
-  let contactos: { id: string; nombre: string; apellido: string }[] = [];
+  let contactos: Awaited<ReturnType<typeof buscarContactos>> = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
+  let transportistas: Awaited<ReturnType<typeof obtenerTransportistas>> = [];
   let monedaDefault = "PEN";
 
   try {
-    [empresas, contactos, productos, monedaDefault] = await Promise.all([
+    [empresas, contactos, productos, monedaDefault, transportistas] = await Promise.all([
       buscarEmpresas("", sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),
       obtenerProductosCatalogo(sesion.instanciaId),
       obtenerMonedaPrincipal(sesion.instanciaId),
+      obtenerTransportistas(sesion.instanciaId),
     ]);
   } catch {
     // DB not configured
@@ -72,20 +71,14 @@ export default async function NuevaCotizacionPage({
     }
   }
 
-  const volverHref = params.oportunidadId
-    ? `/crm/oportunidades/${params.oportunidadId}`
-    : "/sales/cotizaciones";
-
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-2">
-        <ButtonLink variant="ghost" size="icon-sm" href={volverHref}><ArrowLeft className="h-4 w-4" /></ButtonLink>
-      </div>
-      <PageHeader titulo="Nueva cotización" descripcion="Crea una cotización con líneas de productos" />
+    <div className="min-h-[calc(100vh-56px)] flex flex-col max-w-5xl mx-auto w-full">
       <FormCotizacion
         empresas={opcionesEmpresas}
         contactos={opcionesContactos}
+        contactosDetalle={contactos}
         productos={productos}
+        transportistas={transportistas}
         oportunidadId={params.oportunidadId}
         defaultValues={defaultValues}
         monedaDefault={monedaDefault}
