@@ -40,7 +40,14 @@ const conversacionInclude = {
     },
   },
   oportunidadGanadaRel: { select: oportunidadGanadaRelSelect },
-  mensajes: { orderBy: { creadoEn: "desc" as const }, take: 1 },
+  // EVENTO_SISTEMA (marcada cerrada/reabierta/respondida) no es un mensaje
+  // real — se excluye para que el preview del inbox muestre el último
+  // mensaje de verdad, no el JSON interno del evento.
+  mensajes: {
+    where: { tipo: { not: "EVENTO_SISTEMA" as const } },
+    orderBy: { creadoEn: "desc" as const },
+    take: 1,
+  },
   _count: { select: { mensajes: true } },
 } as const;
 

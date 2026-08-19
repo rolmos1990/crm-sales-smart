@@ -97,8 +97,8 @@ const ESTADO_CFG: Record<EstadoConv, {
 };
 
 const FILTROS: { key: Filtro; label: string; estados: EstadoConv[]; Icono: LucideIcon }[] = [
-  { key: "todos",     label: "Todos",     estados: ["ABIERTA", "EN_ESPERA", "CERRADA", "ARCHIVADA"], Icono: MessagesSquare },
   { key: "abiertas",  label: "Abiertas",  estados: ["ABIERTA"],   Icono: MessageSquare },
+  { key: "todos",     label: "Todos",     estados: ["ABIERTA", "EN_ESPERA", "CERRADA", "ARCHIVADA"], Icono: MessagesSquare },
   { key: "esperando", label: "Esperando", estados: ["EN_ESPERA"], Icono: Clock3 },
   { key: "cerradas",  label: "Cerradas",  estados: ["CERRADA"],   Icono: Check },
 ];
@@ -159,7 +159,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
   const [conversaciones, setConversaciones] = useState(conversacionesIniciales);
   const [seleccionada, setSeleccionada] = useState<string | null>(null);
-  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [filtro, setFiltro] = useState<Filtro>("abiertas");
   const [busqueda, setBusqueda] = useState("");
   const [panelContactoAbierto, setPanelContactoAbierto] = useState(true);
 
