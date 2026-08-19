@@ -24,15 +24,13 @@ import {
   marcarMensajesLeidos,
   marcarRespondida,
   reabrirConversacion,
-  clasificarConversacion,
-  crearOportunidadDesdeConversacion,
   obtenerConversacionAction,
   obtenerConversacionesInboxAction,
   toggleReaccion,
 } from "../actions";
 import { useAutoRefresh } from "@/shared/hooks/use-auto-refresh";
 import { IndicadorAutoRefresh } from "@/shared/components/indicador-auto-refresh";
-import type { ConversacionResumen, MensajeConMeta, MensajeReaccionResumen, CuentaCanalResumen, ClasificacionConversacion } from "../types";
+import type { ConversacionResumen, MensajeConMeta, MensajeReaccionResumen, CuentaCanalResumen } from "../types";
 
 // ── Tipos y configuración de estados ─────────────────────────────────────────
 
@@ -414,40 +412,16 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     });
   };
 
-  // ── Clasificación ─────────────────────────────────────────────────────────
-
-  const handleClasificar = async (convId: string, clasificacion: ClasificacionConversacion) => {
-    setConversaciones((prev) =>
-      prev.map((c) => c.id === convId ? { ...c, clasificacion } : c)
-    );
-    const result = await clasificarConversacion({ conversacionId: convId, clasificacion });
-    if (!result.ok) {
-      toast.error(result.error ?? "Error al clasificar");
-    }
-  };
-
-  const handleCrearOportunidad = async (convId: string) => {
-    const conv = conversaciones.find((c) => c.id === convId);
-    if (!conv?.instanciaId) return;
-    const result = await crearOportunidadDesdeConversacion({
-      conversacionId: convId,
-      contactoId: conv.contactoId,
-      instanciaId: conv.instanciaId,
-      cuentaCanalId: conv.cuentaCanalId,
+  // ── Refresco puntual de una conversación ────────────────────────────────────
+  // El panel de contacto (clasificación, edición de la oportunidad activa)
+  // hace sus propias llamadas a Server Actions; tras cada una pide refrescar
+  // solo esa conversación para traer los datos actualizados (oportunidad
+  // recién creada, etapa/etiquetas nuevas, etc.) sin recargar todo el inbox.
+  const handleConversacionActualizada = (conversacionId: string) => {
+    obtenerConversacionAction(conversacionId).then((fresca) => {
+      if (!fresca) return;
+      setConversaciones((prev) => prev.map((c) => (c.id === conversacionId ? fresca : c)));
     });
-    if (result.ok) {
-      toast.success("Oportunidad creada");
-      // Limpiar barra de clasificación: ya existe oportunidad activa vinculada
-      setConversaciones((prev) =>
-        prev.map((c) =>
-          c.id === convId
-            ? { ...c, clasificacion: "COMERCIAL", oportunidadGanadaRel: null }
-            : c
-        )
-      );
-    } else {
-      toast.error(result.error ?? "Error al crear oportunidad");
-    }
   };
 
   // ── Paginación ────────────────────────────────────────────────────────────
@@ -751,13 +725,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
             />
 
             {/* Barra de clasificación (solo si hay oportunidad ganada previa) */}
-            {convActiva.oportunidadGanadaRel && (
-              <BarraClasificacion
-                conversacion={convActiva}
-                onClasificar={(c) => handleClasificar(convActiva.id, c)}
-                onCrearOportunidad={() => handleCrearOportunidad(convActiva.id)}
-              />
-            )}
+            {convActiva.oportunidadGanadaRel && <BarraClasificacion />}
 
             {/* Área de mensajes */}
             <div
@@ -845,10 +813,11 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
       {/* ── Panel derecho: info de contacto ── */}
       {seleccionada && convActiva && panelContactoAbierto && (
-        <div className="w-64 shrink-0">
+        <div className="w-64 lg:w-72 xl:w-80 shrink-0 flex flex-col min-h-0">
           <PanelContactoInbox
             conversacion={convActiva}
             onContactoActualizado={handleContactoActualizado}
+            onConversacionActualizada={handleConversacionActualizada}
           />
         </div>
       )}

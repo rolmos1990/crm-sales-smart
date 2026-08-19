@@ -73,7 +73,12 @@ export interface OportunidadActivaResumen {
   etapa: string;
   valor: number;
   moneda: string;
+  fechaCierre: Date | null;
+  notas: string | null;
+  pipelineId: string | null;
+  stageId: string | null;
   stage: { esGanado: boolean; esPerdido: boolean; nombre: string; color: string | null } | null;
+  tags: { tagId: string; tag: { id: string; nombre: string; color: string | null } }[];
 }
 
 export interface OportunidadConversacionResumen {

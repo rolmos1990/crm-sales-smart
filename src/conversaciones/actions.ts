@@ -721,19 +721,20 @@ export async function clasificarConversacion({
 }: {
   conversacionId: string;
   clasificacion: "NINGUNA" | "POSTVENTA" | "SOPORTE" | "COMERCIAL";
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; oportunidadId?: string }> {
   try {
     const anterior = await prisma.conversacion.findUnique({
       where: { id: conversacionId },
-      select: { clasificacion: true, instanciaId: true },
+      select: { clasificacion: true, instanciaId: true, contactoId: true, cuentaCanalId: true },
     });
+    if (!anterior) return { ok: false, error: "Conversación no encontrada" };
 
     await prisma.conversacion.update({
       where: { id: conversacionId },
       data: { clasificacion, clasificadoEn: new Date() },
     });
 
-    if (anterior?.instanciaId) {
+    if (anterior.instanciaId) {
       await prisma.eventoLog.create({
         data: {
           tipo: "CLASIFICACION_CAMBIADA",
@@ -745,8 +746,24 @@ export async function clasificarConversacion({
       });
     }
 
+    // Clasificar como Comercial crea automáticamente una nueva oportunidad
+    // (si el contacto no tiene ya una activa) — así el agente no tiene que
+    // hacerlo como paso aparte.
+    let oportunidadId: string | undefined;
+    if (clasificacion === "COMERCIAL" && anterior.instanciaId) {
+      const resultado = await crearOportunidadDesdeConversacion({
+        conversacionId,
+        contactoId: anterior.contactoId,
+        instanciaId: anterior.instanciaId,
+        cuentaCanalId: anterior.cuentaCanalId,
+      });
+      // Si ya existía una oportunidad activa, crearOportunidadDesdeConversacion
+      // devuelve ok:false — no es un error real, simplemente no hay nada que crear.
+      if (resultado.ok) oportunidadId = resultado.oportunidadId;
+    }
+
     revalidatePath("/crm/inbox");
-    return { ok: true };
+    return { ok: true, oportunidadId };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error al clasificar" };
   }
