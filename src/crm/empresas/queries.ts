@@ -15,7 +15,11 @@ export async function obtenerEmpresaPorId(id: string, instanciaId: string) {
     where: { id, instanciaId },
     include: {
       contactos: { include: { empresa: { select: { id: true, nombre: true } } }, take: 10 },
-      oportunidades: { orderBy: { creadoEn: "desc" }, take: 10 },
+      oportunidades: {
+        orderBy: { creadoEn: "desc" },
+        take: 10,
+        include: { stage: { select: { nombre: true, color: true } } },
+      },
       actividades: { orderBy: { fecha: "desc" }, take: 10 },
       _count: { select: { contactos: true, oportunidades: true } },
     },

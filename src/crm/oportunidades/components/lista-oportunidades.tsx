@@ -18,32 +18,7 @@ import {
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { eliminarOportunidad } from "../actions";
 import type { Oportunidad } from "../types";
-import { ETAPAS_PIPELINE } from "../types";
-import { cn } from "@/lib/utils";
-
-// La etapa real de una oportunidad con pipeline dinámico es la de su stage
-// actual (oportunidad.stage) — el enum legacy `etapa` solo se sincroniza al
-// llegar a un stage ganado/perdido, así que para cualquier otro stage (ej.
-// "Reservado") queda desactualizado y no refleja lo que se ve en el Workspace.
-function EtapaBadge({ oportunidad }: { oportunidad: Oportunidad }) {
-  if (oportunidad.stage) {
-    const color = oportunidad.stage.color ?? "#78716c";
-    return (
-      <span
-        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-        style={{ backgroundColor: `${color}1a`, color }}
-      >
-        {oportunidad.stage.nombre}
-      </span>
-    );
-  }
-  const config = ETAPAS_PIPELINE.find(e => e.valor === oportunidad.etapa);
-  return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", config?.color)}>
-      {config?.etiqueta ?? oportunidad.etapa}
-    </span>
-  );
-}
+import { EtapaBadge } from "./etapa-badge";
 
 function AccionesOportunidad({ oportunidad }: { oportunidad: Oportunidad }) {
   const router = useRouter();
@@ -115,7 +90,7 @@ const columnasFijas: ColumnDef<Oportunidad>[] = [
   {
     accessorKey: "etapa",
     header: "Etapa",
-    cell: ({ row }) => <EtapaBadge oportunidad={row.original} />,
+    cell: ({ row }) => <EtapaBadge etapa={row.original.etapa} stage={row.original.stage} />,
   },
   {
     accessorKey: "probabilidad",
