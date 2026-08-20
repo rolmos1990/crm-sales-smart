@@ -203,7 +203,15 @@ export function PipelineWrapper({
       </div>
 
       {/* ── Cuerpo ─────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-hidden">
+      {/* Único scroll vertical del Pipeline — las columnas ya no tienen su
+          propio overflow-y (ver ColumnaStage en pipeline-kanban-dinamico.tsx),
+          así que crecen con su contenido y es este contenedor el que
+          desplaza todo el tablero como una sola superficie. El scroll
+          horizontal sigue viviendo adentro, en KanbanScrollContainer.
+          data-pipeline-vscroll: lo usa kanban-scroll-container.tsx para
+          encontrar este contenedor y hacer scroll vertical también al
+          paso arrastrando con el mouse (pan). */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden" data-pipeline-vscroll="">
         {/* Modo configuración */}
         {modoConfig && pipelineActual && puedeMod && (
           <div className="h-full overflow-y-auto">

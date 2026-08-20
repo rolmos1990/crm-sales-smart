@@ -18,7 +18,6 @@ import { es } from "date-fns/locale";
 import { CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useMoverAStageMutation } from "@/crm/oportunidades/hooks";
 import { cn } from "@/lib/utils";
@@ -274,31 +273,32 @@ function ColumnaStage({
           </div>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-290px)]">
-          <div ref={setNodeRef} className="px-2.5 pb-2.5 min-h-[80px]">
-            {items.length === 0 ? (
-              <div
-                className={cn(
-                  "rounded-lg border border-dashed py-8 text-center text-[11px] transition-all",
-                  isOver ? "font-medium" : "border-stone-300/60 dark:border-white/[0.06] text-stone-400 dark:text-white/20"
-                )}
-                style={isOver ? { borderColor: `${color}40`, color, backgroundColor: `${color}06` } : undefined}
-              >
-                {isOver ? "Soltar aquí" : "Sin oportunidades"}
-              </div>
-            ) : (
-              items.map((op) => (
-                <TarjetaOportunidad
-                  key={op.id}
-                  oportunidad={op}
-                  stageColor={color}
-                  onCardClick={onCardClick}
-                  puedeMod={puedeMod}
-                />
-              ))
-            )}
-          </div>
-        </ScrollArea>
+        {/* Sin scroll propio — la columna crece con su contenido; el único
+            scroll vertical del Pipeline vive en el contenedor de más arriba
+            (ver pipeline-wrapper.tsx, data-pipeline-vscroll). */}
+        <div ref={setNodeRef} className="px-2.5 pb-2.5 min-h-[80px]">
+          {items.length === 0 ? (
+            <div
+              className={cn(
+                "rounded-lg border border-dashed py-6 text-center text-[11px] transition-all",
+                isOver ? "font-medium" : "border-stone-300/60 dark:border-white/[0.06] text-stone-400 dark:text-white/20"
+              )}
+              style={isOver ? { borderColor: `${color}40`, color, backgroundColor: `${color}06` } : undefined}
+            >
+              {isOver ? "Soltar aquí" : "Sin oportunidades"}
+            </div>
+          ) : (
+            items.map((op) => (
+              <TarjetaOportunidad
+                key={op.id}
+                oportunidad={op}
+                stageColor={color}
+                onCardClick={onCardClick}
+                puedeMod={puedeMod}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
@@ -311,32 +311,58 @@ function ColumnaStage({
 const ZONA_GANADO_ID = "__zona_ganado__";
 const ZONA_PERDIDO_ID = "__zona_perdido__";
 
-function ZonaSoltarResultado({ stage, tipo }: { stage: PipelineStage; tipo: "ganado" | "perdido" }) {
+function ZonaSoltarResultado({
+  stage,
+  tipo,
+  dragging,
+}: {
+  stage: PipelineStage;
+  tipo: "ganado" | "perdido";
+  /** Hay una tarjeta en vuelo (cualquiera) — activa el tinte de color. Sin
+   *  esto la zona queda neutra incluso arrastrando, ver estado normal. */
+  dragging: boolean;
+}) {
   const esGanado = tipo === "ganado";
   const { setNodeRef, isOver } = useDroppable({ id: esGanado ? ZONA_GANADO_ID : ZONA_PERDIDO_ID });
+  const Icono = esGanado ? Trophy : XCircle;
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "flex-1 rounded-2xl border-2 border-dashed backdrop-blur-xl transition-all duration-200",
-        "flex flex-col items-center justify-center gap-1 py-5",
-        esGanado
-          ? "border-emerald-400/40 dark:border-emerald-400/30 bg-emerald-50/70 dark:bg-emerald-500/[0.05] hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]"
-          : "border-red-400/40 dark:border-red-400/30 bg-red-50/70 dark:bg-red-500/[0.05] hover:bg-red-50 dark:hover:bg-red-500/[0.08]",
-        isOver && (esGanado
-          ? "border-emerald-400 dark:border-emerald-400/70 bg-emerald-100/80 dark:bg-emerald-500/[0.14] scale-[1.015]"
-          : "border-red-400 dark:border-red-400/70 bg-red-100/80 dark:bg-red-500/[0.14] scale-[1.015]")
+        "flex-1 rounded-xl border border-dashed transition-all duration-200",
+        "flex items-center justify-center gap-2 py-3",
+        // Estado normal — discreto, casi transparente, no compite con las columnas.
+        !dragging && "border-stone-200/60 dark:border-white/[0.06] bg-stone-50/40 dark:bg-white/[0.015]",
+        // Hay un drag en curso (en cualquier parte del tablero) — un poco más
+        // de presencia y el color empieza a insinuarse, sin gritar todavía.
+        dragging && !isOver && esGanado && "border-emerald-400/40 dark:border-emerald-400/30 bg-emerald-50/60 dark:bg-emerald-500/[0.06]",
+        dragging && !isOver && !esGanado && "border-red-400/40 dark:border-red-400/30 bg-red-50/60 dark:bg-red-500/[0.06]",
+        // La tarjeta está justo encima de esta zona — feedback inmediato y claro.
+        isOver && esGanado && "border-solid border-emerald-400 dark:border-emerald-400/80 bg-emerald-100/80 dark:bg-emerald-500/[0.16] scale-[1.01]",
+        isOver && !esGanado && "border-solid border-red-400 dark:border-red-400/80 bg-red-100/80 dark:bg-red-500/[0.16] scale-[1.01]"
       )}
     >
-      {esGanado
-        ? <Trophy className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-        : <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />}
-      <p className={cn("text-[13px] font-semibold", esGanado ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300")}>
+      <Icono
+        className={cn(
+          "h-3.5 w-3.5 shrink-0 transition-colors",
+          !dragging
+            ? "text-stone-400 dark:text-white/25"
+            : esGanado ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+        )}
+      />
+      <p
+        className={cn(
+          "text-[12px] font-semibold transition-colors",
+          !dragging
+            ? "text-stone-500 dark:text-white/40"
+            : esGanado ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"
+        )}
+      >
         {stage.nombre}
       </p>
-      <p className="text-[11px] text-stone-500 dark:text-white/40">
-        Suelta aquí las oportunidades {esGanado ? "ganadas" : "perdidas"}
+      <p className="text-[11px] text-stone-400 dark:text-white/25">
+        · Suelta aquí las oportunidades {esGanado ? "ganadas" : "perdidas"}
       </p>
     </div>
   );
@@ -345,15 +371,17 @@ function ZonaSoltarResultado({ stage, tipo }: { stage: PipelineStage; tipo: "gan
 function ZonasResultadoRapido({
   stageGanado,
   stagePerdido,
+  dragging,
 }: {
   stageGanado?: PipelineStage;
   stagePerdido?: PipelineStage;
+  dragging: boolean;
 }) {
   if (!stageGanado && !stagePerdido) return null;
   return (
-    <div className="absolute bottom-4 inset-x-3 z-30 flex gap-3">
-      {stageGanado && <ZonaSoltarResultado stage={stageGanado} tipo="ganado" />}
-      {stagePerdido && <ZonaSoltarResultado stage={stagePerdido} tipo="perdido" />}
+    <div className="mt-4 flex gap-3">
+      {stageGanado && <ZonaSoltarResultado stage={stageGanado} tipo="ganado" dragging={dragging} />}
+      {stagePerdido && <ZonaSoltarResultado stage={stagePerdido} tipo="perdido" dragging={dragging} />}
     </div>
   );
 }
@@ -557,7 +585,7 @@ export function PipelineKanbanDinamico({
   };
 
   return (
-    <div className="relative h-full">
+    <>
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <KanbanScrollContainer
           stageColors={stagesColumnas.map((s) => s.color ?? "#818cf8")}
@@ -575,17 +603,18 @@ export function PipelineKanbanDinamico({
           ))}
         </KanbanScrollContainer>
 
+        {/* Zonas rápidas Ganado/Perdido — siempre presentes al pie del
+            tablero (discretas en reposo), para soltar directo sin buscar la
+            columna correspondiente (útil si está lejos o escondida por "Ver
+            ocultos"). Fuera de KanbanScrollContainer a propósito: no viajan
+            con el scroll horizontal, quedan fijas debajo de las columnas. */}
+        {puedeMod && (stageGanado || stagePerdido) && (
+          <ZonasResultadoRapido stageGanado={stageGanado} stagePerdido={stagePerdido} dragging={!!activeCard} />
+        )}
+
         <DragOverlay dropAnimation={{ duration: 150 }}>
           {activeCard && <TarjetaOverlay oportunidad={activeCard} />}
         </DragOverlay>
-
-        {/* Zonas rápidas Ganado/Perdido — solo visibles mientras se arrastra
-            una tarjeta, para soltarla directo sin buscar la columna
-            correspondiente (útil si está lejos o escondida por "Ver
-            ocultos"). */}
-        {activeCard && puedeMod && (
-          <ZonasResultadoRapido stageGanado={stageGanado} stagePerdido={stagePerdido} />
-        )}
       </DndContext>
 
       <WorkspaceOportunidad
@@ -599,6 +628,6 @@ export function PipelineKanbanDinamico({
         onUpdate={handleUpdate}
         onDelete={handleDelete}
       />
-    </div>
+    </>
   );
 }

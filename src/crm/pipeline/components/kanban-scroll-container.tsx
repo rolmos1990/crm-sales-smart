@@ -30,7 +30,7 @@ export function KanbanScrollContainer({
     startY: 0,
     lastY: 0,
     originLeft: 0,
-    colViewport: null as Element | null,
+    vScroll: null as Element | null,
   });
 
   const syncScroll = useCallback(() => {
@@ -67,9 +67,8 @@ export function KanbanScrollContainer({
       startY: e.clientY,
       lastY: e.clientY,
       originLeft: el.scrollLeft,
-      colViewport: (e.target as HTMLElement).closest(
-        "[data-radix-scroll-area-viewport]"
-      ),
+      // Único scroll vertical del Pipeline — ver pipeline-wrapper.tsx.
+      vScroll: (e.target as HTMLElement).closest("[data-pipeline-vscroll]"),
     };
   }, []);
 
@@ -90,8 +89,8 @@ export function KanbanScrollContainer({
       }
       const el = scrollRef.current;
       if (el) el.scrollLeft = p.originLeft - (e.clientX - p.startX);
-      if (p.colViewport) {
-        p.colViewport.scrollTop -= e.clientY - p.lastY;
+      if (p.vScroll) {
+        p.vScroll.scrollTop -= e.clientY - p.lastY;
         p.lastY = e.clientY;
       }
     };
