@@ -7,7 +7,8 @@ import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
-import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad } from "./queries";
+import type { CrearCotizacionInput } from "./schema";
+import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad, obtenerCotizacionPorId } from "./queries";
 import { generarPedidoDesdeCotizacion } from "./services/generar-pedido-desde-cotizacion.service";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
@@ -381,5 +382,94 @@ export async function obtenerDatosFormularioCotizacion(): Promise<{
     productos,
     monedaDefault,
     transportistas,
+  };
+}
+
+/**
+ * Datos para editar una cotización dentro de un Sheet (mismo patrón que
+ * "Nueva cotización" desde el Workspace de Oportunidades) — junta los datos
+ * generales del formulario con los `defaultValues` de la cotización
+ * existente, para no tener que navegar a /sales/cotizaciones/[id]/editar y
+ * perder el contexto del workspace.
+ */
+export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string): Promise<{
+  editable: boolean;
+  numero: string;
+  defaultValues: Partial<CrearCotizacionInput>;
+  empresas: OpcionCombobox[];
+  contactos: OpcionCombobox[];
+  contactosDetalle: Awaited<ReturnType<typeof buscarContactos>>;
+  productos: ProductoCatalogo[];
+  monedaDefault: string;
+  transportistas: Awaited<ReturnType<typeof obtenerTransportistas>>;
+} | null> {
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return null;
+
+  const [cotizacion, datosFormulario] = await Promise.all([
+    obtenerCotizacionPorId(cotizacionId, auth.sesion.instanciaId),
+    obtenerDatosFormularioCotizacion(),
+  ]);
+  if (!cotizacion) return null;
+
+  // Mismo mapeo que la página /sales/cotizaciones/[id]/editar — mantenido acá
+  // en paralelo porque esa página sigue existiendo como acceso directo fuera
+  // del Workspace (ej. enlace desde el módulo de Cotizaciones).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const metadata = (cotizacion as any).metadata as Record<string, unknown> | null;
+  const destinatarioGuardado = metadata?.destinatario as Record<string, string> | undefined;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lineasParaForm = ((cotizacion as any).lineas ?? []).map((l: any) => ({
+    productoId: l.productoId ?? "",
+    descripcion: l.descripcion ?? "",
+    cantidad: Number(l.cantidad),
+    precioUnitario: Number(l.precioUnitario),
+    descuento: Number(l.descuento),
+  }));
+
+  const subtotalNum = Number(cotizacion.subtotal);
+  const impuestoPorcentaje = subtotalNum > 0
+    ? Math.round((Number(cotizacion.impuesto) / subtotalNum) * 1000) / 10
+    : 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const entregaGuardada = (cotizacion as any).entrega as {
+    metodoEntrega: string; estadoEntrega: string; transportistaId: string | null;
+    fechaEstimada: Date | string | null; observaciones: string | null;
+  } | null;
+
+  const defaultValues: Partial<CrearCotizacionInput> = {
+    moneda: cotizacion.moneda,
+    impuesto: impuestoPorcentaje,
+    notas: cotizacion.notas ?? "",
+    contactoId: cotizacion.contactoId ?? "",
+    empresaId: cotizacion.empresaId ?? "",
+    fechaVencimiento: cotizacion.fechaVencimiento ? new Date(cotizacion.fechaVencimiento) : undefined,
+    lineas: lineasParaForm.length > 0 ? lineasParaForm : [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
+    destinatario: {
+      nombre: destinatarioGuardado?.nombre ?? "",
+      apellido: destinatarioGuardado?.apellido ?? "",
+      telefono: destinatarioGuardado?.telefono ?? "",
+      email: destinatarioGuardado?.email ?? "",
+    },
+    entrega: {
+      metodoEntrega: entregaGuardada?.metodoEntrega ?? "COURIER_EXTERNO",
+      estadoEntrega: entregaGuardada?.estadoEntrega ?? "PENDIENTE",
+      transportistaId: entregaGuardada?.transportistaId ?? null,
+      fechaEstimada: entregaGuardada?.fechaEstimada ? new Date(entregaGuardada.fechaEstimada) : undefined,
+      observaciones: entregaGuardada?.observaciones ?? "",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      costoEnvio: Number((cotizacion as any).costoEnvio ?? 0),
+    } as CrearCotizacionInput["entrega"],
+  };
+
+  return {
+    // Solo se puede editar mientras siga en borrador (no enviada) — mismo
+    // criterio que la página de edición standalone.
+    editable: cotizacion.estado === "BORRADOR",
+    numero: cotizacion.numero,
+    defaultValues,
+    ...datosFormulario,
   };
 }

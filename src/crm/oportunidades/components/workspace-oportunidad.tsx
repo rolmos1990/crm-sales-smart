@@ -8,7 +8,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   X, Phone, Video, Search, MoreHorizontal, ExternalLink, Loader2,
   ChevronDown, Building2, Layers, Mail, Globe,
-  Save, Tag as TagIcon, User, FileText, CheckCircle2, Pencil, Trash2,
+  Save, Tag as TagIcon, User, FileText, CheckCircle2, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -55,6 +55,7 @@ import {
 import type { ConversacionResumen, CuentaCanalResumen } from "@/conversaciones/types";
 import { MONEDAS } from "@/shared/moneda/constants";
 import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
+import { SheetEditarCotizacion } from "@/sales/cotizaciones/components/sheet-editar-cotizacion";
 import {
   cambiarEstadoCotizacion,
   aprobarCotizacion,
@@ -951,13 +952,10 @@ function WorkspaceContenido({
                               <div className="flex items-center gap-0.5 shrink-0">
                                 {puedeModCotizaciones && c.estado === "BORRADOR" && (
                                   <>
-                                    <a
-                                      href={`/sales/cotizaciones/${c.id}/editar`}
-                                      className="h-5 w-5 flex items-center justify-center rounded text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
-                                      title="Editar cotización"
-                                    >
-                                      <Pencil className="h-3 w-3" />
-                                    </a>
+                                    <SheetEditarCotizacion
+                                      cotizacionId={c.id}
+                                      onActualizada={refrescarCotizaciones}
+                                    />
                                     <ConfirmacionDialog
                                       trigger={
                                         <button
