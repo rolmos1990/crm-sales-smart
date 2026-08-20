@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { Tag } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { obtenerTags } from "@/crm/tags/queries";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
@@ -31,19 +30,7 @@ export default async function EtiquetasPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            {tags.length} etiqueta{tags.length !== 1 ? "s" : ""}
-          </CardTitle>
-          <CardDescription>
-            Haz clic en una etiqueta para editarla o eliminarla.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ListaTags tags={tags} />
-        </CardContent>
-      </Card>
+      <ListaTags tags={tags} />
     </div>
   );
 }

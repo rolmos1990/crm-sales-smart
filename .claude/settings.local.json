@@ -164,7 +164,9 @@
       "Bash(awk '/model Disparador /,/^}/' prisma/schema.prisma)",
       "Bash(awk '/enum TipoAccionDisparador/,/^}/' prisma/schema.prisma)",
       "Bash(awk '/model DisparadorJob /,/^}/' prisma/schema.prisma)",
-      "Bash(timeout 20 env RUST_LOG=info npx prisma migrate status)"
+      "Bash(timeout 20 env RUST_LOG=info npx prisma migrate status)",
+      "Read(//tmp/**)",
+      "Bash(git diff *)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
