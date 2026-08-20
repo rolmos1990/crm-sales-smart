@@ -18,6 +18,20 @@ interface SheetEditarCotizacionProps {
 
 type DatosEdicion = NonNullable<Awaited<ReturnType<typeof obtenerDatosEdicionCotizacionAction>>>;
 
+// Datos vigentes del contacto ligado a la cotización (no la copia guardada en
+// destinatario) — es contra esto que <FormCotizacion> decide si mostrar la
+// tarjeta compacta del contacto o el formulario editable.
+function contactoVinculado(datos: DatosEdicion) {
+  const contacto = datos.contactosDetalle.find((c) => c.id === datos.defaultValues.contactoId);
+  if (!contacto) return undefined;
+  return {
+    nombre: contacto.nombre,
+    apellido: contacto.apellido,
+    telefono: contacto.telefonoPrincipal ?? undefined,
+    email: contacto.email ?? undefined,
+  };
+}
+
 // Mismo patrón que <SheetNuevaCotizacion>: un Sheet lateral que carga sus
 // propios datos al abrir. Se usa desde el Workspace de Oportunidades para
 // editar una cotización sin salir del workspace (antes navegaba a
@@ -102,6 +116,10 @@ export function SheetEditarCotizacion({ cotizacionId, onActualizada }: SheetEdit
             cotizacionId={cotizacionId}
             numero={datos.numero}
             defaultValues={datos.defaultValues}
+            // Datos vigentes del contacto vinculado — permite al form saber si
+            // el destinatario guardado coincide con el contacto (mostrar la
+            // tarjeta compacta) o fue editado a mano (mostrar el formulario).
+            contactoOrigen={contactoVinculado(datos)}
             onCerrar={() => setOpen(false)}
             onSuccess={() => {
               setOpen(false);

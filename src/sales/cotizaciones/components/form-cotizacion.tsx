@@ -68,6 +68,21 @@ interface FormCotizacionProps {
 const tieneContactoOrigen = (c?: Partial<DestinatarioCotizacionInput>) =>
   !!(c?.nombre || c?.apellido || c?.telefono || c?.email);
 
+// Determina si el destinatario guardado/por defecto coincide con los datos
+// actuales del contacto — así se puede inferir si "Usar información del
+// contacto seleccionado" estaba marcado sin tener que persistir ese booleano
+// aparte (al editar, se compara contra el contacto vigente, no contra una
+// copia vieja).
+const normalizarTexto = (v?: string | null) => (v ?? "").trim();
+const destinatarioCoincideConContacto = (
+  destinatario: Partial<DestinatarioCotizacionInput> | undefined,
+  contacto: Partial<DestinatarioCotizacionInput> | undefined
+) =>
+  normalizarTexto(destinatario?.nombre) === normalizarTexto(contacto?.nombre) &&
+  normalizarTexto(destinatario?.apellido) === normalizarTexto(contacto?.apellido) &&
+  normalizarTexto(destinatario?.telefono) === normalizarTexto(contacto?.telefono) &&
+  normalizarTexto(destinatario?.email) === normalizarTexto(contacto?.email);
+
 const inicial = (nombre?: string | null) => (nombre?.trim()?.[0] ?? "?").toUpperCase();
 
 function scrollASeccion(id: string) {
@@ -101,13 +116,22 @@ export function FormCotizacion({
   const hayContactoOrigen = tieneContactoOrigen(contactoOrigen);
   const modoEdicion = !!cotizacionId;
 
+  // Al crear, `defaultValues.destinatario` siempre nace igual a `contactoOrigen`
+  // (ver <SheetNuevaCotizacion>), así que esto da checked por defecto como antes.
+  // Al editar, compara el destinatario guardado contra el contacto vigente: si
+  // coinciden, el checkbox estaba marcado cuando se guardó → mostrar la
+  // tarjeta del contacto; si no, se había editado a mano → mostrar el
+  // formulario con esos datos propios.
+  const coincideConContacto = hayContactoOrigen && destinatarioCoincideConContacto(defaultValues?.destinatario, contactoOrigen);
+
   const [editandoCliente, setEditandoCliente] = useState(
-    !hayContactoOrigen &&
-    !!(defaultValues?.destinatario?.nombre || defaultValues?.destinatario?.apellido ||
-       defaultValues?.destinatario?.telefono || defaultValues?.destinatario?.email) &&
-    !defaultValues?.contactoId
+    hayContactoOrigen
+      ? !coincideConContacto
+      : !!(defaultValues?.destinatario?.nombre || defaultValues?.destinatario?.apellido ||
+           defaultValues?.destinatario?.telefono || defaultValues?.destinatario?.email) &&
+        !defaultValues?.contactoId
   );
-  const [usarInfoContacto, setUsarInfoContacto] = useState(hayContactoOrigen);
+  const [usarInfoContacto, setUsarInfoContacto] = useState(coincideConContacto);
 
   const form = useForm<CrearCotizacionInput>({
     resolver: zodResolver(CrearCotizacionSchema),
