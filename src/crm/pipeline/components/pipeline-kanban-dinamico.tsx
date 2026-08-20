@@ -16,7 +16,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle, Loader2 } from "lucide-react";
+import { CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle, Loader2, FileText, FileCheck2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -34,6 +34,28 @@ const formatearMoneda = (valor: number, moneda: string) =>
     currency: moneda,
     maximumFractionDigits: 0,
   }).format(valor);
+
+// ── Insignia de cotización ────────────────────────────────────────
+// Gris = tiene cotización pero ninguna aprobada todavía (Borrador, Revisada,
+// Enviada, Rechazada, Vencida). Verde = ya hay una cotización Aprobada (esa
+// es la que genera el pedido). Sin cotización, no se muestra nada.
+function InsigniaCotizacion({ estado }: { estado: OportunidadEnStage["estadoCotizacion"] }) {
+  if (!estado) return null;
+  const aprobada = estado === "APROBADA";
+  return (
+    <span
+      title={aprobada ? "Cotización aprobada" : "Cotización pendiente de aprobación"}
+      className={cn(
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border",
+        aprobada
+          ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-600 dark:bg-emerald-400/10 dark:border-emerald-400/20 dark:text-emerald-400"
+          : "bg-stone-100 border-stone-200 text-stone-400 dark:bg-white/[0.05] dark:border-white/[0.08] dark:text-white/30"
+      )}
+    >
+      {aprobada ? <FileCheck2 className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+    </span>
+  );
+}
 
 // ── Tarjeta draggable ─────────────────────────────────────────────
 
@@ -95,9 +117,12 @@ function TarjetaOportunidad({
 
         {/* Identidad: qué pide el cliente (título) + quién es (contacto / empresa) */}
         <div className="space-y-1.5">
-          <p className="text-[14px] font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-white/90">
-            {oportunidad.titulo}
-          </p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[14px] font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-white/90">
+              {oportunidad.titulo}
+            </p>
+            <InsigniaCotizacion estado={oportunidad.estadoCotizacion} />
+          </div>
           {(oportunidad.contacto || oportunidad.empresa) && (
             <div className="space-y-0.5">
               {oportunidad.contacto && (
@@ -595,11 +620,13 @@ export function PipelineKanbanDinamico({
       const next = new Map(prev);
       let tagsExistentes: OportunidadEnStage["tags"] = [];
       let contactoExistente: OportunidadEnStage["contacto"] = null;
+      let estadoCotizacionExistente: OportunidadEnStage["estadoCotizacion"] = null;
       for (const [key, ops] of next) {
         const found = ops.find((o) => o.id === updated.id);
         if (found) {
           tagsExistentes = found.tags;
           contactoExistente = found.contacto;
+          estadoCotizacionExistente = found.estadoCotizacion;
           stageAnterior = key;
           valorAnterior = found.valor;
           break;
@@ -623,6 +650,10 @@ export function PipelineKanbanDinamico({
           empresa: updated.empresa,
           contacto: updated.contactos?.[0]?.contacto ?? contactoExistente,
           tags: updated.tags ?? tagsExistentes,
+          // Oportunidad no trae info de cotizaciones — se conserva la que ya
+          // tenía la tarjeta (esto no cambia al mover de etapa ni al editar
+          // campos de la oportunidad, solo al crear/aprobar una cotización).
+          estadoCotizacion: estadoCotizacionExistente,
         },
         ...(next.get(targetStage) ?? []),
       ]);

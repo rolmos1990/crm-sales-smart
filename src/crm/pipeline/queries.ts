@@ -127,17 +127,30 @@ const selectOportunidadEnStage = {
     select: { contacto: { select: { id: true, nombre: true, apellido: true } } },
   },
   tags: { select: { tagId: true, tag: { select: { id: true, nombre: true, color: true } } } },
+  // Solo el estado — para la insignia de cotización de la tarjeta (ver
+  // estadoCotizacion más abajo). No se trae nada más pesado de la cotización.
+  cotizaciones: { select: { estado: true } },
 } satisfies Prisma.OportunidadSelect;
 
 type OportunidadRow = Prisma.OportunidadGetPayload<{ select: typeof selectOportunidadEnStage }>;
 
+function resolverEstadoCotizacion(cotizaciones: { estado: string }[]): OportunidadEnStage["estadoCotizacion"] {
+  if (cotizaciones.length === 0) return null;
+  return cotizaciones.some((c) => c.estado === "APROBADA") ? "APROBADA" : "PENDIENTE";
+}
+
 function agruparPorStage(rows: OportunidadRow[]): Map<string, OportunidadEnStage[]> {
   const porStage = new Map<string, OportunidadEnStage[]>();
   for (const op of rows) {
-    const { contactos, ...resto } = op;
+    const { contactos, cotizaciones, ...resto } = op;
     const key = op.stageId ?? "__sin_stage__";
     const arr = porStage.get(key) ?? [];
-    arr.push({ ...resto, valor: Number(op.valor), contacto: contactos[0]?.contacto ?? null });
+    arr.push({
+      ...resto,
+      valor: Number(op.valor),
+      contacto: contactos[0]?.contacto ?? null,
+      estadoCotizacion: resolverEstadoCotizacion(cotizaciones),
+    });
     porStage.set(key, arr);
   }
   return porStage;
