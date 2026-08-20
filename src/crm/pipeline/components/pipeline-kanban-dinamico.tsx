@@ -5,14 +5,21 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  closestCorners,
   useSensor,
   useSensors,
   useDroppable,
-  useDraggable,
 } from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  arrayMove,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -70,31 +77,29 @@ function TarjetaOportunidad({
   onCardClick: (op: OportunidadEnStage) => void;
   puedeMod?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  // useSortable (no useDraggable): además de arrastrar, participa de un
+  // SortableContext por columna — eso es lo que anima el "hacer espacio"
+  // (las demás tarjetas se corren solas) cuando pasa por encima o cambia de
+  // etapa, sin tener que calcular nada de eso a mano.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: oportunidad.id,
     data: oportunidad,
   });
 
-  // La posición (translate) va por style inline — dnd-kit la recalcula en cada
-  // frame del drag para que la tarjeta siga al cursor 1:1 — por eso el scale
-  // se aplica en el mismo transform (una utilidad de Tailwind no se puede
-  // combinar con un transform inline, uno pisa al otro) pero SIN transition
-  // en `transform`: animar esa propiedad mientras se actualiza en cada frame
-  // metería un delay perceptible entre el cursor y la tarjeta. Solo la
-  // opacidad se anima — eso alcanza para transmitir "se está arrastrando"
-  // sin deformar nada ni introducir lag.
-  const translate = CSS.Translate.toString(transform);
-  const dragTransform = isDragging && translate ? `${translate} scale(0.97)` : translate;
+  // Solo se anima `transform` (posición) acá — dnd-kit ya trae la curva
+  // correcta en `transition`. El resto (opacidad, anillo) lo anima la propia
+  // clase `transition-all` de la tarjeta, más abajo.
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <div
       ref={setNodeRef}
       data-testid="oportunidad-card"
-      style={{ transform: dragTransform }}
-      className={cn(
-        "mb-2 touch-none transition-opacity duration-150 ease-out",
-        isDragging && "opacity-60"
-      )}
+      style={style}
+      className="mb-2 touch-none"
       {...(puedeMod ? attributes : {})}
       {...(puedeMod ? listeners : {})}
       onClick={() => onCardClick(oportunidad)}
@@ -105,7 +110,12 @@ function TarjetaOportunidad({
           "bg-white dark:bg-[oklch(0.130_0.004_264)]",
           "shadow-sm dark:shadow-[0_2px_10px_-6px_rgba(0,0,0,0.55)]",
           "hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
-          "transition-all duration-150 p-3.5 space-y-3"
+          "transition-all duration-150 p-3.5 space-y-3",
+          // Se está arrastrando: transparencia (queda leyéndose como el
+          // "hueco" que marca dónde va a caer) + borde resaltado — mismo
+          // tamaño y forma de siempre, nada de escalar ni rotar acá (eso lo
+          // hace la copia flotante de <TarjetaOverlay>, ver DragOverlay).
+          isDragging && "opacity-40 shadow-none ring-2 ring-lime-400/70 dark:ring-lime-400/50"
         )}
         style={{ borderColor: `${stageColor}35` }}
       >
@@ -234,6 +244,7 @@ function ColumnaStage({
   pipelineId,
   onCardClick,
   puedeMod = true,
+  resaltada = false,
 }: {
   stage: PipelineStage;
   items: OportunidadEnStage[];
@@ -244,20 +255,35 @@ function ColumnaStage({
   pipelineId: string;
   onCardClick: (op: OportunidadEnStage) => void;
   puedeMod?: boolean;
+  /** La tarjeta que se está arrastrando ya vive (en vivo) dentro de `items`
+   *  — es decir, esta es la columna que la recibiría si se suelta ahora. Se
+   *  calcula en el padre a partir de `localOps`, no solo del `isOver` de acá
+   *  abajo: ese `isOver` únicamente es true al pasar sobre el área vacía del
+   *  contenedor, no sobre otra tarjeta — con `resaltada` la columna se
+   *  ilumina también al pasar por encima de sus propias tarjetas. */
+  resaltada?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const { setNodeRef, isOver: isOverContenedor } = useDroppable({ id: stage.id });
+  const isOver = isOverContenedor || resaltada;
   const color = stage.color ?? "#818cf8";
 
   return (
-    <div className="flex-shrink-0 w-[272px]" data-testid="pipeline-column">
+    // h-full: junto con el `align-items: stretch` por defecto de la fila en
+    // KanbanScrollContainer, hace que TODAS las columnas lleguen hasta la
+    // altura de la más alta (la de más tarjetas) — así una etapa con pocas
+    // oportunidades sigue siendo un blanco de suelta grande, no solo el
+    // recuadro chico alrededor de sus 2-3 tarjetas.
+    <div className="flex-shrink-0 w-[272px] h-full" data-testid="pipeline-column">
       <div
         className={cn(
-          "flex flex-col rounded-xl border overflow-hidden transition-all duration-150",
+          "flex h-full flex-col rounded-xl border overflow-hidden transition-all duration-150",
           "bg-stone-100/50 dark:bg-[oklch(0.095_0.003_264)]",
           "border-stone-200/70 dark:border-white/[0.06]",
+          // Hover del drag: además del anillo, un tinte leve de fondo en el
+          // color de la propia etapa — "se ilumina" sin gritar.
           isOver && "ring-1 dark:ring-offset-[oklch(0.063_0.002_264)]"
         )}
-        style={isOver ? { "--tw-ring-color": `${color}30` } as React.CSSProperties : undefined}
+        style={isOver ? { "--tw-ring-color": `${color}30`, backgroundColor: `${color}08` } as React.CSSProperties : undefined}
       >
         {/* Línea de color del stage */}
         <div className="h-[2px] flex-shrink-0 opacity-70" style={{ backgroundColor: color }} />
@@ -306,10 +332,14 @@ function ColumnaStage({
           </div>
         </div>
 
-        {/* Sin scroll propio — la columna crece con su contenido; el único
-            scroll vertical del Pipeline vive en el contenedor de más arriba
-            (ver pipeline-wrapper.tsx, data-pipeline-vscroll). */}
-        <div ref={setNodeRef} className="px-2.5 pb-2.5 min-h-[80px]">
+        {/* flex-1: ocupa todo el resto de la altura de la columna (ver h-full
+            más arriba) — el espacio vacío bajo la última tarjeta sigue
+            siendo parte del droppable, no solo el borde ceñido a las
+            tarjetas cargadas. Sin scroll propio — la columna crece con su
+            contenido; el único scroll vertical del Pipeline vive en el
+            contenedor de más arriba (ver pipeline-wrapper.tsx,
+            data-pipeline-vscroll). */}
+        <div ref={setNodeRef} className="flex-1 px-2.5 pb-2.5 min-h-[80px]">
           {items.length === 0 ? (
             <div
               className={cn(
@@ -321,15 +351,17 @@ function ColumnaStage({
               {isOver ? "Soltar aquí" : "Sin oportunidades"}
             </div>
           ) : (
-            items.map((op) => (
-              <TarjetaOportunidad
-                key={op.id}
-                oportunidad={op}
-                stageColor={color}
-                onCardClick={onCardClick}
-                puedeMod={puedeMod}
-              />
-            ))
+            <SortableContext items={items.map((op) => op.id)} strategy={verticalListSortingStrategy}>
+              {items.map((op) => (
+                <TarjetaOportunidad
+                  key={op.id}
+                  oportunidad={op}
+                  stageColor={color}
+                  onCardClick={onCardClick}
+                  puedeMod={puedeMod}
+                />
+              ))}
+            </SortableContext>
           )}
         </div>
       </div>
@@ -459,9 +491,18 @@ export function PipelineKanbanDinamico({
   const [localTotales, setLocalTotales] = useState(totalesPorStage);
   const [localConteos, setLocalConteos] = useState(conteoPorStage);
   const [activeCard, setActiveCard] = useState<OportunidadEnStage | null>(null);
+  // Etapa de origen de la tarjeta activa, capturada al agarrarla — `onDragOver`
+  // va moviendo la tarjeta en vivo entre columnas mientras se arrastra, así
+  // que al soltar ya no alcanza con mirar su `stageId` (quedó desactualizado);
+  // esto es lo que permite saber si de verdad cambió de etapa.
+  const [activeOriginStageId, setActiveOriginStageId] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
   const [cargandoMas, startCargandoMas] = useTransition();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  // Foto de `localOps` justo antes de empezar a arrastrar — si el drag se
+  // cancela o se suelta fuera de cualquier destino válido, se vuelve a esto
+  // en vez de dejar el tablero a mitad de un reordenamiento en vivo.
+  const dragSnapshotRef = useRef<Map<string, OportunidadEnStage[]> | null>(null);
   const moverMutation = useMoverAStageMutation();
 
   // Resincroniza con los datos frescos del servidor (ej. tras el auto-refresh
@@ -543,60 +584,157 @@ export function PipelineKanbanDinamico({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const handleDragStart = ({ active }: DragStartEvent) => {
-    setActiveCard(active.data.current as OportunidadEnStage);
+  // Encuentra en qué columna vive ahora mismo un id — puede ser el id de una
+  // etapa (se soltó sobre el contenedor: columna vacía, o el hueco debajo de
+  // la última tarjeta) o el id de otra tarjeta (se soltó sobre/entre otras).
+  const encontrarStageDe = (id: string, ops: Map<string, OportunidadEnStage[]>): string | null => {
+    if (ops.has(id)) return id;
+    for (const [stageId, items] of ops) {
+      if (items.some((o) => o.id === id)) return stageId;
+    }
+    return null;
   };
 
-  const handleDragEnd = ({ over, active }: DragEndEvent) => {
-    setActiveCard(null);
-    if (!puedeMod || !over) return;
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    const op = active.data.current as OportunidadEnStage;
+    setActiveCard(op);
+    setActiveOriginStageId(op.stageId ?? "__sin_stage__");
+    dragSnapshotRef.current = localOps;
+  };
 
-    const oportunidad = active.data.current as OportunidadEnStage;
-    // Las zonas rápidas usan ids centinela (no son etapas reales) — se
-    // resuelven acá a la etapa Ganado/Perdido real del pipeline.
-    let nuevoStageId = over.id as string;
-    if (nuevoStageId === ZONA_GANADO_ID) nuevoStageId = stageGanado?.id ?? nuevoStageId;
-    else if (nuevoStageId === ZONA_PERDIDO_ID) nuevoStageId = stagePerdido?.id ?? nuevoStageId;
-    if (oportunidad.stageId === nuevoStageId) return;
-
-    const nuevoStage = pipeline.stages.find((s) => s.id === nuevoStageId);
-    if (!nuevoStage) return;
+  // Va reacomodando las tarjetas EN VIVO mientras se arrastra — cruzar a otra
+  // columna la saca de la lista de origen y la inserta en la de destino (en
+  // la posición sobre la que está el cursor); dentro de la misma columna,
+  // reordena con arrayMove. El único id que dnd-kit necesita comparar es el
+  // de las tarjetas — el cambio de array ya dispara la animación de "hacer
+  // espacio" del propio SortableContext, no hay que animar nada a mano.
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
+    if (!over) return;
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    // Las zonas rápidas Ganado/Perdido no son columnas del tablero — se
+    // resuelven solo al soltar (ver handleDragEnd), no participan del
+    // reordenamiento en vivo.
+    if (overId === ZONA_GANADO_ID || overId === ZONA_PERDIDO_ID || activeId === overId) return;
 
     setLocalOps((prev) => {
+      const origenKey = encontrarStageDe(activeId, prev);
+      const destinoEsContenedor = prev.has(overId);
+      const destinoKey = destinoEsContenedor ? overId : encontrarStageDe(overId, prev);
+      if (!origenKey || !destinoKey) return prev;
+
+      const origenItems = prev.get(origenKey) ?? [];
+      const activeIndex = origenItems.findIndex((o) => o.id === activeId);
+      if (activeIndex === -1) return prev;
+
+      if (origenKey === destinoKey) {
+        const overIndex = destinoEsContenedor ? origenItems.length - 1 : origenItems.findIndex((o) => o.id === overId);
+        if (overIndex === -1 || activeIndex === overIndex) return prev;
+        const next = new Map(prev);
+        next.set(origenKey, arrayMove(origenItems, activeIndex, overIndex));
+        return next;
+      }
+
+      const destinoItems = prev.get(destinoKey) ?? [];
+      const overIndex = destinoEsContenedor ? destinoItems.length : destinoItems.findIndex((o) => o.id === overId);
+      const insertarEn = overIndex === -1 ? destinoItems.length : overIndex;
+
       const next = new Map(prev);
-      const anteriorKey = oportunidad.stageId ?? "__sin_stage__";
-      next.set(anteriorKey, (next.get(anteriorKey) ?? []).filter((o) => o.id !== oportunidad.id));
-      next.set(nuevoStageId, [
-        {
-          ...oportunidad,
-          stageId: nuevoStageId,
-          pipelineId: pipeline.id,
-          probabilidad: nuevoStage?.probabilidad ?? oportunidad.probabilidad,
-          nuevoMensaje: oportunidad.nuevoMensaje,
-        },
-        ...(next.get(nuevoStageId) ?? []),
+      next.set(origenKey, [...origenItems.slice(0, activeIndex), ...origenItems.slice(activeIndex + 1)]);
+      next.set(destinoKey, [
+        ...destinoItems.slice(0, insertarEn),
+        origenItems[activeIndex],
+        ...destinoItems.slice(insertarEn),
       ]);
       return next;
     });
+  };
 
+  const handleDragCancel = () => {
+    if (dragSnapshotRef.current) setLocalOps(dragSnapshotRef.current);
+    dragSnapshotRef.current = null;
+    setActiveCard(null);
+    setActiveOriginStageId(null);
+  };
+
+  const handleDragEnd = ({ over }: DragEndEvent) => {
+    const origen = activeOriginStageId;
+    const oportunidad = activeCard;
+    const snapshot = dragSnapshotRef.current;
+    setActiveCard(null);
+    setActiveOriginStageId(null);
+    dragSnapshotRef.current = null;
+
+    if (!puedeMod || !oportunidad || !origen) return;
+
+    // Zonas rápidas Ganado/Perdido — handleDragOver las ignora a propósito,
+    // así que acá sí hay que mover la tarjeta a mano (no vive en ninguna
+    // columna real del tablero mientras se sobrevuela la zona).
+    if (over && (over.id === ZONA_GANADO_ID || over.id === ZONA_PERDIDO_ID)) {
+      const nuevoStageId = over.id === ZONA_GANADO_ID ? stageGanado?.id : stagePerdido?.id;
+      if (!nuevoStageId || nuevoStageId === origen) { if (snapshot) setLocalOps(snapshot); return; }
+      const nuevoStage = pipeline.stages.find((s) => s.id === nuevoStageId);
+      setLocalOps((prev) => {
+        const next = new Map(prev);
+        next.set(origen, (next.get(origen) ?? []).filter((o) => o.id !== oportunidad.id));
+        next.set(nuevoStageId, [
+          { ...oportunidad, stageId: nuevoStageId, pipelineId: pipeline.id, probabilidad: nuevoStage?.probabilidad ?? oportunidad.probabilidad },
+          ...(next.get(nuevoStageId) ?? []),
+        ]);
+        return next;
+      });
+      confirmarMovimiento(oportunidad, origen, nuevoStageId);
+      return;
+    }
+
+    if (!over) { if (snapshot) setLocalOps(snapshot); return; }
+
+    // Ruta normal: handleDragOver ya fue moviendo la tarjeta en vivo — solo
+    // falta ver en qué columna terminó y, si cambió de etapa, confirmarlo.
+    const destino = encontrarStageDe(oportunidad.id, localOps);
+    if (!destino || destino === origen) return;
+
+    const nuevoStage = pipeline.stages.find((s) => s.id === destino);
+    setLocalOps((prev) => {
+      const items = prev.get(destino);
+      if (!items) return prev;
+      const idx = items.findIndex((o) => o.id === oportunidad.id);
+      if (idx === -1) return prev;
+      const next = new Map(prev);
+      const actualizados = [...items];
+      actualizados[idx] = {
+        ...actualizados[idx],
+        stageId: destino,
+        pipelineId: pipeline.id,
+        probabilidad: nuevoStage?.probabilidad ?? actualizados[idx].probabilidad,
+      };
+      next.set(destino, actualizados);
+      return next;
+    });
+    confirmarMovimiento(oportunidad, origen, destino);
+  };
+
+  // Aplica el total/conteo optimista de mover `oportunidad` de `origen` a
+  // `destino` y confirma el cambio de etapa contra el servidor. El
+  // reacomodo visual (a qué columna/posición fue a parar) ya quedó resuelto
+  // antes de llamar a esto — ver handleDragOver y handleDragEnd.
+  const confirmarMovimiento = (oportunidad: OportunidadEnStage, origen: string, destino: string) => {
     setLocalTotales((prev) => {
       const next = new Map(prev);
-      const anteriorKey = oportunidad.stageId ?? "__sin_stage__";
-      next.set(anteriorKey, (next.get(anteriorKey) ?? 0) - oportunidad.valor);
-      next.set(nuevoStageId, (next.get(nuevoStageId) ?? 0) + oportunidad.valor);
+      next.set(origen, (next.get(origen) ?? 0) - oportunidad.valor);
+      next.set(destino, (next.get(destino) ?? 0) + oportunidad.valor);
       return next;
     });
 
     setLocalConteos((prev) => {
       const next = new Map(prev);
-      const anteriorKey = oportunidad.stageId ?? "__sin_stage__";
-      next.set(anteriorKey, Math.max(0, (next.get(anteriorKey) ?? 0) - 1));
-      next.set(nuevoStageId, (next.get(nuevoStageId) ?? 0) + 1);
+      next.set(origen, Math.max(0, (next.get(origen) ?? 0) - 1));
+      next.set(destino, (next.get(destino) ?? 0) + 1);
       return next;
     });
 
     moverMutation.mutate(
-      { oportunidadId: oportunidad.id, nuevoStageId, pipelineId: pipeline.id },
+      { oportunidadId: oportunidad.id, nuevoStageId: destino, pipelineId: pipeline.id },
       {
         onError: (err) => {
           toast.error(err.message ?? "Error al mover la oportunidad");
@@ -605,8 +743,8 @@ export function PipelineKanbanDinamico({
           setLocalConteos(conteoPorStage);
         },
         onSuccess: () => {
-          const stage = pipeline.stages.find((s) => s.id === nuevoStageId);
-          toast.success(`Movido a "${stage?.nombre ?? nuevoStageId}"`);
+          const stage = pipeline.stages.find((s) => s.id === destino);
+          toast.success(`Movido a "${stage?.nombre ?? destino}"`);
         },
       },
     );
@@ -714,7 +852,14 @@ export function PipelineKanbanDinamico({
 
   return (
     <>
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
         <KanbanScrollContainer
           stageColors={stagesColumnas.map((s) => s.color ?? "#818cf8")}
         >
@@ -730,6 +875,7 @@ export function PipelineKanbanDinamico({
                 conteo={Math.max(localConteos.get(stage.id) ?? 0, items.length)}
                 onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
                 puedeMod={puedeMod}
+                resaltada={!!activeCard && items.some((o) => o.id === activeCard.id)}
               />
             );
           })}
