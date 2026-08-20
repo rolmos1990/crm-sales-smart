@@ -82,6 +82,8 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
       transportistaId: entregaGuardada?.transportistaId ?? null,
       fechaEstimada: entregaGuardada?.fechaEstimada ? new Date(entregaGuardada.fechaEstimada) : undefined,
       observaciones: entregaGuardada?.observaciones ?? "",
+      // Vive en Cotizacion.costoEnvio (no en EntregaCotizacion) — ver schema.ts.
+      costoEnvio: Number((cotizacion as any).costoEnvio ?? 0),
     } as CrearCotizacionInput["entrega"],
   };
 

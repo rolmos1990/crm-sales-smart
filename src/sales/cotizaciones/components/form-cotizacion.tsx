@@ -122,7 +122,7 @@ export function FormCotizacion({
       empresaId: "",
       oportunidadId: oportunidadId ?? "",
       destinatario: { nombre: "", apellido: "", telefono: "", email: "" },
-      entrega: { metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE" },
+      entrega: { metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE", costoEnvio: 0 },
       lineas: [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
       ...defaultValues,
     },
@@ -137,12 +137,14 @@ export function FormCotizacion({
   const metodoEntrega = form.watch("entrega.metodoEntrega") ?? "COURIER_EXTERNO";
   const conRastreo = !METODOS_SIN_RASTREO.has(metodoEntrega);
 
+  const costoEnvio = form.watch("entrega.costoEnvio") ?? 0;
+
   const subtotal = lineas.reduce((acc, l) => {
     const base = (l.cantidad ?? 0) * (l.precioUnitario ?? 0);
     return acc + base * (1 - (l.descuento ?? 0) / 100);
   }, 0);
   const impuestoMonto = subtotal * (impuesto / 100);
-  const total = subtotal + impuestoMonto;
+  const total = subtotal + impuestoMonto + costoEnvio;
 
   // Contacto para la tarjeta compacta: el de la oportunidad (contactoFijo) o,
   // si el usuario lo eligió del combobox, el que coincide en contactosDetalle.
@@ -541,6 +543,12 @@ export function FormCotizacion({
                   <span className="text-stone-500 dark:text-stone-400">Impuesto ({impuesto}%)</span>
                   <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
                 </div>
+                {costoEnvio > 0 && (
+                  <div className="flex gap-8 text-sm">
+                    <span className="text-stone-500 dark:text-stone-400">Costo de envío</span>
+                    <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {costoEnvio.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex gap-8 items-baseline mt-1">
                   <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Total</span>
                   <span className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50">{moneda} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
@@ -640,20 +648,34 @@ export function FormCotizacion({
             {/* numeroGuia y urlSeguimiento no se capturan en la cotización —
                 todavía no existen a esa altura; se completan recién en el
                 Pedido al aprobar (ver aprobarCotizacion). */}
-            <FormField control={form.control} name="entrega.fechaEstimada" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha estimada de entrega <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                <FormControl>
-                  <SmartDatePicker
-                    value={field.value ?? undefined}
-                    onChange={field.onChange}
-                    placeholder="Seleccionar fecha"
-                    presets={["today", "plus5", "plus15", "custom"]}
-                    className="md:max-w-xs"
-                  />
-                </FormControl>
-              </FormItem>
-            )} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField control={form.control} name="entrega.fechaEstimada" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha estimada de entrega <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormControl>
+                    <SmartDatePicker
+                      value={field.value ?? undefined}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar fecha"
+                      presets={["today", "plus5", "plus15", "custom"]}
+                    />
+                  </FormControl>
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="entrega.costoEnvio" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Costo de envío <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormControl>
+                    <DecimalInput
+                      value={field.value ?? 0}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <p className="text-[11px] text-stone-400 dark:text-stone-600">Se suma al total, no cuenta como ganancia en reportes</p>
+                </FormItem>
+              )} />
+            </div>
 
             <FormField control={form.control} name="entrega.observaciones" render={({ field }) => (
               <FormItem>

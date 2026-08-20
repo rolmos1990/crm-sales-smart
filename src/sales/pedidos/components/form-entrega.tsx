@@ -10,6 +10,7 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -50,9 +51,11 @@ interface FormEntregaProps {
   pedidoId: string;
   entrega?: EntregaActual | null;
   transportistas: Transportista[];
+  /** Vive en Pedido.costoEnvio, no en EntregaPedido — ver actions.ts. */
+  costoEnvio: number;
 }
 
-export function FormEntrega({ pedidoId, entrega, transportistas }: FormEntregaProps) {
+export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: FormEntregaProps) {
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<ActualizarEntregaPedidoInput>({
@@ -68,6 +71,7 @@ export function FormEntrega({ pedidoId, entrega, transportistas }: FormEntregaPr
         ? new Date(entrega.fechaEstimada as string).toISOString()
         : null,
       observaciones:   entrega?.observaciones ?? "",
+      costoEnvio,
     },
   });
 
@@ -219,6 +223,21 @@ export function FormEntrega({ pedidoId, entrega, transportistas }: FormEntregaPr
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="costoEnvio"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Costo de envío</FormLabel>
+              <FormControl>
+                <DecimalInput value={field.value ?? 0} onChange={field.onChange} />
+              </FormControl>
+              <p className="text-[11px] text-muted-foreground">Se suma al total del pedido, no cuenta como ganancia en reportes</p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

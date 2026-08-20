@@ -141,7 +141,7 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     revalidatePath("/sales/pedidos");
     return {
       exito: true,
-      datos: { ...pedido, subtotal, total, impuesto: impuestoMonto, descuento: Number(pedido.descuento) } as unknown as Pedido,
+      datos: { ...pedido, subtotal, total, impuesto: impuestoMonto, descuento: Number(pedido.descuento), costoEnvio: Number(pedido.costoEnvio) } as unknown as Pedido,
     };
   } catch {
     return { exito: false, error: "Error al crear el pedido" };
@@ -271,7 +271,9 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
 
     const subtotal = lineasNuevas.reduce((acc, l) => acc + l.cantidad * l.precioUnitario * (1 - l.descuento / 100), 0);
     const impuestoMonto = subtotal * (impuesto / 100);
-    const total = subtotal + impuestoMonto;
+    // El costo de envío no se edita desde acá (vive en "Entrega y
+    // seguimiento") — se conserva tal cual para no perderlo al editar líneas.
+    const total = subtotal + impuestoMonto + Number(pedidoActual.costoEnvio);
 
     // Consolidar todos los cambios en una sola entrada de historial
     const valorAnt: Record<string, unknown> = {};
@@ -442,12 +444,15 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
   const auth = await requirePermisoAction("configuracion", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
 
-  const { pedidoId, transportistaId, fechaEstimada, ...campos } = validado.data;
+  const { pedidoId, transportistaId, fechaEstimada, costoEnvio, ...campos } = validado.data;
 
   const [pedido, usuarioNombre, nuevoTransportista] = await Promise.all([
     prisma.pedido.findFirst({
       where: { id: pedidoId, instanciaId: auth.sesion.instanciaId },
       select: {
+        subtotal: true,
+        impuesto: true,
+        costoEnvio: true,
         flujoVentaEtapa: { select: { permiteEditarEntrega: true } },
         entrega: {
           select: {
@@ -473,12 +478,17 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
 
   const esNueva = !pedido.entrega;
   const nuevaFechaEstimada = fechaEstimada ? new Date(fechaEstimada) : null;
+  const nuevoCostoEnvio = costoEnvio ?? 0;
+  const nuevoTotal = Number(pedido.subtotal) + Number(pedido.impuesto) + nuevoCostoEnvio;
 
   // `EntregaPedido.fechaEstimada` (seguimiento de envío) y `Pedido.fechaEntrega`
   // (columna "Entrega estimada" del listado, filtro y KPIs) son campos
   // distintos que deben mantenerse en sync — de lo contrario esta sección
   // "guarda" sin que el listado se entere (ver queries.ts:construirWhere y
-  // lista-pedidos.tsx, que solo leen Pedido.fechaEntrega).
+  // lista-pedidos.tsx, que solo leen Pedido.fechaEntrega). Lo mismo aplica a
+  // `Pedido.costoEnvio`/`total`: el costo de envío vive en Pedido (no en
+  // EntregaPedido) para que el KPI "Total ventas" lo pueda restar con un
+  // simple _sum sin join — ver obtenerPedidosKpis.
   await prisma.$transaction([
     prisma.entregaPedido.upsert({
       where: { pedidoId },
@@ -496,7 +506,7 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
     }),
     prisma.pedido.update({
       where: { id: pedidoId },
-      data: { fechaEntrega: nuevaFechaEstimada },
+      data: { fechaEntrega: nuevaFechaEstimada, costoEnvio: nuevoCostoEnvio, total: nuevoTotal },
     }),
   ]);
 
@@ -506,6 +516,7 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
     transportista:  pedido.entrega!.transportista?.nombre ?? null,
     numeroGuia:     pedido.entrega!.numeroGuia ?? null,
     fechaEstimada:  pedido.entrega!.fechaEstimada?.toISOString() ?? null,
+    costoEnvio:     Number(pedido.costoEnvio),
   };
 
   const valorNuevo = {
@@ -514,6 +525,7 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
     transportista:  nuevoTransportista ?? null,
     numeroGuia:     campos.numeroGuia ?? null,
     fechaEstimada:  fechaEstimada ?? null,
+    costoEnvio:     nuevoCostoEnvio,
   };
 
   await prisma.pedidoHistorial.create({

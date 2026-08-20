@@ -26,6 +26,10 @@ export const EntregaCotizacionSchema = z.object({
   transportistaId: z.string().nullable().optional(),
   fechaEstimada: z.date().optional().nullable(),
   observaciones: z.string().max(500).optional().or(z.literal("")),
+  // Se suma al total de la cotización (lo que paga el cliente) pero vive en
+  // Cotizacion.costoEnvio, no en EntregaCotizacion — así los KPIs de
+  // Pedidos pueden restarlo con un simple _sum, sin join (ver actions.ts).
+  costoEnvio: z.number().min(0).optional(),
 });
 
 export const CrearCotizacionSchema = z.object({

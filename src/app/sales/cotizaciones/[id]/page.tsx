@@ -67,6 +67,7 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
 
   const subtotal = Number(cotizacion.subtotal);
   const impuesto = Number(cotizacion.impuesto);
+  const costoEnvio = Number((cotizacion as any).costoEnvio ?? 0);
   const total = Number(cotizacion.total);
 
   const lineasParaCopiar = lineas.map((l: any) => ({
@@ -230,6 +231,12 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
               <span className="text-muted-foreground">IGV</span>
               <span>{cotizacion.moneda} {impuesto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
             </div>
+            {costoEnvio > 0 && (
+              <div className="flex gap-8 text-sm">
+                <span className="text-muted-foreground">Costo de envío</span>
+                <span>{cotizacion.moneda} {costoEnvio.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
             <Separator className="my-1 w-48" />
             <div className="flex gap-8 text-base font-semibold">
               <span>Total</span>

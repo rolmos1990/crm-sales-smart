@@ -193,17 +193,20 @@ export async function obtenerPedidosKpis(
   }
 
   const [totales, totalesMes, pendientes, expirados, entregados] = await Promise.all([
-    prisma.pedido.aggregate({ where, _count: true, _sum: { total: true } }),
-    prisma.pedido.aggregate({ where: whereMesActual, _sum: { total: true } }),
+    prisma.pedido.aggregate({ where, _count: true, _sum: { total: true, costoEnvio: true } }),
+    prisma.pedido.aggregate({ where: whereMesActual, _sum: { total: true, costoEnvio: true } }),
     prisma.pedido.count({ where: { ...where, ...condicionAbiertos, fechaExpiracion: { gte: ahora } } }),
     prisma.pedido.count({ where: { ...where, ...condicionAbiertos, fechaExpiracion: { lt: ahora } } }),
     prisma.pedido.count({ where: { ...where, ...condicionEntregados } }),
   ]);
 
+  // "Total ventas"/"Total ventas · mes actual" restan el costo de envío del
+  // total — el envío se cobra al cliente (está incluido en `total`) pero no
+  // es ganancia, así que no debe contar como venta en estos KPIs.
   return {
     totalPedidos: totales._count,
-    totalVentas: Number(totales._sum.total ?? 0),
-    totalVentasMesActual: Number(totalesMes._sum.total ?? 0),
+    totalVentas: Number(totales._sum.total ?? 0) - Number(totales._sum.costoEnvio ?? 0),
+    totalVentasMesActual: Number(totalesMes._sum.total ?? 0) - Number(totalesMes._sum.costoEnvio ?? 0),
     pendientes,
     expirados,
     entregados,

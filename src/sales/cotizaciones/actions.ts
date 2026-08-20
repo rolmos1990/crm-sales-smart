@@ -35,7 +35,8 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
       return acc + base * (1 - l.descuento / 100);
     }, 0);
     const impuestoMonto = subtotal * (impuesto / 100);
-    const total = subtotal + impuestoMonto;
+    const costoEnvio = entrega?.costoEnvio ?? 0;
+    const total = subtotal + impuestoMonto + costoEnvio;
 
     // Solo se registra la entrega si el usuario realmente tocó algo de esa
     // sección — evita crear una fila EntregaCotizacion vacía por defecto.
@@ -48,6 +49,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
         numero,
         subtotal,
         impuesto: impuestoMonto,
+        costoEnvio,
         total,
         notas: notas || null,
         contactoId, // requerido por el schema — la cotización siempre nace ligada a un contacto
@@ -80,7 +82,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     await publicadorEventos.publicar(EventosSistema.CotizacionCreada, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: cotizacion.id, numero: cotizacion.numero, total });
     revalidatePath("/sales/cotizaciones");
     if (oportunidadId) revalidatePath(`/crm/oportunidades/${oportunidadId}`);
-    return { exito: true, datos: { ...cotizacion, subtotal, total, impuesto: impuestoMonto } as unknown as Cotizacion };
+    return { exito: true, datos: { ...cotizacion, subtotal, total, impuesto: impuestoMonto, costoEnvio } as unknown as Cotizacion };
   } catch (e: unknown) {
     console.error("[crearCotizacion]", e);
     const detalle = e instanceof Error ? e.message : String(e);
@@ -134,33 +136,45 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
       } : undefined;
     }
 
-    if (lineas) {
-      const subtotal = lineas.reduce((acc, l) => {
-        const base = (l.cantidad ?? 0) * (l.precioUnitario ?? 0);
-        return acc + base * (1 - (l.descuento ?? 0) / 100);
-      }, 0);
+    // El formulario siempre reenvía `lineas` junto con `entrega` al guardar
+    // (es un único form), así que alcanza con recalcular el total acá — pero
+    // igual cae al valor ya guardado si algún caller llega a mandar solo el
+    // costo de envío sin tocar las líneas.
+    const costoEnvioNuevo = entrega?.costoEnvio;
+    if (lineas || costoEnvioNuevo !== undefined) {
+      const subtotal = lineas
+        ? lineas.reduce((acc, l) => {
+            const base = (l.cantidad ?? 0) * (l.precioUnitario ?? 0);
+            return acc + base * (1 - (l.descuento ?? 0) / 100);
+          }, 0)
+        : Number(cotizacionExistente.subtotal);
       const tasaImpuesto = impuesto ?? Number(cotizacionExistente.impuesto);
-      const impuestoMonto = subtotal * (tasaImpuesto / 100);
-      const total = subtotal + impuestoMonto;
-      updateData = { ...updateData, subtotal, impuesto: impuestoMonto, total };
+      const impuestoMonto = lineas ? subtotal * (tasaImpuesto / 100) : Number(cotizacionExistente.impuesto);
+      const costoEnvio = costoEnvioNuevo ?? Number(cotizacionExistente.costoEnvio);
+      const total = subtotal + impuestoMonto + costoEnvio;
+      updateData = { ...updateData, subtotal, impuesto: impuestoMonto, costoEnvio, total };
 
-      await prisma.cotizacionLinea.deleteMany({ where: { cotizacionId: id } });
-      await prisma.cotizacion.update({
-        where: { id },
-        data: {
-          ...updateData,
-          lineas: {
-            create: lineas.map(l => ({
-              productoId: l.productoId || null,
-              descripcion: l.descripcion || null,
-              cantidad: l.cantidad ?? 1,
-              precioUnitario: l.precioUnitario ?? 0,
-              descuento: l.descuento ?? 0,
-              subtotal: (l.cantidad ?? 1) * (l.precioUnitario ?? 0) * (1 - (l.descuento ?? 0) / 100),
-            })),
+      if (lineas) {
+        await prisma.cotizacionLinea.deleteMany({ where: { cotizacionId: id } });
+        await prisma.cotizacion.update({
+          where: { id },
+          data: {
+            ...updateData,
+            lineas: {
+              create: lineas.map(l => ({
+                productoId: l.productoId || null,
+                descripcion: l.descripcion || null,
+                cantidad: l.cantidad ?? 1,
+                precioUnitario: l.precioUnitario ?? 0,
+                descuento: l.descuento ?? 0,
+                subtotal: (l.cantidad ?? 1) * (l.precioUnitario ?? 0) * (1 - (l.descuento ?? 0) / 100),
+              })),
+            },
           },
-        },
-      });
+        });
+      } else {
+        await prisma.cotizacion.update({ where: { id }, data: updateData });
+      }
     } else {
       await prisma.cotizacion.update({ where: { id }, data: updateData });
     }

@@ -119,10 +119,11 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
     ]);
     pedidos = datos.map((p) => ({
       ...p,
-      subtotal:  Number(p.subtotal),
-      descuento: Number(p.descuento),
-      impuesto:  Number(p.impuesto),
-      total:     Number(p.total),
+      subtotal:   Number(p.subtotal),
+      descuento:  Number(p.descuento),
+      impuesto:   Number(p.impuesto),
+      costoEnvio: Number(p.costoEnvio),
+      total:      Number(p.total),
     })) as unknown as Pedido[];
     kpis = kpisDatos;
     contactosDb = contactosRes;

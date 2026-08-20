@@ -82,6 +82,9 @@ export const ActualizarEntregaPedidoSchema = z.object({
   urlSeguimiento:  z.string().url("URL de seguimiento inválida").optional().or(z.literal("")),
   fechaEstimada:   z.string().datetime({ offset: true }).optional().nullable(),
   observaciones:   z.string().max(500).optional().or(z.literal("")),
+  // Vive en Pedido.costoEnvio (no en EntregaPedido) — así el KPI "Total
+  // ventas" puede restarlo con un simple _sum, sin join (ver queries.ts).
+  costoEnvio:      z.number().min(0).optional(),
 });
 
 export type CrearPedidoInput = z.infer<typeof CrearPedidoSchema>;

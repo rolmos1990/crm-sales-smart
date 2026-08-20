@@ -22,6 +22,7 @@ export interface Cotizacion {
   subtotal: number;
   descuento: number;
   impuesto: number;
+  costoEnvio: number;
   total: number;
   moneda: string;
   notas: string | null;

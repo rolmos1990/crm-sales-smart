@@ -807,6 +807,10 @@ model Cotizacion {
   subtotal         Decimal          @default(0)
   descuento        Decimal          @default(0)
   impuesto         Decimal          @default(0)
+  // Costo de envío — se suma al `total` (lo que paga el cliente) pero se
+  // excluye a propósito de los KPIs "Total ventas"/"Total ventas · mes
+  // actual" de Pedidos (no es ganancia, ver obtenerPedidosKpis).
+  costoEnvio       Decimal          @default(0)
   total            Decimal          @default(0)
   moneda           String           @default("PEN")
   notas            String?
@@ -911,6 +915,10 @@ model Pedido {
   subtotal      Decimal   @default(0)
   descuento     Decimal   @default(0)
   impuesto      Decimal   @default(0)
+  // Costo de envío — se suma al `total` (lo que paga el cliente) pero se
+  // excluye a propósito de "Total ventas"/"Total ventas · mes actual" en
+  // los KPIs del listado (no es ganancia, ver obtenerPedidosKpis).
+  costoEnvio    Decimal   @default(0)
   total         Decimal   @default(0)
   moneda        String    @default("PEN")
   notas         String?

@@ -105,6 +105,7 @@ export async function generarPedidoDesdeCotizacion(
         subtotal:           cotizacion.subtotal,
         descuento:          cotizacion.descuento,
         impuesto:           cotizacion.impuesto,
+        costoEnvio:         cotizacion.costoEnvio,
         total:              cotizacion.total,
         notas:              cotizacion.notas,
         contactoId:         cotizacion.contactoId,
