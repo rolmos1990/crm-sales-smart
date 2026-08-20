@@ -417,11 +417,21 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   // hace sus propias llamadas a Server Actions; tras cada una pide refrescar
   // solo esa conversación para traer los datos actualizados (oportunidad
   // recién creada, etapa/etiquetas nuevas, etc.) sin recargar todo el inbox.
-  const handleConversacionActualizada = (conversacionId: string) => {
-    obtenerConversacionAction(conversacionId).then((fresca) => {
-      if (!fresca) return;
-      setConversaciones((prev) => prev.map((c) => (c.id === conversacionId ? fresca : c)));
-    });
+  const handleConversacionActualizada = (conversacionId: string, datosFrescos?: ConversacionResumen) => {
+    // Si el caller ya trae los datos frescos (ej. clasificarConversacion los
+    // devuelve en la misma respuesta), evitamos un round-trip aparte — antes
+    // este segundo viaje era la parte lenta y a veces no llegaba a reflejarse
+    // sin recargar la página a mano.
+    if (datosFrescos) {
+      setConversaciones((prev) => prev.map((c) => (c.id === conversacionId ? datosFrescos : c)));
+      return;
+    }
+    obtenerConversacionAction(conversacionId)
+      .then((fresca) => {
+        if (!fresca) return;
+        setConversaciones((prev) => prev.map((c) => (c.id === conversacionId ? fresca : c)));
+      })
+      .catch(() => toast.error("No se pudo actualizar la conversación — intenta de nuevo."));
   };
 
   // ── Paginación ────────────────────────────────────────────────────────────

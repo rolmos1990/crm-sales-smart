@@ -38,8 +38,11 @@ interface PanelContactoInboxProps {
   onContactoActualizado: (conversacionId: string, nuevoContacto: Contacto) => void;
   /** Se llama tras clasificar o editar la oportunidad activa, para que el
    *  padre refresque esta conversación (trae la oportunidad recién creada,
-   *  la nueva etapa/etiquetas, etc.). */
-  onConversacionActualizada: (conversacionId: string) => void;
+   *  la nueva etapa/etiquetas, etc.). Si ya se tienen los datos frescos a
+   *  mano (ej. clasificarConversacion los devuelve en la misma llamada), se
+   *  pasan como segundo argumento para evitar un round-trip aparte — si no,
+   *  el padre los vuelve a pedir por conversacionId. */
+  onConversacionActualizada: (conversacionId: string, datosFrescos?: ConversacionResumen) => void;
 }
 
 // ── Campo editable inline ────────────────────────────────────────────────────
@@ -130,21 +133,21 @@ const CLASIFICACION_OPCIONES: {
     label: "Postventa",
     icono: <ShoppingBag className="h-3 w-3" />,
     color: "text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20",
-    colorActivo: "text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-400/50 bg-amber-100 dark:bg-amber-500/20 ring-1 ring-amber-300 dark:ring-amber-400/30",
+    colorActivo: "text-amber-800 dark:text-amber-300 border-2 border-amber-500 dark:border-amber-400 bg-amber-100 dark:bg-amber-500/20 ring-2 ring-amber-200 dark:ring-amber-400/20",
   },
   {
     valor: "COMERCIAL",
     label: "Comercial",
     icono: <TrendingUp className="h-3 w-3" />,
     color: "text-lime-700 dark:text-lime-400 border-lime-200 dark:border-lime-500/30 bg-lime-50 dark:bg-lime-500/10 hover:bg-lime-100 dark:hover:bg-lime-500/20",
-    colorActivo: "text-lime-800 dark:text-lime-300 border-lime-300 dark:border-lime-400/50 bg-lime-100 dark:bg-lime-500/20 ring-1 ring-lime-300 dark:ring-lime-400/30",
+    colorActivo: "text-lime-800 dark:text-lime-300 border-2 border-lime-500 dark:border-lime-400 bg-lime-100 dark:bg-lime-500/20 ring-2 ring-lime-200 dark:ring-lime-400/20",
   },
   {
     valor: "SOPORTE",
     label: "Soporte",
     icono: <Headphones className="h-3 w-3" />,
     color: "text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20",
-    colorActivo: "text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-400/50 bg-blue-100 dark:bg-blue-500/20 ring-1 ring-blue-300 dark:ring-blue-400/30",
+    colorActivo: "text-blue-800 dark:text-blue-300 border-2 border-blue-500 dark:border-blue-400 bg-blue-100 dark:bg-blue-500/20 ring-2 ring-blue-200 dark:ring-blue-400/20",
   },
 ];
 
@@ -638,7 +641,7 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
                           // que el contacto ya tenga una activa en otra parte — antes
                           // esto quedaba en silencio y parecía que no había pasado nada.
                           else if (result.aviso) toast.warning(result.aviso);
-                          onConversacionActualizada(conversacion.id);
+                          onConversacionActualizada(conversacion.id, result.conversacion);
                         });
                       }}
                       className={cn(

@@ -724,7 +724,7 @@ export async function clasificarConversacion({
 }: {
   conversacionId: string;
   clasificacion: "NINGUNA" | "POSTVENTA" | "SOPORTE" | "COMERCIAL";
-}): Promise<{ ok: boolean; error?: string; oportunidadId?: string; aviso?: string }> {
+}): Promise<{ ok: boolean; error?: string; oportunidadId?: string; aviso?: string; conversacion?: ConversacionResumen }> {
   try {
     const anterior = await prisma.conversacion.findUnique({
       where: { id: conversacionId },
@@ -769,8 +769,14 @@ export async function clasificarConversacion({
       else aviso = resultado.error;
     }
 
+    // Devolver la conversación ya fresca (misma llamada, sin round-trip
+    // aparte) — evita que el cliente tenga que pedirla de nuevo por
+    // separado para ver la oportunidad recién creada/vinculada, que antes
+    // tardaba en reflejarse (a veces solo se veía recargando la página).
+    const conversacionFresca = await obtenerConversacionPorId(conversacionId);
+
     revalidatePath("/crm/inbox");
-    return { ok: true, oportunidadId, aviso };
+    return { ok: true, oportunidadId, aviso, conversacion: conversacionFresca ?? undefined };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error al clasificar" };
   }
