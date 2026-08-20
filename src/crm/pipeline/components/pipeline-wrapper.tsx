@@ -26,6 +26,11 @@ interface PipelineWrapperProps {
   pipelineActualId: string | null;
   oportunidadesDinamicas: Map<string, OportunidadEnStage[]> | null;
   totalesPorStage?: Map<string, number> | null;
+  /** Conteo real por etapa (no el cargado) — ver pipeline-kanban-dinamico.tsx. */
+  conteoPorStage?: Map<string, number> | null;
+  /** Cuántas se pidieron por etapa en esta carga — punto de partida del
+   *  "cargar más" al hacer scroll. */
+  limitePorStage?: number;
   oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
@@ -40,6 +45,8 @@ export function PipelineWrapper({
   pipelineActualId,
   oportunidadesDinamicas,
   totalesPorStage,
+  conteoPorStage,
+  limitePorStage = 30,
   oportunidadesLegacy,
   empresas,
   contactos,
@@ -277,6 +284,8 @@ export function PipelineWrapper({
               pipeline={pipelineActual}
               oportunidadesPorStage={oportunidadesDinamicas ?? new Map()}
               totalesPorStage={totalesPorStage ?? new Map()}
+              conteoPorStage={conteoPorStage ?? new Map()}
+              limitePorStage={limitePorStage}
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}

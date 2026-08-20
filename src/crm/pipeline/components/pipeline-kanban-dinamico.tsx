@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   DndContext,
   DragEndEvent,
@@ -15,7 +16,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle } from "lucide-react";
+import { CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -204,6 +205,7 @@ function ColumnaStage({
   stage,
   items,
   total,
+  conteo,
   pipelineId,
   onCardClick,
   puedeMod = true,
@@ -211,6 +213,9 @@ function ColumnaStage({
   stage: PipelineStage;
   items: OportunidadEnStage[];
   total: number;
+  /** Conteo real de la etapa (no solo lo cargado en pantalla) — ver
+   *  obtenerConteoPorStage. Cae a items.length si todavía no llegó. */
+  conteo: number;
   pipelineId: string;
   onCardClick: (op: OportunidadEnStage) => void;
   puedeMod?: boolean;
@@ -244,8 +249,11 @@ function ColumnaStage({
               >
                 {stage.nombre}
               </span>
-              <span className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40">
-                {items.length}
+              <span
+                className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40"
+                title={items.length < conteo ? `${items.length} de ${conteo} cargadas` : undefined}
+              >
+                {items.length < conteo ? `${items.length}/${conteo}` : conteo}
               </span>
             </div>
             {puedeMod && (
@@ -392,6 +400,11 @@ interface PipelineKanbanDinamicoProps {
   pipeline: PipelineConStages;
   oportunidadesPorStage: Map<string, OportunidadEnStage[]>;
   totalesPorStage?: Map<string, number>;
+  /** Conteo real por etapa (no solo lo cargado) — ver obtenerConteoPorStage. */
+  conteoPorStage?: Map<string, number>;
+  /** Cuántas se pidieron por etapa en esta carga (?limite= en la URL) —
+   *  punto de partida para "cargar más" al llegar al final del scroll. */
+  limitePorStage?: number;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
@@ -406,22 +419,30 @@ export function PipelineKanbanDinamico({
   pipeline,
   oportunidadesPorStage,
   totalesPorStage = new Map(),
+  conteoPorStage = new Map(),
+  limitePorStage = 30,
   empresas,
   contactos,
   defaultCountryCode = "PA",
   puedeMod = true,
   verOcultos = false,
 }: PipelineKanbanDinamicoProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [localOps, setLocalOps] = useState(oportunidadesPorStage);
   const [localTotales, setLocalTotales] = useState(totalesPorStage);
+  const [localConteos, setLocalConteos] = useState(conteoPorStage);
   const [activeCard, setActiveCard] = useState<OportunidadEnStage | null>(null);
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
+  const [cargandoMas, startCargandoMas] = useTransition();
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const moverMutation = useMoverAStageMutation();
 
   // Resincroniza con los datos frescos del servidor (ej. tras el auto-refresh
-  // periódico, que trae nuevoMensaje/oportunidades actualizadas) — pero nunca
-  // mientras hay un drag en curso, para no pisar el estado optimista a mitad
-  // de un movimiento.
+  // periódico, que trae nuevoMensaje/oportunidades actualizadas, o tras subir
+  // ?limite= al "cargar más" — ver más abajo) — pero nunca mientras hay un
+  // drag en curso, para no pisar el estado optimista a mitad de un movimiento.
   useEffect(() => {
     if (!activeCard) setLocalOps(oportunidadesPorStage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -431,6 +452,11 @@ export function PipelineKanbanDinamico({
     if (!activeCard) setLocalTotales(totalesPorStage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalesPorStage]);
+
+  useEffect(() => {
+    if (!activeCard) setLocalConteos(conteoPorStage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conteoPorStage]);
 
   // Las etapas Ganado/Perdido con visible=false no se muestran como columna,
   // pero la oportunidad se sigue pudiendo mover ahí (drag a otra vía o popover
@@ -444,6 +470,49 @@ export function PipelineKanbanDinamico({
   // arrastrar — si el pipeline tiene más de una marcada, se usa la primera.
   const stageGanado = pipeline.stages.find((s) => s.esGanado);
   const stagePerdido = pipeline.stages.find((s) => s.esPerdido);
+
+  // Paginación por etapa: el servidor solo trae `limitePorStage` tarjetas de
+  // cada columna visible (ver obtenerOportunidadesPorPipeline) — si alguna
+  // etapa tiene más que eso sin cargar, sigue habiendo "más" que traer.
+  const hayMasPorCargar = stagesColumnas.some(
+    (s) => (localConteos.get(s.id) ?? 0) > (localOps.get(s.id)?.length ?? 0)
+  );
+
+  // "Cargar más" = subir ?limite= en la URL y dejar que Next vuelva a pedirle
+  // al Server Component los datos (misma ruta que ya usan los filtros y "Ver
+  // ocultos") — no un fetch aparte: así el resultado se resincroniza solo con
+  // el useEffect de arriba, sin duplicar lógica de merge ni arriesgar quedar
+  // desalineado con el auto-refresh o un cambio de filtro.
+  const cargarMas = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("limite", String(limitePorStage + 10));
+    startCargandoMas(() => {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    });
+  };
+
+  // Dispara cargarMas cuando el centinela (al pie del tablero, debajo de las
+  // columnas) entra en el viewport real del navegador — que es justo lo que
+  // pasa al hacer scroll en el único contenedor vertical del Pipeline (ver
+  // pipeline-wrapper.tsx). rootMargin adelanta la carga antes de llegar
+  // literalmente al fondo, para que no se sienta un salto.
+  useEffect(() => {
+    if (!hayMasPorCargar) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !cargandoMas) cargarMas();
+      },
+      // top/right/bottom/left — crece el margen inferior para disparar la
+      // carga un poco antes de llegar literalmente al final (sin esto se
+      // siente un salto/parón justo al tocar el fondo).
+      { rootMargin: "0px 0px 600px 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayMasPorCargar, cargandoMas, limitePorStage]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -493,6 +562,14 @@ export function PipelineKanbanDinamico({
       return next;
     });
 
+    setLocalConteos((prev) => {
+      const next = new Map(prev);
+      const anteriorKey = oportunidad.stageId ?? "__sin_stage__";
+      next.set(anteriorKey, Math.max(0, (next.get(anteriorKey) ?? 0) - 1));
+      next.set(nuevoStageId, (next.get(nuevoStageId) ?? 0) + 1);
+      return next;
+    });
+
     moverMutation.mutate(
       { oportunidadId: oportunidad.id, nuevoStageId, pipelineId: pipeline.id },
       {
@@ -500,6 +577,7 @@ export function PipelineKanbanDinamico({
           toast.error(err.message ?? "Error al mover la oportunidad");
           setLocalOps(oportunidadesPorStage);
           setLocalTotales(totalesPorStage);
+          setLocalConteos(conteoPorStage);
         },
         onSuccess: () => {
           const stage = pipeline.stages.find((s) => s.id === nuevoStageId);
@@ -560,6 +638,20 @@ export function PipelineKanbanDinamico({
       next.set(targetStage, (next.get(targetStage) ?? 0) + updated.valor);
       return next;
     });
+
+    // Solo cambia el conteo si de verdad cambió de etapa — si es la misma,
+    // el "-1 luego +1" de abajo daría lo mismo, pero mejor no tocarlo.
+    if (stageAnterior !== (updated.stageId ?? "__sin_stage__")) {
+      setLocalConteos((prev) => {
+        const next = new Map(prev);
+        const targetStage = updated.stageId ?? "__sin_stage__";
+        if (stageAnterior) {
+          next.set(stageAnterior, Math.max(0, (next.get(stageAnterior) ?? 0) - 1));
+        }
+        next.set(targetStage, (next.get(targetStage) ?? 0) + 1);
+        return next;
+      });
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -580,6 +672,11 @@ export function PipelineKanbanDinamico({
         next.set(stageEliminado!, (next.get(stageEliminado!) ?? 0) - valorEliminado);
         return next;
       });
+      setLocalConteos((prev) => {
+        const next = new Map(prev);
+        next.set(stageEliminado!, Math.max(0, (next.get(stageEliminado!) ?? 0) - 1));
+        return next;
+      });
     }
     setSelected(null);
   };
@@ -590,18 +687,34 @@ export function PipelineKanbanDinamico({
         <KanbanScrollContainer
           stageColors={stagesColumnas.map((s) => s.color ?? "#818cf8")}
         >
-          {stagesColumnas.map((stage) => (
-            <ColumnaStage
-              key={stage.id}
-              stage={stage}
-              pipelineId={pipeline.id}
-              items={localOps.get(stage.id) ?? []}
-              total={localTotales.get(stage.id) ?? 0}
-              onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
-              puedeMod={puedeMod}
-            />
-          ))}
+          {stagesColumnas.map((stage) => {
+            const items = localOps.get(stage.id) ?? [];
+            return (
+              <ColumnaStage
+                key={stage.id}
+                stage={stage}
+                pipelineId={pipeline.id}
+                items={items}
+                total={localTotales.get(stage.id) ?? 0}
+                conteo={Math.max(localConteos.get(stage.id) ?? 0, items.length)}
+                onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
+                puedeMod={puedeMod}
+              />
+            );
+          })}
         </KanbanScrollContainer>
+
+        {/* Centinela para "cargar más" — invisible, solo mientras falten
+            oportunidades por traer en alguna etapa. Vive fuera de
+            KanbanScrollContainer para no interferir con el scroll horizontal. */}
+        {hayMasPorCargar && <div ref={sentinelRef} aria-hidden className="h-px" />}
+
+        {cargandoMas && (
+          <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-stone-400 dark:text-white/30">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Cargando más oportunidades…
+          </div>
+        )}
 
         {/* Zonas rápidas Ganado/Perdido — siempre presentes al pie del
             tablero (discretas en reposo), para soltar directo sin buscar la
