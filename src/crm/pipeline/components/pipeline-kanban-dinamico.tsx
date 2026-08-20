@@ -15,7 +15,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, Building2, Plus, User, Receipt } from "lucide-react";
+import { CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -304,6 +304,60 @@ function ColumnaStage({
   );
 }
 
+// ── Zonas rápidas Ganado/Perdido ────────────────────────────────────
+// Ids centinela (no ids de etapa reales) — evita choques con el droppable de
+// la columna real cuando esa etapa también está visible en el tablero (ej.
+// con "Ver ocultos" activo). handleDragEnd los resuelve al id real.
+const ZONA_GANADO_ID = "__zona_ganado__";
+const ZONA_PERDIDO_ID = "__zona_perdido__";
+
+function ZonaSoltarResultado({ stage, tipo }: { stage: PipelineStage; tipo: "ganado" | "perdido" }) {
+  const esGanado = tipo === "ganado";
+  const { setNodeRef, isOver } = useDroppable({ id: esGanado ? ZONA_GANADO_ID : ZONA_PERDIDO_ID });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex-1 rounded-2xl border-2 border-dashed backdrop-blur-xl transition-all duration-200",
+        "flex flex-col items-center justify-center gap-1 py-5",
+        esGanado
+          ? "border-emerald-400/40 dark:border-emerald-400/30 bg-emerald-50/70 dark:bg-emerald-500/[0.05] hover:bg-emerald-50 dark:hover:bg-emerald-500/[0.08]"
+          : "border-red-400/40 dark:border-red-400/30 bg-red-50/70 dark:bg-red-500/[0.05] hover:bg-red-50 dark:hover:bg-red-500/[0.08]",
+        isOver && (esGanado
+          ? "border-emerald-400 dark:border-emerald-400/70 bg-emerald-100/80 dark:bg-emerald-500/[0.14] scale-[1.015]"
+          : "border-red-400 dark:border-red-400/70 bg-red-100/80 dark:bg-red-500/[0.14] scale-[1.015]")
+      )}
+    >
+      {esGanado
+        ? <Trophy className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+        : <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />}
+      <p className={cn("text-[13px] font-semibold", esGanado ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300")}>
+        {stage.nombre}
+      </p>
+      <p className="text-[11px] text-stone-500 dark:text-white/40">
+        Suelta aquí las oportunidades {esGanado ? "ganadas" : "perdidas"}
+      </p>
+    </div>
+  );
+}
+
+function ZonasResultadoRapido({
+  stageGanado,
+  stagePerdido,
+}: {
+  stageGanado?: PipelineStage;
+  stagePerdido?: PipelineStage;
+}) {
+  if (!stageGanado && !stagePerdido) return null;
+  return (
+    <div className="absolute bottom-4 inset-x-3 z-30 flex gap-3">
+      {stageGanado && <ZonaSoltarResultado stage={stageGanado} tipo="ganado" />}
+      {stagePerdido && <ZonaSoltarResultado stage={stagePerdido} tipo="perdido" />}
+    </div>
+  );
+}
+
 // ── Kanban principal ──────────────────────────────────────────────
 
 interface PipelineKanbanDinamicoProps {
@@ -358,6 +412,11 @@ export function PipelineKanbanDinamico({
     ? pipeline.stages
     : pipeline.stages.filter((s) => !(s.esGanado || s.esPerdido) || s.visible);
 
+  // Etapas destino de las zonas rápidas "Ganado"/"Perdido" que aparecen al
+  // arrastrar — si el pipeline tiene más de una marcada, se usa la primera.
+  const stageGanado = pipeline.stages.find((s) => s.esGanado);
+  const stagePerdido = pipeline.stages.find((s) => s.esPerdido);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
@@ -371,10 +430,15 @@ export function PipelineKanbanDinamico({
     if (!puedeMod || !over) return;
 
     const oportunidad = active.data.current as OportunidadEnStage;
-    const nuevoStageId = over.id as string;
+    // Las zonas rápidas usan ids centinela (no son etapas reales) — se
+    // resuelven acá a la etapa Ganado/Perdido real del pipeline.
+    let nuevoStageId = over.id as string;
+    if (nuevoStageId === ZONA_GANADO_ID) nuevoStageId = stageGanado?.id ?? nuevoStageId;
+    else if (nuevoStageId === ZONA_PERDIDO_ID) nuevoStageId = stagePerdido?.id ?? nuevoStageId;
     if (oportunidad.stageId === nuevoStageId) return;
 
     const nuevoStage = pipeline.stages.find((s) => s.id === nuevoStageId);
+    if (!nuevoStage) return;
 
     setLocalOps((prev) => {
       const next = new Map(prev);
@@ -493,7 +557,7 @@ export function PipelineKanbanDinamico({
   };
 
   return (
-    <>
+    <div className="relative h-full">
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <KanbanScrollContainer
           stageColors={stagesColumnas.map((s) => s.color ?? "#818cf8")}
@@ -514,6 +578,14 @@ export function PipelineKanbanDinamico({
         <DragOverlay dropAnimation={{ duration: 150 }}>
           {activeCard && <TarjetaOverlay oportunidad={activeCard} />}
         </DragOverlay>
+
+        {/* Zonas rápidas Ganado/Perdido — solo visibles mientras se arrastra
+            una tarjeta, para soltarla directo sin buscar la columna
+            correspondiente (útil si está lejos o escondida por "Ver
+            ocultos"). */}
+        {activeCard && puedeMod && (
+          <ZonasResultadoRapido stageGanado={stageGanado} stagePerdido={stagePerdido} />
+        )}
       </DndContext>
 
       <WorkspaceOportunidad
@@ -527,6 +599,6 @@ export function PipelineKanbanDinamico({
         onUpdate={handleUpdate}
         onDelete={handleDelete}
       />
-    </>
+    </div>
   );
 }
