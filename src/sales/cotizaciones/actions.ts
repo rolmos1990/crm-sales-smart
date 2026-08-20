@@ -386,6 +386,36 @@ export async function obtenerDatosFormularioCotizacion(): Promise<{
 }
 
 /**
+ * `buscarContactos("", instanciaId)` trae solo los primeros registros (ver
+ * su `take: 10`) — si el contacto ligado a la cotización que se está
+ * editando no cayó en ese lote, el combo de contacto lo mostraría vacío
+ * aunque el dato exista. Esto lo agrega al inicio del listado cuando falta,
+ * para que siempre aparezca seleccionado correctamente.
+ */
+export async function asegurarContactoIncluido(
+  contactoId: string,
+  contactosDetalle: Awaited<ReturnType<typeof buscarContactos>>,
+  contactosOpciones: OpcionCombobox[],
+  instanciaId: string,
+): Promise<{ contactosDetalle: Awaited<ReturnType<typeof buscarContactos>>; contactos: OpcionCombobox[] }> {
+  if (!contactoId || contactosDetalle.some((c) => c.id === contactoId)) {
+    return { contactosDetalle, contactos: contactosOpciones };
+  }
+  const extra = await prisma.contacto.findFirst({
+    where: { id: contactoId, instanciaId },
+    select: {
+      id: true, nombre: true, apellido: true, email: true, telefonoPrincipal: true,
+      empresa: { select: { id: true, nombre: true } },
+    },
+  });
+  if (!extra) return { contactosDetalle, contactos: contactosOpciones };
+  return {
+    contactosDetalle: [extra, ...contactosDetalle],
+    contactos: [{ valor: extra.id, etiqueta: `${extra.nombre} ${extra.apellido}`.trim() }, ...contactosOpciones],
+  };
+}
+
+/**
  * Datos para editar una cotización dentro de un Sheet (mismo patrón que
  * "Nueva cotización" desde el Workspace de Oportunidades) — junta los datos
  * generales del formulario con los `defaultValues` de la cotización
@@ -464,6 +494,13 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
     } as CrearCotizacionInput["entrega"],
   };
 
+  const { contactosDetalle, contactos } = await asegurarContactoIncluido(
+    cotizacion.contactoId ?? "",
+    datosFormulario.contactosDetalle,
+    datosFormulario.contactos,
+    auth.sesion.instanciaId,
+  );
+
   return {
     // Solo se puede editar mientras siga en borrador (no enviada) — mismo
     // criterio que la página de edición standalone.
@@ -471,5 +508,7 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
     numero: cotizacion.numero,
     defaultValues,
     ...datosFormulario,
+    contactosDetalle,
+    contactos,
   };
 }

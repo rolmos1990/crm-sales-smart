@@ -23,6 +23,7 @@ import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
 import { PhoneInput } from "@/components/ui/phone-input";
 import type { ProductoCatalogo } from "@/shared/productos/types";
+import { buscarContactosAction } from "@/crm/contactos/actions";
 import { crearCotizacion, actualizarCotizacion } from "../actions";
 import { CrearCotizacionSchema, type CrearCotizacionInput, type DestinatarioCotizacionInput } from "../schema";
 import { METODO_ENTREGA_LABELS, ESTADO_ENTREGA_LABELS, METODOS_SIN_RASTREO } from "@/sales/pedidos/constantes";
@@ -84,6 +85,20 @@ const destinatarioCoincideConContacto = (
   normalizarTexto(destinatario?.email) === normalizarTexto(contacto?.email);
 
 const inicial = (nombre?: string | null) => (nombre?.trim()?.[0] ?? "?").toUpperCase();
+
+// `contactos`/`contactosDetalle` llegan con un límite inicial (ver
+// buscarContactos) — esto busca en el servidor sobre el total cuando el
+// usuario escribe, para poder encontrar contactos que no entraron en ese
+// límite (ej. "Robson Grisales" si no está entre los primeros resultados).
+async function buscarContactosComoOpciones(query: string): Promise<OpcionCombobox[]> {
+  const resultados = await buscarContactosAction(query);
+  return resultados.map((c) => ({
+    valor: c.id,
+    etiqueta: `${c.nombre} ${c.apellido}`.trim(),
+    subtitulo: c.telefonoPrincipal ?? c.email ?? undefined,
+    busqueda: [c.email, c.telefonoPrincipal].filter((v): v is string => !!v),
+  }));
+}
 
 function scrollASeccion(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -352,7 +367,9 @@ export function FormCotizacion({
                       valor={field.value}
                       onChange={field.onChange}
                       placeholder="Seleccionar contacto..."
+                      placeholderBusqueda="Buscar por nombre, teléfono o email..."
                       disabled={contactoFijo}
+                      onBuscar={buscarContactosComoOpciones}
                     />
                   </FormControl>
                   <FormMessage />
