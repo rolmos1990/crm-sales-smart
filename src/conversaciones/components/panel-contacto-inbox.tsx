@@ -660,7 +660,11 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           </>
         )}
 
-        {/* Oportunidad activa: editable cuando la conversación es Comercial, de solo lectura en cualquier otro caso */}
+        {/* Oportunidad activa: editable cuando la conversación es Comercial o
+            todavía no se clasificó (NINGUNA — aún no hay oportunidad
+            finalizada de por medio, así que se puede seguir editando la
+            activa desde acá). De solo lectura solo para Postventa/Soporte,
+            donde el foco de la conversación ya no es esa venta. */}
         {(() => {
           const opActivaRel = conversacion.oportunidades.find((o) => {
             const op = o.oportunidad;
@@ -672,7 +676,7 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           if (!opActivaRel) return null;
           const op = opActivaRel.oportunidad;
 
-          if (conversacion.clasificacion === "COMERCIAL") {
+          if (conversacion.clasificacion === "COMERCIAL" || conversacion.clasificacion === "NINGUNA") {
             return (
               <>
                 <div className="pt-2 pb-1 px-3">
