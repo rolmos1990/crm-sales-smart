@@ -167,7 +167,9 @@
       "Bash(timeout 20 env RUST_LOG=info npx prisma migrate status)",
       "Read(//tmp/**)",
       "Bash(git diff *)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(pkill -f \"next dev -p 3933\")",
+      "Bash(rm -f /tmp/next-dev-enlace.log /tmp/enlace-*.png)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
