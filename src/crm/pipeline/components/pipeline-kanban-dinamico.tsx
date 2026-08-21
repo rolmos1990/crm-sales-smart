@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
+  CollisionDetection,
   DndContext,
   DragEndEvent,
   DragOverEvent,
@@ -10,6 +11,7 @@ import {
   DragStartEvent,
   PointerSensor,
   closestCorners,
+  pointerWithin,
   useSensor,
   useSensors,
   useDroppable,
@@ -245,6 +247,7 @@ function ColumnaStage({
   onCardClick,
   puedeMod = true,
   resaltada = false,
+  scrolled = false,
 }: {
   stage: PipelineStage;
   items: OportunidadEnStage[];
@@ -262,21 +265,33 @@ function ColumnaStage({
    *  contenedor, no sobre otra tarjeta — con `resaltada` la columna se
    *  ilumina también al pasar por encima de sus propias tarjetas. */
   resaltada?: boolean;
+  /** El contenedor de scroll único del Pipeline (data-pipeline-vscroll, ver
+   *  pipeline-wrapper.tsx) ya se movió de su posición inicial — solo se usa
+   *  para sumarle una sombra muy leve al header sticky, así en reposo (tope
+   *  del scroll) no queda flotando sobre nada. */
+  scrolled?: boolean;
 }) {
   const { setNodeRef, isOver: isOverContenedor } = useDroppable({ id: stage.id });
   const isOver = isOverContenedor || resaltada;
   const color = stage.color ?? "#818cf8";
 
   return (
-    // h-full: junto con el `align-items: stretch` por defecto de la fila en
-    // KanbanScrollContainer, hace que TODAS las columnas lleguen hasta la
-    // altura de la más alta (la de más tarjetas) — así una etapa con pocas
-    // oportunidades sigue siendo un blanco de suelta grande, no solo el
-    // recuadro chico alrededor de sus 2-3 tarjetas.
-    <div className="flex-shrink-0 w-[272px] h-full" data-testid="pipeline-column">
+    // Sin h-full acá a propósito: este div ES el flex item directo de la fila
+    // de columnas (data-kanban-scroll, ver KanbanScrollContainer) — su altura
+    // tiene que quedar en el valor por defecto (auto) para que participe del
+    // `align-items: stretch` de esa fila. Un `height: 100%` explícito, aunque
+    // el padre no tenga una altura definida, ya cuenta como "no auto" para el
+    // algoritmo de stretch y lo desactiva — por eso antes cada columna
+    // terminaba con la altura de su propio contenido en vez de la de la más
+    // alta. Una vez estirado por la fila, este div SÍ tiene una altura
+    // definida, así que el h-full de acá abajo (su hijo directo) vuelve a
+    // resolver con normalidad — y con eso, una etapa con pocas oportunidades
+    // sigue siendo un blanco de suelta grande, no solo el recuadro chico
+    // alrededor de sus 2-3 tarjetas.
+    <div className="flex-shrink-0 w-[272px]" data-testid="pipeline-column">
       <div
         className={cn(
-          "flex h-full flex-col rounded-xl border overflow-hidden transition-all duration-150",
+          "flex h-full flex-col rounded-xl border transition-all duration-150",
           "bg-stone-100/50 dark:bg-[oklch(0.095_0.003_264)]",
           "border-stone-200/70 dark:border-white/[0.06]",
           // Hover del drag: además del anillo, un tinte leve de fondo en el
@@ -285,50 +300,70 @@ function ColumnaStage({
         )}
         style={isOver ? { "--tw-ring-color": `${color}30`, backgroundColor: `${color}08` } as React.CSSProperties : undefined}
       >
-        {/* Línea de color del stage */}
-        <div className="h-[2px] flex-shrink-0 opacity-70" style={{ backgroundColor: color }} />
+        {/* Header sticky: línea de color + nombre/contador/botón + total. Se
+            ancla al único contenedor de scroll del Pipeline
+            (data-pipeline-vscroll, ver pipeline-wrapper.tsx) y queda visible
+            arriba mientras se hace scroll vertical, sin scroll propio de la
+            columna. Fondo casi sólido + blur muy sutil para que las tarjetas
+            no se transparenten al pasar por debajo; el `overflow-hidden` que
+            antes vivía en el wrapper de arriba se quitó (rompía el sticky),
+            así que acá se repite `rounded-t-xl` a mano para que la línea de
+            color no sobresalga de las esquinas redondeadas de la columna. */}
+        <div
+          className={cn(
+            "sticky top-0 z-10 rounded-t-xl backdrop-blur-sm transition-shadow duration-150",
+            "bg-stone-100/95 dark:bg-[oklch(0.095_0.003_264)]/95",
+            "border-b border-stone-200/70 dark:border-white/[0.07]",
+            // Sombra muy ligera — solo aparece una vez que el usuario empezó a
+            // scrollear, para no sumar ruido visual con el tablero en reposo.
+            scrolled && "shadow-[0_4px_10px_-6px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_10px_-6px_rgba(0,0,0,0.45)]"
+          )}
+          style={isOver ? { backgroundColor: `${color}14` } as React.CSSProperties : undefined}
+        >
+          <div className="h-[2px] opacity-70" style={{ backgroundColor: color }} />
 
-        <div className="px-3 pt-3 pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
-                style={{
-                  backgroundColor: `${color}15`,
-                  color: color,
-                }}
-              >
-                {stage.nombre}
-              </span>
-              <span
-                className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40"
-                title={items.length < conteo ? `${items.length} de ${conteo} cargadas` : undefined}
-              >
-                {items.length < conteo ? `${items.length}/${conteo}` : conteo}
+          <div className="px-3 pt-3 pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                  style={{
+                    backgroundColor: `${color}15`,
+                    color: color,
+                  }}
+                >
+                  {stage.nombre}
+                </span>
+                <span
+                  className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40"
+                  title={items.length < conteo ? `${items.length} de ${conteo} cargadas` : undefined}
+                >
+                  {items.length < conteo ? `${items.length}/${conteo}` : conteo}
+                </span>
+              </div>
+              {puedeMod && (
+                <Link
+                  href={`/crm/oportunidades/nueva?pipelineId=${pipelineId}&stageId=${stage.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </Link>
+              )}
+            </div>
+
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" data-testid="column-total">
+              <Receipt className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/25" />
+              <span className="text-stone-400 dark:text-white/30 font-medium">Total</span>
+              <span className="font-semibold tabular-nums text-stone-600 dark:text-white/60">
+                {formatearMoneda(total, "PEN")}
               </span>
             </div>
-            {puedeMod && (
-              <Link
-                href={`/crm/oportunidades/nueva?pipelineId=${pipelineId}&stageId=${stage.id}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </Link>
-            )}
-          </div>
-
-          <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" data-testid="column-total">
-            <Receipt className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/25" />
-            <span className="text-stone-400 dark:text-white/30 font-medium">Total</span>
-            <span className="font-semibold tabular-nums text-stone-600 dark:text-white/60">
-              {formatearMoneda(total, "PEN")}
-            </span>
           </div>
         </div>
 
@@ -444,7 +479,29 @@ function ZonasResultadoRapido({
 }) {
   if (!stageGanado && !stagePerdido) return null;
   return (
-    <div className="mt-4 flex gap-3">
+    <div
+      className={cn(
+        // sticky left-0: el scroll horizontal ahora vive en el mismo
+        // contenedor que envuelve a todo el tablero (data-pipeline-vscroll,
+        // ver pipeline-wrapper.tsx) — sin esto, las zonas se irían de vista
+        // al desplazar el tablero hacia columnas más a la derecha. Al no
+        // vivir dentro de la fila ancha de columnas, su ancho ya se
+        // resuelve solo contra el contenedor (viewport visible), así que
+        // alcanza con anclar el borde izquierdo.
+        "sticky left-0 mt-4 flex gap-3",
+        // Mientras se arrastra una oportunidad, ancla TAMBIÉN el borde
+        // inferior a data-pipeline-vscroll — mismo nodo, mismos ids de
+        // droppable, mismo handler (ver handleDragEnd): no es una copia, es
+        // este mismo footer que el navegador despega solo cuando su
+        // posición natural saldría del viewport. Si ya está visible (el
+        // usuario llegó al final del tablero), `sticky` no lo mueve — por
+        // construcción nunca puede haber una copia duplicada en pantalla.
+        // El pb-6 del contenedor de scroll ya deja colchón de sobra para
+        // que esto no quede recortado por el crop del scrollbar horizontal
+        // (ver pipeline-wrapper.tsx). Fuera de un drag, cero cambios.
+        dragging && "bottom-0 z-20"
+      )}
+    >
       {stageGanado && <ZonaSoltarResultado stage={stageGanado} tipo="ganado" dragging={dragging} />}
       {stagePerdido && <ZonaSoltarResultado stage={stagePerdido} tipo="perdido" dragging={dragging} />}
     </div>
@@ -499,10 +556,20 @@ export function PipelineKanbanDinamico({
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
   const [cargandoMas, startCargandoMas] = useTransition();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  // Alimenta la sombra (muy leve) del header sticky de cada columna — solo
+  // debe aparecer una vez que el tablero se movió de su posición inicial,
+  // nunca en reposo. Se lee del contenedor de scroll único del Pipeline
+  // (data-pipeline-vscroll, ver pipeline-wrapper.tsx), no de un ref propio,
+  // porque ese contenedor vive un nivel por encima de este componente.
+  const [scrolled, setScrolled] = useState(false);
   // Foto de `localOps` justo antes de empezar a arrastrar — si el drag se
   // cancela o se suelta fuera de cualquier destino válido, se vuelve a esto
   // en vez de dejar el tablero a mitad de un reordenamiento en vivo.
   const dragSnapshotRef = useRef<Map<string, OportunidadEnStage[]> | null>(null);
+  // Espejo de `activeCard` siempre al día, para leerlo desde el listener
+  // "red de seguridad" de más abajo sin que le importe si su cierre quedó
+  // desactualizado (ver ese useEffect).
+  const activeCardRef = useRef<OportunidadEnStage | null>(null);
   const moverMutation = useMoverAStageMutation();
 
   // Resincroniza con los datos frescos del servidor (ej. tras el auto-refresh
@@ -524,6 +591,19 @@ export function PipelineKanbanDinamico({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conteoPorStage]);
 
+  useEffect(() => {
+    activeCardRef.current = activeCard;
+  }, [activeCard]);
+
+  useEffect(() => {
+    const el = document.querySelector<HTMLElement>("[data-pipeline-vscroll]");
+    if (!el) return;
+    const onScroll = () => setScrolled(el.scrollTop > 4);
+    onScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
   // Las etapas Ganado/Perdido con visible=false no se muestran como columna,
   // pero la oportunidad se sigue pudiendo mover ahí (drag a otra vía o popover
   // "Mover a") — "Ver ocultos" las trae de vuelta al tablero sin tocar la
@@ -536,6 +616,16 @@ export function PipelineKanbanDinamico({
   // arrastrar — si el pipeline tiene más de una marcada, se usa la primera.
   const stageGanado = pipeline.stages.find((s) => s.esGanado);
   const stagePerdido = pipeline.stages.find((s) => s.esPerdido);
+
+  // Ids de TODAS las etapas del pipeline — fuente de verdad para "¿esto es
+  // una columna completa?" en el drag & drop (ver encontrarStageDe y
+  // handleDragOver). No alcanza con `localOps.has(id)`: el mapa que manda el
+  // servidor solo trae una key por etapa que ya tenga alguna oportunidad
+  // cargada, así que una etapa completamente vacía (0 oportunidades) nunca
+  // aparece como key ahí — soltar una tarjeta en su espacio vacío se
+  // reconocía como "no es contenedor válido" y el movimiento se perdía en
+  // silencio.
+  const stageIds = useMemo(() => new Set(pipeline.stages.map((s) => s.id)), [pipeline.stages]);
 
   // Paginación por etapa: el servidor solo trae `limitePorStage` tarjetas de
   // cada columna visible (ver obtenerOportunidadesPorPipeline) — si alguna
@@ -584,11 +674,39 @@ export function PipelineKanbanDinamico({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  // closestCorners (por distancia entre esquinas) puede "perder" el
+  // contenedor grande de una etapa corta cuando el cursor está en el
+  // espacio vacío debajo de sus pocas tarjetas, sobre todo si al lado hay
+  // una etapa larga cuyas tarjetas quedan geométricamente más cerca. acá se
+  // resuelve por contención real del cursor (pointerWithin) — toda la
+  // superficie de la columna (setNodeRef en ColumnaStage, ver más abajo, ya
+  // ocupa el alto completo estirado) cuenta como destino válido, no solo el
+  // bloque de tarjetas cargadas. Si el cursor está encima de una tarjeta
+  // puntual (no solo del contenedor que la envuelve — pointerWithin
+  // devuelve ambas, la tarjeta está anidada dentro del contenedor), se
+  // prioriza la tarjeta para no perder precisión al reordenar/insertar
+  // entre tarjetas. Sin match de pointerWithin (ej. en el gap entre
+  // columnas), se cae al comportamiento de siempre.
+  const detectarColision: CollisionDetection = useCallback(
+    (args) => {
+      const enElPuntero = pointerWithin(args);
+      if (enElPuntero.length === 0) return closestCorners(args);
+      const sobreTarjeta = enElPuntero.find((c) =>
+        [...localOps.values()].some((items) => items.some((o) => o.id === c.id))
+      );
+      return sobreTarjeta ? [sobreTarjeta] : enElPuntero;
+    },
+    [localOps]
+  );
+
   // Encuentra en qué columna vive ahora mismo un id — puede ser el id de una
   // etapa (se soltó sobre el contenedor: columna vacía, o el hueco debajo de
   // la última tarjeta) o el id de otra tarjeta (se soltó sobre/entre otras).
+  // Se compara contra `stageIds` (todas las etapas reales), no contra las
+  // keys de `ops` — una etapa sin ninguna oportunidad cargada no tiene key
+  // en ese mapa, así que `ops.has(id)` la daba por inválida.
   const encontrarStageDe = (id: string, ops: Map<string, OportunidadEnStage[]>): string | null => {
-    if (ops.has(id)) return id;
+    if (stageIds.has(id)) return id;
     for (const [stageId, items] of ops) {
       if (items.some((o) => o.id === id)) return stageId;
     }
@@ -619,7 +737,11 @@ export function PipelineKanbanDinamico({
 
     setLocalOps((prev) => {
       const origenKey = encontrarStageDe(activeId, prev);
-      const destinoEsContenedor = prev.has(overId);
+      // stageIds, no prev.has(overId): una etapa vacía no tiene key en
+      // `prev` (ver comentario en la declaración de stageIds) — sin esto,
+      // soltar una tarjeta en el espacio vacío de una etapa recién vaciada
+      // o que nunca tuvo oportunidades no se reconocía como destino válido.
+      const destinoEsContenedor = stageIds.has(overId);
       const destinoKey = destinoEsContenedor ? overId : encontrarStageDe(overId, prev);
       if (!origenKey || !destinoKey) return prev;
 
@@ -656,6 +778,67 @@ export function PipelineKanbanDinamico({
     setActiveCard(null);
     setActiveOriginStageId(null);
   };
+
+  // Red de seguridad contra un drag que se queda "congelado" (la tarjeta se
+  // queda con el anillo de "arrastrando" para siempre y el DragOverlay
+  // flotando sin poder soltarse — no se puede volver a mover nada hasta
+  // recargar). Dos causas reales, ambas con la misma cura:
+  //
+  // 1) @dnd-kit/core (AbstractPointerSensor.attach, ver
+  //    getEventListenerTarget) ata sus listeners de pointermove/pointerup
+  //    directo al NODO DOM de la tarjeta que arrancó el drag, no a
+  //    document — a propósito, para que sigan funcionando aunque el nodo se
+  //    mueva de posición. Pero acá una tarjeta puede cruzar de una columna
+  //    a otra EN VIVO mientras se arrastra (handleDragOver, más arriba) —
+  //    cada columna tiene su propio SortableContext, así que cruzar de
+  //    columna hace que React desmonte ese nodo en la columna de origen y
+  //    monte uno nuevo en la de destino. El listener original queda
+  //    huérfano: nunca vuelve a recibir el pointerup, con la ventana
+  //    todavía en foco y sin que el usuario haya hecho nada raro.
+  // 2) La ventana pierde el foco a mitad de un arrastre (alt-tab, clic
+  //    fuera, una notificación del sistema) — dnd-kit ya cancela solo en
+  //    `resize`/`visibilitychange`, pero no en `blur` puro.
+  //
+  // La cura correcta es reusar el propio mecanismo de cancelación de
+  // dnd-kit en vez de limpiar solo nuestro estado por un lado: su
+  // PointerSensor escucha `keydown` con `code === "Escape"` sobre
+  // `document` (ese sí, siempre vivo, no atado al nodo de la tarjeta) —
+  // simular esa tecla dispara su handleCancel real, que resetea su
+  // isDragging Y termina llamando a nuestro onDragCancel por su cuenta.
+  // handleDragCancel se llama también acá como respaldo (usa solo
+  // refs/setters estables, así que un cierre "viejo" es seguro), por si el
+  // simulacro de tecla no alcanzara a este sensor por algún motivo. El
+  // pointerup/pointercancel a nivel window sí ocurre con normalidad en
+  // ambos casos (lo dispara el elemento que esté debajo del cursor al
+  // soltar, sin depender del nodo huérfano) — el margen de 150ms antes de
+  // revisar le da tiempo al flujo normal de dnd-kit a resolverse solo
+  // primero, así esto nunca interviene en un drag exitoso.
+  useEffect(() => {
+    let desmontado = false;
+    const forzarCancelacion = () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { code: "Escape", key: "Escape", bubbles: true }));
+      handleDragCancel();
+    };
+    const revisarTrasSoltar = () => {
+      if (!activeCardRef.current) return;
+      setTimeout(() => {
+        if (!desmontado && activeCardRef.current) forzarCancelacion();
+      }, 150);
+    };
+    const alPerderFoco = () => {
+      if (activeCardRef.current) forzarCancelacion();
+    };
+    window.addEventListener("pointerup", revisarTrasSoltar);
+    window.addEventListener("pointercancel", revisarTrasSoltar);
+    window.addEventListener("blur", alPerderFoco);
+    return () => {
+      desmontado = true;
+      window.removeEventListener("pointerup", revisarTrasSoltar);
+      window.removeEventListener("pointercancel", revisarTrasSoltar);
+      window.removeEventListener("blur", alPerderFoco);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDragEnd = ({ over }: DragEndEvent) => {
     const origen = activeOriginStageId;
@@ -854,7 +1037,7 @@ export function PipelineKanbanDinamico({
     <>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={detectarColision}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
@@ -876,6 +1059,7 @@ export function PipelineKanbanDinamico({
                 onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
                 puedeMod={puedeMod}
                 resaltada={!!activeCard && items.some((o) => o.id === activeCard.id)}
+                scrolled={scrolled}
               />
             );
           })}

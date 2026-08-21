@@ -234,6 +234,42 @@
   display: none;
 }
 
+/* Pipeline — scrollbar vertical discreta: invisible en reposo, aparece con
+   hover o actividad real de scroll (.is-scrolling, alternada por
+   pipeline-wrapper.tsx sin useState) y se oculta sola. No usa
+   overflow:hidden ni display:none/width:0 en ningún estado — el scroll
+   (rueda, trackpad, touch, teclado, autoscroll del D&D) sigue funcionando
+   igual, solo cambia el color del thumb. Colores desde los tokens del
+   theme (--muted-foreground), no hardcodeados — mismo valor en light/dark. */
+[data-pipeline-vscroll] {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+[data-pipeline-vscroll]:hover,
+[data-pipeline-vscroll].is-scrolling {
+  scrollbar-color: var(--muted-foreground) transparent;
+}
+
+[data-pipeline-vscroll]::-webkit-scrollbar {
+  width: 8px;
+}
+
+[data-pipeline-vscroll]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-pipeline-vscroll]::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 999px;
+  transition: background-color 200ms ease;
+}
+
+[data-pipeline-vscroll]:hover::-webkit-scrollbar-thumb,
+[data-pipeline-vscroll].is-scrolling::-webkit-scrollbar-thumb {
+  background-color: var(--muted-foreground);
+}
+
 /* Scroll sin barra visible — mantiene overflow-y: auto, solo oculta el track/thumb nativo */
 .sidebar-scroll {
   overflow-y: auto;
