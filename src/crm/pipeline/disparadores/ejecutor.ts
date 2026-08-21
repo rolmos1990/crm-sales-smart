@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 // Relative imports so this module works both in Next.js and in the standalone worker (tsx)
 import { PrismaClient } from "../../../generated/prisma/client";
+import { validarPedidoParaEtapa } from "../../../sales/flujo-venta/reglas/motor";
 import type {
   ConfigCrearTarea,
   ConfigCrearNota,
@@ -243,6 +244,31 @@ async function ejecutarJobPedido(
       const etapaDestinoId = cfg.stageId;
       // Anti-loop: no mover si ya está en la etapa destino
       if (pedido?.flujoVentaEtapaId !== etapaDestinoId) {
+        // Reglas de validación: una automatización nunca debe poder saltarse
+        // un requisito obligatorio que un usuario tampoco podría saltarse
+        // desde la pantalla de detalle — mismo servicio central que usa
+        // validarTransicion (src/sales/flujo-venta/motor.ts). Si no se
+        // cumple, el job queda FALLIDO (con el mensaje de la regla) y el
+        // pedido NO se mueve.
+        if (instanciaId) {
+          const resultado = await validarPedidoParaEtapa(prisma, pedidoId, etapaDestinoId, instanciaId);
+          if (!resultado.esValido) {
+            if (resultado.reglaFallida) {
+              await prisma.eventoLog.create({
+                data: {
+                  tipo: "REGLA_VALIDACION_RECHAZO",
+                  payload: { pedidoId, etapaDestinoId, origen: "AUTOMATICO", disparadorId: job.disparadorId },
+                  entidadTipo: "FlujoVentaRegla",
+                  entidadId: resultado.reglaFallida.reglaId,
+                  instanciaId,
+                },
+              });
+            }
+            const motivo = resultado.reglaFallida?.mensajeFallo?.trim()
+              || `Requisito no cumplido: "${resultado.reglaFallida?.nombre ?? "regla de validación"}"`;
+            throw new Error(motivo);
+          }
+        }
         await prisma.pedido.update({
           where: { id: pedidoId },
           data: { flujoVentaEtapaId: etapaDestinoId },

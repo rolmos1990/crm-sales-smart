@@ -1,227 +1,165 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Plus, Trash2, Pencil, Power, PowerOff, Loader2, X, Check } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  Plus, Pencil, Copy, Trash2, Power, PowerOff, ChevronDown, ChevronRight,
+  ShieldCheck, Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { cn } from "@/lib/utils";
-import { crearRegla, actualizarRegla, eliminarRegla, toggleRegla } from "../actions";
-import type { FlujoVentaEtapa, FlujoVentaRegla, FlujoVentaReglaCondicion } from "../types";
-import { CAMPOS_EVALUABLES, OPERADORES_CONFIG } from "../types";
-import type { OperadorCondicion } from "../types";
+import { duplicarRegla, eliminarRegla, obtenerCatalogoCamposAction, toggleRegla } from "../actions";
+import type { FlujoVentaEtapa, FlujoVentaRegla } from "../types";
+import { SheetReglaValidacion } from "./sheet-regla-validacion";
+import { generarResumenNatural } from "./resumen-regla";
+import type { CampoReglaCliente } from "./constructor-condiciones";
+import { construirArbolDesdeRegla } from "../reglas/evaluador";
+import type { GroupNode } from "../reglas/tipos";
 
-type CondicionDraft = Omit<FlujoVentaReglaCondicion, "id" | "reglaId">;
+// ── Tarjeta de una regla dentro del acordeón de su etapa ────────────────────
 
-function FormCondicion({
-  condicion,
-  onChange,
-  onEliminar,
+function TarjetaRegla({
+  regla, campos, onEditar, onDuplicar, onToggle, onEliminar,
 }: {
-  condicion: CondicionDraft;
-  onChange: (c: CondicionDraft) => void;
+  regla: FlujoVentaRegla;
+  campos: CampoReglaCliente[];
+  onEditar: () => void;
+  onDuplicar: () => void;
+  onToggle: (activo: boolean) => void;
   onEliminar: () => void;
 }) {
-  const operadorConf = OPERADORES_CONFIG[condicion.operador as OperadorCondicion];
-  const esBooleano = operadorConf?.tipo === "booleano";
+  const arbol = construirArbolDesdeRegla(regla) as GroupNode;
+  const resumen = generarResumenNatural(arbol, campos);
 
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/3 px-3 py-2">
-      <Select value={condicion.campo} onValueChange={(v) => v && onChange({ ...condicion, campo: v })}>
-        <SelectTrigger className="h-7 text-xs bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-lg min-w-[160px]">
-          <SelectValue placeholder="Campo..." />
-        </SelectTrigger>
-        <SelectContent>
-          {CAMPOS_EVALUABLES.map((c) => (
-            <SelectItem key={c.valor} value={c.valor} className="text-xs">{c.etiqueta}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select value={condicion.operador} onValueChange={(v) => v && onChange({ ...condicion, operador: v as OperadorCondicion })}>
-        <SelectTrigger className="h-7 text-xs bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-lg min-w-[130px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {Object.entries(OPERADORES_CONFIG).map(([key, conf]) => (
-            <SelectItem key={key} value={key} className="text-xs">{conf.etiqueta}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {!esBooleano && (
-        <Input
-          className="h-7 text-xs bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-lg flex-1 min-w-[100px]"
-          placeholder="Valor..."
-          value={condicion.valor}
-          onChange={(e) => onChange({ ...condicion, valor: e.target.value })}
-        />
+    <div
+      className={cn(
+        "rounded-xl border px-3.5 py-2.5 transition-all",
+        regla.activo
+          ? "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10"
+          : "bg-stone-50/50 dark:bg-white/2 border-stone-200/60 dark:border-white/5 opacity-60"
       )}
-
-      <button
-        onClick={onEliminar}
-        className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-500/8 transition-colors flex-shrink-0"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-stone-800 dark:text-stone-200">{regla.nombre}</span>
+            {regla.estado === "BORRADOR" && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-400/40 text-amber-600 dark:text-amber-400">
+                Borrador
+              </Badge>
+            )}
+            <span className="inline-flex items-center gap-1 text-[10px] text-stone-400 dark:text-stone-500">
+              Prioridad {regla.prioridad}
+            </span>
+          </div>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 line-clamp-2">{resumen}</p>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => onToggle(!regla.activo)}
+            className={cn(
+              "h-6 w-6 flex items-center justify-center rounded-lg transition-colors",
+              regla.activo ? "text-emerald-500 hover:bg-emerald-500/8" : "text-stone-400 hover:bg-stone-100 dark:hover:bg-white/8"
+            )}
+            title={regla.activo ? "Desactivar" : "Activar"}
+          >
+            {regla.activo ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            onClick={onEditar}
+            className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
+            title="Editar"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={onDuplicar}
+            className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
+            title="Duplicar"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={onEliminar}
+            className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-500/8 transition-colors"
+            title="Eliminar"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function DialogRegla({
-  regla, etapas, open, onOpenChange, onGuardado,
+// ── Acordeón por etapa ───────────────────────────────────────────────────────
+
+function AcordeonEtapa({
+  etapa, reglas, campos, onAgregar, onEditar, onDuplicar, onToggle, onEliminar,
 }: {
-  regla: FlujoVentaRegla | null;
-  etapas: FlujoVentaEtapa[];
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onGuardado: (r: FlujoVentaRegla) => void;
+  etapa: FlujoVentaEtapa;
+  reglas: FlujoVentaRegla[];
+  campos: CampoReglaCliente[];
+  onAgregar: () => void;
+  onEditar: (r: FlujoVentaRegla) => void;
+  onDuplicar: (r: FlujoVentaRegla) => void;
+  onToggle: (r: FlujoVentaRegla, activo: boolean) => void;
+  onEliminar: (r: FlujoVentaRegla) => void;
 }) {
-  const [nombre, setNombre] = useState(regla?.nombre ?? "");
-  const [etapaDestinoId, setEtapaDestinoId] = useState(regla?.etapaDestinoId ?? "");
-  const [prioridad, setPrioridad] = useState(regla?.prioridad ?? 0);
-  const [condiciones, setCondiciones] = useState<CondicionDraft[]>(
-    regla?.condiciones?.map(({ campo, operador, valor }) => ({ campo, operador, valor })) ?? [
-      { campo: "metadata.estadoPago", operador: "IGUAL", valor: "" },
-    ]
-  );
-  const [isPending, startTransition] = useTransition();
-
-  const agregarCondicion = () => {
-    setCondiciones((prev) => [...prev, { campo: "metadata.estadoPago", operador: "IGUAL", valor: "" }]);
-  };
-
-  const handleGuardar = () => {
-    if (!nombre.trim() || !etapaDestinoId || condiciones.length === 0) return;
-    startTransition(async () => {
-      const datos = { nombre: nombre.trim(), etapaDestinoId, prioridad, activo: regla?.activo ?? true, condiciones };
-      const resultado = regla
-        ? await actualizarRegla(regla.id, datos)
-        : await crearRegla(datos);
-
-      if (resultado.exito) {
-        toast.success(regla ? "Regla actualizada" : "Regla creada");
-        const etapaDestino = etapas.find((e) => e.id === etapaDestinoId)!;
-        onGuardado({
-          id: regla?.id ?? "temp",
-          nombre: nombre.trim(), descripcion: null,
-          activo: regla?.activo ?? true, prioridad, etapaDestinoId,
-          condiciones: condiciones.map((c, i) => ({ ...c, id: `c-${i}`, reglaId: regla?.id ?? "" })),
-          etapaDestino,
-        } as FlujoVentaRegla);
-        onOpenChange(false);
-      } else {
-        toast.error(resultado.error);
-      }
-    });
-  };
+  const [abierto, setAbierto] = useState(true);
+  const color = etapa.color ?? "#818cf8";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10">
-        <DialogHeader>
-          <DialogTitle className="text-stone-900 dark:text-stone-50">
-            {regla ? "Editar regla" : "Nueva regla"}
-          </DialogTitle>
-        </DialogHeader>
+    <div className="rounded-xl border border-stone-200 dark:border-white/10 overflow-hidden">
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 bg-stone-50/80 dark:bg-white/3 hover:bg-stone-100/80 dark:hover:bg-white/5 transition-colors"
+      >
+        <div className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+        <span className="text-sm font-semibold text-stone-800 dark:text-stone-200 flex-1 text-left">{etapa.nombre}</span>
+        {reglas.length > 0 && (
+          <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-md bg-stone-200 dark:bg-white/10 text-xs font-bold text-stone-600 dark:text-stone-400">
+            {reglas.length}
+          </span>
+        )}
+        {abierto ? <ChevronDown className="h-4 w-4 text-stone-400 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 text-stone-400 flex-shrink-0" />}
+      </button>
 
-        <div className="space-y-4 py-2">
-          <div>
-            <Label className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-1.5 block">Nombre de la regla</Label>
-            <Input
-              autoFocus value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Pago confirmado → Preparando"
-              className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-1.5 block">Requerido para llegar a</Label>
-              <Select value={etapaDestinoId} onValueChange={(v) => v && setEtapaDestinoId(v)}>
-                <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl">
-                  {etapaDestinoId ? (() => {
-                    const e = etapas.find((x) => x.id === etapaDestinoId);
-                    return e ? (
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: e.color ?? "#4ade80" }} />
-                        <span>{e.nombre}</span>
-                      </div>
-                    ) : <SelectValue placeholder="Seleccionar..." />;
-                  })() : <SelectValue placeholder="Seleccionar..." />}
-                </SelectTrigger>
-                <SelectContent>
-                  {etapas.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: e.color ?? "#4ade80" }} />
-                        {e.nombre}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs font-medium text-stone-500 uppercase tracking-wide mb-1.5 block">Prioridad (menor = primero)</Label>
-              <Input
-                type="number" min={0} max={999}
-                value={prioridad}
-                onChange={(e) => setPrioridad(Number(e.target.value))}
-                className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
+      {abierto && (
+        <div className="px-3 pb-3 pt-2 space-y-1.5 bg-white dark:bg-transparent">
+          {reglas.length === 0 ? (
+            <p className="text-xs text-stone-400 dark:text-stone-600 py-2 text-center">Sin reglas para este estado</p>
+          ) : (
+            [...reglas].sort((a, b) => a.prioridad - b.prioridad).map((regla) => (
+              <TarjetaRegla
+                key={regla.id}
+                regla={regla}
+                campos={campos}
+                onEditar={() => onEditar(regla)}
+                onDuplicar={() => onDuplicar(regla)}
+                onToggle={(activo) => onToggle(regla, activo)}
+                onEliminar={() => onEliminar(regla)}
               />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-                Condiciones (todas deben cumplirse)
-              </Label>
-              <button
-                onClick={agregarCondicion}
-                className="flex items-center gap-1 text-xs text-lime-600 dark:text-lime-400 hover:underline"
-              >
-                <Plus className="h-3 w-3" /> Agregar
-              </button>
-            </div>
-            <div className="space-y-2">
-              {condiciones.map((c, i) => (
-                <FormCondicion
-                  key={i}
-                  condicion={c}
-                  onChange={(updated) => setCondiciones((prev) => prev.map((x, j) => j === i ? updated : x))}
-                  onEliminar={() => setCondiciones((prev) => prev.filter((_, j) => j !== i))}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl">Cancelar</Button>
-          <Button
-            onClick={handleGuardar}
-            disabled={!nombre.trim() || !etapaDestinoId || condiciones.length === 0 || isPending}
-            className="rounded-xl bg-lime-500 hover:bg-lime-400 text-stone-950"
+            ))
+          )}
+          <button
+            onClick={onAgregar}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-dashed border-stone-300 dark:border-white/12 text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:border-stone-400 dark:hover:border-white/20 hover:bg-stone-50 dark:hover:bg-white/3 transition-all text-xs"
           >
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {regla ? "Guardar" : "Crear regla"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <Plus className="h-3.5 w-3.5" />
+            Agregar regla
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
+
+// ── Panel principal ─────────────────────────────────────────────────────────
 
 interface PanelConfigReglasProps {
   etapas: FlujoVentaEtapa[];
@@ -229,135 +167,180 @@ interface PanelConfigReglasProps {
 }
 
 export function PanelConfigReglas({ etapas, reglasIniciales }: PanelConfigReglasProps) {
+  const router = useRouter();
   const [reglas, setReglas] = useState<FlujoVentaRegla[]>(reglasIniciales);
+  const [campos, setCampos] = useState<CampoReglaCliente[]>([]);
+  const [cargandoCatalogo, setCargandoCatalogo] = useState(true);
+
+  const [etapaSheet, setEtapaSheet] = useState<FlujoVentaEtapa | null>(null);
   const [reglaEditando, setReglaEditando] = useState<FlujoVentaRegla | null>(null);
-  const [dialogAbierto, setDialogAbierto] = useState(false);
+  const [sheetAbierto, setSheetAbierto] = useState(false);
+  // Confirmación de borrado en dos niveles: "publicada" siempre se pregunta
+  // antes de borrar una regla Publicada (esté o no usada); si el servidor
+  // avisa que además quedó auditada (se usó para evaluar algún pedido), se
+  // escala a "usada" — una segunda confirmación más fuerte, porque ahí sí se
+  // pierde historial.
+  const [confirmarEliminar, setConfirmarEliminar] = useState<{ regla: FlujoVentaRegla; nivel: "publicada" | "usada" } | null>(null);
 
-  const etapasPorId = Object.fromEntries(etapas.map((e) => [e.id, e]));
+  useEffect(() => {
+    obtenerCatalogoCamposAction()
+      .then((c) => setCampos(c as CampoReglaCliente[]))
+      .finally(() => setCargandoCatalogo(false));
+  }, []);
 
-  const handleToggle = (reglaId: string, activo: boolean) => {
-    setReglas((prev) => prev.map((r) => r.id === reglaId ? { ...r, activo } : r));
-    toggleRegla(reglaId, activo).then((r) => {
+  // Sincroniza cuando router.refresh() trae reglas frescas del servidor (tras
+  // crear/editar) — sin esto, el estado local seguiría mostrando los datos
+  // con los que se montó el componente la primera vez.
+  useEffect(() => {
+    setReglas(reglasIniciales);
+  }, [reglasIniciales]);
+
+  const abrirNueva = (etapa: FlujoVentaEtapa) => {
+    setEtapaSheet(etapa);
+    setReglaEditando(null);
+    setSheetAbierto(true);
+  };
+
+  const abrirEditar = (etapa: FlujoVentaEtapa, regla: FlujoVentaRegla) => {
+    setEtapaSheet(etapa);
+    setReglaEditando(regla);
+    setSheetAbierto(true);
+  };
+
+  const refrescar = () => {
+    // Los Server Actions ya llaman a revalidatePath — router.refresh() vuelve
+    // a pedirle al Server Component los datos (sin perder scroll/estado de
+    // navegación) y el efecto de arriba sincroniza `reglas` con la lista
+    // fresca en cuanto llega, trayendo la regla recién creada/editada.
+    router.refresh();
+  };
+
+  const handleToggle = (regla: FlujoVentaRegla, activo: boolean) => {
+    setReglas((prev) => prev.map((r) => r.id === regla.id ? { ...r, activo } : r));
+    toggleRegla(regla.id, activo).then((r) => {
       if (!r.exito) {
         toast.error(r.error);
-        setReglas((prev) => prev.map((r2) => r2.id === reglaId ? { ...r2, activo: !activo } : r2));
+        setReglas((prev) => prev.map((r2) => r2.id === regla.id ? { ...r2, activo: !activo } : r2));
       }
     });
   };
 
-  const handleEliminar = (id: string) => {
-    if (!confirm("¿Eliminar esta regla?")) return;
-    setReglas((prev) => prev.filter((r) => r.id !== id));
-    eliminarRegla(id).then((r) => {
-      if (r.exito) toast.success("Regla eliminada");
-      else { toast.error(r.error); }
+  const handleDuplicar = (regla: FlujoVentaRegla) => {
+    duplicarRegla(regla.id).then((r) => {
+      if (r.exito) { toast.success("Regla duplicada como borrador"); refrescar(); }
+      else toast.error(r.error);
     });
   };
 
-  const handleGuardado = (reglaGuardada: FlujoVentaRegla) => {
-    setReglas((prev) => {
-      const idx = prev.findIndex((r) => r.id === reglaGuardada.id);
-      if (idx >= 0) return prev.map((r) => r.id === reglaGuardada.id ? reglaGuardada : r);
-      return [...prev, reglaGuardada];
-    });
+  const ejecutarEliminar = async (regla: FlujoVentaRegla, forzar: boolean) => {
+    const r = await eliminarRegla(regla.id, forzar);
+    if (r.exito) {
+      toast.success("Regla eliminada");
+      setReglas((prev) => prev.filter((x) => x.id !== regla.id));
+      setConfirmarEliminar(null);
+      return;
+    }
+    if (r.error === "USADA") {
+      // El servidor rechazó el borrado directo porque la regla quedó
+      // auditada — se escala a la confirmación fuerte en vez de la genérica.
+      setConfirmarEliminar({ regla, nivel: "usada" });
+      return;
+    }
+    toast.error(r.error);
+    setConfirmarEliminar(null);
   };
+
+  const handleEliminarClick = (regla: FlujoVentaRegla) => {
+    if (regla.estado === "PUBLICADA") {
+      // Toda regla Publicada pide confirmación antes de borrarla, la haya
+      // usado un pedido o no — perder un requisito que está en producción
+      // sin avisar sería sorprendente.
+      setConfirmarEliminar({ regla, nivel: "publicada" });
+      return;
+    }
+    ejecutarEliminar(regla, false);
+  };
+
+  if (cargandoCatalogo) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 max-w-3xl">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-stone-500 dark:text-stone-400">
-          Si una etapa tiene reglas, <strong>todas deben cumplirse</strong> para permitir mover el pedido a ella.
+      <div className="flex items-start gap-3 rounded-xl border border-lime-500/20 dark:border-lime-400/15 bg-lime-500/5 dark:bg-lime-400/5 px-4 py-3">
+        <ShieldCheck className="h-4 w-4 text-lime-600 dark:text-lime-400 flex-shrink-0 mt-0.5" />
+        <p className="text-sm text-stone-600 dark:text-stone-300">
+          Una regla pertenece a un estado destino y define qué debe cumplir un pedido para obtenerlo —
+          se evalúa <strong>sin importar el estado anterior</strong>, ya sea desde la pantalla del
+          pedido, el pipeline, acciones rápidas o automatizaciones.
         </p>
-        <Button
-          size="sm"
-          onClick={() => { setReglaEditando(null); setDialogAbierto(true); }}
-          className="rounded-xl bg-lime-500 hover:bg-lime-400 text-stone-950 flex-shrink-0"
-        >
-          <Plus className="h-4 w-4 mr-1" /> Nueva regla
-        </Button>
       </div>
 
-      {reglas.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-stone-300 dark:border-white/12 p-8 text-center">
-          <p className="text-sm text-stone-400 dark:text-stone-500">Sin reglas configuradas.</p>
-          <p className="text-xs text-stone-400/60 dark:text-stone-600 mt-1">
-            Agrega reglas para requerir condiciones antes de llegar a una etapa.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {[...reglas].sort((a, b) => a.prioridad - b.prioridad).map((regla) => {
-            const etapaDest = etapasPorId[regla.etapaDestinoId];
-            return (
-              <div
-                key={regla.id}
-                className={cn(
-                  "rounded-xl border px-4 py-3 transition-all",
-                  regla.activo
-                    ? "bg-white dark:bg-white/5 border-stone-200 dark:border-white/10"
-                    : "bg-stone-50/50 dark:bg-white/2 border-stone-200/60 dark:border-white/5 opacity-60"
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-stone-800 dark:text-stone-200">{regla.nombre}</span>
-                      {etapaDest && (
-                        <span className="inline-flex items-center gap-1 text-xs text-stone-500 dark:text-stone-400">
-                          requerido para →{" "}
-                          <span className="font-medium" style={{ color: etapaDest.color ?? undefined }}>{etapaDest.nombre}</span>
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {regla.condiciones.map((c, i) => (
-                        <span key={i} className="inline-flex items-center gap-1 rounded-md bg-stone-100 dark:bg-white/8 px-2 py-0.5 text-xs text-stone-600 dark:text-stone-300 font-mono">
-                          {c.campo} {OPERADORES_CONFIG[c.operador]?.etiqueta ?? c.operador} {c.valor && `"${c.valor}"`}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button
-                      onClick={() => handleToggle(regla.id, !regla.activo)}
-                      className={cn(
-                        "h-6 w-6 flex items-center justify-center rounded-lg transition-colors",
-                        regla.activo
-                          ? "text-emerald-500 hover:bg-emerald-500/8"
-                          : "text-stone-400 hover:bg-stone-100 dark:hover:bg-white/8"
-                      )}
-                      title={regla.activo ? "Desactivar" : "Activar"}
-                    >
-                      {regla.activo ? <Power className="h-3.5 w-3.5" /> : <PowerOff className="h-3.5 w-3.5" />}
-                    </button>
-                    <button
-                      onClick={() => { setReglaEditando(regla); setDialogAbierto(true); }}
-                      className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleEliminar(regla.id)}
-                      className="h-6 w-6 flex items-center justify-center rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-500/8 transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <div className="space-y-2">
+        {etapas.map((etapa) => (
+          <AcordeonEtapa
+            key={etapa.id}
+            etapa={etapa}
+            reglas={reglas.filter((r) => r.etapaDestinoId === etapa.id)}
+            campos={campos}
+            onAgregar={() => abrirNueva(etapa)}
+            onEditar={(r) => abrirEditar(etapa, r)}
+            onDuplicar={handleDuplicar}
+            onToggle={handleToggle}
+            onEliminar={handleEliminarClick}
+          />
+        ))}
+      </div>
+
+      {etapaSheet && (
+        <SheetReglaValidacion
+          key={reglaEditando?.id ?? "nueva"}
+          etapa={etapaSheet}
+          regla={reglaEditando}
+          campos={campos}
+          open={sheetAbierto}
+          onOpenChange={(v) => { setSheetAbierto(v); if (!v) { setEtapaSheet(null); setReglaEditando(null); } }}
+          onGuardado={refrescar}
+        />
       )}
 
-      <DialogRegla
-        key={reglaEditando?.id ?? "nueva"}
-        regla={reglaEditando}
-        etapas={etapas}
-        open={dialogAbierto}
-        onOpenChange={(v) => { setDialogAbierto(v); if (!v) setReglaEditando(null); }}
-        onGuardado={handleGuardado}
-      />
+      {confirmarEliminar?.nivel === "publicada" && (
+        <ConfirmacionDialog
+          open onOpenChange={(v) => { if (!v) setConfirmarEliminar(null); }}
+          titulo="¿Eliminar esta regla publicada?"
+          descripcion={
+            <>
+              La regla &quot;{confirmarEliminar.regla.nombre}&quot; está publicada y activa — mientras exista
+              puede estar bloqueando (o permitiendo) el paso de pedidos a &quot;{etapas.find((e) => e.id === confirmarEliminar.regla.etapaDestinoId)?.nombre}&quot;.
+              Esta acción no se puede deshacer.
+            </>
+          }
+          variante="destructive"
+          textoConfirmar="Eliminar regla"
+          onConfirmar={() => ejecutarEliminar(confirmarEliminar.regla, false)}
+        />
+      )}
+
+      {confirmarEliminar?.nivel === "usada" && (
+        <ConfirmacionDialog
+          open onOpenChange={(v) => { if (!v) setConfirmarEliminar(null); }}
+          titulo="Esta regla ya quedó registrada en la auditoría"
+          descripcion={
+            <>
+              La regla &quot;{confirmarEliminar.regla.nombre}&quot; se usó para evaluar o rechazar algún
+              pedido — eliminarla borra ese historial. Si preferís conservarlo, desactivala en su lugar
+              con el botón de encendido/apagado en vez de borrarla.
+            </>
+          }
+          variante="destructive"
+          textoConfirmar="Eliminar de todas formas"
+          onConfirmar={() => ejecutarEliminar(confirmarEliminar.regla, true)}
+        />
+      )}
     </div>
   );
 }

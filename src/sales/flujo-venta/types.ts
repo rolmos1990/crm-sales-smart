@@ -32,8 +32,18 @@ export interface FlujoVentaRegla {
   nombre: string;
   descripcion: string | null;
   activo: boolean;
+  estado: "BORRADOR" | "PUBLICADA";
   prioridad: number;
   etapaDestinoId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  arbolCondiciones: any;
+  mensajeFallo: string | null;
+  mostrarPendientes: boolean;
+  version: number;
+  creadoPorId: string | null;
+  actualizadoPorId: string | null;
+  /** Legado — tabla plana (AND). Se sigue trayendo para reglas creadas antes
+   *  del árbol tipado, ver construirArbolDesdeRegla en ./reglas/evaluador.ts. */
   condiciones: FlujoVentaReglaCondicion[];
 }
 
@@ -66,7 +76,11 @@ export const CAMPOS_EVALUABLES = [
   { valor: "metadata.canalOrigen", etiqueta: "Canal de origen" },
 ] as const;
 
-export const OPERADORES_CONFIG: Record<OperadorCondicion, { etiqueta: string; tipo: "texto" | "numero" | "booleano" }> = {
+// Partial: el enum OperadorCondicion se extendió para el catálogo tipado de
+// Reglas de validación (ver ./reglas/) — este mapa solo cubre los 7
+// operadores del constructor viejo, que panel-config-reglas.tsx está
+// reemplazando.
+export const OPERADORES_CONFIG: Partial<Record<OperadorCondicion, { etiqueta: string; tipo: "texto" | "numero" | "booleano" }>> = {
   IGUAL:        { etiqueta: "es igual a",       tipo: "texto" },
   DIFERENTE:    { etiqueta: "es diferente de",  tipo: "texto" },
   MAYOR_QUE:    { etiqueta: "es mayor que",     tipo: "numero" },

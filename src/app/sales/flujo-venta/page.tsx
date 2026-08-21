@@ -35,7 +35,7 @@ export default async function FlujoVentaPage() {
         <div>
           <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-50">Flujo de Venta</h1>
           <p className="text-sm text-stone-500 dark:text-stone-400">
-            Configura las etapas y reglas de transición para tus pedidos.
+            Configura las etapas, reglas de validación y disparadores para tus pedidos.
           </p>
         </div>
       </div>
@@ -52,7 +52,7 @@ export default async function FlujoVentaPage() {
             value="reglas"
             className="rounded-none px-4 py-2 text-sm font-medium border-b-2 border-transparent data-active:border-lime-500 dark:data-active:border-lime-400 data-active:text-stone-900 dark:data-active:text-stone-50"
           >
-            Reglas de transición
+            Reglas de validación
           </TabsTrigger>
           <TabsTrigger
             value="disparadores"

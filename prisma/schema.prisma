@@ -179,6 +179,44 @@ enum OperadorCondicion {
   CONTIENE
   ES_VERDADERO
   ES_FALSO
+  // ── Agregados para el constructor de condiciones de Reglas de validación ──
+  // Texto
+  NO_CONTIENE
+  ESTA_VACIO
+  NO_ESTA_VACIO
+  EMPIEZA_CON
+  TERMINA_CON
+  // Número / moneda
+  MAYOR_IGUAL
+  MENOR_IGUAL
+  ENTRE
+  // Lista / estado
+  ESTA_EN
+  NO_ESTA_EN
+  // Fecha
+  ANTES_DE
+  DESPUES_DE
+  ENTRE_FECHAS
+  ESTA_VENCIDA
+  ES_HOY
+  PROXIMOS_N_DIAS
+  // Colección
+  CONTIENE_ALGUNO
+  CONTIENE_TODOS
+  NO_CONTIENE_COLECCION
+  COLECCION_VACIA
+  COLECCION_NO_VACIA
+  CANTIDAD_IGUAL
+  CANTIDAD_MAYOR
+  CANTIDAD_MENOR
+  // Archivo
+  ADJUNTO
+  NO_ADJUNTO
+}
+
+enum EstadoFlujoVentaRegla {
+  BORRADOR
+  PUBLICADA
 }
 
 enum TipoMovimientoEtapa {
@@ -290,9 +328,9 @@ model Instancia {
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
 
-  flujosVenta          FlujoVenta[]
-  importaciones        HistorialImportacion[]
-  transportistas       Transportista[]
+  flujosVenta    FlujoVenta[]
+  importaciones  HistorialImportacion[]
+  transportistas Transportista[]
 
   // IA
   configuracionIA ConfiguracionIA?
@@ -317,7 +355,7 @@ model Usuario {
   activo       Boolean  @default(true)
   creadoEn     DateTime @default(now())
 
-  tipo     TipoUsuario   @default(USUARIO)
+  tipo     TipoUsuario @default(USUARIO)
   telefono String?
   cargo    String?
 
@@ -862,7 +900,7 @@ model EntregaCotizacion {
   creadoEn      DateTime      @default(now())
   actualizadoEn DateTime      @updatedAt
 
-  cotizacionId String    @unique
+  cotizacionId String     @unique
   cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
 
   transportistaId String?
@@ -907,24 +945,24 @@ model Pedido {
   ruc           String?
   empresaNombre String?
 
-  fechaPedido   DateTime  @default(now())
-  fechaEntrega  DateTime?
+  fechaPedido     DateTime  @default(now())
+  fechaEntrega    DateTime?
   // Fecha límite para tener en cuenta el pedido (deadline configurable por el
   // usuario) — usada para las métricas "Pendientes"/"Expirados" del listado.
   fechaExpiracion DateTime?
-  subtotal      Decimal   @default(0)
-  descuento     Decimal   @default(0)
-  impuesto      Decimal   @default(0)
+  subtotal        Decimal   @default(0)
+  descuento       Decimal   @default(0)
+  impuesto        Decimal   @default(0)
   // Costo de envío — se suma al `total` (lo que paga el cliente) pero se
   // excluye a propósito de "Total ventas"/"Total ventas · mes actual" en
   // los KPIs del listado (no es ganancia, ver obtenerPedidosKpis).
-  costoEnvio    Decimal   @default(0)
-  total         Decimal   @default(0)
-  moneda        String    @default("PEN")
-  notas         String?
-  metadata      Json?
-  creadoEn      DateTime  @default(now())
-  actualizadoEn DateTime  @updatedAt
+  costoEnvio      Decimal   @default(0)
+  total           Decimal   @default(0)
+  moneda          String    @default("PEN")
+  notas           String?
+  metadata        Json?
+  creadoEn        DateTime  @default(now())
+  actualizadoEn   DateTime  @updatedAt
 
   contactoId String?
   contacto   Contacto? @relation(fields: [contactoId], references: [id])
@@ -993,12 +1031,12 @@ model PedidoLinea {
 // =====================
 
 model Transportista {
-  id     String            @id @default(cuid())
-  nombre String
-  tipo   TipoTransportista @default(COURIER_EXTERNO)
-  activo Boolean           @default(true)
-  creadoEn      DateTime   @default(now())
-  actualizadoEn DateTime   @updatedAt
+  id            String            @id @default(cuid())
+  nombre        String
+  tipo          TipoTransportista @default(COURIER_EXTERNO)
+  activo        Boolean           @default(true)
+  creadoEn      DateTime          @default(now())
+  actualizadoEn DateTime          @updatedAt
 
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -1020,8 +1058,8 @@ model EntregaPedido {
   creadoEn       DateTime      @default(now())
   actualizadoEn  DateTime      @updatedAt
 
-  pedidoId String  @unique
-  pedido   Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pedidoId String @unique
+  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   transportistaId String?
   transportista   Transportista? @relation(fields: [transportistaId], references: [id])
@@ -1056,17 +1094,17 @@ model EventoLog {
 // =====================
 
 model HistorialImportacion {
-  id                 String            @id @default(cuid())
-  entidad            String
-  archivoNombre      String
-  archivoTipo        String
-  archivoPeso        Int
-  totalRegistros     Int
-  registrosExitosos  Int
-  registrosConError  Int
-  errores            Json
-  estado             EstadoImportacion @default(EN_PROCESO)
-  fechaCreacion      DateTime          @default(now())
+  id                String            @id @default(cuid())
+  entidad           String
+  archivoNombre     String
+  archivoTipo       String
+  archivoPeso       Int
+  totalRegistros    Int
+  registrosExitosos Int
+  registrosConError Int
+  errores           Json
+  estado            EstadoImportacion @default(EN_PROCESO)
+  fechaCreacion     DateTime          @default(now())
 
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -1171,20 +1209,20 @@ model FlujoVenta {
 }
 
 model FlujoVentaEtapa {
-  id            String   @id @default(cuid())
-  nombre        String
-  descripcion   String?
-  color         String?
-  orden         Int      @default(0)
-  esInicial           Boolean  @default(false)
-  esFinal             Boolean  @default(false)
-  esCancelacion       Boolean  @default(false)
+  id                   String   @id @default(cuid())
+  nombre               String
+  descripcion          String?
+  color                String?
+  orden                Int      @default(0)
+  esInicial            Boolean  @default(false)
+  esFinal              Boolean  @default(false)
+  esCancelacion        Boolean  @default(false)
   esSecuencial         Boolean  @default(true)
   permiteEditarPedido  Boolean  @default(true)
   permiteEditarEntrega Boolean  @default(false)
   activo               Boolean  @default(true)
-  creadoEn      DateTime @default(now())
-  actualizadoEn DateTime @updatedAt
+  creadoEn             DateTime @default(now())
+  actualizadoEn        DateTime @updatedAt
 
   flujoVentaId String
   flujoVenta   FlujoVenta @relation(fields: [flujoVentaId], references: [id], onDelete: Cascade)
@@ -1212,9 +1250,28 @@ model FlujoVentaRegla {
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
+  // Gobierno de la regla — ver Reglas de validación (src/sales/flujo-venta/reglas/)
+  estado EstadoFlujoVentaRegla @default(PUBLICADA)
+
+  // Árbol tipado AND/OR (GroupNode/ConditionNode, ver reglas/tipos.ts). Si es
+  // null, el evaluador cae al comportamiento legado: AND plano sobre
+  // `condiciones` — así las reglas creadas antes de este árbol se siguen
+  // evaluando exactamente igual que hoy, sin necesidad de migrar datos.
+  arbolCondiciones Json?
+
+  mensajeFallo      String?
+  mostrarPendientes Boolean @default(true)
+  version           Int     @default(1)
+
+  // Auditoría — string plano (sin FK), mismo patrón que
+  // PedidoHistorialEtapa.usuarioId.
+  creadoPorId      String?
+  actualizadoPorId String?
+
   etapaDestinoId String
   etapaDestino   FlujoVentaEtapa @relation(fields: [etapaDestinoId], references: [id], onDelete: Cascade)
 
+  // Tabla legada — sigue sirviendo a las reglas sin `arbolCondiciones`.
   condiciones FlujoVentaReglaCondicion[]
 
   @@index([etapaDestinoId])
@@ -1263,8 +1320,8 @@ model PedidoHistorial {
   usuarioNombre String?
   creadoEn      DateTime @default(now())
 
-  pedidoId  String
-  pedido    Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pedidoId String
+  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   usuarioId String?
 
@@ -1472,10 +1529,6 @@ model CuentaCanal {
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
-
-  @@index([instanciaId])
-  @@index([canal])
-  @@index([stageId])
   // Nota: además de este índice existe un índice único parcial
   // (instanciaId, identificador) WHERE canal = 'instagram', creado a mano en
   // la migración 20260817120000_add_instagram_auth_provider porque Prisma no
@@ -1485,6 +1538,10 @@ model CuentaCanal {
   // `prisma migrate dev` después de tocar este modelo, revisar el diff
   // propuesto antes de aceptar — Prisma puede proponer eliminar ese índice
   // por no estar declarado aquí.
+
+  @@index([instanciaId])
+  @@index([canal])
+  @@index([stageId])
 }
 
 // Agrupador de mensajes por contacto + canal/cuenta
@@ -1645,16 +1702,16 @@ enum TipoAgenteIA {
 
 // Configuración global de IA por instancia (1-1)
 model ConfiguracionIA {
-  id                   String          @id @default(cuid())
-  habilitado           Boolean         @default(false)
-  proveedorDefault     ProveedorIAEnum @default(ANTHROPIC)
-  modeloDefault        String          @default("claude-sonnet-4-6")
-  temperaturaDefault   Float           @default(0.7)
-  limiteTokensDiarios  Int?
-  limiteTokensMensual  Int?
-  fallbackHabilitado   Boolean         @default(true)
-  creadoEn             DateTime        @default(now())
-  actualizadoEn        DateTime        @updatedAt
+  id                  String          @id @default(cuid())
+  habilitado          Boolean         @default(false)
+  proveedorDefault    ProveedorIAEnum @default(ANTHROPIC)
+  modeloDefault       String          @default("claude-sonnet-4-6")
+  temperaturaDefault  Float           @default(0.7)
+  limiteTokensDiarios Int?
+  limiteTokensMensual Int?
+  fallbackHabilitado  Boolean         @default(true)
+  creadoEn            DateTime        @default(now())
+  actualizadoEn       DateTime        @updatedAt
 
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -1692,22 +1749,22 @@ model ProveedorIA {
 
 // Extensión de Usuario (tipo=AGENTE) con capacidades de IA
 model AgenteIAConfig {
-  id                  String           @id @default(cuid())
+  id                  String       @id @default(cuid())
   sistemaPrompt       String?
   personalidad        String?
   objetivo            String?
   especialidad        String?
-  tipo                TipoAgenteIA     @default(COMERCIAL)
+  tipo                TipoAgenteIA @default(COMERCIAL)
   temperaturaOverride Float?
   modeloPreferido     String?
   herramientas        Json?
   canalesPermitidos   Json?
-  memoriaHabilitada   Boolean          @default(true)
-  limiteTokensCtx     Int              @default(4000)
+  memoriaHabilitada   Boolean      @default(true)
+  limiteTokensCtx     Int          @default(4000)
   instrucciones       Json?
   configuracionTono   Json?
-  creadoEn            DateTime         @default(now())
-  actualizadoEn       DateTime         @updatedAt
+  creadoEn            DateTime     @default(now())
+  actualizadoEn       DateTime     @updatedAt
 
   usuarioId String  @unique
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
