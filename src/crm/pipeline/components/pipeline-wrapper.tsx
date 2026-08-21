@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX, EyeOff } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
@@ -62,6 +62,31 @@ export function PipelineWrapper({
   const puedeMod = puedeModificar("oportunidades");
   const [modoConfig, setModoConfig] = useState(false);
   const [pipelines, setPipelines] = useState<PipelineConStages[]>(pipelinesIniciales);
+  const vscrollRef = useRef<HTMLDivElement>(null);
+
+  // Scrollbar vertical discreta: invisible en reposo, aparece mientras hay
+  // actividad real de scroll (rueda, trackpad, touch, teclado, autoscroll
+  // del D&D — cualquier cosa que dispare el evento nativo `scroll`) y se
+  // oculta sola tras un breve instante de inactividad — ver reglas de
+  // [data-pipeline-vscroll] en globals.css. Alterna una clase directo sobre
+  // el DOM (sin useState) para no disparar un render del Pipeline completo
+  // en cada evento de scroll; el overflow/scroll en sí no se toca, sigue
+  // siendo el mismo `overflow-auto` de siempre.
+  useEffect(() => {
+    const el = vscrollRef.current;
+    if (!el) return;
+    let ocultarTimeout: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      el.classList.add("is-scrolling");
+      clearTimeout(ocultarTimeout);
+      ocultarTimeout = setTimeout(() => el.classList.remove("is-scrolling"), 700);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      clearTimeout(ocultarTimeout);
+    };
+  }, []);
 
   const pipelineActual = pipelines.find((p) => p.id === pipelineActualId) ?? null;
   const esDinamico = !!pipelineActual;
@@ -225,7 +250,7 @@ export function PipelineWrapper({
           antes. El pb-6 extra es colchón para que ese recorte nunca se
           coma contenido real (ver Ganado/Perdido al final del tablero). */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-[calc(100%_+_20px)] overflow-auto pb-6" data-pipeline-vscroll="">
+        <div ref={vscrollRef} className="h-[calc(100%_+_20px)] overflow-auto pb-6" data-pipeline-vscroll="">
         {/* Modo configuración */}
         {modoConfig && pipelineActual && puedeMod && (
           <div className="h-full overflow-y-auto">
