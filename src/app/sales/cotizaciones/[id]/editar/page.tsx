@@ -69,6 +69,11 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
     notas: cotizacion.notas ?? "",
     contactoId: cotizacion.contactoId ?? "",
     empresaId: cotizacion.empresaId ?? "",
+    // Sin esto, el form cae al valor por defecto ("" — sin oportunidad) y
+    // cualquier guardado borra el enlace de una cotización que sí nació
+    // desde el Workspace de una oportunidad (ver FormCotizacion, que no
+    // expone esto como campo editable — solo lo preserva).
+    oportunidadId: cotizacion.oportunidadId ?? "",
     fechaVencimiento: cotizacion.fechaVencimiento ? new Date(cotizacion.fechaVencimiento) : undefined,
     lineas: lineasParaForm.length > 0 ? lineasParaForm : [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
     destinatario: {
