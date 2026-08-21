@@ -2,11 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { CrearProductoSchema, ActualizarProductoSchema } from "./schema";
 import type { ResultadoAccion, Producto } from "./types";
+
+// Búsqueda server-side para combos/filtros (ej. filtro de producto en
+// Oportunidades) — mismo patrón que buscarContactosAction
+// (src/crm/contactos/actions.ts): capada (ver buscarProductos, take: 20),
+// no trae el catálogo completo.
+export async function buscarProductosAction(query: string) {
+  if (!query.trim()) return [];
+  const sesion = await requireSesion();
+  const { buscarProductos } = await import("./queries");
+  return buscarProductos(query, sesion.instanciaId);
+}
 
 export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Producto>> {
   const auth = await requirePermisoAction("productos", "modificar");

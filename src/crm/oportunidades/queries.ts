@@ -1,18 +1,72 @@
 import { prisma } from "@/shared/db/prisma";
 import type { Etapa } from "@/generated/prisma/enums";
+import { rangoDiaEnZona } from "@/sales/pedidos/utils/fechas-zona";
+import {
+  construirWhere, construirWhereBase, condicionActiva,
+  type OportunidadesFiltros,
+} from "./filtros-oportunidades";
 
-export async function obtenerOportunidades(instanciaId: string) {
+export type { OportunidadesFiltros } from "./filtros-oportunidades";
+
+export async function obtenerOportunidades(instanciaId: string, filtros?: OportunidadesFiltros, zonaHoraria = "America/Lima") {
+  const where = construirWhere(instanciaId, zonaHoraria, filtros);
   return prisma.oportunidad.findMany({
-    where: { instanciaId },
+    where,
     include: {
       empresa: { select: { id: true, nombre: true } },
       contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } },
-      // Etapa real cuando la oportunidad vive en un pipeline dinámico — el
-      // enum legacy `etapa` no se mantiene sincronizado con el stage actual.
       stage: { select: { id: true, nombre: true, color: true } },
     },
     orderBy: { creadoEn: "desc" },
   });
+}
+
+export interface OportunidadesKpis {
+  activas: number;
+  valorPipeline: number;
+  porVencer: number;
+  vencidas: number;
+}
+
+/**
+ * KPIs de la cabecera — resueltos 100% en BD (aggregate/count), nunca
+ * sumando en el cliente. Los 3 primeros ("activas", "valorPipeline",
+ * "porVencer") y "vencidas" comparten `whereBase` (todos los filtros salvo
+ * vencimiento — ver construirWhereBase) y cada uno agrega su propia
+ * condición de fecha, para que "por vencer"/"vencidas" no dependan de qué
+ * filtro rápido de vencimiento esté aplicado en la tabla (mismo criterio que
+ * "Total ventas · mes actual" en obtenerPedidosKpis).
+ */
+export async function obtenerOportunidadesKpis(
+  instanciaId: string,
+  filtros: OportunidadesFiltros | undefined,
+  zonaHoraria: string
+): Promise<OportunidadesKpis> {
+  const whereBase = construirWhereBase(instanciaId, zonaHoraria, filtros);
+  const activa = condicionActiva();
+  const hoy = rangoDiaEnZona(zonaHoraria, 0);
+  const en7dias = rangoDiaEnZona(zonaHoraria, 7);
+
+  const [totalesActivas, porVencer, vencidas] = await Promise.all([
+    prisma.oportunidad.aggregate({
+      where: { ...whereBase, ...activa },
+      _count: true,
+      _sum: { valor: true },
+    }),
+    prisma.oportunidad.count({
+      where: { ...whereBase, ...activa, fechaCierre: { gte: hoy.desde, lt: en7dias.desde } },
+    }),
+    prisma.oportunidad.count({
+      where: { ...whereBase, ...activa, fechaCierre: { lt: hoy.desde } },
+    }),
+  ]);
+
+  return {
+    activas: totalesActivas._count,
+    valorPipeline: Number(totalesActivas._sum.valor ?? 0),
+    porVencer,
+    vencidas,
+  };
 }
 
 // Últimas oportunidades del contacto distintas de la actual — para el

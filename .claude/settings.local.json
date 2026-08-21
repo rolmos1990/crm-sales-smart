@@ -195,7 +195,9 @@
       "Bash(xargs -I{} sh -c 'echo -n \"{}: \"; grep -cE \"stone-|neutral-|zinc-|slate-|emerald-|lime-|amber-|bg-white\\\\b|text-white\\\\b|bg-black\\\\b|text-black\\\\b|oklch\\\\\\(\" {}')",
       "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id 18940 -ErrorAction SilentlyContinue | Stop-Process -Force\")",
       "Bash(awk '/^:root {/,/^}/' src/app/globals.css)",
-      "Bash(awk '/^\\\\.dark {/,/^}/' src/app/globals.css)"
+      "Bash(awk '/^\\\\.dark {/,/^}/' src/app/globals.css)",
+      "Bash(grep -qE \"Export encountered an error|Generating static pages \\\\\\([0-9]+/[0-9]+\\\\\\)$|✓ Generating static pages|Failed to compile\" /tmp/build_oportunidades.txt)",
+      "Bash(tail -n 15 /tmp/build_oportunidades.txt)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

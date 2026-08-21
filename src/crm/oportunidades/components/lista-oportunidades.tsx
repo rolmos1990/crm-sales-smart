@@ -72,6 +72,18 @@ const columnasFijas: ColumnDef<Oportunidad>[] = [
     ),
   },
   {
+    id: "contacto",
+    header: "Contacto",
+    cell: ({ row }) => {
+      const contacto = row.original.contactos?.[0]?.contacto;
+      return contacto ? (
+        <Link href={`/crm/contactos/${contacto.id}`} className="text-sm text-muted-foreground hover:underline">
+          {contacto.nombre} {contacto.apellido}
+        </Link>
+      ) : <span className="text-muted-foreground text-sm">—</span>;
+    },
+  },
+  {
     accessorKey: "empresa",
     header: "Empresa",
     cell: ({ row }) => row.original.empresa ? (
@@ -101,7 +113,7 @@ const columnasFijas: ColumnDef<Oportunidad>[] = [
   },
   {
     accessorKey: "fechaCierre",
-    header: "Cierre",
+    header: "Vencimiento",
     cell: ({ getValue }) => {
       const fecha = getValue<Date | null>();
       return fecha ? (
@@ -124,5 +136,5 @@ export function ListaOportunidades({ oportunidades }: { oportunidades: Oportunid
       : []),
   ];
 
-  return <DataTable columnas={columnas} datos={oportunidades} filtroPor="titulo" placeholderFiltro="Buscar oportunidad..." />;
+  return <DataTable columnas={columnas} datos={oportunidades} />;
 }

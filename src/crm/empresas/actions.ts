@@ -9,6 +9,15 @@ import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearEmpresaSchema, ActualizarEmpresaSchema } from "./schema";
 import type { ResultadoAccion, Empresa } from "./types";
 
+// Búsqueda server-side para combos/filtros (ej. filtro de empresa en
+// Oportunidades) — mismo patrón que buscarContactosAction/buscarProductosAction.
+export async function buscarEmpresasAction(query: string) {
+  if (!query.trim()) return [];
+  const sesion = await requireSesion();
+  const { buscarEmpresas } = await import("./queries");
+  return buscarEmpresas(query, sesion.instanciaId);
+}
+
 export async function crearEmpresa(datos: unknown): Promise<ResultadoAccion<Empresa>> {
   const validado = CrearEmpresaSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
