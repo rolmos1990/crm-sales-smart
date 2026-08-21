@@ -210,15 +210,22 @@ export function PipelineWrapper({
       </div>
 
       {/* ── Cuerpo ─────────────────────────────────────────────── */}
-      {/* Único scroll vertical del Pipeline — las columnas ya no tienen su
-          propio overflow-y (ver ColumnaStage en pipeline-kanban-dinamico.tsx),
-          así que crecen con su contenido y es este contenedor el que
-          desplaza todo el tablero como una sola superficie. El scroll
-          horizontal sigue viviendo adentro, en KanbanScrollContainer.
-          data-pipeline-vscroll: lo usa kanban-scroll-container.tsx para
-          encontrar este contenedor y hacer scroll vertical también al
-          paso arrastrando con el mouse (pan). */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden" data-pipeline-vscroll="">
+      {/* Único contenedor de scroll del Pipeline — vertical Y horizontal a
+          la vez (necesario para que los headers sticky de cada etapa se
+          anclen a ESTE contenedor y no a KanbanScrollContainer: `sticky`
+          solo funciona relativo al ancestro scrolleable más cercano, y con
+          overflow-x/overflow-y repartidos en dos contenedores distintos el
+          header terminaba "pegado" a una fila que nunca se mueve — ver
+          ColumnaStage). El wrapper de afuera (overflow-hidden, altura fija)
+          recorta los 20px de más que este div mide de alto a propósito: eso
+          empuja la scrollbar horizontal nativa (que el navegador dibuja
+          pegada al borde inferior del elemento) fuera del área visible, sin
+          tocar `scrollbar-width` — así la vertical sigue viéndose normal y
+          la horizontal sigue oculta con el indicador de puntitos, igual que
+          antes. El pb-6 extra es colchón para que ese recorte nunca se
+          coma contenido real (ver Ganado/Perdido al final del tablero). */}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-[calc(100%_+_20px)] overflow-auto pb-6" data-pipeline-vscroll="">
         {/* Modo configuración */}
         {modoConfig && pipelineActual && puedeMod && (
           <div className="h-full overflow-y-auto">
@@ -317,6 +324,7 @@ export function PipelineWrapper({
             </div>
           )
         )}
+        </div>
       </div>
     </div>
   );

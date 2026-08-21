@@ -245,6 +245,7 @@ function ColumnaStage({
   onCardClick,
   puedeMod = true,
   resaltada = false,
+  scrolled = false,
 }: {
   stage: PipelineStage;
   items: OportunidadEnStage[];
@@ -262,6 +263,11 @@ function ColumnaStage({
    *  contenedor, no sobre otra tarjeta — con `resaltada` la columna se
    *  ilumina también al pasar por encima de sus propias tarjetas. */
   resaltada?: boolean;
+  /** El contenedor de scroll único del Pipeline (data-pipeline-vscroll, ver
+   *  pipeline-wrapper.tsx) ya se movió de su posición inicial — solo se usa
+   *  para sumarle una sombra muy leve al header sticky, así en reposo (tope
+   *  del scroll) no queda flotando sobre nada. */
+  scrolled?: boolean;
 }) {
   const { setNodeRef, isOver: isOverContenedor } = useDroppable({ id: stage.id });
   const isOver = isOverContenedor || resaltada;
@@ -276,7 +282,7 @@ function ColumnaStage({
     <div className="flex-shrink-0 w-[272px] h-full" data-testid="pipeline-column">
       <div
         className={cn(
-          "flex h-full flex-col rounded-xl border overflow-hidden transition-all duration-150",
+          "flex h-full flex-col rounded-xl border transition-all duration-150",
           "bg-stone-100/50 dark:bg-[oklch(0.095_0.003_264)]",
           "border-stone-200/70 dark:border-white/[0.06]",
           // Hover del drag: además del anillo, un tinte leve de fondo en el
@@ -285,50 +291,70 @@ function ColumnaStage({
         )}
         style={isOver ? { "--tw-ring-color": `${color}30`, backgroundColor: `${color}08` } as React.CSSProperties : undefined}
       >
-        {/* Línea de color del stage */}
-        <div className="h-[2px] flex-shrink-0 opacity-70" style={{ backgroundColor: color }} />
+        {/* Header sticky: línea de color + nombre/contador/botón + total. Se
+            ancla al único contenedor de scroll del Pipeline
+            (data-pipeline-vscroll, ver pipeline-wrapper.tsx) y queda visible
+            arriba mientras se hace scroll vertical, sin scroll propio de la
+            columna. Fondo casi sólido + blur muy sutil para que las tarjetas
+            no se transparenten al pasar por debajo; el `overflow-hidden` que
+            antes vivía en el wrapper de arriba se quitó (rompía el sticky),
+            así que acá se repite `rounded-t-xl` a mano para que la línea de
+            color no sobresalga de las esquinas redondeadas de la columna. */}
+        <div
+          className={cn(
+            "sticky top-0 z-10 rounded-t-xl backdrop-blur-sm transition-shadow duration-150",
+            "bg-stone-100/95 dark:bg-[oklch(0.095_0.003_264)]/95",
+            "border-b border-stone-200/70 dark:border-white/[0.07]",
+            // Sombra muy ligera — solo aparece una vez que el usuario empezó a
+            // scrollear, para no sumar ruido visual con el tablero en reposo.
+            scrolled && "shadow-[0_4px_10px_-6px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_10px_-6px_rgba(0,0,0,0.45)]"
+          )}
+          style={isOver ? { backgroundColor: `${color}14` } as React.CSSProperties : undefined}
+        >
+          <div className="h-[2px] opacity-70" style={{ backgroundColor: color }} />
 
-        <div className="px-3 pt-3 pb-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
-                style={{
-                  backgroundColor: `${color}15`,
-                  color: color,
-                }}
-              >
-                {stage.nombre}
-              </span>
-              <span
-                className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40"
-                title={items.length < conteo ? `${items.length} de ${conteo} cargadas` : undefined}
-              >
-                {items.length < conteo ? `${items.length}/${conteo}` : conteo}
+          <div className="px-3 pt-3 pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
+                  style={{
+                    backgroundColor: `${color}15`,
+                    color: color,
+                  }}
+                >
+                  {stage.nombre}
+                </span>
+                <span
+                  className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40"
+                  title={items.length < conteo ? `${items.length} de ${conteo} cargadas` : undefined}
+                >
+                  {items.length < conteo ? `${items.length}/${conteo}` : conteo}
+                </span>
+              </div>
+              {puedeMod && (
+                <Link
+                  href={`/crm/oportunidades/nueva?pipelineId=${pipelineId}&stageId=${stage.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </Link>
+              )}
+            </div>
+
+            <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" data-testid="column-total">
+              <Receipt className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/25" />
+              <span className="text-stone-400 dark:text-white/30 font-medium">Total</span>
+              <span className="font-semibold tabular-nums text-stone-600 dark:text-white/60">
+                {formatearMoneda(total, "PEN")}
               </span>
             </div>
-            {puedeMod && (
-              <Link
-                href={`/crm/oportunidades/nueva?pipelineId=${pipelineId}&stageId=${stage.id}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </Link>
-            )}
-          </div>
-
-          <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" data-testid="column-total">
-            <Receipt className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/25" />
-            <span className="text-stone-400 dark:text-white/30 font-medium">Total</span>
-            <span className="font-semibold tabular-nums text-stone-600 dark:text-white/60">
-              {formatearMoneda(total, "PEN")}
-            </span>
           </div>
         </div>
 
@@ -444,7 +470,14 @@ function ZonasResultadoRapido({
 }) {
   if (!stageGanado && !stagePerdido) return null;
   return (
-    <div className="mt-4 flex gap-3">
+    // sticky left-0: el scroll horizontal ahora vive en el mismo contenedor
+    // que envuelve a todo el tablero (data-pipeline-vscroll, ver
+    // pipeline-wrapper.tsx) — sin esto, las zonas se irían de vista al
+    // desplazar el tablero hacia columnas más a la derecha. Al no vivir
+    // dentro de la fila ancha de columnas, su ancho ya se resuelve solo
+    // contra el contenedor (viewport visible), así que alcanza con anclar
+    // el borde izquierdo.
+    <div className="sticky left-0 mt-4 flex gap-3">
       {stageGanado && <ZonaSoltarResultado stage={stageGanado} tipo="ganado" dragging={dragging} />}
       {stagePerdido && <ZonaSoltarResultado stage={stagePerdido} tipo="perdido" dragging={dragging} />}
     </div>
@@ -499,6 +532,12 @@ export function PipelineKanbanDinamico({
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
   const [cargandoMas, startCargandoMas] = useTransition();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  // Alimenta la sombra (muy leve) del header sticky de cada columna — solo
+  // debe aparecer una vez que el tablero se movió de su posición inicial,
+  // nunca en reposo. Se lee del contenedor de scroll único del Pipeline
+  // (data-pipeline-vscroll, ver pipeline-wrapper.tsx), no de un ref propio,
+  // porque ese contenedor vive un nivel por encima de este componente.
+  const [scrolled, setScrolled] = useState(false);
   // Foto de `localOps` justo antes de empezar a arrastrar — si el drag se
   // cancela o se suelta fuera de cualquier destino válido, se vuelve a esto
   // en vez de dejar el tablero a mitad de un reordenamiento en vivo.
@@ -523,6 +562,15 @@ export function PipelineKanbanDinamico({
     if (!activeCard) setLocalConteos(conteoPorStage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conteoPorStage]);
+
+  useEffect(() => {
+    const el = document.querySelector<HTMLElement>("[data-pipeline-vscroll]");
+    if (!el) return;
+    const onScroll = () => setScrolled(el.scrollTop > 4);
+    onScroll();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Las etapas Ganado/Perdido con visible=false no se muestran como columna,
   // pero la oportunidad se sigue pudiendo mover ahí (drag a otra vía o popover
@@ -876,6 +924,7 @@ export function PipelineKanbanDinamico({
                 onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
                 puedeMod={puedeMod}
                 resaltada={!!activeCard && items.some((o) => o.id === activeCard.id)}
+                scrolled={scrolled}
               />
             );
           })}
