@@ -176,7 +176,22 @@
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.local.json','utf8'\\)\\); console.log\\('JSON válido'\\)\")",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(grep -rlE \"bg-white\\\\b|bg-black\\\\b|text-white\\\\b|text-black\\\\b|#[0-9a-fA-F]{3,6}\\\\b|rgba?\\\\\\(\" src --include=\"*.tsx\")",
+      "Bash(grep -n \"stone-\\\\|neutral-\\\\|zinc-\\\\|slate-\\\\|emerald-\\\\|lime-\\\\|bg-white\\\\|text-white\\\\|bg-black\\\\|text-black\\\\|#[0-9a-fA-F]\\\\{3,8\\\\}\" src/crm/pipeline/components/pipeline-kanban-dinamico.tsx)",
+      "Bash(grep -nE \"stone-|neutral-|zinc-|slate-|emerald-|lime-|bg-white\\\\b|text-white\\\\b|bg-black\\\\b|text-black\\\\b|oklch\\\\\\(|#[0-9a-fA-F]{3,8}\\\\b\" src/crm/pipeline/components/pipeline-wrapper.tsx src/crm/pipeline/components/kanban-scroll-container.tsx src/crm/pipeline/components/selector-pipeline-stage.tsx src/crm/pipeline/components/pipeline-kanban.tsx)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(cat /tmp/tsc_theme.txt)",
+      "Bash(git status *)",
+      "Bash(grep -nE \"stone-|neutral-|zinc-|slate-|emerald-|lime-|amber-|red-|blue-|bg-white\\\\b|text-white\\\\b|bg-black\\\\b|text-black\\\\b|oklch\\\\\\(|#[0-9a-fA-F]{3,8}\\\\b\" src/conversaciones/components/panel-contacto-inbox.tsx)",
+      "Bash(git fetch *)",
+      "Bash(sleep 8; tail -n 40 /tmp/next-dev-pedidos.log 2>&1)",
+      "Bash(git check-ignore *)",
+      "Bash(rm -f _tmp_test_pedidos.ts)",
+      "Bash(npx kill-port *)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s -o /tmp/pedidos_resp.html -D /tmp/pedidos_headers.txt \"http://localhost:3000/sales/pedidos\" -L)",
+      "Bash(node _tmp_check_nextenv.js)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

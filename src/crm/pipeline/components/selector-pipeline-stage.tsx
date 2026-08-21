@@ -46,22 +46,22 @@ export function SelectorPipelineStage({
         disabled={disabled || cargando}
         className={cn(
           "flex items-center gap-1.5 h-7 px-2.5 rounded-lg border text-xs font-medium transition-all",
-          "border-stone-200 dark:border-white/10",
-          "bg-white dark:bg-white/5 text-stone-600 dark:text-stone-300",
-          "hover:bg-stone-50 dark:hover:bg-white/8 hover:border-stone-300 dark:hover:border-white/20",
+          "border-border",
+          "bg-input-bg text-foreground",
+          "hover:bg-muted hover:border-border-strong",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
       >
         {cargando ? (
-          <Loader2 className="h-3 w-3 animate-spin text-stone-400" />
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         ) : (
           <>
             <span
               className="h-2 w-2 rounded-full flex-shrink-0"
-              style={{ backgroundColor: stageColor ?? "#94a3b8" }}
+              style={{ backgroundColor: stageColor ?? "var(--text-muted)" }}
             />
             <span className="max-w-[120px] truncate">{stageNombre ?? "Sin etapa"}</span>
-            <ChevronDown className="h-3 w-3 text-stone-400 flex-shrink-0 ml-0.5" />
+            <ChevronDown className="h-3 w-3 text-muted-foreground flex-shrink-0 ml-0.5" />
           </>
         )}
       </PopoverTrigger>
@@ -69,14 +69,14 @@ export function SelectorPipelineStage({
       <PopoverContent
         align="end"
         sideOffset={6}
-        className="w-[264px] p-0 border-stone-200 dark:border-white/10 bg-white dark:bg-stone-900 shadow-2xl rounded-xl overflow-hidden"
+        className="w-[264px] p-0 border-border bg-dropdown shadow-2xl rounded-xl overflow-hidden"
       >
         {/* Header */}
-        <div className="px-3 py-2.5 border-b border-stone-100 dark:border-white/8 flex items-center gap-2">
-          <div className="rounded-md bg-stone-100 dark:bg-white/8 p-1 flex-shrink-0">
-            <ArrowRightLeft className="h-3 w-3 text-stone-500 dark:text-stone-400" />
+        <div className="px-3 py-2.5 border-b border-border-subtle flex items-center gap-2">
+          <div className="rounded-md bg-muted p-1 flex-shrink-0">
+            <ArrowRightLeft className="h-3 w-3 text-muted-foreground" />
           </div>
-          <span className="text-xs font-semibold text-stone-600 dark:text-stone-300">
+          <span className="text-xs font-semibold text-foreground">
             Mover a etapa
           </span>
         </div>
@@ -85,11 +85,11 @@ export function SelectorPipelineStage({
         <div className="max-h-[360px] overflow-y-auto py-1.5">
           {loadingPipelines ? (
             <div className="flex items-center justify-center py-8 gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-stone-400" />
-              <span className="text-xs text-stone-400">Cargando pipelines...</span>
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Cargando pipelines...</span>
             </div>
           ) : pipelines.length === 0 ? (
-            <p className="text-xs text-stone-400 text-center py-6">No hay pipelines disponibles</p>
+            <p className="text-xs text-muted-foreground text-center py-6">No hay pipelines disponibles</p>
           ) : (
             <div className="px-1.5">
               {pipelines.map((pipeline, idx) => (
@@ -98,14 +98,14 @@ export function SelectorPipelineStage({
                   <div
                     className={cn(
                       "flex items-center gap-2 px-2 pb-1",
-                      idx === 0 ? "pt-2" : "pt-3 mt-0.5 border-t border-stone-100 dark:border-white/6",
+                      idx === 0 ? "pt-2" : "pt-3 mt-0.5 border-t border-border-subtle",
                     )}
                   >
-                    <span className="flex-1 text-[10px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 truncate">
+                    <span className="flex-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground truncate">
                       {pipeline.nombre}
                     </span>
                     {pipeline.id === pipelineId && (
-                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-lime-500/10 dark:bg-lime-400/10 text-lime-700 dark:text-lime-400 border border-lime-500/20 dark:border-lime-400/20 flex-shrink-0">
+                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-primary-muted text-primary border border-primary-border flex-shrink-0">
                         Actual
                       </span>
                     )}
@@ -115,7 +115,7 @@ export function SelectorPipelineStage({
                   <div className="space-y-0.5 pb-1">
                     {pipeline.stages.map((stage) => {
                       const esCurrent = stage.id === stageId && pipeline.id === pipelineId;
-                      const color = stage.color ?? "#94a3b8";
+                      const color = stage.color ?? "var(--text-muted)";
 
                       return (
                         <button
@@ -129,8 +129,8 @@ export function SelectorPipelineStage({
                           className={cn(
                             "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all text-left group",
                             esCurrent
-                              ? "bg-lime-500/10 dark:bg-lime-400/10 cursor-default"
-                              : "hover:bg-stone-50 dark:hover:bg-white/5 cursor-pointer active:scale-[0.98]",
+                              ? "bg-primary-muted cursor-default"
+                              : "hover:bg-muted cursor-pointer active:scale-[0.98]",
                           )}
                         >
                           {/* Punto de color de la etapa */}
@@ -147,8 +147,8 @@ export function SelectorPipelineStage({
                             className={cn(
                               "flex-1 text-sm truncate",
                               esCurrent
-                                ? "font-semibold text-lime-700 dark:text-lime-400"
-                                : "text-stone-700 dark:text-stone-300",
+                                ? "font-semibold text-primary"
+                                : "text-foreground",
                             )}
                           >
                             {stage.nombre}
@@ -156,9 +156,9 @@ export function SelectorPipelineStage({
 
                           {/* Check si es actual, probabilidad si no */}
                           {esCurrent ? (
-                            <Check className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400 flex-shrink-0" />
+                            <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                           ) : (
-                            <span className="text-[10px] tabular-nums text-stone-400 dark:text-stone-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <span className="text-[10px] tabular-nums text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                               {stage.probabilidad}%
                             </span>
                           )}

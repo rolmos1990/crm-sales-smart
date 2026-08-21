@@ -135,14 +135,14 @@ function NavItem({
       className={cn(
         "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-all duration-150",
         activo
-          ? "bg-lime-500/[0.12] dark:bg-lime-400/[0.1] text-lime-700 dark:text-lime-400 shadow-[inset_0_0_0_1px_rgba(132,204,22,0.2)]"
-          : "text-stone-600 dark:text-white/40 hover:text-stone-900 dark:hover:text-white/80 hover:bg-stone-100 dark:hover:bg-white/[0.04]"
+          ? "bg-nav-active-bg text-nav-active-text shadow-[inset_0_0_0_1px_var(--nav-active-border)]"
+          : "text-muted-foreground hover:text-foreground hover:bg-muted"
       )}
     >
       <Icono
         className={cn(
           "h-3.5 w-3.5 flex-shrink-0 transition-colors",
-          activo ? "text-lime-600 dark:text-lime-400" : "text-stone-400 dark:text-white/30"
+          activo ? "text-nav-active-icon" : "text-muted-foreground"
         )}
       />
       {etiqueta}
@@ -171,34 +171,34 @@ function UserMenuDropdown({ usuario }: { usuario: UsuarioMenu }) {
         data-testid="user-menu"
         className={cn(
           "flex-1 min-w-0 flex items-center gap-2 rounded-lg px-2 py-2 transition-colors text-left",
-          "hover:bg-stone-50 dark:hover:bg-white/[0.04] cursor-pointer",
+          "hover:bg-muted cursor-pointer",
           isPending && "opacity-60 pointer-events-none"
         )}
       >
-        <div className="h-6 w-6 rounded-md bg-lime-500/15 dark:bg-lime-400/10 ring-1 ring-lime-500/25 dark:ring-lime-400/20 flex items-center justify-center text-[10px] font-bold text-lime-700 dark:text-lime-400 flex-shrink-0">
+        <div className="h-6 w-6 rounded-md bg-primary-muted ring-1 ring-primary-border flex items-center justify-center text-[10px] font-bold text-primary flex-shrink-0">
           {inicialAvatar}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] font-medium truncate text-stone-900 dark:text-white">{nombre}</p>
-          <p className="text-[10px] text-stone-400 dark:text-white/30 truncate">{email}</p>
+          <p className="text-[11px] font-medium truncate text-foreground">{nombre}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{email}</p>
         </div>
-        <ChevronUp className="h-3 w-3 text-stone-400 dark:text-white/25 flex-shrink-0" />
+        <ChevronUp className="h-3 w-3 text-muted-foreground flex-shrink-0" />
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         side="top"
         align="start"
         sideOffset={4}
-        className="w-52 bg-white dark:bg-[oklch(0.110_0.003_264)] border border-stone-200 dark:border-white/[0.08] shadow-xl rounded-xl p-1"
+        className="w-52 bg-dropdown border border-border shadow-xl rounded-xl p-1"
       >
         <div className="px-2 py-1.5 mb-1">
-          <p className="text-[12px] font-medium text-stone-900 dark:text-stone-50 truncate">{nombre}</p>
-          <p className="text-[11px] text-stone-400 dark:text-stone-500 truncate">{email}</p>
+          <p className="text-[12px] font-medium text-foreground truncate">{nombre}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{email}</p>
         </div>
-        <div className="h-px bg-stone-100 dark:bg-white/[0.06] mx-1 mb-1" />
+        <div className="h-px bg-border mx-1 mb-1" />
         <DropdownMenuItem
           onClick={handleLogout}
-          className="gap-2 text-[12px] text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400 focus:bg-red-50 dark:focus:bg-red-500/10 rounded-lg cursor-pointer"
+          className="gap-2 text-[12px] text-danger focus:text-danger focus:bg-danger-muted rounded-lg cursor-pointer"
         >
           <LogOut className="h-3.5 w-3.5" />
           Cerrar sesión
@@ -228,20 +228,20 @@ export function AppLayout({
   const { ref: navRef, hasMoreBelow } = useScrollFade<HTMLElement>([navItemsCount]);
 
   return (
-    <div className="app-gradient-bg flex h-screen overflow-hidden bg-stone-50 dark:bg-[oklch(0.063_0.002_264)]">
+    <div className="app-gradient-bg flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-56 flex-col border-r border-stone-200 dark:border-white/[0.06] bg-white dark:bg-[oklch(0.085_0.002_264)] flex-shrink-0">
+      <aside className="hidden md:flex w-56 flex-col border-r border-border bg-sidebar flex-shrink-0">
         {/* Logo */}
-        <div className="flex h-[52px] items-center px-4 border-b border-stone-200 dark:border-white/[0.06]">
+        <div className="flex h-[52px] items-center px-4 border-b border-border">
           <Link href="/crm" className="flex items-center gap-2.5 group">
-            <div className="rounded-lg bg-lime-500 p-1.5 shadow-[0_0_14px_rgba(132,204,22,0.4)] group-hover:shadow-[0_0_20px_rgba(132,204,22,0.55)] transition-all duration-200">
-              <Leaf className="h-3.5 w-3.5 text-white" />
+            <div className="rounded-lg bg-primary p-1.5 shadow-[0_0_14px_color-mix(in_oklab,var(--primary)_40%,transparent)] group-hover:shadow-[0_0_20px_color-mix(in_oklab,var(--primary)_55%,transparent)] transition-all duration-200">
+              <Leaf className="h-3.5 w-3.5 text-primary-foreground" />
             </div>
             <div className="flex flex-col leading-none gap-0.5">
-              <span className="text-[13px] font-semibold tracking-tight text-stone-900 dark:text-white">
+              <span className="text-[13px] font-semibold tracking-tight text-foreground">
                 KariaApp
               </span>
-              <span className="text-[10px] text-stone-400 dark:text-white/30 tracking-wide font-medium">
+              <span className="text-[10px] text-muted-foreground tracking-wide font-medium">
                 CRM & Sales
               </span>
             </div>
@@ -256,7 +256,7 @@ export function AppLayout({
           >
             {navFiltrado.map((grupo) => (
               <div key={grupo.grupo}>
-                <p className="px-2.5 mb-1 text-[10px] font-semibold text-stone-400 dark:text-white/25 uppercase tracking-[0.08em]">
+                <p className="px-2.5 mb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">
                   {grupo.grupo}
                 </p>
                 <div className="space-y-px">
@@ -273,7 +273,7 @@ export function AppLayout({
             aria-hidden
             className={cn(
               "pointer-events-none absolute inset-x-0 bottom-0 h-[50px] transition-opacity duration-150 ease-out motion-reduce:transition-none",
-              "bg-gradient-to-t from-white dark:from-[oklch(0.085_0.002_264)] to-transparent",
+              "bg-gradient-to-t from-sidebar to-transparent",
               "shadow-[0_6px_10px_-6px_rgba(0,0,0,0.12)] dark:shadow-[0_6px_10px_-6px_rgba(0,0,0,0.45)]",
               hasMoreBelow ? "opacity-100" : "opacity-0"
             )}
@@ -281,7 +281,7 @@ export function AppLayout({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-stone-200 dark:border-white/[0.06] p-2.5">
+        <div className="border-t border-border p-2.5">
           <div className="flex items-center gap-1">
             <UserMenuDropdown usuario={usuario ?? null} />
             <ThemeToggle />
@@ -291,7 +291,7 @@ export function AppLayout({
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-12 border-b border-stone-200 dark:border-white/[0.06] flex items-center px-6 gap-4 flex-shrink-0 bg-white/80 dark:bg-[oklch(0.085_0.002_264)]/80 dark:backdrop-blur-xl">
+        <header className="h-12 border-b border-border flex items-center px-6 gap-4 flex-shrink-0 bg-sidebar/80 dark:backdrop-blur-xl">
           <div className="flex-1" />
           <div className="flex items-center gap-3">
             <div className="md:hidden">
@@ -299,7 +299,7 @@ export function AppLayout({
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto bg-stone-50/90 dark:bg-transparent">
+        <main className="flex-1 overflow-y-auto bg-background">
           <SesionProvider rol={rol ?? "INVITADO"}>
             {children}
           </SesionProvider>

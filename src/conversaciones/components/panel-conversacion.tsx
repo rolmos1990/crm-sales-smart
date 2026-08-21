@@ -203,17 +203,17 @@ export function PanelConversacion({
   const conversacionActivaObj = conversaciones.find((c) => c.id === conversacionActiva) ?? null;
 
   return (
-    <div className="flex flex-col h-full bg-stone-50/60 dark:bg-white/[0.02] border-r border-stone-200 dark:border-white/[0.07] min-w-0">
+    <div className="flex flex-col h-full bg-background-subtle border-r border-border min-w-0">
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-3 border-b border-stone-200 dark:border-white/[0.07] shrink-0">
-        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-lime-500/10 dark:bg-lime-400/10">
-          <MessageSquare className="h-4 w-4 text-lime-600 dark:text-lime-400" />
+      <div className="flex items-center gap-2 px-3 py-3 border-b border-border shrink-0">
+        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary-muted">
+          <MessageSquare className="h-4 w-4 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">{nombreContacto}</p>
+          <p className="text-sm font-semibold text-foreground truncate">{nombreContacto}</p>
           {conversacionActivaObj?.cuentaCanal && (
-            <p className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
+            <p className="text-[10px] text-muted-foreground truncate">
               {conversacionActivaObj.cuentaCanal.nombre}
               {conversacionActivaObj.cuentaCanal.canal === "instagram" && (conversacionActivaObj.handleCanal || conversacionActivaObj.identificadorCanal) && (
                 <span className="font-mono">
@@ -224,12 +224,12 @@ export function PanelConversacion({
             </p>
           )}
         </div>
-        {isFetching && <Loader2 className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500 animate-spin shrink-0" />}
+        {isFetching && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />}
       </div>
 
       {/* Selector de conversaciones si hay varias */}
       {conversaciones.length > 1 && (
-        <div className="flex gap-1 px-2 py-1.5 border-b border-stone-200 dark:border-white/10 overflow-x-auto shrink-0">
+        <div className="flex gap-1 px-2 py-1.5 border-b border-border overflow-x-auto shrink-0">
           {conversaciones.map((conv) => (
             <button
               key={conv.id}
@@ -240,8 +240,8 @@ export function PanelConversacion({
               }}
               className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap transition-colors ${
                 conversacionActiva === conv.id
-                  ? "bg-lime-500/10 dark:bg-lime-400/10 text-lime-700 dark:text-lime-400 border border-lime-500/25 dark:border-lime-400/25"
-                  : "bg-stone-100 dark:bg-white/5 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+                  ? "bg-primary-muted text-primary border border-primary-border"
+                  : "bg-badge-bg text-badge-text hover:text-foreground"
               }`}
             >
               {conv.cuentaCanal?.nombre ?? "Sin canal"}
@@ -254,25 +254,25 @@ export function PanelConversacion({
       {sinConversacion && (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-5">
           <div className="flex flex-col items-center gap-2 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-lime-500/10 dark:bg-lime-400/10 flex items-center justify-center">
-              <MessageSquare className="h-6 w-6 text-lime-600 dark:text-lime-400" />
+            <div className="w-12 h-12 rounded-2xl bg-primary-muted flex items-center justify-center">
+              <MessageSquare className="h-6 w-6 text-primary" />
             </div>
-            <p className="text-sm font-semibold text-stone-700 dark:text-stone-300">Sin conversaciones</p>
+            <p className="text-sm font-semibold text-text-secondary">Sin conversaciones</p>
             {telefonoContacto && (
-              <div className="flex items-center gap-1.5 text-xs text-stone-400 dark:text-stone-500">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Phone className="h-3 w-3" />
                 {telefonoContacto}
               </div>
             )}
-            <p className="text-xs text-stone-400 dark:text-stone-600 max-w-[200px]">
+            <p className="text-xs text-muted-foreground max-w-[200px]">
               Elige el canal desde el que quieres escribirle
             </p>
           </div>
 
           {puedeMod && <div className="w-full space-y-3">
             {cuentas.length > 0 && (
-              <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/3 p-3 space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">Canal (opcional)</p>
+              <div className="rounded-xl border border-border bg-surface-elevated p-3 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Canal (opcional)</p>
                 <SelectorCuentaCanal
                   cuentas={cuentas}
                   seleccionada={cuentaSeleccionadaId}
@@ -285,7 +285,7 @@ export function PanelConversacion({
               type="button"
               onClick={handleIniciarConversacion}
               disabled={iniciando}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-lime-500/90 text-stone-950 text-sm font-semibold hover:bg-lime-400 transition-all shadow-lg hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary-hover transition-all shadow-lg hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {iniciando ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Iniciando…</>
@@ -295,7 +295,7 @@ export function PanelConversacion({
             </button>
 
             {cuentas.length === 0 && (
-              <p className="text-[10px] text-stone-400 dark:text-stone-600 text-center">
+              <p className="text-[10px] text-muted-foreground text-center">
                 Sin canales. Ve a Integraciones para conectar WhatsApp u otro canal.
               </p>
             )}

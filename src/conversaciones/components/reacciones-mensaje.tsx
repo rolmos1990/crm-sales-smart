@@ -51,7 +51,7 @@ export function BarraAccionesRapidas({
     <div
       className={cn(
         "absolute -top-9 z-20 flex items-center gap-0.5 px-1.5 py-1",
-        "bg-stone-900/95 backdrop-blur-sm border border-white/10 rounded-full shadow-xl",
+        "bg-dropdown backdrop-blur-sm border border-border rounded-full shadow-xl",
         "transition-all duration-150",
         esPropioONota ? "right-0" : "left-0",
         visible ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
@@ -62,23 +62,23 @@ export function BarraAccionesRapidas({
           key={emoji}
           type="button"
           onClick={() => onReaccion(emoji, "CANAL")}
-          className="h-7 w-7 rounded-full flex items-center justify-center text-base hover:bg-white/10 hover:scale-110 active:scale-95 transition-all"
+          className="h-7 w-7 rounded-full flex items-center justify-center text-base hover:bg-muted hover:scale-110 active:scale-95 transition-all"
         >
           {emoji}
         </button>
       ))}
-      <div className="w-px h-4 bg-white/15 mx-0.5" />
+      <div className="w-px h-4 bg-border mx-0.5" />
       <button
         type="button"
         onClick={onAbrirSelector}
-        className="h-7 w-7 rounded-full flex items-center justify-center text-stone-400 hover:text-stone-200 hover:bg-white/10 transition-all"
+        className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
         title="Más reacciones"
       >
         <Plus className="h-3.5 w-3.5" />
       </button>
       <button
         type="button"
-        className="h-7 w-7 rounded-full flex items-center justify-center text-stone-400 hover:text-stone-200 hover:bg-white/10 transition-all"
+        className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
         title="Más acciones"
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
@@ -112,13 +112,13 @@ export function SelectorReaccionesCompleto({
         )}
       />
       <PopoverContent
-        className="w-64 p-3 bg-stone-900 border-white/10 shadow-2xl"
+        className="w-64 p-3 bg-dropdown border-border shadow-2xl"
         side="top"
         align={esPropioONota ? "end" : "start"}
       >
         {/* Sección emojis */}
         <div>
-          <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
             Emojis
           </p>
           <div className="grid grid-cols-7 gap-0.5">
@@ -127,7 +127,7 @@ export function SelectorReaccionesCompleto({
                 key={emoji}
                 type="button"
                 onClick={() => onReaccion(emoji, "CANAL")}
-                className="h-8 w-8 rounded-lg flex items-center justify-center text-lg hover:bg-white/10 hover:scale-110 active:scale-95 transition-all"
+                className="h-8 w-8 rounded-lg flex items-center justify-center text-lg hover:bg-muted hover:scale-110 active:scale-95 transition-all"
               >
                 {emoji}
               </button>
@@ -135,11 +135,11 @@ export function SelectorReaccionesCompleto({
           </div>
         </div>
 
-        <div className="h-px bg-white/10 my-2.5" />
+        <div className="h-px bg-border my-2.5" />
 
         {/* Sección CRM */}
         <div>
-          <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
             Reacciones CRM (internas)
           </p>
           <div className="space-y-0.5">
@@ -148,15 +148,15 @@ export function SelectorReaccionesCompleto({
                 key={emoji}
                 type="button"
                 onClick={() => onReaccion(emoji, "INTERNA")}
-                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/8 transition-colors text-left"
+                className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors text-left"
               >
                 <span className="text-base leading-none">{emoji}</span>
-                <span className="text-xs text-stone-300">{label}</span>
+                <span className="text-xs text-text-secondary">{label}</span>
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-stone-600 mt-2 flex items-center gap-1">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500/60" />
+          <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-stage-amber/60" />
             Las reacciones internas no se envían al canal
           </p>
         </div>
@@ -224,10 +224,10 @@ export function BadgesReacciones({
                     "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs",
                     "transition-all hover:scale-105 active:scale-95",
                     g.tipo === "INTERNA"
-                      ? "bg-amber-50 dark:bg-amber-500/6 border-amber-200 dark:border-amber-400/30 text-amber-700 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-500/12"
+                      ? "bg-stage-amber-muted border-stage-amber-border text-stage-amber-text hover:bg-stage-amber-muted/70"
                       : g.esPropio
-                        ? "bg-lime-50 dark:bg-lime-500/8 border-lime-300 dark:border-lime-400/40 text-lime-700 dark:text-lime-200 hover:bg-lime-100 dark:hover:bg-lime-500/15"
-                        : "bg-stone-100 dark:bg-white/6 border-stone-200 dark:border-white/12 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-white/10"
+                        ? "bg-primary-muted border-primary-border text-primary hover:bg-primary-muted/70"
+                        : "bg-badge-bg border-badge-border text-badge-text hover:bg-muted"
                   )}
                 >
                   <span className="leading-none">{g.emoji}</span>
@@ -239,15 +239,18 @@ export function BadgesReacciones({
             />
             <TooltipContent
               side="top"
-              className="max-w-[180px] text-center text-xs bg-stone-900 border-white/10"
+              className="max-w-[180px] text-center text-xs"
             >
+              {/* Sin token de color propio — hereda `text-background` del
+                  TooltipContent (bg-foreground), que ya invierte correctamente
+                  entre light/dark; solo se ajusta peso/opacidad acá. */}
               {g.tipo === "INTERNA" && (
-                <p className="text-amber-400 font-medium mb-0.5">Reacción interna CRM</p>
+                <p className="font-semibold mb-0.5">Reacción interna CRM</p>
               )}
               {g.nombres.length > 0 ? (
                 <p>{g.nombres.join(", ")}</p>
               ) : (
-                <p className="text-stone-400">Sin datos</p>
+                <p className="opacity-70">Sin datos</p>
               )}
             </TooltipContent>
           </Tooltip>

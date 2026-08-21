@@ -186,7 +186,7 @@ export function PipelineFiltrosDrawer({ contactos, empresas, tags }: PipelineFil
 
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-sm bg-white dark:bg-[oklch(0.110_0.003_264)] border-l border-stone-200 dark:border-white/10 shadow-2xl"
+        className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-sm bg-modal border-l border-border shadow-2xl"
       >
         <SheetHeader className="flex-row items-center gap-2.5 border-b border-stone-100 dark:border-white/10 px-5 py-4 pr-12 flex-shrink-0 space-y-0">
           <SheetTitle className="text-stone-900 dark:text-stone-50">Filtros</SheetTitle>

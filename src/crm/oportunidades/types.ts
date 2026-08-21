@@ -37,13 +37,16 @@ export const PROBABILIDADES_ETAPA: Record<Etapa, number> = {
   PERDIDO:     0,
 };
 
+// Colores desde los tokens de etapa del Design System (ver
+// claude-scheme-color-{light,dark}.md) — mismo lenguaje visual que las
+// etapas dinámicas del Pipeline, no HEX/paleta Tailwind sueltos.
 export const ETAPAS_PIPELINE: { valor: Etapa; etiqueta: string; color: string }[] = [
-  { valor: "PROSPECTO",  etiqueta: "Prospecto",  color: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-400 border border-sky-200 dark:border-sky-500/25" },
-  { valor: "CALIFICADO", etiqueta: "Calificado", color: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400 border border-violet-200 dark:border-violet-500/25" },
-  { valor: "PROPUESTA",  etiqueta: "Propuesta",  color: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 border border-amber-200 dark:border-amber-500/25" },
-  { valor: "NEGOCIACION",etiqueta: "Negociación",color: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400 border border-orange-200 dark:border-orange-500/25" },
-  { valor: "GANADO",     etiqueta: "Ganado",     color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/25" },
-  { valor: "PERDIDO",    etiqueta: "Perdido",    color: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400 border border-red-200 dark:border-red-500/25" },
+  { valor: "PROSPECTO",  etiqueta: "Prospecto",  color: "bg-stage-cyan-muted text-stage-cyan-text border border-stage-cyan-border" },
+  { valor: "CALIFICADO", etiqueta: "Calificado", color: "bg-stage-purple-muted text-stage-purple-text border border-stage-purple-border" },
+  { valor: "PROPUESTA",  etiqueta: "Propuesta",  color: "bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border" },
+  { valor: "NEGOCIACION",etiqueta: "Negociación",color: "bg-stage-orange-muted text-stage-orange-text border border-stage-orange-border" },
+  { valor: "GANADO",     etiqueta: "Ganado",     color: "bg-success-muted text-success-text border border-success-border" },
+  { valor: "PERDIDO",    etiqueta: "Perdido",    color: "bg-danger-muted text-danger-text border border-danger-border" },
 ];
 
 export type ResultadoAccion<T = void> =

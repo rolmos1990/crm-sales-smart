@@ -73,9 +73,9 @@ function TarjetaOportunidad({
       <div
         className={cn(
           "cursor-pointer rounded-xl border group select-none",
-          "bg-white dark:bg-[oklch(0.130_0.004_264)]",
-          "border-stone-200/80 dark:border-white/[0.07]",
-          "hover:border-stone-300 dark:hover:border-white/[0.13]",
+          "bg-card",
+          "border-card-border",
+          "hover:border-border-strong",
           "hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
           "transition-all duration-150 p-3.5 space-y-2.5"
         )}
@@ -83,16 +83,16 @@ function TarjetaOportunidad({
       >
         {/* Título + menú */}
         <div className="flex items-start justify-between gap-1.5">
-          <span className="text-[13px] font-semibold leading-snug line-clamp-2 flex-1 text-stone-900 dark:text-white/90 pointer-events-none">
+          <span className="text-[13px] font-semibold leading-snug line-clamp-2 flex-1 text-foreground pointer-events-none">
             {oportunidad.titulo}
           </span>
           <DropdownMenu>
             <DropdownMenuTrigger
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
-              className="inline-flex size-5 items-center justify-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-stone-100 dark:hover:bg-white/10 transition-all outline-none flex-shrink-0 mt-0.5"
+              className="inline-flex size-5 items-center justify-center rounded-md opacity-0 group-hover:opacity-100 hover:bg-muted transition-all outline-none flex-shrink-0 mt-0.5"
             >
-              <MoreHorizontal className="h-3 w-3 text-stone-400 dark:text-white/40" />
+              <MoreHorizontal className="h-3 w-3 text-muted-foreground" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
               <DropdownMenuItem
@@ -111,20 +111,20 @@ function TarjetaOportunidad({
         </div>
 
         {/* Valor */}
-        <div className="text-base font-bold text-lime-600 dark:text-lime-400 tabular-nums pointer-events-none">
+        <div className="text-base font-bold text-primary tabular-nums pointer-events-none">
           {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
         </div>
 
         {/* Meta */}
         <div className="space-y-1 pointer-events-none">
           {oportunidad.empresa && (
-            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-white/35">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <Building2 className="h-3 w-3 shrink-0" />
               <span className="truncate">{oportunidad.empresa.nombre}</span>
             </div>
           )}
           {oportunidad.fechaCierre && (
-            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 dark:text-white/35">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <CalendarDays className="h-3 w-3 shrink-0" />
               {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
             </div>
@@ -137,21 +137,24 @@ function TarjetaOportunidad({
             {oportunidad.tags.slice(0, 3).map(({ tagId, tag }) => (
               <span
                 key={tagId}
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                  !tag.color && "bg-badge-bg text-badge-text"
+                )}
                 style={tag.color ? {
                   backgroundColor: `${tag.color}18`,
                   color: tag.color,
-                } : {
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                  color: "#9ca3af",
-                }}
+                } : undefined}
               >
-                <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color ?? "#6b7280" }} />
+                <span
+                  className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", !tag.color && "bg-badge-text")}
+                  style={tag.color ? { backgroundColor: tag.color } : undefined}
+                />
                 {tag.nombre}
               </span>
             ))}
             {oportunidad.tags.length > 3 && (
-              <span className="text-[10px] text-stone-400 dark:text-white/25 self-center">
+              <span className="text-[10px] text-muted-foreground self-center">
                 +{oportunidad.tags.length - 3}
               </span>
             )}
@@ -160,13 +163,13 @@ function TarjetaOportunidad({
 
         {/* Barra de probabilidad */}
         <div className="flex items-center gap-2.5 pointer-events-none">
-          <div className="flex-1 bg-stone-100 dark:bg-white/[0.07] rounded-full h-1 overflow-hidden">
+          <div className="flex-1 bg-muted rounded-full h-1 overflow-hidden">
             <div
-              className="bg-lime-500 dark:bg-lime-400 rounded-full h-1 transition-all"
+              className="bg-primary rounded-full h-1 transition-all"
               style={{ width: `${oportunidad.probabilidad}%` }}
             />
           </div>
-          <span className="text-[10px] font-medium text-stone-400 dark:text-white/30 tabular-nums w-7 text-right">
+          <span className="text-[10px] font-medium text-muted-foreground tabular-nums w-7 text-right">
             {oportunidad.probabilidad}%
           </span>
         </div>
@@ -179,15 +182,15 @@ function TarjetaOportunidad({
 
 function TarjetaOverlay({ oportunidad }: { oportunidad: Oportunidad }) {
   return (
-    <div className="w-[272px] rotate-[1.5deg] rounded-xl border border-lime-400/20 bg-white dark:bg-[oklch(0.155_0.004_264)] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)] p-3.5 space-y-2">
-      <p className="text-[13px] font-semibold line-clamp-1 text-stone-900 dark:text-white/90">
+    <div className="w-[272px] rotate-[1.5deg] rounded-xl border border-primary/20 bg-card shadow-[0_24px_48px_-12px_rgba(0,0,0,0.6)] p-3.5 space-y-2">
+      <p className="text-[13px] font-semibold line-clamp-1 text-foreground">
         {oportunidad.titulo}
       </p>
-      <p className="text-base font-bold text-lime-600 dark:text-lime-400 tabular-nums">
+      <p className="text-base font-bold text-primary tabular-nums">
         {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
       </p>
       {oportunidad.empresa && (
-        <p className="text-[11px] text-stone-500 dark:text-white/35">{oportunidad.empresa.nombre}</p>
+        <p className="text-[11px] text-muted-foreground">{oportunidad.empresa.nombre}</p>
       )}
     </div>
   );
@@ -214,9 +217,9 @@ function ColumnaKanban({
       <div
         className={cn(
           "flex flex-col rounded-xl border transition-all duration-150",
-          "bg-stone-100/50 dark:bg-[oklch(0.095_0.003_264)]",
-          "border-stone-200/70 dark:border-white/[0.06]",
-          isOver && "ring-1 ring-lime-400/30 dark:ring-lime-400/20 bg-lime-50/30 dark:bg-lime-400/[0.04]"
+          "bg-column-bg",
+          "border-column-border",
+          isOver && "ring-1 ring-primary/30 bg-primary-muted/60"
         )}
       >
         {/* Encabezado de columna */}
@@ -231,7 +234,7 @@ function ColumnaKanban({
               >
                 {etapaConfig.etiqueta}
               </span>
-              <span className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40">
+              <span className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-badge-bg text-[10px] font-bold text-badge-text">
                 {items.length}
               </span>
             </div>
@@ -240,7 +243,7 @@ function ColumnaKanban({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
+                  className="h-5 w-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -248,7 +251,7 @@ function ColumnaKanban({
             )}
           </div>
           {items.length > 0 && (
-            <p className="mt-1.5 text-[11px] font-semibold text-lime-600 dark:text-lime-400/80 tabular-nums" data-testid="column-total">
+            <p className="mt-1.5 text-[11px] font-semibold text-primary tabular-nums" data-testid="column-total">
               {formatearMoneda(totalValor, "PEN")}
             </p>
           )}
@@ -262,8 +265,8 @@ function ColumnaKanban({
                 className={cn(
                   "rounded-lg border border-dashed py-8 text-center text-[11px] transition-all",
                   isOver
-                    ? "border-lime-400/40 bg-lime-500/[0.04] text-lime-500 dark:text-lime-400 font-medium"
-                    : "border-stone-300/60 dark:border-white/[0.06] text-stone-400 dark:text-white/20"
+                    ? "border-primary/40 bg-primary-muted text-primary font-medium"
+                    : "border-border text-muted-foreground"
                 )}
               >
                 {isOver ? "Soltar aquí" : "Sin oportunidades"}

@@ -74,7 +74,7 @@ export function PedidosKpiCards({ kpis, moneda, hayRangoFecha, etiquetaMesActual
       {tarjetas.map((t) => (
         <Card
           key={t.etiqueta}
-          className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl overflow-hidden"
+          className="bg-card border-card-border shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl overflow-hidden"
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2 pt-5">
             <CardTitle className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wide">
@@ -102,7 +102,7 @@ export function PedidosKpiCardsSkeleton() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
       {[...Array(6)].map((_, i) => (
-        <Card key={i} className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] rounded-xl">
+        <Card key={i} className="bg-card border-card-border rounded-xl">
           <CardHeader className="pb-2 pt-5">
             <div className="h-3 w-20 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded-full" />
           </CardHeader>

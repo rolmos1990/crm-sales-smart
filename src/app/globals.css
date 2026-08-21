@@ -18,6 +18,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-sidebar-elevated: var(--sidebar-elevated);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -46,77 +47,387 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── Karia Design System — capa semántica ampliada ──────────────────
+     Tokens nuevos definidos en claude-scheme-color-{light,dark}.md.
+     Se exponen aquí como utilidades Tailwind (bg-*, text-*, border-*)
+     para que los componentes consuman var(--color-x) en vez de HEX/RGB
+     sueltos. Los tokens shadcn de arriba (background, card, primary...)
+     ya quedan mapeados a esta misma capa dentro de :root / .dark. */
+  --color-background-subtle: var(--background-subtle);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-card-hover: var(--card-hover);
+  --color-card-selected: var(--card-selected);
+  --color-card-border: var(--card-border);
+  --color-card-divider: var(--card-divider);
+  --color-dropdown: var(--dropdown);
+  --color-modal: var(--modal);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-muted: var(--text-muted);
+  --color-text-disabled: var(--text-disabled);
+  --color-text-inverse: var(--text-inverse);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-muted: var(--primary-muted);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-border: var(--primary-border);
+  --color-nav-active-bg: var(--nav-active-bg);
+  --color-nav-active-border: var(--nav-active-border);
+  --color-nav-active-text: var(--nav-active-text);
+  --color-nav-active-icon: var(--nav-active-icon);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-success-border: var(--success-border);
+  --color-success-text: var(--success-text);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
+  --color-danger-border: var(--danger-border);
+  --color-danger-text: var(--danger-text);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-stage-purple: var(--stage-purple);
+  --color-stage-purple-muted: var(--stage-purple-muted);
+  --color-stage-purple-border: var(--stage-purple-border);
+  --color-stage-purple-text: var(--stage-purple-text);
+  --color-stage-cyan: var(--stage-cyan);
+  --color-stage-cyan-muted: var(--stage-cyan-muted);
+  --color-stage-cyan-border: var(--stage-cyan-border);
+  --color-stage-cyan-text: var(--stage-cyan-text);
+  --color-stage-amber: var(--stage-amber);
+  --color-stage-amber-muted: var(--stage-amber-muted);
+  --color-stage-amber-border: var(--stage-amber-border);
+  --color-stage-amber-text: var(--stage-amber-text);
+  --color-stage-orange: var(--stage-orange);
+  --color-stage-orange-muted: var(--stage-orange-muted);
+  --color-stage-orange-border: var(--stage-orange-border);
+  --color-stage-orange-text: var(--stage-orange-text);
+  --color-stage-lavender: var(--stage-lavender);
+  --color-stage-lavender-muted: var(--stage-lavender-muted);
+  --color-stage-lavender-border: var(--stage-lavender-border);
+  --color-stage-lavender-text: var(--stage-lavender-text);
+  --color-pipeline-bg: var(--pipeline-bg);
+  --color-column-bg: var(--column-bg);
+  --color-column-header-bg: var(--column-header-bg);
+  --color-column-border: var(--column-border);
+  --color-column-empty-bg: var(--column-empty-bg);
+  --color-button-secondary-bg: var(--button-secondary-bg);
+  --color-button-secondary-hover: var(--button-secondary-hover);
+  --color-button-secondary-border: var(--button-secondary-border);
+  --color-button-secondary-text: var(--button-secondary-text);
+  --color-input-bg: var(--input-bg);
+  --color-input-hover: var(--input-hover);
+  --color-input-focus: var(--input-focus);
+  --color-input-placeholder: var(--input-placeholder);
+  --color-badge-bg: var(--badge-bg);
+  --color-badge-border: var(--badge-border);
+  --color-badge-text: var(--badge-text);
 }
 
 :root {
-  /* Olive UI — Light Mode (stone + lime + emerald) */
-  --background: oklch(0.985 0.002 106.42);   /* stone-50 */
-  --foreground: oklch(0.216 0.005 49.77);    /* stone-900 */
-  --card: oklch(1 0 0);                       /* white */
-  --card-foreground: oklch(0.216 0.005 49.77);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.216 0.005 49.77);
-  --primary: oklch(0.534 0.152 130.4);       /* lime-700 */
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.961 0.003 106.42);    /* stone-100 */
-  --secondary-foreground: oklch(0.216 0.005 49.77);
-  --muted: oklch(0.961 0.003 106.42);        /* stone-100 */
-  --muted-foreground: oklch(0.554 0.015 57.00); /* stone-500 */
-  --accent: oklch(0.935 0.064 162.1);        /* emerald-100 */
-  --accent-foreground: oklch(0.39 0.095 162.1); /* emerald-800 */
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.895 0.005 106.42);       /* stone-200 */
-  --input: oklch(0.895 0.005 106.42);
-  --ring: oklch(0.534 0.152 130.4);          /* lime-700 */
-  --chart-1: oklch(0.534 0.152 130.4);       /* lime-700 */
-  --chart-2: oklch(0.648 0.180 137.6);       /* lime-600 */
-  --chart-3: oklch(0.39 0.095 162.1);        /* emerald-800 */
-  --chart-4: oklch(0.554 0.015 57.00);       /* stone-500 */
-  --chart-5: oklch(0.268 0.008 49.77);       /* stone-800 */
+  /* ════════════════════════════════════════════════════════════════
+     Karia Design System — Light Mode
+     Fuente de verdad: claude-scheme-color-light.md
+     ════════════════════════════════════════════════════════════════ */
+  --background: #F5F7F9;
+  --background-subtle: #F8FAFB;
+
+  --sidebar: #FAFBFC;
+  --sidebar-elevated: #FFFFFF;
+
+  --surface-1: #FFFFFF;
+  --surface-2: #F8FAFB;
+  --surface-3: #F2F5F7;
+  --surface-elevated: #FFFFFF;
+
+  --card: #FFFFFF;
+  --card-hover: #FAFBFC;
+  --card-selected: #F5F8FA;
+  --card-border: #DFE5E9;
+  --card-divider: #EDF0F2;
+
+  --popover: #FFFFFF;
+  --dropdown: #FFFFFF;
+  --modal: #FFFFFF;
+
+  --border-subtle: #E5E9ED;
+  --border-default: #D9E0E5;
+  --border-strong: #C7D0D7;
+
+  --text-primary: #202830;
+  --text-secondary: #56616B;
+  --text-tertiary: #7A858F;
+  --text-muted: #98A1A9;
+  --text-disabled: #B3BBC2;
+  --text-inverse: #F5F8FA;
+
+  --primary: #6F9F32;
+  --primary-hover: #638F2C;
+  --primary-active: #587F28;
+  --primary-muted: #EDF5E3;
+  --primary-subtle: #F4F8EF;
+  --primary-border: #C8DBAE;
+  --primary-foreground: #FFFFFF;
+
+  --nav-active-bg: #EEF5E5;
+  --nav-active-border: #CADDAE;
+  --nav-active-text: #557D25;
+  --nav-active-icon: #67962D;
+
+  /* Etapas del Pipeline — identidad cromática por defecto (las etapas
+     reales son configurables por instancia y guardan su propio HEX en
+     PipelineStage.color; estos tokens quedan disponibles para badges/
+     indicadores genéricos que necesiten el mismo lenguaje visual). */
+  --stage-purple: #8075CF;
+  --stage-purple-muted: #F1EFFB;
+  --stage-purple-border: #D9D5F3;
+  --stage-purple-text: #665CB6;
+
+  --stage-cyan: #43AAB2;
+  --stage-cyan-muted: #EAF7F7;
+  --stage-cyan-border: #C7E9EB;
+  --stage-cyan-text: #32858C;
+
+  --stage-amber: #C89A2F;
+  --stage-amber-muted: #FBF6E7;
+  --stage-amber-border: #EDDFB7;
+  --stage-amber-text: #9B7521;
+
+  --stage-orange: #CB7140;
+  --stage-orange-muted: #FAEEE8;
+  --stage-orange-border: #EDD3C5;
+  --stage-orange-text: #A7562D;
+
+  --stage-lavender: #7F7CCC;
+  --stage-lavender-muted: #F0F0FA;
+  --stage-lavender-border: #D8D7F0;
+  --stage-lavender-text: #6562AF;
+
+  --success: #529568;
+  --success-muted: #EAF5EE;
+  --success-border: #C9E4D1;
+  --success-text: #3E7951;
+
+  --danger: #BD6268;
+  --danger-muted: #FAECEE;
+  --danger-border: #EDCDD0;
+  --danger-text: #9D484E;
+
+  --warning: #C89A38;
+  --info: #528CA9;
+
+  --pipeline-bg: #F5F7F9;
+  --column-bg: #F8FAFB;
+  --column-header-bg: #FAFBFC;
+  --column-border: #E1E6EA;
+  --column-empty-bg: #F8FAFB;
+
+  --button-secondary-bg: #FFFFFF;
+  --button-secondary-hover: #F4F6F8;
+  --button-secondary-border: #DDE3E7;
+  --button-secondary-text: #46515B;
+
+  --input-bg: #FFFFFF;
+  --input-border: #D7DEE3;
+  --input-hover: #C9D2D9;
+  --input-focus: #789E4A;
+  --input-placeholder: #9BA4AC;
+
+  --badge-bg: #F1F4F6;
+  --badge-border: #DDE3E7;
+  --badge-text: #626D76;
+
+  --scrollbar-thumb: #C4CBD1;
+  --scrollbar-thumb-hover: #AEB7BF;
+  --scrollbar-track: transparent;
+
+  --shadow-sm: 0 1px 2px rgba(31,42,51,0.05);
+  --shadow-md: 0 4px 12px rgba(31,42,51,0.07);
+  --shadow-lg: 0 12px 30px rgba(31,42,51,0.10);
+
   --radius: 0.75rem;
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.216 0.005 49.77);
-  --sidebar-primary: oklch(0.534 0.152 130.4);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.961 0.003 106.42);
-  --sidebar-accent-foreground: oklch(0.216 0.005 49.77);
-  --sidebar-border: oklch(0.895 0.005 106.42);
-  --sidebar-ring: oklch(0.534 0.152 130.4);
+
+  /* ── Capa de compatibilidad shadcn/ui — deriva de los tokens de arriba,
+     nunca al revés. Todo componente que use bg-background, text-foreground,
+     bg-card, border-border, bg-primary, text-muted-foreground, bg-secondary,
+     bg-accent, bg-sidebar, etc. hereda automáticamente esta paleta. ── */
+  --foreground: var(--text-primary);
+  --card-foreground: var(--text-primary);
+  --popover-foreground: var(--text-primary);
+  --secondary: var(--badge-bg);
+  --secondary-foreground: var(--badge-text);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-tertiary);
+  --accent: var(--primary-muted);
+  --accent-foreground: var(--nav-active-text);
+  --destructive: var(--danger);
+  --border: var(--border-subtle);
+  --input: var(--input-border);
+  --ring: var(--input-focus);
+  --chart-1: var(--primary);
+  --chart-2: var(--stage-cyan);
+  --chart-3: var(--stage-amber);
+  --chart-4: var(--stage-purple);
+  --chart-5: var(--stage-orange);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--nav-active-bg);
+  --sidebar-accent-foreground: var(--nav-active-text);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--primary);
 }
 
 .dark {
-  /* Vento Design System — Dark Mode (neutral near-black + lime #84CC16) */
-  --background: oklch(0.063 0.002 264);      /* #0A0A0B — near-black neutral */
-  --foreground: oklch(0.960 0.003 264);      /* #F4F4F6 — off-white */
-  --card: oklch(0.110 0.003 264);            /* #17181B — surface-1 */
-  --card-foreground: oklch(0.960 0.003 264);
-  --popover: oklch(0.130 0.004 264);         /* #1C1D21 — surface-2 */
-  --popover-foreground: oklch(0.960 0.003 264);
-  --primary: oklch(0.769 0.189 130.9);       /* #84CC16 — lime brand */
-  --primary-foreground: oklch(0.063 0.002 264);
-  --secondary: oklch(0.155 0.004 264);       /* surface-2 subtle */
-  --secondary-foreground: oklch(0.960 0.003 264);
-  --muted: oklch(0.155 0.004 264);
-  --muted-foreground: oklch(0.560 0.008 264); /* #848490 — muted text */
-  --accent: oklch(0.155 0.038 145);          /* lime tinted surface */
-  --accent-foreground: oklch(0.769 0.189 130.9);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.185 0.004 264);          /* #272830 — subtle border */
-  --input: oklch(0.155 0.004 264);
-  --ring: oklch(0.769 0.189 130.9);          /* lime brand */
-  --chart-1: oklch(0.769 0.189 130.9);       /* lime #84CC16 */
-  --chart-2: oklch(0.648 0.180 137.6);       /* lime-600 */
-  --chart-3: oklch(0.806 0.130 163.8);       /* emerald-300 */
-  --chart-4: oklch(0.560 0.008 264);         /* muted */
-  --chart-5: oklch(0.720 0.006 264);         /* light muted */
-  --sidebar: oklch(0.085 0.002 264);         /* #111113 — sidebar bg */
-  --sidebar-foreground: oklch(0.960 0.003 264);
-  --sidebar-primary: oklch(0.769 0.189 130.9);
-  --sidebar-primary-foreground: oklch(0.063 0.002 264);
-  --sidebar-accent: oklch(0.130 0.004 264);
-  --sidebar-accent-foreground: oklch(0.960 0.003 264);
-  --sidebar-border: oklch(0.155 0.003 264);
-  --sidebar-ring: oklch(0.769 0.189 130.9);
+  /* ════════════════════════════════════════════════════════════════
+     Karia Design System — Dark Mode
+     Fuente de verdad: claude-scheme-color-dark.md
+     Charcoal/slate con matiz azul — sin negro puro, sin neón.
+     ════════════════════════════════════════════════════════════════ */
+  --background: #0F1720;
+  --background-deep: #0C131B;
+
+  --sidebar: #111B25;
+  --sidebar-elevated: #16212C;
+
+  --surface-1: #131E28;
+  --surface-2: #17232E;
+  --surface-3: #1B2834;
+  --surface-elevated: #1E2C38;
+
+  --card: #17232D;
+  --card-hover: #1B2935;
+  --card-selected: #1E2E3A;
+  --card-border: #2B3945;
+  --card-divider: #26333E;
+
+  --popover: #1B2834;
+  --dropdown: #1B2834;
+  --modal: #17232E;
+
+  --border-subtle: #263440;
+  --border-default: #2D3C48;
+  --border-strong: #3A4A57;
+
+  --text-primary: #E8EDF2;
+  --text-secondary: #AAB5BF;
+  --text-tertiary: #7F8B96;
+  --text-muted: #66737F;
+  --text-disabled: #53606B;
+  --text-inverse: #111820;
+
+  --primary: #78A83B;
+  --primary-hover: #86B847;
+  --primary-active: #6B9634;
+  --primary-muted: #26371F;
+  --primary-subtle: #1C2A19;
+  --primary-border: #48662D;
+  --primary-foreground: #F5F8F2;
+
+  --nav-active-bg: #1D2B1C;
+  --nav-active-border: #3D5729;
+  --nav-active-text: #A8CC72;
+  --nav-active-icon: #8FB94F;
+
+  --stage-purple: #9185D9;
+  --stage-purple-muted: #292641;
+  --stage-purple-border: #4A456F;
+  --stage-purple-text: #AFA5EB;
+
+  --stage-cyan: #55B8BE;
+  --stage-cyan-muted: #173338;
+  --stage-cyan-border: #285C61;
+  --stage-cyan-text: #72CBD0;
+
+  --stage-amber: #D5A83F;
+  --stage-amber-muted: #352C17;
+  --stage-amber-border: #685527;
+  --stage-amber-text: #E0B955;
+
+  --stage-orange: #D77B43;
+  --stage-orange-muted: #392419;
+  --stage-orange-border: #6B4129;
+  --stage-orange-text: #E79560;
+
+  --stage-lavender: #8988D8;
+  --stage-lavender-muted: #282840;
+  --stage-lavender-border: #484873;
+  --stage-lavender-text: #AAA8EA;
+
+  --success: #62AE78;
+  --success-muted: #193125;
+  --success-border: #315D41;
+  --success-text: #82C895;
+
+  --danger: #C96B70;
+  --danger-muted: #351E22;
+  --danger-border: #63383D;
+  --danger-text: #DD898D;
+
+  --warning: #D5A84A;
+  --info: #609DBD;
+
+  --pipeline-bg: #0F1720;
+  --column-bg: #121C26;
+  --column-header-bg: #151F29;
+  --column-border: #263440;
+  --column-empty-bg: #111B24;
+
+  --button-secondary-bg: #151F29;
+  --button-secondary-hover: #1C2934;
+  --button-secondary-border: #2D3B47;
+  --button-secondary-text: #C8D0D7;
+
+  --input-bg: #131E28;
+  --input-border: #30404D;
+  --input-hover: #354754;
+  --input-focus: #688C42;
+  --input-placeholder: #687580;
+
+  --badge-bg: #202C36;
+  --badge-border: #34434F;
+  --badge-text: #B8C1C9;
+
+  --scrollbar-thumb: #45515A;
+  --scrollbar-thumb-hover: #596771;
+  --scrollbar-track: transparent;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.18);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.20);
+  --shadow-lg: 0 10px 28px rgba(0,0,0,0.24);
+
+  /* ── Capa de compatibilidad shadcn/ui — misma regla que en :root ── */
+  --foreground: var(--text-primary);
+  --card-foreground: var(--text-primary);
+  --popover-foreground: var(--text-primary);
+  --secondary: var(--badge-bg);
+  --secondary-foreground: var(--badge-text);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-tertiary);
+  --accent: var(--primary-muted);
+  --accent-foreground: var(--nav-active-text);
+  --destructive: var(--danger);
+  --border: var(--border-subtle);
+  --input: var(--input-border);
+  --ring: var(--input-focus);
+  --chart-1: var(--primary);
+  --chart-2: var(--stage-cyan);
+  --chart-3: var(--stage-amber);
+  --chart-4: var(--stage-purple);
+  --chart-5: var(--stage-orange);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--nav-active-bg);
+  --sidebar-accent-foreground: var(--nav-active-text);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--primary);
 }
 
 @layer base {
@@ -240,7 +551,8 @@
    overflow:hidden ni display:none/width:0 en ningún estado — el scroll
    (rueda, trackpad, touch, teclado, autoscroll del D&D) sigue funcionando
    igual, solo cambia el color del thumb. Colores desde los tokens del
-   theme (--muted-foreground), no hardcodeados — mismo valor en light/dark. */
+   theme (--scrollbar-thumb/--scrollbar-thumb-hover), no hardcodeados —
+   valores propios por tema, ver claude-scheme-color-{light,dark}.md. */
 [data-pipeline-vscroll] {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -248,7 +560,7 @@
 
 [data-pipeline-vscroll]:hover,
 [data-pipeline-vscroll].is-scrolling {
-  scrollbar-color: var(--muted-foreground) transparent;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 [data-pipeline-vscroll]::-webkit-scrollbar {
@@ -256,7 +568,7 @@
 }
 
 [data-pipeline-vscroll]::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--scrollbar-track);
 }
 
 [data-pipeline-vscroll]::-webkit-scrollbar-thumb {
@@ -267,7 +579,11 @@
 
 [data-pipeline-vscroll]:hover::-webkit-scrollbar-thumb,
 [data-pipeline-vscroll].is-scrolling::-webkit-scrollbar-thumb {
-  background-color: var(--muted-foreground);
+  background-color: var(--scrollbar-thumb);
+}
+
+[data-pipeline-vscroll]::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 /* Scroll sin barra visible — mantiene overflow-y: auto, solo oculta el track/thumb nativo */
@@ -296,12 +612,14 @@
   height: 0;
 }
 
-/* Premium SaaS gradient background — dark mode only */
+/* Premium SaaS gradient background — dark mode only. Stops derivados de los
+   tokens del Design System (primary-subtle → sidebar → background), no de
+   HEX sueltos, para seguir la paleta charcoal/slate del dark mode nuevo. */
 .dark .app-gradient-bg {
   background: radial-gradient(
     ellipse 120% 80% at 0% 0%,
-    oklch(0.130 0.010 145) 0%,
-    oklch(0.085 0.003 264) 45%,
-    oklch(0.063 0.002 264) 100%
+    var(--primary-subtle) 0%,
+    var(--sidebar) 45%,
+    var(--background) 100%
   );
 }

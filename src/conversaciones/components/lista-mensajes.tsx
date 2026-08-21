@@ -75,7 +75,7 @@ export function ListaMensajes({
 
   if (mensajes.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500 text-sm">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
         Sin mensajes aún
       </div>
     );
@@ -95,7 +95,7 @@ export function ListaMensajes({
             type="button"
             onClick={handleCargarAnteriores}
             disabled={cargandoAnteriores}
-            className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/10 border border-stone-200 dark:border-white/10 px-3 py-1.5 rounded-full transition-colors disabled:opacity-40"
+            className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-foreground bg-button-secondary-bg hover:bg-button-secondary-hover border border-button-secondary-border px-3 py-1.5 rounded-full transition-colors disabled:opacity-40"
           >
             {cargandoAnteriores ? (
               <><Loader2 className="h-3 w-3 animate-spin shrink-0" /> Cargando…</>
@@ -110,9 +110,9 @@ export function ListaMensajes({
         {grupos.map((grupo) => (
           <div key={grupo.fecha}>
             <div className="flex items-center gap-2 my-3">
-              <div className="flex-1 h-px bg-stone-100 dark:bg-white/5" />
-              <span className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wide">{grupo.fecha}</span>
-              <div className="flex-1 h-px bg-stone-100 dark:bg-white/5" />
+              <div className="flex-1 h-px bg-card-divider" />
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{grupo.fecha}</span>
+              <div className="flex-1 h-px bg-card-divider" />
             </div>
             <div className="space-y-1">
               {grupo.mensajes.map((m) =>

@@ -46,11 +46,11 @@ function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
   // Estado: rechazada por seguridad
   if (esRechazada) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/8 px-3 py-2.5 min-w-[160px]">
-        <ShieldX className="h-4 w-4 text-red-400 shrink-0" />
+      <div className="flex items-center gap-2 rounded-xl border border-danger-border bg-danger-muted px-3 py-2.5 min-w-[160px]">
+        <ShieldX className="h-4 w-4 text-danger shrink-0" />
         <div>
-          <p className="text-xs font-medium text-red-400">Imagen no permitida</p>
-          <p className="text-[10px] text-red-400/70">Formato rechazado por seguridad</p>
+          <p className="text-xs font-medium text-danger-text">Imagen no permitida</p>
+          <p className="text-[10px] text-danger-text/70">Formato rechazado por seguridad</p>
         </div>
       </div>
     );
@@ -59,9 +59,9 @@ function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
   // Estado: error de procesamiento
   if (estado === "ERROR") {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 px-3 py-2.5 min-w-[160px]">
-        <AlertCircle className="h-4 w-4 text-stone-400 dark:text-stone-500 shrink-0" />
-        <p className="text-xs text-stone-500 dark:text-stone-500">No se pudo cargar la imagen</p>
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 min-w-[160px]">
+        <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+        <p className="text-xs text-muted-foreground">No se pudo cargar la imagen</p>
       </div>
     );
   }
@@ -69,9 +69,9 @@ function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
   // Estado: sin mediaArchivo (no se pudo procesar antes de encolarlo)
   if (!mensaje.mediaArchivoId && !mensaje.mediaUrl) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 px-3 py-2.5 min-w-[160px]">
-        <ImageIcon className="h-4 w-4 text-stone-400 dark:text-stone-500 shrink-0" />
-        <p className="text-xs text-stone-500 dark:text-stone-500">Imagen no disponible</p>
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 min-w-[160px]">
+        <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <p className="text-xs text-muted-foreground">Imagen no disponible</p>
       </div>
     );
   }
@@ -83,9 +83,9 @@ function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
 
   if (!thumbnailSrc) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 px-3 py-2.5 min-w-[160px]">
-        <ImageIcon className="h-4 w-4 text-stone-400 dark:text-stone-500 shrink-0" />
-        <p className="text-xs text-stone-500 dark:text-stone-500">Imagen no disponible</p>
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 min-w-[160px]">
+        <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <p className="text-xs text-muted-foreground">Imagen no disponible</p>
       </div>
     );
   }
@@ -95,7 +95,7 @@ function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
       <button
         type="button"
         onClick={() => fullSrc && setLightboxAbierto(true)}
-        className="block rounded-xl overflow-hidden border border-stone-200 dark:border-white/10 hover:opacity-90 transition-opacity cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-lime-400/40"
+        className="block rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary/40"
         title="Ver imagen completa"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -128,8 +128,8 @@ const iconoEstado: Record<EstadoMensaje, React.ReactNode> = {
   RECIBIDO: <Check className="h-3 w-3" />,
   ENVIADO: <Check className="h-3 w-3" />,
   ENTREGADO: <CheckCheck className="h-3 w-3" />,
-  LEIDO: <CheckCheck className="h-3 w-3 text-lime-400" />,
-  FALLIDO: <AlertCircle className="h-3 w-3 text-red-400" />,
+  LEIDO: <CheckCheck className="h-3 w-3 text-primary" />,
+  FALLIDO: <AlertCircle className="h-3 w-3 text-danger" />,
 };
 
 interface BurbujaMensajeProps {
@@ -199,14 +199,14 @@ export function BurbujaMensaje({
           className={cn(
             "rounded-2xl px-3 py-2 text-sm leading-relaxed",
             esNota
-              ? "bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-800 dark:text-amber-200 rounded-tr-sm"
+              ? "bg-stage-amber-muted border border-stage-amber-border text-stage-amber-text rounded-tr-sm"
               : esPropioONota
-                ? "bg-lime-500/15 dark:bg-lime-500/20 border border-lime-500/25 dark:border-lime-500/20 text-stone-900 dark:text-stone-100 rounded-tr-sm"
-                : "bg-stone-100 dark:bg-white/5 border border-stone-200 dark:border-white/10 text-stone-700 dark:text-stone-200 rounded-tl-sm"
+                ? "bg-primary-muted border border-primary-border text-foreground rounded-tr-sm"
+                : "bg-muted border border-border text-text-secondary rounded-tl-sm"
           )}
         >
           {esNota && (
-            <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 mb-1 font-medium uppercase tracking-wide">
+            <div className="flex items-center gap-1 text-[10px] text-stage-amber-text mb-1 font-medium uppercase tracking-wide">
               <Lock className="h-2.5 w-2.5" />
               Nota interna
             </div>
@@ -232,8 +232,8 @@ export function BurbujaMensaje({
                   return (
                     <div className="flex flex-col gap-1.5 min-w-[200px]">
                       <div className="flex items-center gap-1.5">
-                        <Mic className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400 shrink-0" />
-                        <span className="text-xs text-stone-500 dark:text-stone-400">
+                        <Mic className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="text-xs text-muted-foreground">
                           {mensaje.tipo === "NOTA_VOZ" ? "Nota de voz" : "Audio"}
                           {minutos !== null && segundos !== null
                             ? ` · ${minutos}:${segundos}`
@@ -252,15 +252,15 @@ export function BurbujaMensaje({
 
                 const fallback = TIPO_FALLBACK[mensaje.tipo as TipoMensaje];
                 return fallback ? (
-                  <span className="flex items-center gap-1.5 text-stone-500 dark:text-stone-400 text-xs italic">
+                  <span className="flex items-center gap-1.5 text-muted-foreground text-xs italic">
                     {fallback.icono}
                     {fallback.texto}
                     {esAudioTipo && (
-                      <span className="text-stone-400 dark:text-stone-500 text-[10px]">(procesando…)</span>
+                      <span className="text-muted-foreground text-[10px]">(procesando…)</span>
                     )}
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5 text-stone-400 dark:text-stone-500 text-xs italic">
+                  <span className="flex items-center gap-1.5 text-muted-foreground text-xs italic">
                     <EyeOff className="h-3.5 w-3.5 shrink-0" />
                     Este contenido no puede visualizarse. La conversación sigue disponible.
                   </span>
@@ -274,7 +274,7 @@ export function BurbujaMensaje({
               <button
                 type="button"
                 onClick={() => onMarcarLeido(mensaje.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-stone-400 dark:text-stone-500 hover:text-lime-600 dark:hover:text-lime-400 flex items-center gap-0.5 whitespace-nowrap shrink-0"
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-primary flex items-center gap-0.5 whitespace-nowrap shrink-0"
               >
                 <Check className="h-2.5 w-2.5" />
                 Marcar leído
@@ -284,14 +284,14 @@ export function BurbujaMensaje({
             )}
 
             <div className="flex items-center gap-1 ml-auto shrink-0">
-              <span className="text-[10px] text-stone-400 dark:text-stone-500">
+              <span className="text-[10px] text-muted-foreground">
                 {format(new Date(mensaje.creadoEn), "HH:mm", { locale: es })}
               </span>
               {esPropioONota && !esNota && (
-                <span className="text-stone-400 dark:text-stone-500">{iconoEstado[estadoEfectivo]}</span>
+                <span className="text-muted-foreground">{iconoEstado[estadoEfectivo]}</span>
               )}
               {esContacto && !esNoLeido && (
-                <span className="text-[9px] text-lime-600/70 dark:text-lime-500/60 flex items-center gap-0.5">
+                <span className="text-[9px] text-primary/70 flex items-center gap-0.5">
                   <Check className="h-2.5 w-2.5" />
                   Leído
                 </span>

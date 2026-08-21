@@ -177,8 +177,8 @@ export function PipelineWrapper({
             onClick={() => setModoConfig(false)}
             className={cn(
               "h-8 px-3 rounded-lg gap-1.5 text-[12.5px] font-medium",
-              "bg-lime-500/[0.1] dark:bg-lime-400/[0.08] border border-lime-500/20 dark:border-lime-400/20",
-              "text-lime-700 dark:text-lime-400 hover:bg-lime-500/[0.15] dark:hover:bg-lime-400/[0.12]"
+              "bg-primary-muted border border-primary-border",
+              "text-primary hover:bg-primary-muted/70"
             )}
           >
             <CheckCheck className="h-3.5 w-3.5" />
@@ -195,8 +195,8 @@ export function PipelineWrapper({
                 className={cn(
                   "h-8 px-3 rounded-lg gap-1.5 text-[12.5px] font-medium border transition-colors cursor-pointer",
                   verOcultos
-                    ? "bg-lime-500/[0.1] dark:bg-lime-400/[0.08] border-lime-500/20 dark:border-lime-400/20 text-lime-700 dark:text-lime-400"
-                    : "border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70"
+                    ? "bg-primary-muted border-primary-border text-primary"
+                    : "border-button-secondary-border text-button-secondary-text hover:text-foreground"
                 )}
               >
                 <EyeOff className="h-3.5 w-3.5" />
@@ -226,7 +226,7 @@ export function PipelineWrapper({
                 ? `/crm/oportunidades/nueva?pipelineId=${pipelineActual.id}&stageId=${pipelineActual.stages[0].id}`
                 : "/crm/oportunidades/nueva"
             }
-            className="h-8 px-3 rounded-lg bg-lime-500 hover:bg-lime-400 text-stone-950 shadow-[0_0_14px_rgba(132,204,22,0.3)] hover:shadow-[0_0_20px_rgba(132,204,22,0.45)] gap-1.5 text-[12.5px] font-semibold transition-all"
+            className="h-8 px-3 rounded-lg bg-primary hover:bg-primary-hover text-primary-foreground shadow-[0_0_14px_color-mix(in_oklab,var(--primary)_30%,transparent)] hover:shadow-[0_0_20px_color-mix(in_oklab,var(--primary)_45%,transparent)] gap-1.5 text-[12.5px] font-semibold transition-all"
           >
             <Plus className="h-3.5 w-3.5" />
             Nueva oportunidad
@@ -254,15 +254,15 @@ export function PipelineWrapper({
         {/* Modo configuración */}
         {modoConfig && pipelineActual && puedeMod && (
           <div className="h-full overflow-y-auto">
-            <div className="rounded-xl border border-stone-200 dark:border-white/[0.07] bg-white dark:bg-[oklch(0.110_0.003_264)] p-6">
+            <div className="rounded-xl border border-border bg-surface-elevated p-6">
               <div className="flex items-center gap-2 mb-6">
                 <button
                   onClick={() => setModoConfig(false)}
-                  className="h-6 w-6 flex items-center justify-center rounded-md text-stone-400 dark:text-white/30 hover:text-stone-600 dark:hover:text-white/70 hover:bg-stone-100 dark:hover:bg-white/[0.06] transition-colors"
+                  className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
                 </button>
-                <span className="text-[10px] font-semibold text-stone-400 dark:text-white/25 uppercase tracking-[0.08em]">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">
                   Configuración del pipeline
                 </span>
               </div>
@@ -279,8 +279,8 @@ export function PipelineWrapper({
         {!modoConfig && esDinamico && pipelineActual && (
           pipelineActual.stages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-              <KanbanSquare className="h-9 w-9 text-stone-300 dark:text-white/[0.08]" />
-              <p className="text-[13px] font-medium text-stone-500 dark:text-white/35">
+              <KanbanSquare className="h-9 w-9 text-muted-foreground/50" />
+              <p className="text-[13px] font-medium text-muted-foreground">
                 Este pipeline no tiene etapas todavía
               </p>
               {puedeMod && (
@@ -288,7 +288,7 @@ export function PipelineWrapper({
                   variant="ghost"
                   size="sm"
                   onClick={() => setModoConfig(true)}
-                  className="rounded-lg border border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70 gap-1.5 text-[12px]"
+                  className="rounded-lg border border-button-secondary-border text-button-secondary-text hover:text-foreground gap-1.5 text-[12px]"
                 >
                   <Settings2 className="h-3.5 w-3.5" />
                   Configurar etapas
@@ -297,15 +297,15 @@ export function PipelineWrapper({
             </div>
           ) : sinResultadosPorFiltros ? (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-              <SearchX className="h-9 w-9 text-stone-300 dark:text-white/[0.08]" />
-              <p className="text-[13px] font-medium text-stone-500 dark:text-white/35">
+              <SearchX className="h-9 w-9 text-muted-foreground/50" />
+              <p className="text-[13px] font-medium text-muted-foreground">
                 No hay oportunidades que coincidan con los filtros.
               </p>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={limpiarFiltros}
-                className="rounded-lg border border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70 gap-1.5 text-[12px]"
+                className="rounded-lg border border-button-secondary-border text-button-secondary-text hover:text-foreground gap-1.5 text-[12px]"
               >
                 Limpiar filtros
               </Button>
@@ -339,11 +339,11 @@ export function PipelineWrapper({
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3">
-              <KanbanSquare className="h-9 w-9 text-stone-300 dark:text-white/[0.08]" />
-              <p className="text-[13px] font-medium text-stone-500 dark:text-white/35">
+              <KanbanSquare className="h-9 w-9 text-muted-foreground/50" />
+              <p className="text-[13px] font-medium text-muted-foreground">
                 Pipeline vacío
               </p>
-              <p className="text-[11px] text-stone-400 dark:text-white/20">
+              <p className="text-[11px] text-muted-foreground">
                 Crea oportunidades o un pipeline personalizado
               </p>
             </div>

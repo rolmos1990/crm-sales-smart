@@ -31,7 +31,7 @@ export function AvatarContacto({ nombre, apellido, avatarUrl, className }: Avata
         alt={nombreCompleto || "Contacto"}
         onError={() => setFallo(true)}
         className={cn(
-          "rounded-full object-cover border border-lime-500/25 dark:border-lime-400/20 shrink-0",
+          "rounded-full object-cover border border-primary-border shrink-0",
           className
         )}
       />
@@ -43,8 +43,8 @@ export function AvatarContacto({ nombre, apellido, avatarUrl, className }: Avata
       className={cn(
         "rounded-full border flex items-center justify-center font-semibold shrink-0",
         nombreCompleto
-          ? "bg-gradient-to-br from-lime-500/20 to-emerald-500/10 dark:from-lime-500/25 dark:to-emerald-500/15 border-lime-500/25 dark:border-lime-400/20 text-lime-700 dark:text-lime-300"
-          : "bg-stone-100 dark:bg-white/[0.06] border-stone-200 dark:border-white/10 text-stone-400 dark:text-white/30",
+          ? "bg-primary-muted border-primary-border text-primary"
+          : "bg-muted border-border text-muted-foreground",
         className
       )}
     >

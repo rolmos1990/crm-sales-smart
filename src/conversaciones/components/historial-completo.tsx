@@ -30,34 +30,34 @@ export function HistorialCompleto({ contactoId, nombreContacto }: HistorialCompl
 
   return (
     <Sheet open={abierto} onOpenChange={setAbierto}>
-      <SheetTrigger className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-200 transition-colors px-2 py-1 rounded-lg hover:bg-white/5">
+      <SheetTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted">
         <History className="h-3.5 w-3.5" />
         Ver historial completo
       </SheetTrigger>
-      <SheetContent side="right" className="w-full max-w-lg bg-stone-950 border-white/10 flex flex-col">
-        <SheetHeader className="border-b border-white/10 pb-3">
-          <SheetTitle className="text-stone-100 text-base">
+      <SheetContent side="right" className="w-full max-w-lg bg-modal border-border flex flex-col">
+        <SheetHeader className="border-b border-border pb-3">
+          <SheetTitle className="text-foreground text-base">
             Historial de {nombreContacto}
           </SheetTitle>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto py-3">
           {isLoading && (
-            <p className="text-center text-stone-500 text-sm py-8">Cargando historial…</p>
+            <p className="text-center text-muted-foreground text-sm py-8">Cargando historial…</p>
           )}
 
           {!isLoading && data?.conversaciones?.length === 0 && (
-            <p className="text-center text-stone-500 text-sm py-8">Sin conversaciones anteriores</p>
+            <p className="text-center text-muted-foreground text-sm py-8">Sin conversaciones anteriores</p>
           )}
 
           {!isLoading && data?.conversaciones?.map((conv: any) => (
             <div key={conv.id} className="mb-6">
               <div className="flex items-center gap-2 px-3 mb-2">
-                <div className="flex-1 h-px bg-white/5" />
-                <span className="text-[10px] text-stone-500 uppercase tracking-wide">
+                <div className="flex-1 h-px bg-card-divider" />
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
                   {conv.cuentaCanal?.nombre ?? conv.cuentaCanal?.canal} · {format(new Date(conv.creadoEn), "d MMM yyyy", { locale: es })}
                 </span>
-                <div className="flex-1 h-px bg-white/5" />
+                <div className="flex-1 h-px bg-card-divider" />
               </div>
               <div className="px-3 space-y-1">
                 {conv.mensajes?.map((m: any) => (

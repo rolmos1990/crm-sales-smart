@@ -79,8 +79,8 @@ function CampoEditable({
 
   if (editando) {
     return (
-      <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-white dark:bg-white/6 border border-lime-400/40 dark:border-lime-400/30">
-        <span className="text-stone-400 dark:text-stone-500 shrink-0">{icono}</span>
+      <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-input-bg border border-input-focus/50">
+        <span className="text-muted-foreground shrink-0">{icono}</span>
         <input
           ref={inputRef}
           autoFocus
@@ -92,11 +92,11 @@ function CampoEditable({
             if (e.key === "Escape") { setVal(valor ?? ""); setEditando(false); }
           }}
           placeholder={placeholder}
-          className="flex-1 bg-transparent text-xs text-stone-800 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-600 outline-none"
+          className="flex-1 bg-transparent text-xs text-foreground placeholder:text-input-placeholder outline-none"
         />
         {guardando
-          ? <Loader2 className="h-3 w-3 text-lime-600 dark:text-lime-400 animate-spin shrink-0" />
-          : <Check className="h-3 w-3 text-lime-600 dark:text-lime-400 shrink-0" />}
+          ? <Loader2 className="h-3 w-3 text-primary animate-spin shrink-0" />
+          : <Check className="h-3 w-3 text-primary shrink-0" />}
       </div>
     );
   }
@@ -105,13 +105,13 @@ function CampoEditable({
     <button
       type="button"
       onClick={() => { setEditando(true); }}
-      className="w-full flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-stone-100 dark:hover:bg-white/5 transition-colors group text-left"
+      className="w-full flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-muted transition-colors group text-left"
       title={`Editar ${label}`}
     >
-      <span className="text-stone-400 dark:text-stone-600 group-hover:text-stone-600 dark:group-hover:text-stone-400 shrink-0 transition-colors">{icono}</span>
+      <span className="text-muted-foreground group-hover:text-foreground shrink-0 transition-colors">{icono}</span>
       <span className={cn(
         "flex-1 text-xs truncate",
-        valor ? "text-stone-600 dark:text-stone-300" : "text-stone-400 dark:text-stone-600 italic"
+        valor ? "text-text-secondary" : "text-muted-foreground italic"
       )}>
         {valor || placeholder}
       </span>
@@ -132,22 +132,22 @@ const CLASIFICACION_OPCIONES: {
     valor: "POSTVENTA",
     label: "Postventa",
     icono: <ShoppingBag className="h-3 w-3" />,
-    color: "text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20",
-    colorActivo: "text-amber-800 dark:text-amber-300 border-2 border-amber-500 dark:border-amber-400 bg-amber-100 dark:bg-amber-500/20 ring-2 ring-amber-200 dark:ring-amber-400/20",
+    color: "text-stage-amber-text border-stage-amber-border bg-stage-amber-muted hover:bg-stage-amber-muted/70",
+    colorActivo: "text-stage-amber-text border-2 border-stage-amber bg-stage-amber-muted ring-2 ring-stage-amber/20",
   },
   {
     valor: "COMERCIAL",
     label: "Comercial",
     icono: <TrendingUp className="h-3 w-3" />,
-    color: "text-lime-700 dark:text-lime-400 border-lime-200 dark:border-lime-500/30 bg-lime-50 dark:bg-lime-500/10 hover:bg-lime-100 dark:hover:bg-lime-500/20",
-    colorActivo: "text-lime-800 dark:text-lime-300 border-2 border-lime-500 dark:border-lime-400 bg-lime-100 dark:bg-lime-500/20 ring-2 ring-lime-200 dark:ring-lime-400/20",
+    color: "text-primary border-primary-border bg-primary-muted hover:bg-primary-muted/70",
+    colorActivo: "text-primary border-2 border-primary bg-primary-muted ring-2 ring-primary/20",
   },
   {
     valor: "SOPORTE",
     label: "Soporte",
     icono: <Headphones className="h-3 w-3" />,
-    color: "text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20",
-    colorActivo: "text-blue-800 dark:text-blue-300 border-2 border-blue-500 dark:border-blue-400 bg-blue-100 dark:bg-blue-500/20 ring-2 ring-blue-200 dark:ring-blue-400/20",
+    color: "text-stage-cyan-text border-stage-cyan-border bg-stage-cyan-muted hover:bg-stage-cyan-muted/70",
+    colorActivo: "text-stage-cyan-text border-2 border-stage-cyan bg-stage-cyan-muted ring-2 ring-stage-cyan/20",
   },
 ];
 
@@ -204,14 +204,14 @@ function TarjetaOportunidadEditable({
   };
 
   return (
-    <div className="mx-2 px-3 py-2.5 rounded-xl bg-white dark:bg-white/4 border border-stone-200 dark:border-white/8 space-y-3">
+    <div className="mx-2 px-3 py-2.5 rounded-xl bg-card border border-card-border space-y-3">
       <div className="flex items-center gap-2">
-        <TrendingUp className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400 shrink-0" />
-        <p className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate flex-1">{oportunidad.titulo}</p>
+        <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
+        <p className="text-xs font-semibold text-foreground truncate flex-1">{oportunidad.titulo}</p>
       </div>
 
       <div className="space-y-1">
-        <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Etapa</p>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Etapa</p>
         <div className="[&>button]:w-full">
           <SelectorPipelineStage
             pipelineId={pipelineId}
@@ -229,23 +229,23 @@ function TarjetaOportunidadEditable({
       </div>
 
       <div className="space-y-1">
-        <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Etiquetas</p>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Etiquetas</p>
         <SelectorTags tags={tagsDisponibles} seleccionados={tagIds} onChange={setTagIds} placeholder="Agregar etiqueta..." />
       </div>
 
       <div className="space-y-1">
-        <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Fecha de cierre</p>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Fecha de cierre</p>
         <SmartDatePicker value={fechaCierre} onChange={setFechaCierre} presets={[]} placeholder="Sin fecha" className="gap-2" />
       </div>
 
       <div className="space-y-1">
-        <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Nota</p>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Nota</p>
         <textarea
           rows={2}
           value={nota}
           onChange={(e) => setNota(e.target.value)}
           placeholder="Agrega una nota..."
-          className="w-full resize-none rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 px-3 py-2 text-xs text-stone-700 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-600 outline-none focus:border-lime-400/50 dark:focus:border-lime-400/40 transition-colors"
+          className="w-full resize-none rounded-xl border border-input bg-input-bg px-3 py-2 text-xs text-foreground placeholder:text-input-placeholder outline-none focus:border-input-focus/50 transition-colors"
         />
       </div>
 
@@ -253,7 +253,7 @@ function TarjetaOportunidadEditable({
         type="button"
         disabled={guardando}
         onClick={guardar}
-        className="flex w-full items-center justify-center gap-1.5 text-[11px] font-semibold text-stone-950 bg-lime-400 hover:bg-lime-300 rounded-lg px-3 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
+        className="flex w-full items-center justify-center gap-1.5 text-[11px] font-semibold text-primary-foreground bg-primary hover:bg-primary-hover rounded-lg px-3 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
       >
         {guardando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
         Guardar cambios
@@ -261,7 +261,7 @@ function TarjetaOportunidadEditable({
 
       <a
         href={`/crm/oportunidades/${oportunidad.id}`}
-        className="flex w-full items-center justify-center text-[11px] font-medium text-lime-700 dark:text-lime-400 hover:text-lime-800 dark:hover:text-lime-300 transition-colors"
+        className="flex w-full items-center justify-center text-[11px] font-medium text-primary hover:text-primary-hover transition-colors"
       >
         Abrir oportunidad completa
       </a>
@@ -302,40 +302,40 @@ function SeccionOportunidadesAnteriores({
         onClick={() => setAbierta((v) => !v)}
         className="w-full flex items-center gap-1.5 pt-2 pb-1 px-3"
       >
-        <History className="h-3 w-3 text-stone-400 dark:text-stone-600 shrink-0" />
-        <p className="flex-1 text-left text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">
+        <History className="h-3 w-3 text-muted-foreground shrink-0" />
+        <p className="flex-1 text-left text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
           Oportunidades anteriores
         </p>
         {items.length > 0 && (
-          <span className="text-[9px] font-semibold text-stone-400 dark:text-stone-600 tabular-nums">{items.length}</span>
+          <span className="text-[9px] font-semibold text-muted-foreground tabular-nums">{items.length}</span>
         )}
-        <ChevronDown className={cn("h-3 w-3 text-stone-400 dark:text-stone-600 transition-transform shrink-0", !abierta && "-rotate-90")} />
+        <ChevronDown className={cn("h-3 w-3 text-muted-foreground transition-transform shrink-0", !abierta && "-rotate-90")} />
       </button>
 
       {abierta && (
-        <div className="mx-2 mb-1 rounded-xl border border-stone-200 dark:border-white/8 bg-white dark:bg-white/4 divide-y divide-stone-100 dark:divide-white/6 overflow-hidden">
+        <div className="mx-2 mb-1 rounded-xl border border-card-border bg-card divide-y divide-card-divider overflow-hidden">
           {cargando ? (
             <div className="flex items-center justify-center py-3">
-              <Loader2 className="h-3 w-3 text-stone-400 dark:text-stone-600 animate-spin" />
+              <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />
             </div>
           ) : (
             items.map((op) => {
               const estado = op.stage?.esGanado
-                ? { label: "Ganada", dot: "bg-emerald-500" }
+                ? { label: "Ganada", dot: "bg-success" }
                 : op.stage?.esPerdido
-                ? { label: "Perdida", dot: "bg-red-500" }
-                : { label: "Cerrada", dot: "bg-blue-500" };
+                ? { label: "Perdida", dot: "bg-danger" }
+                : { label: "Cerrada", dot: "bg-info" };
               const fecha = op.fechaGanada ?? op.fechaPerdida ?? op.actualizadoEn;
               return (
                 <a
                   key={op.id}
                   href={`/crm/oportunidades/${op.id}`}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-stone-50 dark:hover:bg-white/5 transition-colors min-w-0"
+                  className="flex items-center gap-2 px-3 py-2 hover:bg-muted transition-colors min-w-0"
                 >
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", estado.dot)} />
-                  <span className="flex-1 min-w-0 text-[11px] text-stone-700 dark:text-stone-300 truncate">{op.titulo}</span>
-                  <span className="shrink-0 text-[10px] text-stone-400 dark:text-stone-500">{estado.label}</span>
-                  <span className="shrink-0 text-[10px] text-stone-400 dark:text-stone-600 tabular-nums">
+                  <span className="flex-1 min-w-0 text-[11px] text-text-secondary truncate">{op.titulo}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{estado.label}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
                     {format(new Date(fecha), "dd MMM yyyy", { locale: es })}
                   </span>
                 </a>
@@ -425,9 +425,9 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-stone-50/60 dark:bg-white/[0.02] border-l border-stone-200 dark:border-white/8">
+    <div className="flex flex-col h-full overflow-hidden bg-background-subtle border-l border-border">
       {/* Header del contacto */}
-      <div className="px-4 pt-4 pb-3 border-b border-stone-200 dark:border-white/8 shrink-0">
+      <div className="px-4 pt-4 pb-3 border-b border-border shrink-0">
         <div className="flex items-start gap-3">
           <AvatarContacto
             nombre={contacto.nombre}
@@ -436,11 +436,11 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
             className="h-10 w-10 text-sm font-bold"
           />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-stone-900 dark:text-stone-100 leading-tight truncate">{nombreCompleto}</p>
+            <p className="text-xs font-bold text-foreground leading-tight truncate">{nombreCompleto}</p>
             {conversacion.cuentaCanal && (
-              <span className="inline-flex items-center gap-1 mt-1 text-[9px] font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-500 bg-stone-100 dark:bg-white/5 border border-stone-200 dark:border-white/8 rounded-full px-2 py-0.5">
+              <span className="inline-flex items-center gap-1 mt-1 text-[9px] font-semibold uppercase tracking-wide text-badge-text bg-badge-bg border border-badge-border rounded-full px-2 py-0.5">
                 {conversacion.cuentaCanal.canal.replace("_lite", "").replace("_", " ")}
-                <span className="text-stone-300 dark:text-stone-600">·</span>
+                <span className="text-muted-foreground">·</span>
                 {conversacion.cuentaCanal.nombre}
               </span>
             )}
@@ -465,12 +465,12 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           <>
             {/* Mostrar el WA ID como referencia no editable */}
             <div className="flex items-center gap-2 py-2 px-3 rounded-xl">
-              <Smartphone className="h-3.5 w-3.5 text-stone-400 dark:text-stone-600 shrink-0" />
+              <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-stone-500 dark:text-stone-500 truncate font-mono">
+                <p className="text-[10px] text-muted-foreground truncate font-mono">
                   {formatearIdentificadorWA(conversacion.identificadorCanal)}
                 </p>
-                <p className="text-[9px] text-stone-400 dark:text-stone-600">Número privado — no disponible</p>
+                <p className="text-[9px] text-muted-foreground">Número privado — no disponible</p>
               </div>
             </div>
             {/* Campo para ingresar el número real cuando el agente lo consiga */}
@@ -486,12 +486,12 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           <>
             {/* @usuario de Instagram como referencia no editable — Instagram no comparte teléfono */}
             <div className="flex items-center gap-2 py-2 px-3 rounded-xl">
-              <Camera className="h-3.5 w-3.5 text-stone-400 dark:text-stone-600 shrink-0" />
+              <Camera className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-stone-500 dark:text-stone-500 truncate font-mono">
+                <p className="text-[10px] text-muted-foreground truncate font-mono">
                   {conversacion.handleCanal ? `@${conversacion.handleCanal}` : `ID: ${conversacion.identificadorCanal ?? "—"}`}
                 </p>
-                <p className="text-[9px] text-stone-400 dark:text-stone-600">Instagram no comparte el teléfono del contacto</p>
+                <p className="text-[9px] text-muted-foreground">Instagram no comparte el teléfono del contacto</p>
               </div>
             </div>
             <CampoEditable
@@ -523,7 +523,7 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
 
         {/* Separador */}
         <div className="pt-2 pb-1 px-3">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Vincular</p>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Vincular</p>
         </div>
 
         {/* Botón vincular / sección búsqueda */}
@@ -531,60 +531,60 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           <button
             type="button"
             onClick={() => setMostrarBusqueda(true)}
-            className="w-full flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-stone-100 dark:hover:bg-white/5 transition-colors text-left"
+            className="w-full flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-muted transition-colors text-left"
           >
-            <Link2 className="h-3.5 w-3.5 text-stone-400 dark:text-stone-600" />
-            <span className="text-xs text-stone-500 dark:text-stone-500">Vincular a contacto existente</span>
+            <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Vincular a contacto existente</span>
           </button>
         ) : (
           <div className="px-1 space-y-1.5">
-            <div className="flex items-center gap-1.5 bg-white dark:bg-white/6 border border-stone-200 dark:border-white/10 rounded-xl px-3 py-2">
-              <Search className="h-3 w-3 text-stone-400 dark:text-stone-500 shrink-0" />
+            <div className="flex items-center gap-1.5 bg-input-bg border border-input rounded-xl px-3 py-2">
+              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
               <input
                 autoFocus
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Nombre, teléfono…"
-                className="flex-1 bg-transparent text-xs text-stone-800 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-600 outline-none"
+                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-input-placeholder outline-none"
               />
               {buscando
-                ? <Loader2 className="h-3 w-3 text-stone-400 dark:text-stone-500 animate-spin shrink-0" />
+                ? <Loader2 className="h-3 w-3 text-muted-foreground animate-spin shrink-0" />
                 : <button type="button" onClick={() => { setMostrarBusqueda(false); setBusqueda(""); setResultados([]); }}>
-                    <X className="h-3 w-3 text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400" />
+                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
                   </button>}
             </div>
 
             {resultados.length > 0 && (
-              <div className="rounded-xl border border-stone-200 dark:border-white/8 bg-white dark:bg-stone-900/80 overflow-hidden divide-y divide-stone-100 dark:divide-white/5">
+              <div className="rounded-xl border border-card-border bg-dropdown overflow-hidden divide-y divide-card-divider">
                 {resultados.map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     disabled={vinculando}
                     onClick={() => handleVincular(c)}
-                    className="w-full text-left flex items-center gap-2.5 px-3 py-2.5 hover:bg-stone-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+                    className="w-full text-left flex items-center gap-2.5 px-3 py-2.5 hover:bg-muted transition-colors disabled:opacity-50"
                   >
-                    <div className="h-6 w-6 rounded-full bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-white/10 flex items-center justify-center text-[9px] font-bold text-stone-500 dark:text-stone-400 shrink-0">
+                    <div className="h-6 w-6 rounded-full bg-badge-bg border border-border flex items-center justify-center text-[9px] font-bold text-badge-text shrink-0">
                       {`${c.nombre[0] ?? ""}${c.apellido[0] ?? ""}`.toUpperCase() || "?"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate">
+                      <p className="text-xs font-semibold text-foreground truncate">
                         {`${c.nombre} ${c.apellido}`.trim()}
                       </p>
                       {(c.telefonoPrincipal || c.empresa?.nombre) && (
-                        <p className="text-[10px] text-stone-500 dark:text-stone-500 truncate">
+                        <p className="text-[10px] text-muted-foreground truncate">
                           {c.telefonoPrincipal ?? c.empresa?.nombre}
                         </p>
                       )}
                     </div>
-                    {vinculando && <Loader2 className="h-3 w-3 text-stone-400 dark:text-stone-500 animate-spin shrink-0" />}
+                    {vinculando && <Loader2 className="h-3 w-3 text-muted-foreground animate-spin shrink-0" />}
                   </button>
                 ))}
               </div>
             )}
 
             {busqueda.trim() && !buscando && resultados.length === 0 && (
-              <p className="text-[10px] text-stone-400 dark:text-stone-600 text-center py-2">Sin resultados</p>
+              <p className="text-[10px] text-muted-foreground text-center py-2">Sin resultados</p>
             )}
           </div>
         )}
@@ -593,13 +593,13 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
         {conversacion.cuentaCanal && (
           <>
             <div className="pt-2 pb-1 px-3">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Canal</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Canal</p>
             </div>
             <div className="flex items-center gap-2 py-2 px-3">
-              <Building2 className="h-3.5 w-3.5 text-stone-400 dark:text-stone-600 shrink-0" />
+              <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-stone-600 dark:text-stone-400 truncate">{conversacion.cuentaCanal.nombre}</p>
-                <p className="text-[10px] text-stone-400 dark:text-stone-600 truncate">{conversacion.cuentaCanal.identificador}</p>
+                <p className="text-xs text-text-secondary truncate">{conversacion.cuentaCanal.nombre}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{conversacion.cuentaCanal.identificador}</p>
               </div>
             </div>
           </>
@@ -614,9 +614,9 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
         {(conversacion.oportunidadGanadaRel || conversacion.clasificacion !== "NINGUNA") && (
           <>
             <div className="pt-2 pb-1 px-3">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Clasificación de conversación</p>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Clasificación de conversación</p>
             </div>
-            <div className="mx-2 px-3 py-2.5 rounded-xl bg-white dark:bg-white/4 border border-stone-200 dark:border-white/8 space-y-2">
+            <div className="mx-2 px-3 py-2.5 rounded-xl bg-card border border-card-border space-y-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 {CLASIFICACION_OPCIONES.map((opcion) => {
                   const activo = conversacion.clasificacion === opcion.valor;
@@ -654,9 +654,9 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
                     </button>
                   );
                 })}
-                {clasificando && <Loader2 className="h-3 w-3 text-stone-400 dark:text-stone-500 animate-spin shrink-0" />}
+                {clasificando && <Loader2 className="h-3 w-3 text-muted-foreground animate-spin shrink-0" />}
               </div>
-              <p className="text-[10px] text-stone-400 dark:text-stone-500 leading-snug">
+              <p className="text-[10px] text-muted-foreground leading-snug">
                 Puedes cambiarla en cualquier momento.
               </p>
             </div>
@@ -683,7 +683,7 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
             return (
               <>
                 <div className="pt-2 pb-1 px-3">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Oportunidad actual</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Oportunidad actual</p>
                 </div>
                 <TarjetaOportunidadEditable
                   oportunidad={op}
@@ -694,32 +694,32 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           }
 
           const etapaLabel = op.stage?.nombre ?? op.etapa;
-          const stageColor = op.stage?.color ?? "#94a3b8";
+          const stageColor = op.stage?.color ?? "var(--text-muted)";
           return (
             <>
               <div className="pt-2 pb-1 px-3">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Oportunidad</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Oportunidad</p>
               </div>
-              <div className="mx-2 px-3 py-2.5 rounded-xl bg-white dark:bg-white/4 border border-stone-200 dark:border-white/8 space-y-1.5">
+              <div className="mx-2 px-3 py-2.5 rounded-xl bg-card border border-card-border space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400 shrink-0" />
-                  <p className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate flex-1">{op.titulo}</p>
+                  <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <p className="text-xs font-semibold text-foreground truncate flex-1">{op.titulo}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span
                     className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
                     style={{ backgroundColor: stageColor }}
                   />
-                  <span className="text-[10px] text-stone-500 dark:text-stone-400">{etapaLabel}</span>
+                  <span className="text-[10px] text-muted-foreground">{etapaLabel}</span>
                   {op.valor > 0 && (
-                    <span className="ml-auto text-[10px] font-semibold text-lime-600 dark:text-lime-400 tabular-nums">
+                    <span className="ml-auto text-[10px] font-semibold text-primary tabular-nums">
                       {op.moneda} {Number(op.valor).toLocaleString("es-PE", { minimumFractionDigits: 0 })}
                     </span>
                   )}
                 </div>
                 <a
                   href={`/crm/oportunidades/${op.id}`}
-                  className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-white/6 hover:bg-stone-100 dark:hover:bg-white/10 border border-stone-200 dark:border-white/10 rounded-lg px-3 py-1.5 transition-all"
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-text-secondary bg-button-secondary-bg hover:bg-button-secondary-hover border border-button-secondary-border rounded-lg px-3 py-1.5 transition-all"
                 >
                   Ver oportunidad
                 </a>
@@ -739,33 +739,33 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
           return (
             <>
               <div className="pt-2 pb-1 px-3">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-600">Oportunidad</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Oportunidad</p>
               </div>
-              <div className="mx-2 px-3 py-2.5 rounded-xl bg-white dark:bg-white/4 border border-stone-200 dark:border-white/8 space-y-1.5">
+              <div className="mx-2 px-3 py-2.5 rounded-xl bg-card border border-card-border space-y-1.5">
                 <div className="flex items-center gap-2">
                   {esPerdida
-                    ? <XCircle className="h-3.5 w-3.5 text-red-500 dark:text-red-400 shrink-0" />
-                    : <Trophy className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 shrink-0" />}
-                  <p className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate flex-1">
+                    ? <XCircle className="h-3.5 w-3.5 text-danger shrink-0" />
+                    : <Trophy className="h-3.5 w-3.5 text-stage-amber shrink-0" />}
+                  <p className="text-xs font-semibold text-foreground truncate flex-1">
                     {rel.titulo}
                   </p>
                   <span className={cn(
                     "shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border",
                     esPerdida
-                      ? "bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20"
-                      : "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20"
+                      ? "bg-danger-muted text-danger-text border-danger-border"
+                      : "bg-stage-amber-muted text-stage-amber-text border-stage-amber-border"
                   )}>
                     {esPerdida ? "Perdida" : "Ganada"}
                   </span>
                 </div>
                 {fecha && (
-                  <p className="text-[10px] text-stone-500 dark:text-stone-500">
+                  <p className="text-[10px] text-muted-foreground">
                     {esPerdida ? "Perdida" : "Ganada"} el {format(new Date(fecha), "dd/MM/yyyy", { locale: es })}
                   </p>
                 )}
                 <a
                   href={`/crm/oportunidades/${rel.id}`}
-                  className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-white/6 hover:bg-stone-100 dark:hover:bg-white/10 border border-stone-200 dark:border-white/10 rounded-lg px-3 py-1.5 transition-all"
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 text-[11px] font-medium text-text-secondary bg-button-secondary-bg hover:bg-button-secondary-hover border border-button-secondary-border rounded-lg px-3 py-1.5 transition-all"
                 >
                   Ver oportunidad
                 </a>

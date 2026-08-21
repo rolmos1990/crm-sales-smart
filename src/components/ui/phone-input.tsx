@@ -168,19 +168,19 @@ export function PhoneInput({
           disabled={disabled}
           className={cn(
             "flex items-center gap-1.5 px-3 h-9 rounded-l-xl border border-r-0",
-            "border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5",
-            "text-stone-700 dark:text-stone-300 text-sm",
-            "hover:bg-stone-100 dark:hover:bg-white/8 transition-colors",
-            "focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:ring-inset",
+            "border-input bg-input-bg",
+            "text-foreground text-sm",
+            "hover:bg-muted transition-colors",
+            "focus:outline-none focus:ring-2 focus:ring-input-focus/30 focus:ring-inset",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             "flex-shrink-0 min-w-[90px]"
           )}
         >
           <span className="text-base leading-none">{selected.flag}</span>
-          <span className="font-mono text-xs text-stone-500 dark:text-stone-400">
+          <span className="font-mono text-xs text-muted-foreground">
             {selected.dial}
           </span>
-          <ChevronDown className="h-3 w-3 text-stone-400 flex-shrink-0" />
+          <ChevronDown className="h-3 w-3 text-muted-foreground flex-shrink-0" />
         </PopoverTrigger>
 
         <PopoverContent align="start" side="bottom" className="p-0 w-72">
@@ -199,11 +199,11 @@ export function PhoneInput({
                   >
                     <span className="text-base w-6 flex-shrink-0">{country.flag}</span>
                     <span className="flex-1 truncate">{country.name}</span>
-                    <span className="text-xs font-mono text-stone-400 dark:text-stone-500 flex-shrink-0">
+                    <span className="text-xs font-mono text-muted-foreground flex-shrink-0">
                       {country.dial}
                     </span>
                     {countryCode === country.code && (
-                      <Check className="h-3.5 w-3.5 text-lime-500 flex-shrink-0" />
+                      <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                     )}
                   </CommandItem>
                 ))}
@@ -223,9 +223,9 @@ export function PhoneInput({
         placeholder={placeholder}
         className={cn(
           "flex-1 h-9 rounded-r-xl border",
-          "border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5",
-          "px-3 text-sm text-stone-900 dark:text-stone-100 placeholder-stone-400",
-          "focus:outline-none focus:ring-2 focus:ring-lime-500/30 focus:border-lime-500/50",
+          "border-input bg-input-bg",
+          "px-3 text-sm text-foreground placeholder:text-input-placeholder",
+          "focus:outline-none focus:ring-2 focus:ring-input-focus/30 focus:border-input-focus/50",
           "transition-all disabled:opacity-50"
         )}
       />

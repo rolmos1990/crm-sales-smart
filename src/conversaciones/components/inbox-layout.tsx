@@ -49,47 +49,47 @@ const ESTADO_CFG: Record<EstadoConv, {
   badgeLabel: string;
 }> = {
   ABIERTA: {
-    dot: "bg-amber-500",
+    dot: "bg-stage-amber",
     pulse: true,
-    barBg: "bg-amber-50 dark:bg-amber-500/[0.06]",
-    barBorder: "border-amber-200 dark:border-amber-500/20",
+    barBg: "bg-stage-amber-muted",
+    barBorder: "border-stage-amber-border",
     label: "Pendiente de respuesta",
-    labelColor: "text-amber-700 dark:text-amber-400",
-    badgeBg: "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/25",
-    badgeText: "text-amber-700 dark:text-amber-400",
+    labelColor: "text-stage-amber-text",
+    badgeBg: "bg-stage-amber-muted border-stage-amber-border",
+    badgeText: "text-stage-amber-text",
     badgeLabel: "Abierta",
   },
   EN_ESPERA: {
-    dot: "bg-lime-500",
+    dot: "bg-primary",
     pulse: false,
-    barBg: "bg-lime-50 dark:bg-lime-500/[0.06]",
-    barBorder: "border-lime-200 dark:border-lime-500/20",
+    barBg: "bg-primary-muted",
+    barBorder: "border-primary-border",
     label: "Esperando respuesta del cliente",
-    labelColor: "text-lime-700 dark:text-lime-400",
-    badgeBg: "bg-lime-50 dark:bg-lime-500/10 border-lime-200 dark:border-lime-500/25",
-    badgeText: "text-lime-700 dark:text-lime-400",
+    labelColor: "text-primary",
+    badgeBg: "bg-primary-muted border-primary-border",
+    badgeText: "text-primary",
     badgeLabel: "Esperando",
   },
   CERRADA: {
-    dot: "bg-stone-400 dark:bg-stone-500",
+    dot: "bg-text-muted",
     pulse: false,
-    barBg: "bg-stone-50 dark:bg-white/[0.03]",
-    barBorder: "border-stone-200 dark:border-white/6",
+    barBg: "bg-muted",
+    barBorder: "border-border-subtle",
     label: "Conversación cerrada",
-    labelColor: "text-stone-500 dark:text-stone-400",
-    badgeBg: "bg-stone-100 dark:bg-white/6 border-stone-200 dark:border-white/10",
-    badgeText: "text-stone-500 dark:text-stone-400",
+    labelColor: "text-muted-foreground",
+    badgeBg: "bg-badge-bg border-badge-border",
+    badgeText: "text-badge-text",
     badgeLabel: "Cerrada",
   },
   ARCHIVADA: {
-    dot: "bg-stone-300 dark:bg-stone-600",
+    dot: "bg-text-disabled",
     pulse: false,
-    barBg: "bg-stone-50 dark:bg-white/[0.02]",
-    barBorder: "border-stone-200 dark:border-white/5",
+    barBg: "bg-muted/60",
+    barBorder: "border-border-subtle",
     label: "Conversación archivada",
-    labelColor: "text-stone-400 dark:text-stone-500",
-    badgeBg: "bg-stone-50 dark:bg-white/4 border-stone-200 dark:border-white/8",
-    badgeText: "text-stone-400 dark:text-stone-500",
+    labelColor: "text-muted-foreground",
+    badgeBg: "bg-badge-bg/60 border-badge-border",
+    badgeText: "text-muted-foreground",
     badgeLabel: "Archivada",
   },
 };
@@ -109,10 +109,13 @@ const PRIORIDAD: Record<EstadoConv, number> = {
 // ── Canal: icono + color discreto para identificar rápido en la lista ────────
 
 function infoCanal(canal: string | undefined): { Icono: LucideIcon; clase: string } {
-  if (canal?.startsWith("whatsapp")) return { Icono: MessageCircle, clase: "text-emerald-600 dark:text-emerald-400" };
+  // Whatsapp/Email usan tokens semánticos (success/info); Instagram conserva
+  // su rosa de marca — no hay un token de "identidad de canal" para eso y
+  // ya tiene variante propia por tema, no es un hardcode que rompa light/dark.
+  if (canal?.startsWith("whatsapp")) return { Icono: MessageCircle, clase: "text-success" };
   if (canal === "instagram") return { Icono: Camera, clase: "text-pink-600 dark:text-pink-400" };
-  if (canal === "email") return { Icono: Mail, clase: "text-blue-600 dark:text-blue-400" };
-  return { Icono: MessageCircle, clase: "text-stone-400 dark:text-white/30" };
+  if (canal === "email") return { Icono: Mail, clase: "text-info" };
+  return { Icono: MessageCircle, clase: "text-muted-foreground" };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -511,13 +514,13 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     <div className="flex h-full overflow-hidden">
 
       {/* ── Panel izquierdo: lista de conversaciones ── */}
-      <aside className="w-72 lg:w-96 shrink-0 border-r border-stone-200 dark:border-white/[0.07] flex flex-col bg-stone-50/60 dark:bg-white/[0.02]">
+      <aside className="w-72 lg:w-96 shrink-0 border-r border-border flex flex-col bg-background-subtle">
 
         {/* Buscador + filtros */}
-        <div className="px-4 pt-4 pb-3 border-b border-stone-200 dark:border-white/[0.06] shrink-0 space-y-3">
+        <div className="px-4 pt-4 pb-3 border-b border-border shrink-0 space-y-3">
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400 dark:text-white/25 pointer-events-none" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
               <input
                 type="text"
                 value={busqueda}
@@ -525,9 +528,9 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 placeholder="Buscar conversaciones..."
                 className={cn(
                   "w-full h-8 rounded-lg border pl-8 pr-3 text-xs transition-colors outline-none",
-                  "bg-white dark:bg-white/[0.04] border-stone-200 dark:border-white/[0.08]",
-                  "text-stone-700 dark:text-stone-200 placeholder:text-stone-400 dark:placeholder:text-white/25",
-                  "focus:border-lime-400/50 dark:focus:border-lime-400/40 focus:ring-2 focus:ring-lime-400/15"
+                  "bg-input-bg border-input",
+                  "text-foreground placeholder:text-input-placeholder",
+                  "focus:border-input-focus/50 focus:ring-2 focus:ring-input-focus/15"
                 )}
               />
             </div>
@@ -553,15 +556,15 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition-colors",
                     activo
-                      ? "bg-lime-500/10 dark:bg-lime-400/10 border-lime-500/25 dark:border-lime-400/25 text-lime-700 dark:text-lime-400"
-                      : "border-transparent text-stone-500 dark:text-white/40 hover:bg-stone-100 dark:hover:bg-white/[0.05] hover:text-stone-700 dark:hover:text-white/70"
+                      ? "bg-primary-muted border-primary-border text-primary"
+                      : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <f.Icono className="h-3.5 w-3.5" />
                   {f.label}
                   <span className={cn(
                     "text-[10px] font-semibold tabular-nums",
-                    activo ? "text-lime-600 dark:text-lime-500" : "text-stone-400 dark:text-white/25"
+                    activo ? "text-primary" : "text-muted-foreground"
                   )}>
                     {conteos[f.key]}
                   </span>
@@ -572,11 +575,11 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
         </div>
 
         {/* Lista */}
-        <ul className="flex-1 inbox-scroll divide-y divide-stone-100 dark:divide-white/[0.04]">
+        <ul className="flex-1 inbox-scroll divide-y divide-card-divider">
           {filtradas.length === 0 ? (
             <li className="flex flex-col items-center justify-center gap-2 h-40 text-center px-4">
-              <MessageSquare className="h-5 w-5 text-stone-300 dark:text-white/15" />
-              <p className="text-xs text-stone-400 dark:text-white/25">
+              <MessageSquare className="h-5 w-5 text-muted-foreground/50" />
+              <p className="text-xs text-muted-foreground">
                 {busqueda.trim() ? "Sin resultados para tu búsqueda" : "Sin conversaciones"}
               </p>
             </li>
@@ -601,8 +604,8 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     className={cn(
                       "w-full text-left flex items-start gap-3 px-4 py-3 transition-colors border-l-2",
                       esActiva
-                        ? "bg-lime-500/[0.06] dark:bg-lime-400/[0.06] border-l-lime-500 dark:border-l-lime-400"
-                        : "border-l-transparent hover:bg-stone-100/70 dark:hover:bg-white/[0.03]"
+                        ? "bg-primary-muted border-l-primary"
+                        : "border-l-transparent hover:bg-muted/70"
                     )}
                   >
                     {/* Avatar */}
@@ -620,17 +623,17 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                           <p className={cn(
                             "text-xs truncate",
                             noLeido ? "font-bold" : "font-semibold",
-                            esActiva ? "text-stone-900 dark:text-stone-50" : "text-stone-800 dark:text-stone-200"
+                            "text-foreground"
                           )}>
                             {nombre}
                           </p>
                           {sinIdentificar && (
-                            <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                            <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
                               ?
                             </span>
                           )}
                         </div>
-                        <span className="text-[9px] text-stone-400 dark:text-white/25 shrink-0 whitespace-nowrap">
+                        <span className="text-[9px] text-muted-foreground shrink-0 whitespace-nowrap">
                           {formatDistanceToNow(new Date(conv.actualizadoEn), { addSuffix: false, locale: es })}
                         </span>
                       </div>
@@ -638,11 +641,11 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                       {/* Último mensaje */}
                       <p className={cn(
                         "text-[11px] truncate leading-snug",
-                        noLeido ? "text-stone-600 dark:text-white/60" : "text-stone-400 dark:text-white/35"
+                        noLeido ? "text-text-secondary" : "text-muted-foreground"
                       )}>
                         {conv.ultimoMensaje?.contenido
                           ? conv.ultimoMensaje.contenido.slice(0, 55)
-                          : <span className="italic text-stone-400 dark:text-white/25">Sin mensajes</span>}
+                          : <span className="italic text-muted-foreground">Sin mensajes</span>}
                       </p>
 
                       {/* Canal + badge de estado */}
@@ -654,7 +657,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                           </span>
                         ) : <span />}
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {noLeido && <span className="h-1.5 w-1.5 rounded-full bg-lime-500 dark:bg-lime-400" />}
+                          {noLeido && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
                           <span className={cn(
                             "flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border",
                             cfg.badgeBg, cfg.badgeText
@@ -674,7 +677,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
       </aside>
 
       {/* ── Panel central: área de chat ── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-transparent">
+      <div className="flex-1 flex flex-col overflow-hidden bg-surface-1 dark:bg-transparent">
         {seleccionada === null || !convActiva ? (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
@@ -686,7 +689,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
         ) : (
           <>
             {/* Encabezado del chat */}
-            <div className="px-4 py-3 border-b border-stone-200 dark:border-white/[0.07] shrink-0 flex items-center gap-3">
+            <div className="px-4 py-3 border-b border-border shrink-0 flex items-center gap-3">
               <AvatarContacto
                 nombre={convActiva.contacto.nombre}
                 apellido={convActiva.contacto.apellido}
@@ -695,18 +698,18 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">{convNombre}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{convNombre}</p>
                   {convSinIdentificar && (
-                    <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                    <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
                       Sin identificar
                     </span>
                   )}
                 </div>
                 {convActiva.cuentaCanal && (
-                  <p className="text-[10px] text-stone-400 dark:text-stone-500">{convActiva.cuentaCanal.nombre}</p>
+                  <p className="text-[10px] text-muted-foreground">{convActiva.cuentaCanal.nombre}</p>
                 )}
               </div>
-              {isFetching && <Loader2 className="h-3.5 w-3.5 text-stone-400 dark:text-stone-600 animate-spin shrink-0" />}
+              {isFetching && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />}
               <button
                 type="button"
                 onClick={() => setPanelContactoAbierto((v) => !v)}
@@ -714,8 +717,8 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 className={cn(
                   "h-7 w-7 rounded-lg flex items-center justify-center transition-colors shrink-0",
                   panelContactoAbierto
-                    ? "bg-lime-500/10 dark:bg-lime-400/15 text-lime-700 dark:text-lime-400"
-                    : "text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-white/5 hover:text-stone-600 dark:hover:text-stone-300"
+                    ? "bg-primary-muted text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <UserCircle2 className="h-4 w-4" />
@@ -748,7 +751,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     type="button"
                     onClick={handleCargarAnteriores}
                     disabled={cargandoAnteriores}
-                    className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/8 border border-stone-200 dark:border-white/10 rounded-full px-3 py-1.5 transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-foreground bg-button-secondary-bg hover:bg-button-secondary-hover border border-button-secondary-border rounded-full px-3 py-1.5 transition-all disabled:opacity-50"
                   >
                     {cargandoAnteriores
                       ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -759,16 +762,16 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               )}
 
               {grupos.length === 0 && !isFetching ? (
-                <div className="flex items-center justify-center h-32 text-xs text-stone-400 dark:text-stone-600">
+                <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
                   Sin mensajes aún
                 </div>
               ) : (
                 grupos.map((grupo) => (
                   <div key={grupo.fecha}>
                     <div className="flex items-center gap-2 my-3">
-                      <div className="flex-1 h-px bg-stone-100 dark:bg-white/5" />
-                      <span className="text-[10px] text-stone-400 dark:text-stone-600 uppercase tracking-wide">{grupo.fecha}</span>
-                      <div className="flex-1 h-px bg-stone-100 dark:bg-white/5" />
+                      <div className="flex-1 h-px bg-card-divider" />
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{grupo.fecha}</span>
+                      <div className="flex-1 h-px bg-card-divider" />
                     </div>
                     <div className="space-y-1">
                       {grupo.mensajes.map((m) =>
@@ -795,13 +798,13 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
             {/* Input o banner de cerrada */}
             {convActiva.estado === "CERRADA" ? (
-              <div className="px-4 py-3 border-t border-stone-200 dark:border-white/[0.07] bg-stone-50 dark:bg-white/[0.03] flex items-center justify-center gap-3">
-                <p className="text-xs text-stone-500 dark:text-stone-500">Esta conversación está cerrada.</p>
+              <div className="px-4 py-3 border-t border-border bg-muted flex items-center justify-center gap-3">
+                <p className="text-xs text-muted-foreground">Esta conversación está cerrada.</p>
                 <button
                   type="button"
                   disabled={accionando}
                   onClick={() => handleReabrir(convActiva.id, "CERRADA")}
-                  className="flex items-center gap-1.5 text-xs font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-white/8 hover:bg-stone-50 dark:hover:bg-white/12 border border-stone-200 dark:border-white/12 rounded-lg px-3 py-1.5 transition-all disabled:opacity-50"
+                  className="flex items-center gap-1.5 text-xs font-medium text-text-secondary bg-button-secondary-bg hover:bg-button-secondary-hover border border-button-secondary-border rounded-lg px-3 py-1.5 transition-all disabled:opacity-50"
                 >
                   <RotateCcw className="h-3 w-3" />
                   Reabrir para responder
@@ -875,7 +878,7 @@ function BarraEstado({
           <p className={cn("text-xs font-semibold leading-tight", cfg.labelColor)}>
             {cfg.label}
           </p>
-          <p className="flex items-center gap-1 text-[10px] text-stone-400 dark:text-stone-500 mt-0.5">
+          <p className="flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
             <Clock className="h-2.5 w-2.5 shrink-0" />
             {tiempoRelativo}
           </p>
@@ -889,11 +892,11 @@ function BarraEstado({
             type="button"
             disabled={accionando || marcandoLeido}
             onClick={onMarcarBloque}
-            className="flex items-center gap-1.5 text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-white dark:bg-white/8 hover:bg-stone-50 dark:hover:bg-white/12 border border-stone-200 dark:border-white/12 rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 text-[11px] font-medium text-text-secondary bg-button-secondary-bg hover:bg-button-secondary-hover border border-button-secondary-border rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
           >
             <Check className="h-3 w-3" />
             Marcar bloque como leído
-            <span className="text-[9px] bg-stone-100 dark:bg-white/10 rounded-full px-1.5 py-0.5 leading-none">
+            <span className="text-[9px] bg-badge-bg rounded-full px-1.5 py-0.5 leading-none">
               {mensajesNoLeidosCount}
             </span>
           </button>
@@ -904,7 +907,7 @@ function BarraEstado({
             type="button"
             disabled={accionando}
             onClick={onMarcarRespondida}
-            className="flex items-center gap-1.5 text-[11px] font-semibold text-stone-950 bg-lime-400 hover:bg-lime-300 rounded-lg px-2.5 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-primary-foreground bg-primary hover:bg-primary-hover rounded-lg px-2.5 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
           >
             <Check className="h-3 w-3" />
             Marcar respondida
@@ -917,7 +920,7 @@ function BarraEstado({
               type="button"
               disabled={accionando}
               onClick={onReabrir}
-              className="flex items-center gap-1.5 text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-white dark:bg-white/8 hover:bg-stone-50 dark:hover:bg-white/12 border border-stone-200 dark:border-white/12 rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 text-[11px] font-medium text-text-secondary bg-button-secondary-bg hover:bg-button-secondary-hover border border-button-secondary-border rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
             >
               <RotateCcw className="h-3 w-3" />
               Reabrir
@@ -926,7 +929,7 @@ function BarraEstado({
               type="button"
               disabled={accionando}
               onClick={onCerrar}
-              className="flex items-center gap-1.5 text-[11px] font-medium text-stone-500 dark:text-stone-400 bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/8 border border-stone-200 dark:border-white/8 rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground bg-muted hover:bg-muted/70 border border-border-subtle rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
             >
               <XCircle className="h-3 w-3" />
               Cerrar
@@ -939,7 +942,7 @@ function BarraEstado({
             type="button"
             disabled={accionando}
             onClick={onReabrir}
-            className="flex items-center gap-1.5 text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-white dark:bg-white/8 hover:bg-stone-50 dark:hover:bg-white/12 border border-stone-200 dark:border-white/12 rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 text-[11px] font-medium text-text-secondary bg-button-secondary-bg hover:bg-button-secondary-hover border border-button-secondary-border rounded-lg px-2.5 py-1.5 transition-all disabled:opacity-50"
           >
             <RotateCcw className="h-3 w-3" />
             Reabrir conversación

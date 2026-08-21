@@ -57,8 +57,8 @@ function InsigniaCotizacion({ estado }: { estado: OportunidadEnStage["estadoCoti
       className={cn(
         "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border",
         aprobada
-          ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-600 dark:bg-emerald-400/10 dark:border-emerald-400/20 dark:text-emerald-400"
-          : "bg-stone-100 border-stone-200 text-stone-400 dark:bg-white/[0.05] dark:border-white/[0.08] dark:text-white/30"
+          ? "bg-success-muted border-success-border text-success-text"
+          : "bg-muted border-border text-muted-foreground"
       )}
     >
       {aprobada ? <FileCheck2 className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
@@ -109,7 +109,7 @@ function TarjetaOportunidad({
       <div
         className={cn(
           "block cursor-pointer rounded-xl border select-none",
-          "bg-white dark:bg-[oklch(0.130_0.004_264)]",
+          "bg-card",
           "shadow-sm dark:shadow-[0_2px_10px_-6px_rgba(0,0,0,0.55)]",
           "hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
           "transition-all duration-150 p-3.5 space-y-3",
@@ -117,7 +117,7 @@ function TarjetaOportunidad({
           // "hueco" que marca dónde va a caer) + borde resaltado — mismo
           // tamaño y forma de siempre, nada de escalar ni rotar acá (eso lo
           // hace la copia flotante de <TarjetaOverlay>, ver DragOverlay).
-          isDragging && "opacity-40 shadow-none ring-2 ring-lime-400/70 dark:ring-lime-400/50"
+          isDragging && "opacity-40 shadow-none ring-2 ring-primary/70 dark:ring-primary/50"
         )}
         style={{ borderColor: `${stageColor}35` }}
       >
@@ -130,7 +130,7 @@ function TarjetaOportunidad({
         {/* Identidad: qué pide el cliente (título) + quién es (contacto / empresa) */}
         <div className="space-y-1.5">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-[14px] font-semibold leading-snug line-clamp-2 text-stone-900 dark:text-white/90">
+            <p className="text-[14px] font-semibold leading-snug line-clamp-2 text-foreground">
               {oportunidad.titulo}
             </p>
             <InsigniaCotizacion estado={oportunidad.estadoCotizacion} />
@@ -139,16 +139,16 @@ function TarjetaOportunidad({
             <div className="space-y-0.5">
               {oportunidad.contacto && (
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <User className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/30" />
-                  <span className="text-[12px] text-stone-500 dark:text-white/40 truncate">
+                  <User className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="text-[12px] text-muted-foreground truncate">
                     {oportunidad.contacto.nombre} {oportunidad.contacto.apellido}
                   </span>
                 </div>
               )}
               {oportunidad.empresa && (
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <Building2 className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/30" />
-                  <span className="text-[12px] text-stone-500 dark:text-white/40 truncate">
+                  <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="text-[12px] text-muted-foreground truncate">
                     {oportunidad.empresa.nombre}
                   </span>
                 </div>
@@ -158,15 +158,15 @@ function TarjetaOportunidad({
         </div>
 
         {/* Separador sutil entre identidad e información comercial */}
-        <div className="border-t border-stone-100 dark:border-white/[0.05]" />
+        <div className="border-t border-card-divider" />
 
         {/* Monto (izquierda) + vencimiento (derecha, cápsula neutral) */}
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[15px] font-semibold tabular-nums text-stone-900 dark:text-white/90">
+          <span className="text-[15px] font-semibold tabular-nums text-foreground">
             {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
           </span>
           {oportunidad.fechaCierre && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-stone-200 dark:border-white/[0.08] bg-stone-50 dark:bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] font-medium text-stone-500 dark:text-white/40 shrink-0">
+            <span className="inline-flex items-center gap-1 rounded-md border border-badge-border bg-badge-bg px-1.5 py-0.5 text-[10.5px] font-medium text-badge-text shrink-0">
               <CalendarDays className="h-3 w-3 shrink-0" />
               Vence {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
             </span>
@@ -179,7 +179,7 @@ function TarjetaOportunidad({
             {oportunidad.tags.map(({ tagId, tag }) => (
               <span
                 key={tagId}
-                className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 dark:border-white/[0.08] bg-stone-100/80 dark:bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-stone-600 dark:text-white/50"
+                className="inline-flex items-center gap-1.5 rounded-full border border-badge-border bg-badge-bg px-2 py-0.5 text-[10px] font-medium text-badge-text"
               >
                 <span
                   className="h-1.5 w-1.5 rounded-full shrink-0"
@@ -193,17 +193,17 @@ function TarjetaOportunidad({
 
         {/* Progreso — relleno del color de etapa desaturado, sin resplandor */}
         <div className="flex items-center gap-2.5">
-          <div className="flex-1 bg-stone-100 dark:bg-white/[0.07] rounded-full h-1 overflow-hidden">
+          <div className="flex-1 bg-muted rounded-full h-1 overflow-hidden">
             <div
               className="rounded-full h-1 transition-all"
               style={{ width: `${oportunidad.probabilidad}%`, backgroundColor: stageColor, opacity: 0.55 }}
             />
           </div>
-          <span className="text-[10px] font-medium text-stone-400 dark:text-white/30 tabular-nums w-7 text-right">
+          <span className="text-[10px] font-medium text-muted-foreground tabular-nums w-7 text-right">
             {oportunidad.probabilidad}%
           </span>
           {oportunidad.nuevoMensaje && (
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/80 dark:bg-emerald-400/70 shrink-0" />
+            <span className="h-1.5 w-1.5 rounded-full bg-success/80 shrink-0" />
           )}
         </div>
       </div>
@@ -217,20 +217,20 @@ function TarjetaOverlay({ oportunidad }: { oportunidad: OportunidadEnStage }) {
     // lea como "levantada del tablero" sin verse deformada. El transform acá
     // es puramente cosmético (escala): el posicionamiento real sobre el
     // cursor lo maneja el propio DragOverlay de dnd-kit por fuera de este nodo.
-    <div className="w-[272px] scale-[0.97] opacity-95 rounded-xl border border-stone-200 dark:border-white/[0.1] bg-white dark:bg-[oklch(0.155_0.004_264)] shadow-[0_16px_32px_-10px_rgba(0,0,0,0.5)] p-3.5 space-y-2">
-      <p className="text-[14px] font-semibold line-clamp-1 text-stone-900 dark:text-white/90">
+    <div className="w-[272px] scale-[0.97] opacity-95 rounded-xl border border-card-border bg-card shadow-[0_16px_32px_-10px_rgba(0,0,0,0.5)] p-3.5 space-y-2">
+      <p className="text-[14px] font-semibold line-clamp-1 text-foreground">
         {oportunidad.titulo}
       </p>
-      <p className="text-[15px] font-semibold text-stone-900 dark:text-white/90 tabular-nums">
+      <p className="text-[15px] font-semibold text-foreground tabular-nums">
         {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
       </p>
       {oportunidad.contacto && (
-        <p className="text-[12px] text-stone-500 dark:text-white/40">
+        <p className="text-[12px] text-muted-foreground">
           {oportunidad.contacto.nombre} {oportunidad.contacto.apellido}
         </p>
       )}
       {oportunidad.empresa && (
-        <p className="text-[12px] text-stone-500 dark:text-white/40">{oportunidad.empresa.nombre}</p>
+        <p className="text-[12px] text-muted-foreground">{oportunidad.empresa.nombre}</p>
       )}
     </div>
   );
@@ -292,11 +292,11 @@ function ColumnaStage({
       <div
         className={cn(
           "flex h-full flex-col rounded-xl border transition-all duration-150",
-          "bg-stone-100/50 dark:bg-[oklch(0.095_0.003_264)]",
-          "border-stone-200/70 dark:border-white/[0.06]",
+          "bg-column-bg",
+          "border-column-border",
           // Hover del drag: además del anillo, un tinte leve de fondo en el
           // color de la propia etapa — "se ilumina" sin gritar.
-          isOver && "ring-1 dark:ring-offset-[oklch(0.063_0.002_264)]"
+          isOver && "ring-1 dark:ring-offset-background"
         )}
         style={isOver ? { "--tw-ring-color": `${color}30`, backgroundColor: `${color}08` } as React.CSSProperties : undefined}
       >
@@ -312,8 +312,8 @@ function ColumnaStage({
         <div
           className={cn(
             "sticky top-0 z-10 rounded-t-xl backdrop-blur-sm transition-shadow duration-150",
-            "bg-stone-100/95 dark:bg-[oklch(0.095_0.003_264)]/95",
-            "border-b border-stone-200/70 dark:border-white/[0.07]",
+            "bg-column-header-bg/95",
+            "border-b border-column-border/70",
             // Sombra muy ligera — solo aparece una vez que el usuario empezó a
             // scrollear, para no sumar ruido visual con el tablero en reposo.
             scrolled && "shadow-[0_4px_10px_-6px_rgba(0,0,0,0.15)] dark:shadow-[0_4px_10px_-6px_rgba(0,0,0,0.45)]"
@@ -335,7 +335,7 @@ function ColumnaStage({
                   {stage.nombre}
                 </span>
                 <span
-                  className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-stone-200 dark:bg-white/[0.08] text-[10px] font-bold text-stone-500 dark:text-white/40"
+                  className="inline-flex items-center justify-center h-4.5 min-w-4.5 px-1 rounded bg-badge-bg text-[10px] font-bold text-badge-text"
                   title={items.length < conteo ? `${items.length} de ${conteo} cargadas` : undefined}
                 >
                   {items.length < conteo ? `${items.length}/${conteo}` : conteo}
@@ -349,7 +349,7 @@ function ColumnaStage({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-5 w-5 rounded-md text-stone-400 dark:text-white/30 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-white/[0.08]"
+                    className="h-5 w-5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -358,9 +358,9 @@ function ColumnaStage({
             </div>
 
             <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" data-testid="column-total">
-              <Receipt className="h-3 w-3 shrink-0 text-stone-400 dark:text-white/25" />
-              <span className="text-stone-400 dark:text-white/30 font-medium">Total</span>
-              <span className="font-semibold tabular-nums text-stone-600 dark:text-white/60">
+              <Receipt className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground font-medium">Total</span>
+              <span className="font-semibold tabular-nums text-foreground">
                 {formatearMoneda(total, "PEN")}
               </span>
             </div>
@@ -379,7 +379,7 @@ function ColumnaStage({
             <div
               className={cn(
                 "rounded-lg border border-dashed py-6 text-center text-[11px] transition-all",
-                isOver ? "font-medium" : "border-stone-300/60 dark:border-white/[0.06] text-stone-400 dark:text-white/20"
+                isOver ? "font-medium" : "border-border text-muted-foreground"
               )}
               style={isOver ? { borderColor: `${color}40`, color, backgroundColor: `${color}06` } : undefined}
             >
@@ -433,35 +433,35 @@ function ZonaSoltarResultado({
         "flex-1 rounded-xl border border-dashed transition-all duration-200",
         "flex items-center justify-center gap-2 py-3",
         // Estado normal — discreto, casi transparente, no compite con las columnas.
-        !dragging && "border-stone-200/60 dark:border-white/[0.06] bg-stone-50/40 dark:bg-white/[0.015]",
+        !dragging && "border-border bg-muted/40",
         // Hay un drag en curso (en cualquier parte del tablero) — un poco más
         // de presencia y el color empieza a insinuarse, sin gritar todavía.
-        dragging && !isOver && esGanado && "border-emerald-400/40 dark:border-emerald-400/30 bg-emerald-50/60 dark:bg-emerald-500/[0.06]",
-        dragging && !isOver && !esGanado && "border-red-400/40 dark:border-red-400/30 bg-red-50/60 dark:bg-red-500/[0.06]",
+        dragging && !isOver && esGanado && "border-success/40 bg-success-muted/60",
+        dragging && !isOver && !esGanado && "border-danger/40 bg-danger-muted/60",
         // La tarjeta está justo encima de esta zona — feedback inmediato y claro.
-        isOver && esGanado && "border-solid border-emerald-400 dark:border-emerald-400/80 bg-emerald-100/80 dark:bg-emerald-500/[0.16] scale-[1.01]",
-        isOver && !esGanado && "border-solid border-red-400 dark:border-red-400/80 bg-red-100/80 dark:bg-red-500/[0.16] scale-[1.01]"
+        isOver && esGanado && "border-solid border-success bg-success-muted scale-[1.01]",
+        isOver && !esGanado && "border-solid border-danger bg-danger-muted scale-[1.01]"
       )}
     >
       <Icono
         className={cn(
           "h-3.5 w-3.5 shrink-0 transition-colors",
           !dragging
-            ? "text-stone-400 dark:text-white/25"
-            : esGanado ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+            ? "text-muted-foreground"
+            : esGanado ? "text-success" : "text-danger"
         )}
       />
       <p
         className={cn(
           "text-[12px] font-semibold transition-colors",
           !dragging
-            ? "text-stone-500 dark:text-white/40"
-            : esGanado ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"
+            ? "text-muted-foreground"
+            : esGanado ? "text-success-text" : "text-danger-text"
         )}
       >
         {stage.nombre}
       </p>
-      <p className="text-[11px] text-stone-400 dark:text-white/25">
+      <p className="text-[11px] text-muted-foreground">
         · Suelta aquí las oportunidades {esGanado ? "ganadas" : "perdidas"}
       </p>
     </div>
@@ -1071,7 +1071,7 @@ export function PipelineKanbanDinamico({
         {hayMasPorCargar && <div ref={sentinelRef} aria-hidden className="h-px" />}
 
         {cargandoMas && (
-          <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-stone-400 dark:text-white/30">
+          <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
             Cargando más oportunidades…
           </div>

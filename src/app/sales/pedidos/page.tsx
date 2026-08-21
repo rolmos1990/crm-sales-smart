@@ -144,7 +144,14 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
     filtros.flujoVentaEtapaId || filtros.metodoEntrega || filtros.contactoId ||
     filtros.productoId || filtros.entregaDesde || filtros.entregaHasta
   );
-  const hayPedidosSinFiltrar = pedidos.length > 0 || hayFiltrosActivos;
+  // `kpis.totalPedidos` no aplica "ocultarCerrados" (ver obtenerPedidosKpis)
+  // — es el total real de la instancia con los filtros explícitos del
+  // usuario, sin el ocultamiento por-defecto de cerrados. Usarlo acá (en vez
+  // de `pedidos.length`, que sí lo aplica) evita que una instancia con TODOS
+  // sus pedidos ya Entregados/Cancelados caiga al EmptyState de "Sin pedidos
+  // todavía" y pierda las KPIs y la barra de filtros — ahí es justo donde
+  // vive el checkbox "Ver cerrados" para poder volver a verlos.
+  const hayPedidosSinFiltrar = kpis.totalPedidos > 0 || hayFiltrosActivos;
 
   return (
     <div className="space-y-6 p-6">
@@ -175,15 +182,25 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
         <>
           <PedidosFiltrosBar contactos={opcionesContactos} productos={opcionesProductos} pedidosFiltrados={pedidos} etapasFlujo={etapasFlujo} />
           <PedidosKpiCards kpis={kpis} moneda={moneda} hayRangoFecha={!!(filtros.desde || filtros.hasta)} etiquetaMesActual={etiquetaMesActual} />
-          {pedidos.length === 0 && hayFiltrosActivos ? (
+          {pedidos.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-stone-200 dark:border-white/10 py-16">
               <div className="h-12 w-12 rounded-2xl bg-stone-100 dark:bg-white/5 flex items-center justify-center">
                 <SearchX className="h-5 w-5 text-stone-300 dark:text-stone-600" />
               </div>
-              <p className="text-sm font-medium text-stone-500 dark:text-stone-400">No encontramos pedidos con estos filtros.</p>
-              <ButtonLink href="/sales/pedidos" variant="outline" size="sm">
-                Limpiar filtros
-              </ButtonLink>
+              <p className="text-sm font-medium text-stone-500 dark:text-stone-400">
+                {hayFiltrosActivos
+                  ? "No encontramos pedidos con estos filtros."
+                  : "Todos tus pedidos están cerrados (entregados o cancelados)."}
+              </p>
+              {hayFiltrosActivos ? (
+                <ButtonLink href="/sales/pedidos" variant="outline" size="sm">
+                  Limpiar filtros
+                </ButtonLink>
+              ) : (
+                <ButtonLink href="/sales/pedidos?cerrados=1" variant="outline" size="sm">
+                  Ver cerrados
+                </ButtonLink>
+              )}
             </div>
           ) : (
             <ListaPedidos pedidos={pedidos} etapasFlujo={etapasFlujo} zonaHoraria={zonaHoraria} />

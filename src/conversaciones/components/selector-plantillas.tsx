@@ -161,7 +161,7 @@ export function SelectorPlantillas({
 
   if (ordenadas.length === 0) {
     return (
-      <div className="absolute bottom-full left-0 right-0 mb-1 z-50 rounded-xl border border-white/10 bg-stone-950/95 backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] p-4 text-center text-stone-500 text-sm">
+      <div className="absolute bottom-full left-0 right-0 mb-1 z-50 rounded-xl border border-border bg-dropdown backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.35)] dark:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] p-4 text-center text-muted-foreground text-sm">
         Sin plantillas para &ldquo;{filtro}&rdquo;
       </div>
     );
@@ -169,22 +169,22 @@ export function SelectorPlantillas({
 
   return (
     <div
-      className="absolute bottom-full left-0 right-0 mb-1 z-50 rounded-xl border border-white/10 bg-stone-950/95 backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] overflow-hidden"
+      className="absolute bottom-full left-0 right-0 mb-1 z-50 rounded-xl border border-border bg-dropdown backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.35)] dark:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] overflow-hidden"
       onMouseDown={(e) => e.preventDefault()}
     >
       <div className="flex h-72">
         {/* Columna izquierda — lista */}
-        <div ref={listaRef} className="w-[45%] border-r border-white/10 overflow-y-auto">
+        <div ref={listaRef} className="w-[45%] border-r border-border overflow-y-auto">
           {/* Header */}
-          <div className="sticky top-0 px-3 py-2 border-b border-white/5 bg-stone-950/95 z-10">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">
+          <div className="sticky top-0 px-3 py-2 border-b border-border-subtle bg-dropdown z-10">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
               Plantillas
             </p>
           </div>
 
           {favoritas.length > 0 && (
             <div>
-              <div className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-amber-400/80">
+              <div className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-stage-amber-text/80">
                 ⭐ Favoritas
               </div>
               {favoritas.map((p, i) => (
@@ -206,7 +206,7 @@ export function SelectorPlantillas({
 
           {restantes.length > 0 && (
             <div>
-              <div className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-stone-500">
+              <div className="px-3 pt-2 pb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
                 Todas las plantillas
               </div>
               {restantes.map((p, i) => {
@@ -233,8 +233,8 @@ export function SelectorPlantillas({
         {/* Columna derecha — preview */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Header preview */}
-          <div className="sticky top-0 px-3 py-2 border-b border-white/5 bg-stone-950/95">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400">
+          <div className="sticky top-0 px-3 py-2 border-b border-border-subtle bg-dropdown">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
               Vista previa
             </p>
           </div>
@@ -245,23 +245,23 @@ export function SelectorPlantillas({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-lg shrink-0">{getIcono(plantillaActiva.alias, plantillaActiva.nombre)}</span>
-                  <p className="text-xs font-semibold text-stone-100 truncate">{plantillaActiva.alias}</p>
+                  <p className="text-xs font-semibold text-foreground truncate">{plantillaActiva.alias}</p>
                 </div>
                 {(usos[plantillaActiva.alias] ?? 0) > 0 && (
-                  <span className="shrink-0 text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                  <span className="shrink-0 text-[9px] bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border px-1.5 py-0.5 rounded-full whitespace-nowrap">
                     ⭐ Favorita
                   </span>
                 )}
               </div>
 
               {/* Contenido */}
-              <div className="rounded-lg border border-white/8 bg-white/3 p-2.5 text-[11px] text-stone-200 leading-relaxed whitespace-pre-wrap max-h-28 overflow-y-auto scrollbar-thin">
+              <div className="rounded-lg border border-border-subtle bg-muted p-2.5 text-[11px] text-text-secondary leading-relaxed whitespace-pre-wrap max-h-28 overflow-y-auto scrollbar-thin">
                 {plantillaActiva.contenidoTexto ?? "(sin contenido)"}
               </div>
 
               {/* Imagen adjunta */}
               {plantillaActiva.imagenUrl && (
-                <div className="flex items-center gap-1.5 text-[10px] text-stone-400">
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                   <span>📷</span>
                   <span>Imagen adjunta</span>
                 </div>
@@ -271,12 +271,12 @@ export function SelectorPlantillas({
               {plantillaActiva.contenidoTexto &&
                 extractVariables(plantillaActiva.contenidoTexto).length > 0 && (
                   <div className="space-y-1">
-                    <p className="text-[9px] uppercase tracking-widest text-stone-500">Variables</p>
+                    <p className="text-[9px] uppercase tracking-widest text-muted-foreground">Variables</p>
                     <div className="flex flex-wrap gap-1">
                       {extractVariables(plantillaActiva.contenidoTexto).map((v) => (
                         <span
                           key={v}
-                          className="text-[10px] bg-lime-500/10 text-lime-400 border border-lime-500/20 px-1.5 py-0.5 rounded"
+                          className="text-[10px] bg-primary-muted text-primary border border-primary-border px-1.5 py-0.5 rounded"
                         >
                           {v}
                         </span>
@@ -286,15 +286,15 @@ export function SelectorPlantillas({
                 )}
 
               {/* Canal */}
-              <div className="flex items-center gap-1.5 text-[10px] text-stone-400">
-                <span className="w-3.5 h-3.5 rounded-full bg-green-500 flex items-center justify-center text-[8px] text-white shrink-0">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <span className="w-3.5 h-3.5 rounded-full bg-success flex items-center justify-center text-[8px] text-primary-foreground shrink-0">
                   ✓
                 </span>
                 <span>WhatsApp</span>
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-stone-600 text-xs">
+            <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs">
               Selecciona una plantilla
             </div>
           )}
@@ -302,21 +302,21 @@ export function SelectorPlantillas({
       </div>
 
       {/* Footer — atajos */}
-      <div className="border-t border-white/10 px-3 py-1.5 flex items-center gap-3 text-[10px] text-stone-500">
+      <div className="border-t border-border px-3 py-1.5 flex items-center gap-3 text-[10px] text-muted-foreground">
         <span>
-          <kbd className="px-1 py-px rounded bg-white/5 border border-white/10 text-stone-400 font-mono">
+          <kbd className="px-1 py-px rounded bg-muted border border-border-subtle text-muted-foreground font-mono">
             ↑↓
           </kbd>{" "}
           Navegar
         </span>
         <span>
-          <kbd className="px-1 py-px rounded bg-white/5 border border-white/10 text-stone-400 font-mono">
+          <kbd className="px-1 py-px rounded bg-muted border border-border-subtle text-muted-foreground font-mono">
             Enter
           </kbd>{" "}
           Seleccionar
         </span>
         <span>
-          <kbd className="px-1 py-px rounded bg-white/5 border border-white/10 text-stone-400 font-mono">
+          <kbd className="px-1 py-px rounded bg-muted border border-border-subtle text-muted-foreground font-mono">
             Esc
           </kbd>{" "}
           Cerrar
@@ -344,17 +344,17 @@ function ItemLista({ plantilla, activa, dataIdx, onHover, onClick }: ItemListaPr
       className={cn(
         "w-full text-left px-3 py-2 flex items-start gap-2 transition-all border-l-2",
         activa
-          ? "bg-lime-500/10 border-lime-500/50"
-          : "border-transparent hover:bg-white/5"
+          ? "bg-primary-muted border-primary/50"
+          : "border-transparent hover:bg-muted"
       )}
     >
       <span className="text-base leading-none mt-0.5 shrink-0">
         {getIcono(plantilla.alias, plantilla.nombre)}
       </span>
       <div className="min-w-0">
-        <p className="text-xs font-medium text-stone-100 truncate">{plantilla.alias}</p>
+        <p className="text-xs font-medium text-foreground truncate">{plantilla.alias}</p>
         {plantilla.descripcion && (
-          <p className="text-[10px] text-stone-500 truncate">{plantilla.descripcion}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{plantilla.descripcion}</p>
         )}
       </div>
     </button>

@@ -190,7 +190,7 @@ async function KpiCards() {
       {tarjetas.map((t) => (
         <Card
           key={t.etiqueta}
-          className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl overflow-hidden"
+          className="bg-card border-card-border shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl overflow-hidden"
         >
           <CardHeader className="pb-2 pt-5">
             <CardTitle className="text-xs font-semibold text-stone-500 dark:text-stone-400 flex items-center gap-2 uppercase tracking-wide">
@@ -322,7 +322,7 @@ function KpiCardsSkeleton() {
       {[...Array(4)].map((_, i) => (
         <Card
           key={i}
-          className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] rounded-xl"
+          className="bg-card border-card-border rounded-xl"
         >
           <CardHeader className="pb-2 pt-5">
             <div className="h-3 w-24 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded-full" />
@@ -382,7 +382,7 @@ export default function DashboardPage() {
       </Suspense>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl">
+        <Card className="bg-card border-card-border shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl">
           <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-stone-100 dark:border-white/[0.06]">
             <CardTitle className="text-sm font-semibold text-stone-900 dark:text-stone-50 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-lime-500 dark:text-lime-400" />
@@ -404,7 +404,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl">
+        <Card className="bg-card border-card-border shadow-sm dark:shadow-[0_4px_32px_-12px_rgba(0,0,0,0.8)] rounded-xl">
           <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-stone-100 dark:border-white/[0.06]">
             <CardTitle className="text-sm font-semibold text-stone-900 dark:text-stone-50 flex items-center gap-2">
               <CalendarCheck className="h-4 w-4 text-lime-500 dark:text-lime-400" />
@@ -438,7 +438,7 @@ export default function DashboardPage() {
               href={href}
               className={cn(
                 "flex flex-col items-center justify-center h-auto py-4 gap-2 rounded-xl border text-center transition-all duration-150",
-                "border-stone-200/80 dark:border-white/[0.06] bg-white dark:bg-[oklch(0.110_0.003_264)]",
+                "border-card-border bg-card",
                 "hover:border-lime-500/40 dark:hover:border-lime-400/25",
                 "hover:bg-lime-50 dark:hover:bg-lime-400/[0.06]",
                 "hover:shadow-sm dark:hover:shadow-[0_2px_12px_-4px_rgba(163,230,53,0.15)]",

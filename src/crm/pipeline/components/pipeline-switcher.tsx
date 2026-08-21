@@ -84,7 +84,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
 
         <PopoverContent
           align="start"
-          className="w-64 p-1.5 bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200 dark:border-white/[0.08] shadow-xl rounded-xl"
+          className="w-64 p-1.5 bg-dropdown border-border shadow-xl rounded-xl"
         >
           <div className="space-y-0.5">
             {pipelines.map((p) => (
@@ -138,7 +138,7 @@ export function PipelineSwitcher({ pipelines, pipelineActualId, onSwitch, onConf
       </Popover>
 
       <Dialog open={dialogCrear} onOpenChange={setDialogCrear}>
-        <DialogContent className="sm:max-w-sm bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200 dark:border-white/[0.08]">
+        <DialogContent className="sm:max-w-sm bg-modal border-border">
           <DialogHeader>
             <DialogTitle className="text-stone-900 dark:text-stone-50">Nuevo pipeline</DialogTitle>
           </DialogHeader>
