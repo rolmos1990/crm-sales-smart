@@ -56,7 +56,7 @@ export function BotonCopiarCotizacion({
   const [copiado, setCopiado] = useState(false);
   const [cargando, setCargando] = useState(false);
 
-  if (estado !== "BORRADOR" && estado !== "ENVIADA") return null;
+  if (estado !== "BORRADOR" && estado !== "REVISADA") return null;
 
   const generarTexto = (): string => {
     const simbol = moneda === "USD" ? "$" : "S/";
@@ -108,9 +108,9 @@ export function BotonCopiarCotizacion({
       setTimeout(() => setCopiado(false), 2000);
 
       if (estado === "BORRADOR") {
-        const resultado = await cambiarEstadoCotizacion(cotizacionId, "ENVIADA");
+        const resultado = await cambiarEstadoCotizacion(cotizacionId, "REVISADA");
         if (resultado.exito) {
-          toast.success("Cotización marcada como enviada");
+          toast.success("Cotización marcada como revisada");
         }
       }
     } catch {
@@ -123,7 +123,7 @@ export function BotonCopiarCotizacion({
   return (
     <Button variant="outline" size="sm" onClick={handleClick} disabled={cargando}>
       {copiado ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-      {estado === "BORRADOR" ? "Copiar y marcar enviada" : "Copiar texto"}
+      {estado === "BORRADOR" ? "Copiar y marcar revisada" : "Copiar texto"}
     </Button>
   );
 }

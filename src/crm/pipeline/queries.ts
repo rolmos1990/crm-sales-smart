@@ -110,43 +110,132 @@ function construirWhereOportunidadesPipeline(
   return where;
 }
 
+const selectOportunidadEnStage = {
+  id: true,
+  titulo: true,
+  valor: true,
+  moneda: true,
+  probabilidad: true,
+  fechaCierre: true,
+  stageId: true,
+  pipelineId: true,
+  nuevoMensaje: true,
+  empresa: { select: { id: true, nombre: true } },
+  contactos: {
+    orderBy: { principal: "desc" as const },
+    take: 1,
+    select: { contacto: { select: { id: true, nombre: true, apellido: true } } },
+  },
+  tags: { select: { tagId: true, tag: { select: { id: true, nombre: true, color: true } } } },
+  // Solo el estado — para la insignia de cotización de la tarjeta (ver
+  // estadoCotizacion más abajo). No se trae nada más pesado de la cotización.
+  cotizaciones: { select: { estado: true } },
+} satisfies Prisma.OportunidadSelect;
+
+type OportunidadRow = Prisma.OportunidadGetPayload<{ select: typeof selectOportunidadEnStage }>;
+
+function resolverEstadoCotizacion(cotizaciones: { estado: string }[]): OportunidadEnStage["estadoCotizacion"] {
+  if (cotizaciones.length === 0) return null;
+  return cotizaciones.some((c) => c.estado === "APROBADA") ? "APROBADA" : "PENDIENTE";
+}
+
+function agruparPorStage(rows: OportunidadRow[]): Map<string, OportunidadEnStage[]> {
+  const porStage = new Map<string, OportunidadEnStage[]>();
+  for (const op of rows) {
+    const { contactos, cotizaciones, ...resto } = op;
+    const key = op.stageId ?? "__sin_stage__";
+    const arr = porStage.get(key) ?? [];
+    arr.push({
+      ...resto,
+      valor: Number(op.valor),
+      contacto: contactos[0]?.contacto ?? null,
+      estadoCotizacion: resolverEstadoCotizacion(cotizaciones),
+    });
+    porStage.set(key, arr);
+  }
+  return porStage;
+}
+
+/**
+ * `limitePorStage`: cuando se pasa, trae como máximo esa cantidad de
+ * oportunidades por CADA etapa (las más recientes primero), no el total del
+ * pipeline — evita cargar cientos/miles de tarjetas de una sola vez en
+ * etapas con mucho volumen. Prisma no soporta "top N por grupo" en un solo
+ * findMany, así que se resuelve con una consulta por etapa en paralelo (ya
+ * acotada por `take`) — el pipeline típico tiene pocas etapas, así que el
+ * costo extra de N queries es mínimo comparado con traer todo sin límite.
+ * Sin `limitePorStage` se mantiene el comportamiento original (todo de una).
+ */
 export async function obtenerOportunidadesPorPipeline(
   pipelineId: string,
   instanciaId: string,
   filtros?: FiltrosOportunidadParams,
+  limitePorStage?: number,
 ) {
   const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, filtros);
 
-  const rows = await prisma.oportunidad.findMany({
+  if (!limitePorStage) {
+    const rows = await prisma.oportunidad.findMany({
+      where,
+      select: selectOportunidadEnStage,
+      orderBy: { actualizadoEn: "desc" },
+    });
+    return agruparPorStage(rows);
+  }
+
+  const stageIds = (
+    await prisma.pipelineStage.findMany({
+      where: { pipelineId, activo: true },
+      select: { id: true },
+    })
+  ).map((s) => s.id);
+
+  const [porEtapas, sinEtapa] = await Promise.all([
+    Promise.all(
+      stageIds.map((stageId) =>
+        prisma.oportunidad.findMany({
+          where: { ...where, stageId },
+          select: selectOportunidadEnStage,
+          orderBy: { actualizadoEn: "desc" },
+          take: limitePorStage,
+        })
+      )
+    ),
+    prisma.oportunidad.findMany({
+      where: { ...where, stageId: null },
+      select: selectOportunidadEnStage,
+      orderBy: { actualizadoEn: "desc" },
+      take: limitePorStage,
+    }),
+  ]);
+
+  return agruparPorStage([...porEtapas.flat(), ...sinEtapa]);
+}
+
+/**
+ * Conteo real por etapa (no depende de cuántas se hayan cargado) — el
+ * Kanban lo usa para saber si todavía hay más oportunidades por traer en
+ * cada etapa cuando se pagina con `limitePorStage` (ver
+ * obtenerOportunidadesPorPipeline) y para mostrar la cantidad verdadera en
+ * el encabezado de columna, no solo la cantidad cargada en pantalla.
+ */
+export async function obtenerConteoPorStage(
+  pipelineId: string,
+  instanciaId: string,
+  filtros?: FiltrosOportunidadParams,
+): Promise<Map<string, number>> {
+  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, filtros);
+
+  const conteos = await prisma.oportunidad.groupBy({
+    by: ["stageId"],
     where,
-    select: {
-      id: true,
-      titulo: true,
-      valor: true,
-      moneda: true,
-      probabilidad: true,
-      fechaCierre: true,
-      stageId: true,
-      pipelineId: true,
-      nuevoMensaje: true,
-      empresa: { select: { id: true, nombre: true } },
-      contactos: {
-        orderBy: { principal: "desc" },
-        take: 1,
-        select: { contacto: { select: { id: true, nombre: true, apellido: true } } },
-      },
-      tags: { select: { tagId: true, tag: { select: { id: true, nombre: true, color: true } } } },
-    },
-    orderBy: { actualizadoEn: "desc" },
+    _count: true,
   });
 
-  const porStage = new Map<string, OportunidadEnStage[]>();
-  for (const op of rows) {
-    const { contactos, ...resto } = op;
-    const key = op.stageId ?? "__sin_stage__";
-    const arr = porStage.get(key) ?? [];
-    arr.push({ ...resto, valor: Number(op.valor), contacto: contactos[0]?.contacto ?? null });
-    porStage.set(key, arr);
+  const porStage = new Map<string, number>();
+  for (const c of conteos) {
+    const key = c.stageId ?? "__sin_stage__";
+    porStage.set(key, c._count);
   }
   return porStage;
 }

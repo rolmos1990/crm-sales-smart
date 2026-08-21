@@ -15,6 +15,34 @@ export async function obtenerOportunidades(instanciaId: string) {
   });
 }
 
+// Últimas oportunidades del contacto distintas de la actual — para el
+// historial "Oportunidades anteriores" del panel de contacto en el Inbox.
+export async function obtenerOportunidadesAnterioresContacto(
+  contactoId: string,
+  instanciaId: string,
+  excluirId?: string | null,
+  limite = 5
+) {
+  return prisma.oportunidad.findMany({
+    where: {
+      instanciaId,
+      contactos: { some: { contactoId, principal: true } },
+      ...(excluirId ? { id: { not: excluirId } } : {}),
+    },
+    select: {
+      id: true,
+      titulo: true,
+      etapa: true,
+      fechaGanada: true,
+      fechaPerdida: true,
+      actualizadoEn: true,
+      stage: { select: { nombre: true, esGanado: true, esPerdido: true, color: true } },
+    },
+    orderBy: { actualizadoEn: "desc" },
+    take: limite,
+  });
+}
+
 export async function obtenerOportunidadesPorEtapa(instanciaId: string) {
   const oportunidades = await prisma.oportunidad.findMany({
     where: { instanciaId, etapa: { notIn: ["GANADO", "PERDIDO"] }, pipelineId: null },

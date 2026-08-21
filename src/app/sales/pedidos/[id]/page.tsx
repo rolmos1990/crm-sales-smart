@@ -87,6 +87,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
   const lineas = (pedido as any).lineas ?? [];
   const subtotal = Number(pedido.subtotal);
   const impuesto = Number(pedido.impuesto);
+  const costoEnvio = Number((pedido as any).costoEnvio ?? 0);
   const total = Number(pedido.total);
   const contacto = (pedido as any).contacto ?? null;
   const empresa = (pedido as any).empresa ?? null;
@@ -364,6 +365,12 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
               <span className="text-muted-foreground">IGV (18%)</span>
               <span>{pedido.moneda} {impuesto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
             </div>
+            {costoEnvio > 0 && (
+              <div className="flex gap-8 text-sm">
+                <span className="text-muted-foreground">Costo de envío</span>
+                <span>{pedido.moneda} {costoEnvio.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
             <Separator className="my-1 w-48" />
             <div className="flex gap-8 text-base font-semibold">
               <span>Total</span>
@@ -389,6 +396,8 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
         rol={sesion.rol}
         flujoVentaEtapa={etapaActual}
         entrega={(pedido as any).entrega ?? null}
+        costoEnvio={costoEnvio}
+        moneda={pedido.moneda}
       />
 
       {/* ── Campos adicionales de la oportunidad ─────────────────── */}

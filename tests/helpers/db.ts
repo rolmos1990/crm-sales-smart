@@ -182,6 +182,15 @@ export function crearPedidoConEntregaEditable(instanciaId: string, usuarioId: st
   return llamar<{ pedidoId: string }>("crearPedidoConEntregaEditable", [instanciaId, usuarioId]);
 }
 
+export function crearPedidoConReglaBloqueante(instanciaId: string, usuarioId: string) {
+  return llamar<{
+    pedidoId: string;
+    etapaOrigenNombre: string;
+    etapaBloqueadaNombre: string;
+    mensajeFallo: string;
+  }>("crearPedidoConReglaBloqueante", [instanciaId, usuarioId]);
+}
+
 export function vaciarActividades(instanciaId: string) {
   return llamar<{ ok: true }>("vaciarActividades", [instanciaId]);
 }

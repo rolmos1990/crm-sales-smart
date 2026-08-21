@@ -297,6 +297,58 @@ async function crearEtapaConPedido(instanciaId: string, usuarioId: string) {
   return { etapaId: etapa.id, etapaNombre: etapa.nombre, pedidoId: pedido.id };
 }
 
+// Etapa Manual (esSecuencial:false, así calcularSiguientesEtapas siempre la
+// ofrece como opción libre sin depender del orden) con una Regla de
+// validación Publicada+activa que ningún pedido de prueba puede cumplir
+// (total > 999999) — y un pedido recién creado, en otra etapa, listo para
+// intentar (y fallar) la transición. Ver PVR-01 en flujo-venta.spec.ts.
+async function crearPedidoConReglaBloqueante(instanciaId: string, usuarioId: string) {
+  const flujo = await prisma.flujoVenta.findFirst({ where: { instanciaId } });
+  if (!flujo) throw new Error("No existe flujo de venta para la instancia");
+
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  const etapaOrigen = await prisma.flujoVentaEtapa.create({
+    data: { flujoVentaId: flujo.id, nombre: `Origen-${sufijo}`, orden: 900, esInicial: true },
+  });
+
+  const etapaBloqueada = await prisma.flujoVentaEtapa.create({
+    data: { flujoVentaId: flujo.id, nombre: `Bloqueada-${sufijo}`, orden: 901, esSecuencial: false },
+  });
+
+  const mensajeFallo = `No se puede asignar el estado ${etapaBloqueada.nombre}. Completa el pago primero.`;
+
+  await prisma.flujoVentaRegla.create({
+    data: {
+      nombre: `Regla bloqueante ${sufijo}`,
+      etapaDestinoId: etapaBloqueada.id,
+      activo: true,
+      estado: "PUBLICADA",
+      prioridad: 0,
+      mensajeFallo,
+      arbolCondiciones: {
+        type: "group",
+        logicalOperator: "AND",
+        children: [{ type: "condition", fieldKey: "total", operator: "MAYOR_QUE", value: "999999" }],
+      },
+    },
+  });
+
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero: `PED-TEST-${sufijo}`, estado: "PENDIENTE", instanciaId, usuarioId,
+      flujoVentaId: flujo.id, flujoVentaEtapaId: etapaOrigen.id,
+    },
+  });
+
+  return {
+    pedidoId: pedido.id,
+    etapaOrigenNombre: etapaOrigen.nombre,
+    etapaBloqueadaNombre: etapaBloqueada.nombre,
+    mensajeFallo,
+  };
+}
+
 const STAGES_PIPELINE_B = [
   { nombre: "Inicial", orden: 0, probabilidad: 10, esInicial: true, esGanado: false, esPerdido: false, color: "#818cf8" },
   { nombre: "Avanzada", orden: 1, probabilidad: 60, esInicial: false, esGanado: false, esPerdido: false, color: "#fbbf24" },
@@ -393,6 +445,7 @@ const OPERACIONES: Record<string, (...args: any[]) => Promise<unknown>> = {
   asegurarFlujoConEtapas,
   crearEtapaConPedido,
   crearPedidoEnEtapaFinal,
+  crearPedidoConReglaBloqueante,
   crearPedidoConEntregaEditable,
   vaciarActividades,
   vaciarOportunidades,

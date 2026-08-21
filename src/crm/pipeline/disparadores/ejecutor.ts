@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 // Relative imports so this module works both in Next.js and in the standalone worker (tsx)
 import { PrismaClient } from "../../../generated/prisma/client";
+import { validarPedidoParaEtapa } from "../../../sales/flujo-venta/reglas/motor";
 import type {
   ConfigCrearTarea,
   ConfigCrearNota,
@@ -9,6 +10,7 @@ import type {
   ConfigAsignarEtiqueta,
   ConfigModificarCampo,
   ConfigCambiarEtapa,
+  ConfigCerrarOportunidad,
 } from "./types";
 
 // ── Prisma singleton (safe for both Next.js HMR and long-running worker) ────
@@ -21,6 +23,21 @@ function crearCliente() {
 const g = globalThis as unknown as { _ejecutorPrisma?: PrismaClient };
 const prisma = g._ejecutorPrisma ?? crearCliente();
 if (process.env.NODE_ENV !== "production") g._ejecutorPrisma = prisma;
+
+// ── Helpers compartidos ──────────────────────────────────────────────────────
+
+async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
+  const links = await prisma.oportunidadConversacion.findMany({
+    where: { oportunidadId },
+    select: { conversacionId: true },
+  });
+  const ids = links.map((l) => l.conversacionId);
+  if (ids.length === 0) return;
+  await prisma.conversacion.updateMany({
+    where: { id: { in: ids }, estado: { not: "CERRADA" } },
+    data: { estado: "CERRADA" },
+  });
+}
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -227,6 +244,31 @@ async function ejecutarJobPedido(
       const etapaDestinoId = cfg.stageId;
       // Anti-loop: no mover si ya está en la etapa destino
       if (pedido?.flujoVentaEtapaId !== etapaDestinoId) {
+        // Reglas de validación: una automatización nunca debe poder saltarse
+        // un requisito obligatorio que un usuario tampoco podría saltarse
+        // desde la pantalla de detalle — mismo servicio central que usa
+        // validarTransicion (src/sales/flujo-venta/motor.ts). Si no se
+        // cumple, el job queda FALLIDO (con el mensaje de la regla) y el
+        // pedido NO se mueve.
+        if (instanciaId) {
+          const resultado = await validarPedidoParaEtapa(prisma, pedidoId, etapaDestinoId, instanciaId);
+          if (!resultado.esValido) {
+            if (resultado.reglaFallida) {
+              await prisma.eventoLog.create({
+                data: {
+                  tipo: "REGLA_VALIDACION_RECHAZO",
+                  payload: { pedidoId, etapaDestinoId, origen: "AUTOMATICO", disparadorId: job.disparadorId },
+                  entidadTipo: "FlujoVentaRegla",
+                  entidadId: resultado.reglaFallida.reglaId,
+                  instanciaId,
+                },
+              });
+            }
+            const motivo = resultado.reglaFallida?.mensajeFallo?.trim()
+              || `Requisito no cumplido: "${resultado.reglaFallida?.nombre ?? "regla de validación"}"`;
+            throw new Error(motivo);
+          }
+        }
         await prisma.pedido.update({
           where: { id: pedidoId },
           data: { flujoVentaEtapaId: etapaDestinoId },
@@ -247,6 +289,60 @@ async function ejecutarJobPedido(
           });
         }
       }
+    } else if (tipo === "CERRAR_OPORTUNIDAD") {
+      // Mueve la oportunidad relacionada al pedido a la etapa Ganada o
+      // Perdida — la etapa concreta se resuelve en cada ejecución (nunca se
+      // guarda un stageId fijo), así sigue funcionando aunque el pipeline
+      // de esa oportunidad cambie de forma más adelante.
+      const cfg = config as unknown as ConfigCerrarOportunidad;
+      const oportunidadId = pedido?.oportunidadId;
+      if (oportunidadId) {
+        const oportunidad = await prisma.oportunidad.findUnique({
+          where: { id: oportunidadId },
+          select: { pipelineId: true, stageId: true, etapa: true },
+        });
+        if (oportunidad) {
+          const ahora = new Date();
+          if (oportunidad.pipelineId) {
+            const stageDestino = await prisma.pipelineStage.findFirst({
+              where: {
+                pipelineId: oportunidad.pipelineId,
+                activo: true,
+                ...(cfg.resultado === "GANADA" ? { esGanado: true } : { esPerdido: true }),
+              },
+            });
+            // Anti-loop: no mover si ya está en la etapa destino
+            if (stageDestino && oportunidad.stageId !== stageDestino.id) {
+              await prisma.oportunidad.update({
+                where: { id: oportunidadId },
+                data: {
+                  stageId: stageDestino.id,
+                  pipelineId: oportunidad.pipelineId,
+                  probabilidad: stageDestino.probabilidad,
+                  etapa: cfg.resultado === "GANADA" ? "GANADO" : "PERDIDO",
+                  ...(cfg.resultado === "GANADA" ? { fechaGanada: ahora } : { fechaPerdida: ahora }),
+                },
+              });
+              await cerrarConversacionesDeOportunidad(oportunidadId);
+            }
+          } else {
+            // Oportunidad sin pipeline dinámico: usa el sistema legado de etapa fija
+            const etapaDestino = cfg.resultado === "GANADA" ? "GANADO" : "PERDIDO";
+            if (oportunidad.etapa !== etapaDestino) {
+              await prisma.oportunidad.update({
+                where: { id: oportunidadId },
+                data: {
+                  etapa: etapaDestino,
+                  probabilidad: etapaDestino === "GANADO" ? 100 : 0,
+                  ...(etapaDestino === "GANADO" ? { fechaGanada: ahora } : { fechaPerdida: ahora }),
+                },
+              });
+              await cerrarConversacionesDeOportunidad(oportunidadId);
+            }
+          }
+        }
+      }
+      // Pedido sin oportunidad relacionada: no-op silencioso (no todos los pedidos vienen de una)
     }
     // ASIGNAR_USUARIO y ASIGNAR_ETIQUETA: skip silencioso para pedidos
 

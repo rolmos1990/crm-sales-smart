@@ -1,4 +1,4 @@
-import { Plus, ShoppingCart } from "lucide-react";
+import { Plus, ShoppingCart, SearchX } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
@@ -6,10 +6,11 @@ import { ListaPedidos } from "@/sales/pedidos/components/lista-pedidos";
 import { PedidosKpiCards } from "@/sales/pedidos/components/pedidos-kpi-cards";
 import { PedidosFiltrosBar } from "@/sales/pedidos/components/pedidos-filtros";
 import { obtenerPedidos, obtenerPedidosKpis, type PedidosFiltros } from "@/sales/pedidos/queries";
+import { rangoDiaEnZona, rangoMesActualEnZona, etiquetaMesAnioEnZona, inicioDiaEnZona, parseYMD, sumarDias } from "@/sales/pedidos/utils/fechas-zona";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
-import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
+import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
@@ -24,9 +25,14 @@ interface PedidosPageProps {
     desde?: string;
     hasta?: string;
     estado?: string;
+    etapa?: string;
     metodo?: string;
     contactoId?: string;
     productoId?: string;
+    entrega?: string;
+    entregaDesde?: string;
+    entregaHasta?: string;
+    cerrados?: string;
   }>;
 }
 
@@ -36,41 +42,90 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
   if (!verificarAcceso(sesion, "pedidos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "pedidos");
 
+  let zonaHoraria = "America/Lima";
+  try {
+    const config = await obtenerConfiguracionEmpresa(sesion.instanciaId);
+    if (config?.zonaHoraria) zonaHoraria = config.zonaHoraria;
+  } catch {
+    // usa el default
+  }
+
+  // "Entrega estimada": hoy/mañana se resuelven server-side en la zona
+  // horaria de negocio (no en la del servidor ni la del navegador — ver
+  // utils/fechas-zona.ts). Personalizado usa el rango tal cual lo eligió el
+  // usuario, interpretado como día completo en esa misma zona.
+  let entregaDesde: Date | undefined;
+  let entregaHasta: Date | undefined;
+  if (sp.entrega === "hoy") {
+    ({ desde: entregaDesde, hasta: entregaHasta } = rangoDiaEnZona(zonaHoraria, 0));
+  } else if (sp.entrega === "manana") {
+    ({ desde: entregaDesde, hasta: entregaHasta } = rangoDiaEnZona(zonaHoraria, 1));
+  } else if (sp.entrega === "personalizado") {
+    // "Hasta" es exclusivo (< inicio del día siguiente) para incluir el día
+    // completo elegido, sin depender de la hora guardada en fechaEntrega.
+    if (sp.entregaDesde) entregaDesde = inicioDiaEnZona(parseYMD(sp.entregaDesde), zonaHoraria);
+    if (sp.entregaHasta) entregaHasta = inicioDiaEnZona(sumarDias(parseYMD(sp.entregaHasta), 1), zonaHoraria);
+  }
+
+  // Se necesita antes de armar `filtros`: "Ver cerrados" oculta por default
+  // las etapas esFinal/esCancelacion, y para eso hay que saber cuáles son.
+  let etapasFlujo: { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null }[] = [];
+  try {
+    const flujo = await obtenerFlujoVenta(sesion.instanciaId);
+    etapasFlujo = flujo?.etapas ?? [];
+  } catch (err) {
+    console.error("[PedidosPage] Error al cargar el flujo de venta:", err);
+  }
+  const etapaIdsCerradas = etapasFlujo.length > 0
+    ? etapasFlujo.filter((e) => e.esFinal || e.esCancelacion).map((e) => e.id)
+    : undefined;
+
   const filtros: PedidosFiltros = {
     busqueda: sp.q || undefined,
     desde: sp.desde ? new Date(`${sp.desde}T00:00:00`) : undefined,
     hasta: sp.hasta ? new Date(`${sp.hasta}T23:59:59`) : undefined,
+    // "estado" (enum legacy) y "etapa" (Flujo de Venta dinámico) son
+    // mutuamente excluyentes en la práctica — la barra de filtros ofrece uno
+    // u otro según si el tenant tiene un flujo dinámico activo.
     estado: sp.estado || undefined,
+    flujoVentaEtapaId: sp.etapa || undefined,
     metodoEntrega: sp.metodo || undefined,
     contactoId: sp.contactoId || undefined,
     productoId: sp.productoId || undefined,
+    entregaDesde,
+    entregaHasta,
+    // "Ver cerrados" — desmarcado por default (ver checkbox en la barra de
+    // filtros); ?cerrados=1 lo activa y muestra también los cerrados.
+    ocultarCerrados: sp.cerrados !== "1",
+    etapaIdsCerradas,
   };
 
+  const rangoMesActual = rangoMesActualEnZona(zonaHoraria);
+  const etiquetaMesActual = etiquetaMesAnioEnZona(rangoMesActual.hasta, zonaHoraria);
+
   let pedidos: Pedido[] = [];
-  let kpis: PedidosKpis = { totalPedidos: 0, totalVentas: 0, pendientes: 0, expirados: 0, entregados: 0 };
-  let etapasFlujo: { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null }[] = [];
+  let kpis: PedidosKpis = { totalPedidos: 0, totalVentas: 0, totalVentasMesActual: 0, pendientes: 0, expirados: 0, entregados: 0 };
   let contactosDb: Awaited<ReturnType<typeof buscarContactos>> = [];
   let productosDb: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
   let moneda = "PEN";
 
   try {
-    const [datos, kpisDatos, flujo, contactosRes, productosRes, monedaRes] = await Promise.all([
+    const [datos, kpisDatos, contactosRes, productosRes, monedaRes] = await Promise.all([
       obtenerPedidos(sesion.instanciaId, filtros),
-      obtenerPedidosKpis(sesion.instanciaId, filtros),
-      obtenerFlujoVenta(sesion.instanciaId),
+      obtenerPedidosKpis(sesion.instanciaId, filtros, rangoMesActual),
       buscarContactos("", sesion.instanciaId),
       obtenerProductosCatalogo(sesion.instanciaId),
       obtenerMonedaPrincipal(sesion.instanciaId),
     ]);
     pedidos = datos.map((p) => ({
       ...p,
-      subtotal:  Number(p.subtotal),
-      descuento: Number(p.descuento),
-      impuesto:  Number(p.impuesto),
-      total:     Number(p.total),
+      subtotal:   Number(p.subtotal),
+      descuento:  Number(p.descuento),
+      impuesto:   Number(p.impuesto),
+      costoEnvio: Number(p.costoEnvio),
+      total:      Number(p.total),
     })) as unknown as Pedido[];
     kpis = kpisDatos;
-    etapasFlujo = flujo?.etapas ?? [];
     contactosDb = contactosRes;
     productosDb = productosRes;
     moneda = monedaRes;
@@ -80,7 +135,16 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
 
   const opcionesContactos = contactosDb.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));
   const opcionesProductos = productosDb.map((p) => ({ valor: p.id, etiqueta: p.nombre }));
-  const hayPedidosSinFiltrar = pedidos.length > 0 || Object.values(filtros).some(Boolean);
+  // "ocultarCerrados"/"etapaIdsCerradas" son estado derivado, no filtros que
+  // el usuario haya elegido explícitamente — no cuentan para decidir si hay
+  // que mostrar "Sin pedidos todavía" vs. "No encontramos pedidos con estos
+  // filtros" (ver EmptyState más abajo).
+  const hayFiltrosActivos = Boolean(
+    filtros.busqueda || filtros.desde || filtros.hasta || filtros.estado ||
+    filtros.flujoVentaEtapaId || filtros.metodoEntrega || filtros.contactoId ||
+    filtros.productoId || filtros.entregaDesde || filtros.entregaHasta
+  );
+  const hayPedidosSinFiltrar = pedidos.length > 0 || hayFiltrosActivos;
 
   return (
     <div className="space-y-6 p-6">
@@ -109,9 +173,21 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
         />
       ) : (
         <>
-          <PedidosFiltrosBar contactos={opcionesContactos} productos={opcionesProductos} pedidosFiltrados={pedidos} />
-          <PedidosKpiCards kpis={kpis} moneda={moneda} hayRangoFecha={!!(filtros.desde || filtros.hasta)} />
-          <ListaPedidos pedidos={pedidos} etapasFlujo={etapasFlujo} />
+          <PedidosFiltrosBar contactos={opcionesContactos} productos={opcionesProductos} pedidosFiltrados={pedidos} etapasFlujo={etapasFlujo} />
+          <PedidosKpiCards kpis={kpis} moneda={moneda} hayRangoFecha={!!(filtros.desde || filtros.hasta)} etiquetaMesActual={etiquetaMesActual} />
+          {pedidos.length === 0 && hayFiltrosActivos ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-stone-200 dark:border-white/10 py-16">
+              <div className="h-12 w-12 rounded-2xl bg-stone-100 dark:bg-white/5 flex items-center justify-center">
+                <SearchX className="h-5 w-5 text-stone-300 dark:text-stone-600" />
+              </div>
+              <p className="text-sm font-medium text-stone-500 dark:text-stone-400">No encontramos pedidos con estos filtros.</p>
+              <ButtonLink href="/sales/pedidos" variant="outline" size="sm">
+                Limpiar filtros
+              </ButtonLink>
+            </div>
+          ) : (
+            <ListaPedidos pedidos={pedidos} etapasFlujo={etapasFlujo} zonaHoraria={zonaHoraria} />
+          )}
         </>
       )}
     </div>

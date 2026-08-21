@@ -5,18 +5,22 @@ export type {
   ConfigCrearNota,
   ConfigWebhook,
   ConfigModificarCampo,
+  ConfigCerrarOportunidad,
   ConfigDisparador,
 } from "@/crm/pipeline/disparadores/types";
 
 export { ETIQUETAS_TIPO } from "@/crm/pipeline/disparadores/types";
 
 // Tipos de acción soportados en el flujo de venta (sin ASIGNAR_ETIQUETA, sin ASIGNAR_USUARIO)
+// CERRAR_OPORTUNIDAD es exclusivo de este lado: no tiene sentido en un
+// disparador de etapa de oportunidad (no habría "otra" oportunidad que cerrar).
 export const TIPOS_ACCION_FLUJO_VENTA = [
   "CREAR_TAREA",
   "CREAR_NOTA",
   "WEBHOOK",
   "MODIFICAR_CAMPO",
   "CAMBIAR_ETAPA",
+  "CERRAR_OPORTUNIDAD",
 ] as const;
 
 export type TipoAccionFlujoVenta = (typeof TIPOS_ACCION_FLUJO_VENTA)[number];

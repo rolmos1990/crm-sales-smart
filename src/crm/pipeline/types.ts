@@ -84,4 +84,13 @@ export interface OportunidadEnStage {
   empresa: { id: string; nombre: string } | null;
   contacto: { id: string; nombre: string; apellido: string } | null;
   tags: Array<{ tagId: string; tag: { id: string; nombre: string; color: string | null } }>;
+  /**
+   * Resumen del estado de cotización de la oportunidad, para la insignia de
+   * la tarjeta en el Kanban:
+   * - "APROBADA": al menos una cotización ya fue aprobada (generó pedido).
+   * - "PENDIENTE": tiene cotización(es) pero ninguna aprobada todavía
+   *   (Borrador, Revisada, Enviada, Rechazada o Vencida).
+   * - null: no tiene ninguna cotización.
+   */
+  estadoCotizacion: "APROBADA" | "PENDIENTE" | null;
 }

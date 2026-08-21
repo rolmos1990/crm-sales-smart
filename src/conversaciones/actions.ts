@@ -191,28 +191,31 @@ export async function procesarMensajeEntrante(
       }),
     ]);
   } else {
-    // Buscar última oportunidad GANADA del contacto para no crear nueva automáticamente
-    const ultimaGanada = await prisma.oportunidad.findFirst({
+    // Buscar última oportunidad FINALIZADA del contacto (ganada o perdida) —
+    // en ambos casos se trata igual: no crear una nueva en automático, sino
+    // dejar que el agente clasifique la conversación desde el Inbox.
+    const ultimaFinalizada = await prisma.oportunidad.findFirst({
       where: {
         instanciaId,
         contactos: { some: { contactoId, principal: true } },
         OR: [
-          { etapa: "GANADO" },
-          { stage: { esGanado: true } },
+          { etapa: { in: ["GANADO", "PERDIDO"] } },
+          { stage: { OR: [{ esGanado: true }, { esPerdido: true }] } },
         ],
       },
       orderBy: { actualizadoEn: "desc" },
       select: { id: true },
     });
 
-    if (ultimaGanada) {
-      // Cliente con historial de compra — NO crear oportunidad, solo registrar referencia
+    if (ultimaFinalizada) {
+      // Cliente con historial cerrado (ganado o perdido) — NO crear
+      // oportunidad, solo registrar referencia para que se clasifique.
       await prisma.conversacion.update({
         where: { id: conversacion.id },
-        data: { oportunidadGanadaRelId: ultimaGanada.id },
+        data: { oportunidadGanadaRelId: ultimaFinalizada.id },
       });
     } else {
-      // Primer contacto o sin historial ganado → crear oportunidad (lead entrante)
+      // Primer contacto o sin historial cerrado → crear oportunidad (lead entrante)
       // Pre-cargar configuración de pipeline fuera de la sección crítica (lecturas idempotentes)
       const stagesInclude = { stages: { where: { esInicial: true, activo: true }, orderBy: { orden: "asc" } as const, take: 1 } };
 
@@ -721,19 +724,20 @@ export async function clasificarConversacion({
 }: {
   conversacionId: string;
   clasificacion: "NINGUNA" | "POSTVENTA" | "SOPORTE" | "COMERCIAL";
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; oportunidadId?: string; aviso?: string; conversacion?: ConversacionResumen }> {
   try {
     const anterior = await prisma.conversacion.findUnique({
       where: { id: conversacionId },
-      select: { clasificacion: true, instanciaId: true },
+      select: { clasificacion: true, instanciaId: true, contactoId: true, cuentaCanalId: true },
     });
+    if (!anterior) return { ok: false, error: "Conversación no encontrada" };
 
     await prisma.conversacion.update({
       where: { id: conversacionId },
       data: { clasificacion, clasificadoEn: new Date() },
     });
 
-    if (anterior?.instanciaId) {
+    if (anterior.instanciaId) {
       await prisma.eventoLog.create({
         data: {
           tipo: "CLASIFICACION_CAMBIADA",
@@ -745,8 +749,34 @@ export async function clasificarConversacion({
       });
     }
 
+    // Clasificar como Comercial crea automáticamente una nueva oportunidad
+    // (si el contacto no tiene ya una activa) — así el agente no tiene que
+    // hacerlo como paso aparte.
+    let oportunidadId: string | undefined;
+    let aviso: string | undefined;
+    if (clasificacion === "COMERCIAL" && anterior.instanciaId) {
+      const resultado = await crearOportunidadDesdeConversacion({
+        conversacionId,
+        contactoId: anterior.contactoId,
+        instanciaId: anterior.instanciaId,
+        cuentaCanalId: anterior.cuentaCanalId,
+      });
+      // Si ya existía una oportunidad activa (de este contacto, no
+      // necesariamente de esta conversación), no es un error real — pero
+      // antes se descartaba en silencio: la clasificación quedaba en
+      // "Comercial" sin que el agente supiera que no se creó nada nuevo.
+      if (resultado.ok) oportunidadId = resultado.oportunidadId;
+      else aviso = resultado.error;
+    }
+
+    // Devolver la conversación ya fresca (misma llamada, sin round-trip
+    // aparte) — evita que el cliente tenga que pedirla de nuevo por
+    // separado para ver la oportunidad recién creada/vinculada, que antes
+    // tardaba en reflejarse (a veces solo se veía recargando la página).
+    const conversacionFresca = await obtenerConversacionPorId(conversacionId);
+
     revalidatePath("/crm/inbox");
-    return { ok: true };
+    return { ok: true, oportunidadId, aviso, conversacion: conversacionFresca ?? undefined };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error al clasificar" };
   }

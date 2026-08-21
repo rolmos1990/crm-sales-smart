@@ -1,4 +1,4 @@
-import { ShoppingBag, DollarSign, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ShoppingBag, DollarSign, Clock, AlertTriangle, CheckCircle2, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { PedidosKpis } from "../queries";
@@ -7,13 +7,15 @@ interface PedidosKpiCardsProps {
   kpis: PedidosKpis;
   moneda: string;
   hayRangoFecha: boolean;
+  /** "Agosto 2026" — ya resuelto en la zona horaria de negocio. */
+  etiquetaMesActual: string;
 }
 
 function formatearMoneda(valor: number, moneda: string) {
   return new Intl.NumberFormat("es-PE", { style: "currency", currency: moneda }).format(valor);
 }
 
-export function PedidosKpiCards({ kpis, moneda, hayRangoFecha }: PedidosKpiCardsProps) {
+export function PedidosKpiCards({ kpis, moneda, hayRangoFecha, etiquetaMesActual }: PedidosKpiCardsProps) {
   const tarjetas = [
     {
       etiqueta: "Total pedidos",
@@ -30,6 +32,16 @@ export function PedidosKpiCards({ kpis, moneda, hayRangoFecha }: PedidosKpiCards
       Icono: DollarSign,
       colorIcono: "text-sky-500 dark:text-sky-400",
       bgIcono: "bg-sky-500/10 ring-1 ring-sky-500/20",
+    },
+    {
+      // Siempre 1° del mes actual → hoy, sin importar filtros de fecha
+      // activos en pantalla (ver obtenerPedidosKpis / rangoMesActualEnZona).
+      etiqueta: "Total ventas · mes actual",
+      valor: formatearMoneda(kpis.totalVentasMesActual, moneda),
+      subvalor: `${etiquetaMesActual} · hasta hoy`,
+      Icono: CalendarDays,
+      colorIcono: "text-violet-500 dark:text-violet-400",
+      bgIcono: "bg-violet-500/10 ring-1 ring-violet-500/20",
     },
     {
       etiqueta: "Pendientes",
@@ -58,7 +70,7 @@ export function PedidosKpiCards({ kpis, moneda, hayRangoFecha }: PedidosKpiCards
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
       {tarjetas.map((t) => (
         <Card
           key={t.etiqueta}
@@ -88,8 +100,8 @@ export function PedidosKpiCards({ kpis, moneda, hayRangoFecha }: PedidosKpiCards
 
 export function PedidosKpiCardsSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      {[...Array(5)].map((_, i) => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      {[...Array(6)].map((_, i) => (
         <Card key={i} className="bg-white dark:bg-[oklch(0.110_0.003_264)] border-stone-200/80 dark:border-white/[0.06] rounded-xl">
           <CardHeader className="pb-2 pt-5">
             <div className="h-3 w-20 bg-stone-100 dark:bg-white/[0.06] animate-pulse rounded-full" />

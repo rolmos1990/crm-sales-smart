@@ -76,6 +76,13 @@ export const SchemaCambiarEtapa = SchemaDisparadorBase.extend({
   }),
 });
 
+export const SchemaCerrarOportunidad = SchemaDisparadorBase.extend({
+  tipo: z.literal("CERRAR_OPORTUNIDAD"),
+  config: z.object({
+    resultado: z.enum(["GANADA", "PERDIDA"]),
+  }),
+});
+
 export const SchemaDisparador = z.discriminatedUnion("tipo", [
   SchemaCrearTarea,
   SchemaCrearNota,
@@ -84,6 +91,7 @@ export const SchemaDisparador = z.discriminatedUnion("tipo", [
   SchemaAsignarEtiqueta,
   SchemaModificarCampo,
   SchemaCambiarEtapa,
+  SchemaCerrarOportunidad,
 ]);
 
 export type DatosDisparador = z.infer<typeof SchemaDisparador>;

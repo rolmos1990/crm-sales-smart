@@ -20,6 +20,9 @@ export async function obtenerCotizacionPorId(id: string, instanciaId: string) {
       ...incluirRelaciones,
       lineas: { include: { producto: { select: { id: true, nombre: true } } } },
       entrega: { include: { transportista: { select: { id: true, nombre: true, tipo: true } } } },
+      // Solo para saber si ya se generó el pedido (ej. mostrar "Reintentar"
+      // cuando quedó APROBADA sin pedido por una falla en el manejador async).
+      pedidos: { select: { id: true, numero: true } },
     },
   });
 }

@@ -135,6 +135,13 @@ Reglas para este proyecto:
 - Usar tokens semánticos de Tailwind v4: `bg-card`, `text-foreground`, `border-border`
 - Pasar `className` siempre via `cn()` para permitir override
 - Usar `data-slot` para identificación del componente
+- **`<Select>` (`src/components/ui/select.tsx`)**: envuelve `@base-ui/react/select`
+  (no Radix). Si el `value` de las `<SelectItem>` no es idéntico a su etiqueta
+  visible, el `<Select>` raíz DEBE recibir la prop `items` (mapa `valor →
+  etiqueta`, derivado del mismo arreglo que alimenta las `<SelectItem>`) — si
+  no, el trigger muestra el `value` crudo en vez de la etiqueta hasta que el
+  usuario abre el popup una vez. Ver `docs/selects.md` para el detalle y el
+  checklist antes de tocar o crear cualquier `<Select>`.
 
 ---
 

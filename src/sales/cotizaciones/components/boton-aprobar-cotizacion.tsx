@@ -16,18 +16,17 @@ export function BotonAprobarCotizacion({ cotizacionId, estado }: BotonAprobarCot
   const router = useRouter();
   const [cargando, setCargando] = useState(false);
 
-  if (estado !== "ENVIADA" && estado !== "BORRADOR") return null;
+  if (estado !== "REVISADA" && estado !== "BORRADOR") return null;
 
   const handleClick = async () => {
     setCargando(true);
     try {
       const resultado = await aprobarCotizacion(cotizacionId);
       if (resultado.exito) {
-        toast.success(`Cotización aprobada — Pedido ${resultado.datos.numeroPedido} creado`, {
-          action: {
-            label: "Ver pedido",
-            onClick: () => router.push(`/sales/pedidos/${resultado.datos.pedidoId}`),
-          },
+        // El pedido se genera en segundo plano (ver CotizacionAprobadaSuscriptor)
+        // — todavía no hay pedidoId/numero en este punto para enlazarlo.
+        toast.success("Cotización aprobada", {
+          description: "El pedido se está generando y va a aparecer en Pedidos en unos segundos.",
         });
         router.refresh();
       } else {

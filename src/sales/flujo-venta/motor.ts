@@ -3,71 +3,36 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { procesarCambioEtapaPedido } from "./disparadores/motor";
+import { validarPedidoParaEtapa } from "./reglas/motor";
+import type { ResultadoEvaluacion } from "./reglas/tipos";
 
-interface ContextoPedido {
-  total: number;
-  flujoVentaEtapaId: string | null;
-  metadata: Record<string, unknown>;
-}
-
-function leerCampo(campo: string, ctx: ContextoPedido): unknown {
-  if (campo === "total") return ctx.total;
-  if (campo === "flujoVentaEtapaId") return ctx.flujoVentaEtapaId;
-  if (campo.startsWith("metadata.")) {
-    const clave = campo.slice(9);
-    return ctx.metadata[clave];
-  }
-  return undefined;
-}
-
-function evaluarCondicion(
-  condicion: { campo: string; operador: string; valor: string },
-  ctx: ContextoPedido,
-): boolean {
-  const valorCampo = leerCampo(condicion.campo, ctx);
-  switch (condicion.operador) {
-    case "IGUAL":        return String(valorCampo ?? "") === condicion.valor;
-    case "DIFERENTE":    return String(valorCampo ?? "") !== condicion.valor;
-    case "MAYOR_QUE":    return Number(valorCampo) > Number(condicion.valor);
-    case "MENOR_QUE":    return Number(valorCampo) < Number(condicion.valor);
-    case "CONTIENE":     return String(valorCampo ?? "").includes(condicion.valor);
-    case "ES_VERDADERO": return valorCampo === true || valorCampo === "true";
-    case "ES_FALSO":     return valorCampo === false || valorCampo === "false" || !valorCampo;
-    default:             return false;
-  }
-}
-
+/**
+ * Valida si un pedido puede pasar a `etapaDestinoId` contra las Reglas de
+ * validación activas de esa etapa (ver src/sales/flujo-venta/reglas/motor.ts
+ * — el servicio central, también usado por el ejecutor de disparadores para
+ * que las automatizaciones nunca se salten una regla). Devuelve además el
+ * resultado rico (`detalle`) para mostrar requisitos pendientes en la UI.
+ */
 export async function validarTransicion(
   pedidoId: string,
   etapaDestinoId: string,
-): Promise<{ permitido: boolean; motivo?: string }> {
+): Promise<{ permitido: boolean; motivo?: string; detalle?: ResultadoEvaluacion }> {
   const pedido = await prisma.pedido.findFirst({
     where: { id: pedidoId },
-    select: { total: true, metadata: true, flujoVentaEtapaId: true },
+    select: { instanciaId: true },
   });
   if (!pedido) return { permitido: false, motivo: "Pedido no encontrado" };
+  if (!pedido.instanciaId) return { permitido: true };
 
-  const reglas = await prisma.flujoVentaRegla.findMany({
-    where: { etapaDestinoId, activo: true },
-    include: { condiciones: true },
-  });
+  const resultado = await validarPedidoParaEtapa(prisma, pedidoId, etapaDestinoId, pedido.instanciaId);
 
-  if (reglas.length === 0) return { permitido: true };
-
-  const ctx: ContextoPedido = {
-    total: Number(pedido.total),
-    flujoVentaEtapaId: pedido.flujoVentaEtapaId,
-    metadata: (pedido.metadata as Record<string, unknown>) ?? {},
-  };
-
-  for (const regla of reglas) {
-    const todasCumplen = regla.condiciones.every((c) => evaluarCondicion(c, ctx));
-    if (!todasCumplen) {
-      return { permitido: false, motivo: `Requisito no cumplido: "${regla.nombre}"` };
-    }
+  if (!resultado.esValido && resultado.reglaFallida) {
+    const motivo = resultado.reglaFallida.mensajeFallo?.trim()
+      || `Requisito no cumplido: "${resultado.reglaFallida.nombre}"`;
+    return { permitido: false, motivo, detalle: resultado };
   }
 
-  return { permitido: true };
+  return { permitido: resultado.esValido, detalle: resultado };
 }
 
 export async function moverPedidoAEtapa(

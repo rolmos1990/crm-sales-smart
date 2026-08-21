@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX } from "lucide-react";
+import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX, EyeOff } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { PipelineSwitcher } from "./pipeline-switcher";
 import { PanelConfigPipeline } from "./panel-config-pipeline";
@@ -25,6 +26,11 @@ interface PipelineWrapperProps {
   pipelineActualId: string | null;
   oportunidadesDinamicas: Map<string, OportunidadEnStage[]> | null;
   totalesPorStage?: Map<string, number> | null;
+  /** Conteo real por etapa (no el cargado) — ver pipeline-kanban-dinamico.tsx. */
+  conteoPorStage?: Map<string, number> | null;
+  /** Cuántas se pidieron por etapa en esta carga — punto de partida del
+   *  "cargar más" al hacer scroll. */
+  limitePorStage?: number;
   oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
@@ -39,6 +45,8 @@ export function PipelineWrapper({
   pipelineActualId,
   oportunidadesDinamicas,
   totalesPorStage,
+  conteoPorStage,
+  limitePorStage = 30,
   oportunidadesLegacy,
   empresas,
   contactos,
@@ -54,9 +62,48 @@ export function PipelineWrapper({
   const puedeMod = puedeModificar("oportunidades");
   const [modoConfig, setModoConfig] = useState(false);
   const [pipelines, setPipelines] = useState<PipelineConStages[]>(pipelinesIniciales);
+  const vscrollRef = useRef<HTMLDivElement>(null);
+
+  // Scrollbar vertical discreta: invisible en reposo, aparece mientras hay
+  // actividad real de scroll (rueda, trackpad, touch, teclado, autoscroll
+  // del D&D — cualquier cosa que dispare el evento nativo `scroll`) y se
+  // oculta sola tras un breve instante de inactividad — ver reglas de
+  // [data-pipeline-vscroll] en globals.css. Alterna una clase directo sobre
+  // el DOM (sin useState) para no disparar un render del Pipeline completo
+  // en cada evento de scroll; el overflow/scroll en sí no se toca, sigue
+  // siendo el mismo `overflow-auto` de siempre.
+  useEffect(() => {
+    const el = vscrollRef.current;
+    if (!el) return;
+    let ocultarTimeout: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      el.classList.add("is-scrolling");
+      clearTimeout(ocultarTimeout);
+      ocultarTimeout = setTimeout(() => el.classList.remove("is-scrolling"), 700);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      clearTimeout(ocultarTimeout);
+    };
+  }, []);
 
   const pipelineActual = pipelines.find((p) => p.id === pipelineActualId) ?? null;
   const esDinamico = !!pipelineActual;
+
+  // "Ver ocultos" es un toggle de visibilidad (no un filtro de datos): no hay
+  // forma de "filtrar por etapa" en este tablero — cada columna ya es su
+  // propia etapa — así que solo necesita combinarse con los filtros del
+  // drawer (contacto/empresa/fechas/tags), nunca competir con uno. Vive en la
+  // URL para que sea compartible/persista al recargar, igual que los filtros.
+  const hayEtapasOcultas = !!pipelineActual?.stages.some((s) => (s.esGanado || s.esPerdido) && !s.visible);
+  const verOcultos = searchParams.get("ocultos") === "1";
+  const toggleVerOcultos = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (verOcultos) params.delete("ocultos"); else params.set("ocultos", "1");
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+  };
 
   const handleSwitch = (id: string | null) => {
     setModoConfig(false);
@@ -139,6 +186,29 @@ export function PipelineWrapper({
           </Button>
         )}
 
+        {/* Ver ocultos — solo si el pipeline tiene etapas Ganado/Perdido ocultas */}
+        {!modoConfig && pipelineActual && hayEtapasOcultas && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                onClick={toggleVerOcultos}
+                className={cn(
+                  "h-8 px-3 rounded-lg gap-1.5 text-[12.5px] font-medium border transition-colors cursor-pointer",
+                  verOcultos
+                    ? "bg-lime-500/[0.1] dark:bg-lime-400/[0.08] border-lime-500/20 dark:border-lime-400/20 text-lime-700 dark:text-lime-400"
+                    : "border-stone-200 dark:border-white/[0.08] text-stone-500 dark:text-white/40 hover:text-stone-700 dark:hover:text-white/70"
+                )}
+              >
+                <EyeOff className="h-3.5 w-3.5" />
+                Ver ocultos
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                Muestra las etapas (y sus oportunidades) que están ocultas en este pipeline.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
         {/* Filtros */}
         {!modoConfig && pipelineActual && pipelineActual.stages.length > 0 && (
           <PipelineFiltrosDrawer
@@ -165,7 +235,22 @@ export function PipelineWrapper({
       </div>
 
       {/* ── Cuerpo ─────────────────────────────────────────────── */}
+      {/* Único contenedor de scroll del Pipeline — vertical Y horizontal a
+          la vez (necesario para que los headers sticky de cada etapa se
+          anclen a ESTE contenedor y no a KanbanScrollContainer: `sticky`
+          solo funciona relativo al ancestro scrolleable más cercano, y con
+          overflow-x/overflow-y repartidos en dos contenedores distintos el
+          header terminaba "pegado" a una fila que nunca se mueve — ver
+          ColumnaStage). El wrapper de afuera (overflow-hidden, altura fija)
+          recorta los 20px de más que este div mide de alto a propósito: eso
+          empuja la scrollbar horizontal nativa (que el navegador dibuja
+          pegada al borde inferior del elemento) fuera del área visible, sin
+          tocar `scrollbar-width` — así la vertical sigue viéndose normal y
+          la horizontal sigue oculta con el indicador de puntitos, igual que
+          antes. El pb-6 extra es colchón para que ese recorte nunca se
+          coma contenido real (ver Ganado/Perdido al final del tablero). */}
       <div className="flex-1 overflow-hidden">
+        <div ref={vscrollRef} className="h-[calc(100%_+_20px)] overflow-auto pb-6" data-pipeline-vscroll="">
         {/* Modo configuración */}
         {modoConfig && pipelineActual && puedeMod && (
           <div className="h-full overflow-y-auto">
@@ -231,10 +316,13 @@ export function PipelineWrapper({
               pipeline={pipelineActual}
               oportunidadesPorStage={oportunidadesDinamicas ?? new Map()}
               totalesPorStage={totalesPorStage ?? new Map()}
+              conteoPorStage={conteoPorStage ?? new Map()}
+              limitePorStage={limitePorStage}
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}
               puedeMod={puedeMod}
+              verOcultos={verOcultos}
             />
           )
         )}
@@ -261,6 +349,7 @@ export function PipelineWrapper({
             </div>
           )
         )}
+        </div>
       </div>
     </div>
   );

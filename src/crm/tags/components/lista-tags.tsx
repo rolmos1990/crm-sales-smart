@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Pencil, Trash2, Plus, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { crearTag, actualizarTag, eliminarTag } from "../actions";
 import type { Tag } from "../types";
 import { COLORES_TAG } from "../types";
@@ -34,7 +35,15 @@ function ColorSelector({ valor, onChange }: { valor: string; onChange: (c: strin
   );
 }
 
-function FilaTag({ tag, onActualizar }: { tag: Tag; onActualizar: () => void }) {
+function FilaTag({
+  tag,
+  onActualizado,
+  onEliminado,
+}: {
+  tag: Tag;
+  onActualizado: (tag: Tag) => void;
+  onEliminado: (id: string) => void;
+}) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(tag.nombre);
   const [color, setColor] = useState(tag.color ?? "");
@@ -45,10 +54,10 @@ function FilaTag({ tag, onActualizar }: { tag: Tag; onActualizar: () => void }) 
     setCargando(true);
     const r = await actualizarTag(tag.id, { nombre: nombre.trim(), color });
     setCargando(false);
-    if (r.exito) {
+    if (r.exito && r.datos) {
       toast.success("Etiqueta actualizada");
       setEditando(false);
-      onActualizar();
+      onActualizado(r.datos);
     } else {
       toast.error(r.error);
     }
@@ -59,7 +68,7 @@ function FilaTag({ tag, onActualizar }: { tag: Tag; onActualizar: () => void }) 
     const r = await eliminarTag(tag.id);
     if (r.exito) {
       toast.success("Etiqueta eliminada");
-      onActualizar();
+      onEliminado(tag.id);
     } else {
       toast.error(r.error);
     }
@@ -78,7 +87,15 @@ function FilaTag({ tag, onActualizar }: { tag: Tag; onActualizar: () => void }) 
         />
         <ColorSelector valor={color} onChange={setColor} />
         <div className="flex gap-2 justify-end">
-          <Button size="sm" variant="ghost" onClick={() => setEditando(false)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setNombre(tag.nombre);
+              setColor(tag.color ?? "");
+              setEditando(false);
+            }}
+          >
             <X className="h-3.5 w-3.5 mr-1" /> Cancelar
           </Button>
           <Button size="sm" onClick={guardar} disabled={cargando}>
@@ -110,7 +127,7 @@ function FilaTag({ tag, onActualizar }: { tag: Tag; onActualizar: () => void }) 
   );
 }
 
-function FormNuevoTag({ onCreado }: { onCreado: () => void }) {
+function FormNuevoTag({ onCreado }: { onCreado: (tag: Tag) => void }) {
   const [abierto, setAbierto] = useState(false);
   const [nombre, setNombre] = useState("");
   const [color, setColor] = useState<string>(COLORES_TAG[0].valor);
@@ -121,12 +138,12 @@ function FormNuevoTag({ onCreado }: { onCreado: () => void }) {
     setCargando(true);
     const r = await crearTag({ nombre: nombre.trim(), color });
     setCargando(false);
-    if (r.exito) {
+    if (r.exito && r.datos) {
       toast.success("Etiqueta creada");
       setNombre("");
       setColor(COLORES_TAG[0].valor);
       setAbierto(false);
-      onCreado();
+      onCreado(r.datos);
     } else {
       toast.error(r.error);
     }
@@ -165,26 +182,51 @@ function FormNuevoTag({ onCreado }: { onCreado: () => void }) {
 }
 
 export function ListaTags({ tags: tagsIniciales }: ListaTagsProps) {
+  // Estado propio en vez de depender de `tagsIniciales` directamente: los
+  // Server Actions ya llaman a revalidatePath, pero eso solo invalida el
+  // caché de Next para la próxima navegación — no vuelve a renderizar este
+  // Client Component ya montado. Sin este estado, crear/editar/eliminar
+  // "se guarda" (el toast lo confirma) pero la lista se queda con los datos
+  // viejos hasta que el usuario recarga la página a mano.
   const [tags, setTags] = useState(tagsIniciales);
 
-  const refrescar = async () => {
-    // La revalidación de Next.js se encarga de actualizar; forzamos re-render optimista
-    // El Server Action ya llama a revalidatePath, así que al navegar volverá actualizado
+  const handleCreado = (tag: Tag) => {
+    setTags((prev) => [...prev, tag].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+  };
+
+  const handleActualizado = (tag: Tag) => {
+    setTags((prev) => prev.map((t) => (t.id === tag.id ? tag : t)));
+  };
+
+  const handleEliminado = (id: string) => {
+    setTags((prev) => prev.filter((t) => t.id !== id));
   };
 
   return (
-    <div className="space-y-2">
-      {tags.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-6">
-          No hay etiquetas creadas todavía.
-        </p>
-      )}
-      {tags.map((tag) => (
-        <FilaTag key={tag.id} tag={tag} onActualizar={refrescar} />
-      ))}
-      <div className="pt-2">
-        <FormNuevoTag onCreado={refrescar} />
-      </div>
-    </div>
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">
+          {tags.length} etiqueta{tags.length !== 1 ? "s" : ""}
+        </CardTitle>
+        <CardDescription>
+          Haz clic en una etiqueta para editarla o eliminarla.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {tags.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No hay etiquetas creadas todavía.
+            </p>
+          )}
+          {tags.map((tag) => (
+            <FilaTag key={tag.id} tag={tag} onActualizado={handleActualizado} onEliminado={handleEliminado} />
+          ))}
+          <div className="pt-2">
+            <FormNuevoTag onCreado={handleCreado} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

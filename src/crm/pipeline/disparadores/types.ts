@@ -5,7 +5,8 @@ export type TipoAccionDisparador =
   | "ASIGNAR_USUARIO"
   | "ASIGNAR_ETIQUETA"
   | "MODIFICAR_CAMPO"
-  | "CAMBIAR_ETAPA";
+  | "CAMBIAR_ETAPA"
+  | "CERRAR_OPORTUNIDAD";
 
 export type EstadoDisparadorJob = "PENDIENTE" | "PROCESANDO" | "COMPLETADO" | "CANCELADO" | "FALLIDO";
 
@@ -47,6 +48,14 @@ export interface ConfigCambiarEtapa {
   stageNombre?: string;
 }
 
+// Solo se usa en disparadores de Flujo de Venta (pedidos). `resultado`
+// indica a cuál etapa terminal de SU pipeline se mueve la oportunidad
+// relacionada — la etapa concreta (esGanado/esPerdido) se resuelve en cada
+// ejecución, no se guarda un stageId fijo.
+export interface ConfigCerrarOportunidad {
+  resultado: "GANADA" | "PERDIDA";
+}
+
 export type ConfigDisparador =
   | ConfigCrearTarea
   | ConfigCrearNota
@@ -54,7 +63,8 @@ export type ConfigDisparador =
   | ConfigAsignarUsuario
   | ConfigAsignarEtiqueta
   | ConfigModificarCampo
-  | ConfigCambiarEtapa;
+  | ConfigCambiarEtapa
+  | ConfigCerrarOportunidad;
 
 export interface Disparador {
   id: string;
@@ -96,6 +106,7 @@ export const ETIQUETAS_TIPO: Record<TipoAccionDisparador, string> = {
   ASIGNAR_ETIQUETA: "Asignar etiqueta",
   MODIFICAR_CAMPO: "Modificar campo",
   CAMBIAR_ETAPA: "Cambiar etapa",
+  CERRAR_OPORTUNIDAD: "Cerrar oportunidad relacionada",
 };
 
 export const ICONOS_TIPO: Record<TipoAccionDisparador, string> = {
@@ -106,4 +117,5 @@ export const ICONOS_TIPO: Record<TipoAccionDisparador, string> = {
   ASIGNAR_ETIQUETA: "Tag",
   MODIFICAR_CAMPO: "SlidersHorizontal",
   CAMBIAR_ETAPA: "ArrowRightCircle",
+  CERRAR_OPORTUNIDAD: "Flag",
 };

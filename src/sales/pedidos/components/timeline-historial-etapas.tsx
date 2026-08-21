@@ -289,6 +289,7 @@ function DiffExpandido({ accion, valorAnterior, valorNuevo }: { accion: string; 
       { clave: "transportista",  label: "Transportista" },
       { clave: "numeroGuia",     label: "N° de guía" },
       { clave: "fechaEstimada",  label: "Fecha estimada" },
+      { clave: "costoEnvio",     label: "Costo de envío" },
     ];
 
     const Fila = ({ label, children }: { label: string; children: React.ReactNode }) => (

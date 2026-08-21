@@ -5,6 +5,7 @@ export const QUEUES = {
   // Eventos de dominio
   SSE: "crm.sse",
   PEDIDO_HISTORIAL: "crm.pedido.historial",
+  COTIZACION_APROBADA: "crm.cotizacion.aprobada",
   // Comandos
   MENSAJE_ENVIAR: "crm.comando.mensaje.enviar",
   MENSAJE_ENTRANTE: "crm.comando.mensaje.entrante",
@@ -55,6 +56,7 @@ export const RK = {
   EVENTO_COTIZACION_CREADA: "evento.cotizacion.creada",
   EVENTO_COTIZACION_ACTUALIZADA: "evento.cotizacion.actualizada",
   EVENTO_COTIZACION_ENVIADA: "evento.cotizacion.enviada",
+  EVENTO_COTIZACION_APROBADA: "evento.cotizacion.aprobada",
   // Dominio: instancias
   EVENTO_INSTANCIA_CREADA: "evento.instancia.creada",
   // Comandos
@@ -100,6 +102,7 @@ export const TIPO_EVENTO_A_RK: Record<string, RoutingKey> = {
   COTIZACION_CREADA: RK.EVENTO_COTIZACION_CREADA,
   COTIZACION_ACTUALIZADA: RK.EVENTO_COTIZACION_ACTUALIZADA,
   COTIZACION_ENVIADA: RK.EVENTO_COTIZACION_ENVIADA,
+  COTIZACION_APROBADA: RK.EVENTO_COTIZACION_APROBADA,
   PEDIDO_CREADO: RK.EVENTO_PEDIDO_CREADO,
   PEDIDO_ACTUALIZADO: RK.EVENTO_PEDIDO_ACTUALIZADO,
   PEDIDO_ENTREGADO: RK.EVENTO_PEDIDO_ENTREGADO,

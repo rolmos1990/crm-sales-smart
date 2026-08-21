@@ -8,7 +8,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   X, Phone, Video, Search, MoreHorizontal, ExternalLink, Loader2,
   ChevronDown, Building2, Layers, Mail, Globe,
-  Save, Tag as TagIcon, User, FileText, CheckCircle2, Pencil, Trash2,
+  Save, Tag as TagIcon, User, FileText, CheckCircle2, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -55,6 +55,7 @@ import {
 import type { ConversacionResumen, CuentaCanalResumen } from "@/conversaciones/types";
 import { MONEDAS } from "@/shared/moneda/constants";
 import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
+import { SheetEditarCotizacion } from "@/sales/cotizaciones/components/sheet-editar-cotizacion";
 import {
   cambiarEstadoCotizacion,
   aprobarCotizacion,
@@ -928,7 +929,9 @@ function WorkspaceContenido({
                     ) : (
                       cotizaciones.map((c) => {
                         const conf = ESTADO_COTIZACION_CONFIG[c.estado as keyof typeof ESTADO_COTIZACION_CONFIG];
-                        const esEditable = c.estado === "BORRADOR" || c.estado === "ENVIADA";
+                        // BORRADOR/REVISADA: pre-aprobación — acá se puede seguir moviendo
+                        // el flujo manual (ver "Marcar enviada" y "Generar pedido" abajo).
+                        const esEditable = c.estado === "BORRADOR" || c.estado === "REVISADA";
                         return (
                           <div key={c.id} className="rounded-lg bg-stone-50 dark:bg-white/4 border border-stone-200 dark:border-white/8 px-3 py-2">
                             <div className="flex items-center justify-between gap-2">
@@ -937,6 +940,7 @@ function WorkspaceContenido({
                                 <span className={cn(
                                   "shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
                                   c.estado === "BORRADOR" && "bg-stone-100 dark:bg-stone-500/20 text-stone-600 dark:text-stone-400",
+                                  c.estado === "REVISADA" && "bg-violet-50 dark:bg-violet-500/20 text-violet-700 dark:text-violet-400",
                                   c.estado === "ENVIADA" && "bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400",
                                   c.estado === "APROBADA" && "bg-green-50 dark:bg-green-500/20 text-green-700 dark:text-green-400",
                                   c.estado === "RECHAZADA" && "bg-red-50 dark:bg-red-500/20 text-red-700 dark:text-red-400",
@@ -948,13 +952,10 @@ function WorkspaceContenido({
                               <div className="flex items-center gap-0.5 shrink-0">
                                 {puedeModCotizaciones && c.estado === "BORRADOR" && (
                                   <>
-                                    <a
-                                      href={`/sales/cotizaciones/${c.id}/editar`}
-                                      className="h-5 w-5 flex items-center justify-center rounded text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
-                                      title="Editar cotización"
-                                    >
-                                      <Pencil className="h-3 w-3" />
-                                    </a>
+                                    <SheetEditarCotizacion
+                                      cotizacionId={c.id}
+                                      onActualizada={refrescarCotizaciones}
+                                    />
                                     <ConfirmacionDialog
                                       trigger={
                                         <button
@@ -996,7 +997,10 @@ function WorkspaceContenido({
                                       type="button"
                                       className="text-[10px] px-2 py-0.5 rounded bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/10 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 border border-stone-200 dark:border-white/10 transition-colors"
                                       onClick={async () => {
-                                        const r = await cambiarEstadoCotizacion(c.id, "ENVIADA");
+                                        // Internamente ahora avanza a REVISADA (Enviada pasó a ser
+                                        // el estado final, después de Aprobada) — el botón se deja
+                                        // igual a propósito, sin cambios visuales en el Workspace.
+                                        const r = await cambiarEstadoCotizacion(c.id, "REVISADA");
                                         if (r.exito) { toast.success("Marcada como enviada"); refrescarCotizaciones(); }
                                         else toast.error(r.error);
                                       }}
@@ -1008,9 +1012,11 @@ function WorkspaceContenido({
                                     type="button"
                                     className="text-[10px] px-2 py-0.5 rounded bg-lime-50 dark:bg-lime-500/15 hover:bg-lime-100 dark:hover:bg-lime-500/25 text-lime-700 dark:text-lime-400 hover:text-lime-800 dark:hover:text-lime-300 border border-lime-300 dark:border-lime-400/20 transition-colors flex items-center gap-1"
                                     onClick={async () => {
+                                      // El pedido se genera en segundo plano (CotizacionAprobadaSuscriptor)
+                                      // — ya no hay pedidoId/numero sincrónico para mostrar acá.
                                       const r = await aprobarCotizacion(c.id);
                                       if (r.exito) {
-                                        toast.success(`Pedido ${r.datos.numeroPedido} creado`);
+                                        toast.success("Cotización aprobada — generando pedido");
                                         refrescarCotizaciones();
                                       } else {
                                         toast.error(r.error);

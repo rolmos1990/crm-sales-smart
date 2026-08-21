@@ -5,6 +5,7 @@ import {
   asegurarFlujoConEtapas,
   crearEtapaConPedido,
   crearPedidoEnEtapaFinal,
+  crearPedidoConReglaBloqueante,
 } from '../../helpers/db';
 
 // /sales/flujo-venta es una página única: NO existe una lista de "flujos" ni
@@ -177,5 +178,27 @@ test.describe('Uso del flujo en pedidos', () => {
 
     // Esperado: ningún botón de transición disponible en una etapa final.
     await expect(botonesTransicion(page)).toHaveCount(0, { timeout: 8000 });
+  });
+
+  test('FV-09 Una regla de validación activa bloquea la transición y no mueve el pedido', async ({ page }) => {
+    // Reglas de validación: un estado puede tener requisitos obligatorios
+    // (ver pestaña "Reglas de validación" en /sales/flujo-venta). El helper
+    // crea una regla imposible de cumplir (total > 999999) Publicada+activa
+    // para una etapa Manual, y un pedido recién creado en otra etapa.
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const { pedidoId, etapaBloqueadaNombre, mensajeFallo } = await crearPedidoConReglaBloqueante(instancia.id, owner.id);
+
+    await page.goto(`/sales/pedidos/${pedidoId}`);
+
+    const btnBloqueado = botonesTransicion(page).filter({ hasText: etapaBloqueadaNombre });
+    await expect(btnBloqueado).toBeVisible({ timeout: 8000 });
+    await btnBloqueado.click();
+
+    // Esperado: el mensaje configurado en la regla aparece como error — el
+    // pedido NO se mueve (si se hubiera movido, saldría un toast de éxito y
+    // el botón hacia esa misma etapa ya no tendría sentido mostrarse).
+    await expect(page.locator(`text=${mensajeFallo}`).first()).toBeVisible({ timeout: 8000 });
+    await expect(page).toHaveURL(new RegExp(`/sales/pedidos/${pedidoId}$`));
   });
 });

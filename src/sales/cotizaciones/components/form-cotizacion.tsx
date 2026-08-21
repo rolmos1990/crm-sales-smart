@@ -23,6 +23,7 @@ import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
 import { PhoneInput } from "@/components/ui/phone-input";
 import type { ProductoCatalogo } from "@/shared/productos/types";
+import { buscarContactosAction } from "@/crm/contactos/actions";
 import { crearCotizacion, actualizarCotizacion } from "../actions";
 import { CrearCotizacionSchema, type CrearCotizacionInput, type DestinatarioCotizacionInput } from "../schema";
 import { METODO_ENTREGA_LABELS, ESTADO_ENTREGA_LABELS, METODOS_SIN_RASTREO } from "@/sales/pedidos/constantes";
@@ -68,7 +69,36 @@ interface FormCotizacionProps {
 const tieneContactoOrigen = (c?: Partial<DestinatarioCotizacionInput>) =>
   !!(c?.nombre || c?.apellido || c?.telefono || c?.email);
 
+// Determina si el destinatario guardado/por defecto coincide con los datos
+// actuales del contacto — así se puede inferir si "Usar información del
+// contacto seleccionado" estaba marcado sin tener que persistir ese booleano
+// aparte (al editar, se compara contra el contacto vigente, no contra una
+// copia vieja).
+const normalizarTexto = (v?: string | null) => (v ?? "").trim();
+const destinatarioCoincideConContacto = (
+  destinatario: Partial<DestinatarioCotizacionInput> | undefined,
+  contacto: Partial<DestinatarioCotizacionInput> | undefined
+) =>
+  normalizarTexto(destinatario?.nombre) === normalizarTexto(contacto?.nombre) &&
+  normalizarTexto(destinatario?.apellido) === normalizarTexto(contacto?.apellido) &&
+  normalizarTexto(destinatario?.telefono) === normalizarTexto(contacto?.telefono) &&
+  normalizarTexto(destinatario?.email) === normalizarTexto(contacto?.email);
+
 const inicial = (nombre?: string | null) => (nombre?.trim()?.[0] ?? "?").toUpperCase();
+
+// `contactos`/`contactosDetalle` llegan con un límite inicial (ver
+// buscarContactos) — esto busca en el servidor sobre el total cuando el
+// usuario escribe, para poder encontrar contactos que no entraron en ese
+// límite (ej. "Robson Grisales" si no está entre los primeros resultados).
+async function buscarContactosComoOpciones(query: string): Promise<OpcionCombobox[]> {
+  const resultados = await buscarContactosAction(query);
+  return resultados.map((c) => ({
+    valor: c.id,
+    etiqueta: `${c.nombre} ${c.apellido}`.trim(),
+    subtitulo: c.telefonoPrincipal ?? c.email ?? undefined,
+    busqueda: [c.email, c.telefonoPrincipal].filter((v): v is string => !!v),
+  }));
+}
 
 function scrollASeccion(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -101,13 +131,22 @@ export function FormCotizacion({
   const hayContactoOrigen = tieneContactoOrigen(contactoOrigen);
   const modoEdicion = !!cotizacionId;
 
+  // Al crear, `defaultValues.destinatario` siempre nace igual a `contactoOrigen`
+  // (ver <SheetNuevaCotizacion>), así que esto da checked por defecto como antes.
+  // Al editar, compara el destinatario guardado contra el contacto vigente: si
+  // coinciden, el checkbox estaba marcado cuando se guardó → mostrar la
+  // tarjeta del contacto; si no, se había editado a mano → mostrar el
+  // formulario con esos datos propios.
+  const coincideConContacto = hayContactoOrigen && destinatarioCoincideConContacto(defaultValues?.destinatario, contactoOrigen);
+
   const [editandoCliente, setEditandoCliente] = useState(
-    !hayContactoOrigen &&
-    !!(defaultValues?.destinatario?.nombre || defaultValues?.destinatario?.apellido ||
-       defaultValues?.destinatario?.telefono || defaultValues?.destinatario?.email) &&
-    !defaultValues?.contactoId
+    hayContactoOrigen
+      ? !coincideConContacto
+      : !!(defaultValues?.destinatario?.nombre || defaultValues?.destinatario?.apellido ||
+           defaultValues?.destinatario?.telefono || defaultValues?.destinatario?.email) &&
+        !defaultValues?.contactoId
   );
-  const [usarInfoContacto, setUsarInfoContacto] = useState(hayContactoOrigen);
+  const [usarInfoContacto, setUsarInfoContacto] = useState(coincideConContacto);
 
   const form = useForm<CrearCotizacionInput>({
     resolver: zodResolver(CrearCotizacionSchema),
@@ -122,7 +161,7 @@ export function FormCotizacion({
       empresaId: "",
       oportunidadId: oportunidadId ?? "",
       destinatario: { nombre: "", apellido: "", telefono: "", email: "" },
-      entrega: { metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE" },
+      entrega: { metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE", costoEnvio: 0 },
       lineas: [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
       ...defaultValues,
     },
@@ -137,12 +176,14 @@ export function FormCotizacion({
   const metodoEntrega = form.watch("entrega.metodoEntrega") ?? "COURIER_EXTERNO";
   const conRastreo = !METODOS_SIN_RASTREO.has(metodoEntrega);
 
+  const costoEnvio = form.watch("entrega.costoEnvio") ?? 0;
+
   const subtotal = lineas.reduce((acc, l) => {
     const base = (l.cantidad ?? 0) * (l.precioUnitario ?? 0);
     return acc + base * (1 - (l.descuento ?? 0) / 100);
   }, 0);
   const impuestoMonto = subtotal * (impuesto / 100);
-  const total = subtotal + impuestoMonto;
+  const total = subtotal + impuestoMonto + costoEnvio;
 
   // Contacto para la tarjeta compacta: el de la oportunidad (contactoFijo) o,
   // si el usuario lo eligió del combobox, el que coincide en contactosDetalle.
@@ -326,7 +367,9 @@ export function FormCotizacion({
                       valor={field.value}
                       onChange={field.onChange}
                       placeholder="Seleccionar contacto..."
+                      placeholderBusqueda="Buscar por nombre, teléfono o email..."
                       disabled={contactoFijo}
+                      onBuscar={buscarContactosComoOpciones}
                     />
                   </FormControl>
                   <FormMessage />
@@ -541,6 +584,12 @@ export function FormCotizacion({
                   <span className="text-stone-500 dark:text-stone-400">Impuesto ({impuesto}%)</span>
                   <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
                 </div>
+                {costoEnvio > 0 && (
+                  <div className="flex gap-8 text-sm">
+                    <span className="text-stone-500 dark:text-stone-400">Costo de envío</span>
+                    <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {costoEnvio.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="flex gap-8 items-baseline mt-1">
                   <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Total</span>
                   <span className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50">{moneda} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
@@ -640,20 +689,34 @@ export function FormCotizacion({
             {/* numeroGuia y urlSeguimiento no se capturan en la cotización —
                 todavía no existen a esa altura; se completan recién en el
                 Pedido al aprobar (ver aprobarCotizacion). */}
-            <FormField control={form.control} name="entrega.fechaEstimada" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha estimada de entrega <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                <FormControl>
-                  <SmartDatePicker
-                    value={field.value ?? undefined}
-                    onChange={field.onChange}
-                    placeholder="Seleccionar fecha"
-                    presets={["today", "plus5", "plus15", "custom"]}
-                    className="md:max-w-xs"
-                  />
-                </FormControl>
-              </FormItem>
-            )} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField control={form.control} name="entrega.fechaEstimada" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fecha estimada de entrega <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormControl>
+                    <SmartDatePicker
+                      value={field.value ?? undefined}
+                      onChange={field.onChange}
+                      placeholder="Seleccionar fecha"
+                      presets={["today", "plus5", "plus15", "custom"]}
+                    />
+                  </FormControl>
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="entrega.costoEnvio" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Costo de envío <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormControl>
+                    <DecimalInput
+                      value={field.value ?? 0}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <p className="text-[11px] text-stone-400 dark:text-stone-600">Se suma al total, no cuenta como ganancia en reportes</p>
+                </FormItem>
+              )} />
+            </div>
 
             <FormField control={form.control} name="entrega.observaciones" render={({ field }) => (
               <FormItem>

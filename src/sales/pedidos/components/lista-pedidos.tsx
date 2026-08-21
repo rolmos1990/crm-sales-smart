@@ -20,10 +20,42 @@ import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
 import type { Pedido, EstadoPedido } from "../types";
 import { ESTADO_PEDIDO_CONFIG } from "../types";
 import { METODO_ENTREGA_LABELS } from "../constantes";
+import { fechaYMDEnZona, rangoDiaEnZona } from "../utils/fechas-zona";
 import { cn } from "@/lib/utils";
 
 const formatearMoneda = (valor: number, moneda: string) =>
   new Intl.NumberFormat("es-PE", { style: "currency", currency: moneda }).format(valor);
+
+/**
+ * "Hoy"/"Mañana" se calculan comparando por día calendario en la zona
+ * horaria de negocio (no la del navegador de quien mira la pantalla) —
+ * misma referencia que usa el filtro "Entrega estimada" del servidor, para
+ * que ambos coincidan siempre.
+ */
+function EntregaEstimadaCell({ pedido, zonaHoraria }: { pedido: Pedido; zonaHoraria: string }) {
+  if (!pedido.fechaEntrega) return <span className="text-stone-400 dark:text-stone-600">—</span>;
+
+  const fecha = new Date(pedido.fechaEntrega);
+  const ymd = fechaYMDEnZona(fecha, zonaHoraria);
+  const ymdHoy = fechaYMDEnZona(rangoDiaEnZona(zonaHoraria, 0).desde, zonaHoraria);
+  const ymdManana = fechaYMDEnZona(rangoDiaEnZona(zonaHoraria, 1).desde, zonaHoraria);
+  const esHoy = ymd === ymdHoy;
+  const esManana = ymd === ymdManana;
+  const fechaFormateada = format(fecha, "dd MMM yyyy", { locale: es });
+
+  return (
+    <span
+      className={cn(
+        "text-sm",
+        esHoy && "text-emerald-600 dark:text-emerald-400 font-medium",
+        esManana && "text-sky-500 dark:text-sky-400 font-medium",
+        !esHoy && !esManana && "text-stone-600 dark:text-stone-400"
+      )}
+    >
+      {esHoy ? `Hoy · ${fechaFormateada}` : esManana ? `Mañana · ${fechaFormateada}` : fechaFormateada}
+    </span>
+  );
+}
 
 function ExpiracionCell({ pedido }: { pedido: Pedido }) {
   if (!pedido.fechaExpiracion) return <span className="text-stone-400 dark:text-stone-600">—</span>;
@@ -126,7 +158,8 @@ function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: 
   );
 }
 
-const columnasFijas: ColumnDef<Pedido>[] = [
+function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
+  return [
   {
     accessorKey: "numero",
     header: ({ column }) => (
@@ -192,24 +225,36 @@ const columnasFijas: ColumnDef<Pedido>[] = [
     ),
   },
   {
+    accessorKey: "fechaEntrega",
+    header: ({ column }) => (
+      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        Entrega estimada <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => <EntregaEstimadaCell pedido={row.original} zonaHoraria={zonaHoraria} />,
+    sortUndefined: "last",
+  },
+  {
     id: "fechaExpiracion",
     header: "Expiración",
     cell: ({ row }) => <ExpiracionCell pedido={row.original} />,
   },
-];
+  ];
+}
 
 interface ListaPedidosProps {
   pedidos: Pedido[];
   etapasFlujo: EtapaFlujo[];
+  zonaHoraria: string;
 }
 
 
-export function ListaPedidos({ pedidos, etapasFlujo }: ListaPedidosProps) {
+export function ListaPedidos({ pedidos, etapasFlujo, zonaHoraria }: ListaPedidosProps) {
   const { puedeModificar } = useSesion();
   const puedeMod = puedeModificar("pedidos");
 
   const columnas: ColumnDef<Pedido>[] = [
-    ...columnasFijas,
+    ...construirColumnasFijas(zonaHoraria),
     ...(puedeMod
       ? [{ id: "acciones", cell: ({ row }: { row: { original: Pedido } }) => <AccionesPedido pedido={row.original} etapasFlujo={etapasFlujo} /> }]
       : []),

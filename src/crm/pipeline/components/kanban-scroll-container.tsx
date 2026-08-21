@@ -11,12 +11,18 @@ interface KanbanScrollContainerProps {
   className?: string;
 }
 
+// El scroll (ambos ejes) ya no vive en la fila de columnas de este
+// componente — vive en el ancestro data-pipeline-vscroll (ver
+// pipeline-wrapper.tsx), porque `position: sticky` en los headers de etapa
+// necesita anclarse a ESE contenedor. Esta fila solo arma el layout
+// horizontal (flex) y el indicador de puntitos/pan con mouse, leyendo y
+// escribiendo el scroll del ancestro en vez del propio.
 export function KanbanScrollContainer({
   children,
   stageColors,
   className,
 }: KanbanScrollContainerProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const [scrollInfo, setScrollInfo] = useState({
     left: 0,
     scrollWidth: 1,
@@ -30,21 +36,25 @@ export function KanbanScrollContainer({
     startY: 0,
     lastY: 0,
     originLeft: 0,
-    colViewport: null as Element | null,
   });
 
+  const getVScroll = useCallback(
+    () => rowRef.current?.closest<HTMLElement>("[data-pipeline-vscroll]") ?? null,
+    []
+  );
+
   const syncScroll = useCallback(() => {
-    const el = scrollRef.current;
+    const el = getVScroll();
     if (!el) return;
     setScrollInfo({
       left: el.scrollLeft,
       scrollWidth: el.scrollWidth,
       clientWidth: el.clientWidth,
     });
-  }, []);
+  }, [getVScroll]);
 
   useEffect(() => {
-    const el = scrollRef.current;
+    const el = getVScroll();
     if (!el) return;
     syncScroll();
     el.addEventListener("scroll", syncScroll, { passive: true });
@@ -54,24 +64,24 @@ export function KanbanScrollContainer({
       el.removeEventListener("scroll", syncScroll);
       ro.disconnect();
     };
-  }, [syncScroll]);
+  }, [syncScroll, getVScroll]);
 
-  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest(SKIP_PAN)) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    pan.current = {
-      active: true,
-      activated: false,
-      startX: e.clientX,
-      startY: e.clientY,
-      lastY: e.clientY,
-      originLeft: el.scrollLeft,
-      colViewport: (e.target as HTMLElement).closest(
-        "[data-radix-scroll-area-viewport]"
-      ),
-    };
-  }, []);
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if ((e.target as HTMLElement).closest(SKIP_PAN)) return;
+      const el = getVScroll();
+      if (!el) return;
+      pan.current = {
+        active: true,
+        activated: false,
+        startX: e.clientX,
+        startY: e.clientY,
+        lastY: e.clientY,
+        originLeft: el.scrollLeft,
+      };
+    },
+    [getVScroll]
+  );
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -88,10 +98,10 @@ export function KanbanScrollContainer({
         document.body.style.cursor = "grabbing";
         document.body.style.userSelect = "none";
       }
-      const el = scrollRef.current;
-      if (el) el.scrollLeft = p.originLeft - (e.clientX - p.startX);
-      if (p.colViewport) {
-        p.colViewport.scrollTop -= e.clientY - p.lastY;
+      const el = getVScroll();
+      if (el) {
+        el.scrollLeft = p.originLeft - (e.clientX - p.startX);
+        el.scrollTop -= e.clientY - p.lastY;
         p.lastY = e.clientY;
       }
     };
@@ -110,7 +120,7 @@ export function KanbanScrollContainer({
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
-  }, []);
+  }, [getVScroll]);
 
   const maxScroll = scrollInfo.scrollWidth - scrollInfo.clientWidth;
   const showIndicator = maxScroll > 4;
@@ -120,12 +130,15 @@ export function KanbanScrollContainer({
   return (
     <div className="relative">
       <div
-        ref={scrollRef}
+        ref={rowRef}
         data-kanban-scroll=""
-        className={`flex gap-4 overflow-x-auto ${
+        // items-stretch explícito (por defecto ya computa igual: `normal` en
+        // un flex row equivale a `stretch`) — así todas las columnas quedan a
+        // la altura de la más alta sin necesidad de medir nada por JS, ver
+        // ColumnaStage en pipeline-kanban-dinamico.tsx.
+        className={`flex items-stretch gap-4 ${
           showIndicator ? "pb-7" : "pb-6"
         } ${className ?? ""}`.trim()}
-        style={{ scrollbarWidth: "none" }}
         onMouseDown={onMouseDown}
       >
         {children}

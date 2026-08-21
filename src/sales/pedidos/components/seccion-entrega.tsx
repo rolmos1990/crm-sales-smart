@@ -1,4 +1,4 @@
-import { Truck, MapPin, Hash, Link2, Calendar, FileText, Lock } from "lucide-react";
+import { Truck, MapPin, Hash, Link2, Calendar, FileText, Lock, Banknote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { FormEntrega } from "./form-entrega";
@@ -33,6 +33,9 @@ interface SeccionEntregaProps {
   rol: Rol;
   flujoVentaEtapa?: { permiteEditarEntrega: boolean } | null;
   entrega?: EntregaConTransportista | null;
+  /** Vive en Pedido.costoEnvio, no en EntregaPedido — ver actions.ts. */
+  costoEnvio: number;
+  moneda: string;
 }
 
 function CampoInfo({ icono: Icono, label, valor }: { icono: React.ElementType; label: string; valor?: string | null }) {
@@ -54,6 +57,8 @@ export async function SeccionEntrega({
   rol,
   flujoVentaEtapa,
   entrega,
+  costoEnvio,
+  moneda,
 }: SeccionEntregaProps) {
   const puedeEditar = ["OWNER", "ADMIN"].includes(rol) && (flujoVentaEtapa?.permiteEditarEntrega ?? false);
   const transportistas = puedeEditar ? await obtenerTransportistas(instanciaId) : [];
@@ -93,6 +98,7 @@ export async function SeccionEntrega({
             pedidoId={pedidoId}
             entrega={entrega}
             transportistas={transportistas}
+            costoEnvio={costoEnvio}
           />
         ) : entrega ? (
           <div className="grid grid-cols-2 gap-x-6 gap-y-4">
@@ -114,6 +120,11 @@ export async function SeccionEntrega({
                 ? new Date(entrega.fechaEstimada).toLocaleDateString("es-PE", { dateStyle: "medium" })
                 : null
               }
+            />
+            <CampoInfo
+              icono={Banknote}
+              label="Costo de envío"
+              valor={costoEnvio > 0 ? `${moneda} ${costoEnvio.toLocaleString("es-PE", { minimumFractionDigits: 2 })}` : null}
             />
             {entrega.urlSeguimiento && (
               <div className="col-span-2 flex items-start gap-2">

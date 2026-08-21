@@ -22,6 +22,7 @@ export interface Cotizacion {
   subtotal: number;
   descuento: number;
   impuesto: number;
+  costoEnvio: number;
   total: number;
   moneda: string;
   notas: string | null;
@@ -43,8 +44,9 @@ export interface Cotizacion {
 
 export const ESTADO_COTIZACION_CONFIG: Record<EstadoCotizacion, { etiqueta: string; variante: "default" | "secondary" | "outline" | "destructive" }> = {
   BORRADOR: { etiqueta: "Borrador", variante: "secondary" },
-  ENVIADA: { etiqueta: "Enviada", variante: "default" },
+  REVISADA: { etiqueta: "Revisada", variante: "outline" },
   APROBADA: { etiqueta: "Aprobada", variante: "default" },
+  ENVIADA: { etiqueta: "Enviada", variante: "default" },
   RECHAZADA: { etiqueta: "Rechazada", variante: "destructive" },
   VENCIDA: { etiqueta: "Vencida", variante: "outline" },
 };

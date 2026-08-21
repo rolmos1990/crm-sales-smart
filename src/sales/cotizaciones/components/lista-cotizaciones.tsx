@@ -25,23 +25,20 @@ const formatearMoneda = (valor: number, moneda: string) =>
 function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
   const router = useRouter();
 
-  const handleEnviar = async () => {
-    const resultado = await cambiarEstadoCotizacion(cotizacion.id, "ENVIADA");
-    if (resultado.exito) toast.success("Cotización marcada como enviada");
+  const handleRevisar = async () => {
+    const resultado = await cambiarEstadoCotizacion(cotizacion.id, "REVISADA");
+    if (resultado.exito) toast.success("Cotización marcada como revisada");
     else toast.error(resultado.error);
   };
 
   const handleAprobar = async () => {
     const resultado = await aprobarCotizacion(cotizacion.id);
     if (resultado.exito) {
-      const { pedidoId, numeroPedido } = resultado.datos;
-      toast.success(`Pedido ${numeroPedido} generado`, {
-        description: "La cotización fue aprobada y el pedido fue creado.",
-        action: {
-          label: "Ver pedido",
-          onClick: () => router.push(`/sales/pedidos/${pedidoId}`),
-        },
-        duration: 8000,
+      // El pedido se genera en segundo plano (ver CotizacionAprobadaSuscriptor)
+      // — todavía no hay pedidoId/numero en este punto para enlazarlo.
+      toast.success("Cotización aprobada", {
+        description: "El pedido se está generando y va a aparecer en Pedidos en unos segundos.",
+        duration: 6000,
       });
     } else {
       toast.error("No se pudo aprobar", { description: resultado.error, duration: 7000 });
@@ -54,7 +51,7 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
     else toast.error(resultado.error);
   };
 
-  const puedeAprobar = cotizacion.estado === "ENVIADA" || cotizacion.estado === "BORRADOR";
+  const puedeAprobar = cotizacion.estado === "REVISADA" || cotizacion.estado === "BORRADOR";
   // Solo se puede modificar/descartar mientras no haya sido enviada
   const esModificable = cotizacion.estado === "BORRADOR";
 
@@ -73,8 +70,8 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
           </DropdownMenuItem>
         )}
         {cotizacion.estado === "BORRADOR" && (
-          <DropdownMenuItem onClick={handleEnviar}>
-            <Send className="mr-2 h-4 w-4" />Marcar enviada
+          <DropdownMenuItem onClick={handleRevisar}>
+            <Send className="mr-2 h-4 w-4" />Marcar revisada
           </DropdownMenuItem>
         )}
         {puedeAprobar && (

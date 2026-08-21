@@ -1,5 +1,5 @@
 import { PipelineWrapper } from "@/crm/pipeline/components/pipeline-wrapper";
-import { obtenerPipelines, obtenerOportunidadesPorPipeline, obtenerTotalesPorStage } from "@/crm/pipeline/queries";
+import { obtenerPipelines, obtenerOportunidadesPorPipeline, obtenerTotalesPorStage, obtenerConteoPorStage } from "@/crm/pipeline/queries";
 import { SchemaFiltrosOportunidad } from "@/crm/pipeline/schema";
 import { obtenerOportunidadesPorEtapa } from "@/crm/oportunidades/queries";
 import { obtenerEmpresas } from "@/crm/empresas/queries";
@@ -27,6 +27,13 @@ export default async function PipelinePage(props: {
   const searchParams = await props.searchParams;
   const pipelineIdParam = searchParams.p ?? null;
 
+  // Paginación por etapa del Kanban — "cargar más" (scroll infinito del
+  // tablero, ver pipeline-kanban-dinamico.tsx) sube este número en la URL en
+  // vez de mantenerlo en estado de cliente aislado: así sigue funcionando
+  // igual con el auto-refresh, cambios de filtro, y F5 (ver obtenerOportunidadesPorPipeline).
+  const limiteParsed = Number(searchParams.limite);
+  const limitePorStage = Number.isFinite(limiteParsed) && limiteParsed > 0 ? Math.floor(limiteParsed) : 30;
+
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "pipeline", "ver").permitido) redirect("/acceso-denegado");
 
@@ -34,6 +41,7 @@ export default async function PipelinePage(props: {
   let pipelineId: string | null = null;
   let oportunidadesDinamicas: Map<string, OportunidadEnStage[]> | null = null;
   let totalesPorStage: Map<string, number> | null = null;
+  let conteoPorStage: Map<string, number> | null = null;
   let oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null = null;
   let empresasOpciones: OpcionCombobox[] = [];
   let contactosOpciones: OpcionCombobox[] = [];
@@ -76,9 +84,10 @@ export default async function PipelinePage(props: {
     const pipelineValido = pipelineId && pipelines.some((p) => p.id === pipelineId);
 
     if (pipelineValido && pipelineId) {
-      [oportunidadesDinamicas, totalesPorStage] = await Promise.all([
-        obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId, filtros),
+      [oportunidadesDinamicas, totalesPorStage, conteoPorStage] = await Promise.all([
+        obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId, filtros, limitePorStage),
         obtenerTotalesPorStage(pipelineId, sesion.instanciaId, filtros),
+        obtenerConteoPorStage(pipelineId, sesion.instanciaId, filtros),
       ]);
     } else {
       const datos = await obtenerOportunidadesPorEtapa(sesion.instanciaId);
@@ -94,6 +103,8 @@ export default async function PipelinePage(props: {
       pipelineActualId={pipelineId}
       oportunidadesDinamicas={oportunidadesDinamicas}
       totalesPorStage={totalesPorStage}
+      conteoPorStage={conteoPorStage}
+      limitePorStage={limitePorStage}
       oportunidadesLegacy={oportunidadesLegacy}
       empresas={empresasOpciones}
       contactos={contactosOpciones}

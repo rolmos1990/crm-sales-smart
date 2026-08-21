@@ -60,11 +60,17 @@ export interface ContactoResumen {
   avatarUrl: string | null;
 }
 
+/** Última oportunidad FINALIZADA del contacto (ganada o perdida) — el nombre
+ *  quedó del campo original `oportunidadGanadaRelId`, pero desde que el
+ *  flujo de clasificación del Inbox trata ambos cierres igual, también
+ *  puede apuntar a una perdida (ver stage.esPerdido / fechaPerdida). */
 export interface OportunidadGanadaResumen {
   id: string;
   titulo: string;
   fechaGanada: Date | null;
+  fechaPerdida: Date | null;
   etapa: string;
+  stage: { esGanado: boolean; esPerdido: boolean } | null;
 }
 
 export interface OportunidadActivaResumen {
@@ -73,7 +79,12 @@ export interface OportunidadActivaResumen {
   etapa: string;
   valor: number;
   moneda: string;
+  fechaCierre: Date | null;
+  notas: string | null;
+  pipelineId: string | null;
+  stageId: string | null;
   stage: { esGanado: boolean; esPerdido: boolean; nombre: string; color: string | null } | null;
+  tags: { tagId: string; tag: { id: string; nombre: string; color: string | null } }[];
 }
 
 export interface OportunidadConversacionResumen {

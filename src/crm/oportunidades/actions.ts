@@ -388,6 +388,17 @@ export async function eliminarOportunidad(id: string): Promise<ResultadoAccion> 
   }
 }
 
+// ── Historial de oportunidades del contacto (panel de contacto del Inbox) ──
+
+export async function obtenerOportunidadesAnterioresContactoAction(
+  contactoId: string,
+  excluirId?: string | null,
+) {
+  const sesion = await requireSesion();
+  const { obtenerOportunidadesAnterioresContacto } = await import("./queries");
+  return obtenerOportunidadesAnterioresContacto(contactoId, sesion.instanciaId, excluirId);
+}
+
 export async function marcarMensajeLeido(id: string): Promise<void> {
   try {
     await prisma.oportunidad.update({

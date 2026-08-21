@@ -5,6 +5,7 @@ import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { obtenerCotizacionPorId } from "@/sales/cotizaciones/queries";
+import { asegurarContactoIncluido } from "@/sales/cotizaciones/actions";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import type { CrearCotizacionInput } from "@/sales/cotizaciones/schema";
@@ -68,6 +69,11 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
     notas: cotizacion.notas ?? "",
     contactoId: cotizacion.contactoId ?? "",
     empresaId: cotizacion.empresaId ?? "",
+    // Sin esto, el form cae al valor por defecto ("" — sin oportunidad) y
+    // cualquier guardado borra el enlace de una cotización que sí nació
+    // desde el Workspace de una oportunidad (ver FormCotizacion, que no
+    // expone esto como campo editable — solo lo preserva).
+    oportunidadId: cotizacion.oportunidadId ?? "",
     fechaVencimiento: cotizacion.fechaVencimiento ? new Date(cotizacion.fechaVencimiento) : undefined,
     lineas: lineasParaForm.length > 0 ? lineasParaForm : [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
     destinatario: {
@@ -82,18 +88,29 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
       transportistaId: entregaGuardada?.transportistaId ?? null,
       fechaEstimada: entregaGuardada?.fechaEstimada ? new Date(entregaGuardada.fechaEstimada) : undefined,
       observaciones: entregaGuardada?.observaciones ?? "",
+      // Vive en Cotizacion.costoEnvio (no en EntregaCotizacion) — ver schema.ts.
+      costoEnvio: Number((cotizacion as any).costoEnvio ?? 0),
     } as CrearCotizacionInput["entrega"],
   };
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
-  const opcionesContactos = contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));
+
+  // buscarContactos("", instanciaId) solo trae los primeros registros — si el
+  // contacto ligado a esta cotización no cayó en ese lote, el combo lo
+  // mostraría vacío aunque el dato exista. Se agrega si falta.
+  const { contactosDetalle, contactos: opcionesContactos } = await asegurarContactoIncluido(
+    cotizacion.contactoId ?? "",
+    contactos,
+    contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` })),
+    sesion.instanciaId,
+  );
 
   return (
     <div className="min-h-[calc(100vh-56px)] flex flex-col max-w-5xl mx-auto w-full">
       <FormCotizacion
         empresas={opcionesEmpresas}
         contactos={opcionesContactos}
-        contactosDetalle={contactos}
+        contactosDetalle={contactosDetalle}
         productos={productos}
         transportistas={transportistas}
         cotizacionId={id}

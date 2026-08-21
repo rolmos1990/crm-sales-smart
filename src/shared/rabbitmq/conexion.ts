@@ -49,6 +49,12 @@ async function configurarTopologia(ch: amqplib.Channel): Promise<void> {
   await ch.assertQueue(QUEUES.PEDIDO_HISTORIAL, queueOpts);
   await ch.bindQueue(QUEUES.PEDIDO_HISTORIAL, EXCHANGE, "evento.pedido.*");
 
+  // Generación de pedido a partir de una cotización aprobada — cola propia
+  // (no "evento.cotizacion.*") para que sus reintentos/nack no compitan con
+  // otros futuros consumidores de eventos de cotización.
+  await ch.assertQueue(QUEUES.COTIZACION_APROBADA, queueOpts);
+  await ch.bindQueue(QUEUES.COTIZACION_APROBADA, EXCHANGE, RK.EVENTO_COTIZACION_APROBADA);
+
   // Comandos de mensajería
   await ch.assertQueue(QUEUES.MENSAJE_ENVIAR, queueOpts);
   await ch.bindQueue(QUEUES.MENSAJE_ENVIAR, EXCHANGE, RK.COMANDO_MENSAJE_ENVIAR);
