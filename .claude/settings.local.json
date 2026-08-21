@@ -191,7 +191,11 @@
       "Bash(npx kill-port *)",
       "Bash(netstat -ano)",
       "Bash(curl -s -o /tmp/pedidos_resp.html -D /tmp/pedidos_headers.txt \"http://localhost:3000/sales/pedidos\" -L)",
-      "Bash(node _tmp_check_nextenv.js)"
+      "Bash(node _tmp_check_nextenv.js)",
+      "Bash(xargs -I{} sh -c 'echo -n \"{}: \"; grep -cE \"stone-|neutral-|zinc-|slate-|emerald-|lime-|amber-|bg-white\\\\b|text-white\\\\b|bg-black\\\\b|text-black\\\\b|oklch\\\\\\(\" {}')",
+      "Bash(powershell.exe -NoProfile -Command \"Get-Process -Id 18940 -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(awk '/^:root {/,/^}/' src/app/globals.css)",
+      "Bash(awk '/^\\\\.dark {/,/^}/' src/app/globals.css)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

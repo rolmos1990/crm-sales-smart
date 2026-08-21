@@ -87,15 +87,15 @@ function CampoInput({
   requerido?: boolean;
   bloqueado?: boolean;
 }) {
-  const labelClasses = "text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500";
-  const inputClasses = "bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9";
+  const labelClasses = "text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+  const inputClasses = "bg-input-bg border-input rounded-xl h-9";
 
   const label = (
     <div className="flex items-center gap-1.5">
       <span className={labelClasses}>{campo.nombre}</span>
-      {requerido && <span className="text-red-400 text-xs">*</span>}
+      {requerido && <span className="text-danger text-xs">*</span>}
       {bloqueado && (
-        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-orange-500 dark:text-orange-400">
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-warning">
           <Lock className="h-2.5 w-2.5" />
           Solo lectura
         </span>
@@ -131,7 +131,7 @@ function CampoInput({
         <div className="space-y-1.5">
           {label}
           <Textarea
-            className="resize-none bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl text-sm"
+            className="resize-none bg-input-bg border-input rounded-xl text-sm"
             rows={3}
             value={typeof valor === "string" ? valor : ""}
             onChange={(e) => onChange(e.target.value)}
@@ -177,7 +177,7 @@ function CampoInput({
 
     case "BOOLEANO":
       return (
-        <div className="flex items-center justify-between rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 px-3 py-2.5">
+        <div className="flex items-center justify-between rounded-xl border border-input bg-input-bg px-3 py-2.5">
           <Label className={cn(labelClasses, "cursor-pointer")}>{campo.nombre}</Label>
           <Switch
             checked={!!valor}
@@ -225,7 +225,7 @@ function CampoInput({
       return (
         <div className="space-y-1.5">
           {label}
-          <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-3 space-y-2">
+          <div className="rounded-xl border border-input bg-input-bg p-3 space-y-2">
             {opciones.map((op) => (
               <div key={op} className="flex items-center gap-2">
                 <Checkbox
@@ -236,14 +236,14 @@ function CampoInput({
                 />
                 <Label
                   htmlFor={`${campo.clave}-${op}`}
-                  className="text-sm text-stone-700 dark:text-stone-300 cursor-pointer"
+                  className="text-sm text-text-secondary cursor-pointer"
                 >
                   {op}
                 </Label>
               </div>
             ))}
             {opciones.length === 0 && (
-              <p className="text-xs text-stone-400 dark:text-stone-600">Sin opciones configuradas</p>
+              <p className="text-xs text-muted-foreground">Sin opciones configuradas</p>
             )}
           </div>
         </div>

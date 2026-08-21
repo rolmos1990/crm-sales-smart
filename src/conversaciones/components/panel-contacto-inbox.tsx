@@ -95,8 +95,8 @@ function CampoEditable({
           className="flex-1 bg-transparent text-xs text-foreground placeholder:text-input-placeholder outline-none"
         />
         {guardando
-          ? <Loader2 className="h-3 w-3 text-primary animate-spin shrink-0" />
-          : <Check className="h-3 w-3 text-primary shrink-0" />}
+          ? <Loader2 className="h-3 w-3 text-inbox-accent animate-spin shrink-0" />
+          : <Check className="h-3 w-3 text-inbox-accent shrink-0" />}
       </div>
     );
   }
@@ -139,8 +139,8 @@ const CLASIFICACION_OPCIONES: {
     valor: "COMERCIAL",
     label: "Comercial",
     icono: <TrendingUp className="h-3 w-3" />,
-    color: "text-primary border-primary-border bg-primary-muted hover:bg-primary-muted/70",
-    colorActivo: "text-primary border-2 border-primary bg-primary-muted ring-2 ring-primary/20",
+    color: "text-inbox-accent border-inbox-accent-border bg-inbox-accent-muted hover:bg-inbox-accent-muted/70",
+    colorActivo: "text-inbox-accent border-2 border-inbox-accent bg-inbox-accent-muted ring-2 ring-inbox-accent/20",
   },
   {
     valor: "SOPORTE",
@@ -206,7 +206,7 @@ function TarjetaOportunidadEditable({
   return (
     <div className="mx-2 px-3 py-2.5 rounded-xl bg-card border border-card-border space-y-3">
       <div className="flex items-center gap-2">
-        <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
+        <TrendingUp className="h-3.5 w-3.5 text-inbox-accent shrink-0" />
         <p className="text-xs font-semibold text-foreground truncate flex-1">{oportunidad.titulo}</p>
       </div>
 
@@ -253,7 +253,7 @@ function TarjetaOportunidadEditable({
         type="button"
         disabled={guardando}
         onClick={guardar}
-        className="flex w-full items-center justify-center gap-1.5 text-[11px] font-semibold text-primary-foreground bg-primary hover:bg-primary-hover rounded-lg px-3 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
+        className="flex w-full items-center justify-center gap-1.5 text-[11px] font-semibold text-inbox-accent-foreground bg-inbox-accent hover:bg-inbox-accent-hover rounded-lg px-3 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
       >
         {guardando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
         Guardar cambios
@@ -261,7 +261,7 @@ function TarjetaOportunidadEditable({
 
       <a
         href={`/crm/oportunidades/${oportunidad.id}`}
-        className="flex w-full items-center justify-center text-[11px] font-medium text-primary hover:text-primary-hover transition-colors"
+        className="flex w-full items-center justify-center text-[11px] font-medium text-inbox-accent hover:text-inbox-accent-hover transition-colors"
       >
         Abrir oportunidad completa
       </a>
@@ -702,7 +702,7 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
               </div>
               <div className="mx-2 px-3 py-2.5 rounded-xl bg-card border border-card-border space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <TrendingUp className="h-3.5 w-3.5 text-inbox-accent shrink-0" />
                   <p className="text-xs font-semibold text-foreground truncate flex-1">{op.titulo}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -712,7 +712,7 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
                   />
                   <span className="text-[10px] text-muted-foreground">{etapaLabel}</span>
                   {op.valor > 0 && (
-                    <span className="ml-auto text-[10px] font-semibold text-primary tabular-nums">
+                    <span className="ml-auto text-[10px] font-semibold text-inbox-accent tabular-nums">
                       {op.moneda} {Number(op.valor).toLocaleString("es-PE", { minimumFractionDigits: 0 })}
                     </span>
                   )}

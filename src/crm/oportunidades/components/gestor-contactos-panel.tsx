@@ -113,7 +113,7 @@ function CampoContacto({
 
   if (editando) {
     return (
-      <div className="flex items-center gap-1.5 rounded-lg bg-stone-50 dark:bg-white/6 border border-lime-400/40 px-2.5 py-1.5">
+      <div className="flex items-center gap-1.5 rounded-lg bg-input-bg border border-input-focus/50 px-2.5 py-1.5">
         <input
           ref={inputRef}
           autoFocus
@@ -126,15 +126,15 @@ function CampoContacto({
             if (e.key === "Escape") { setVal(valor ?? ""); setEditando(false); }
           }}
           placeholder={placeholder}
-          className="flex-1 min-w-0 bg-transparent text-xs text-stone-900 dark:text-stone-100 outline-none placeholder:text-stone-400"
+          className="flex-1 min-w-0 bg-transparent text-xs text-foreground outline-none placeholder:text-input-placeholder"
         />
         {guardando ? (
-          <Loader2 className="h-3 w-3 animate-spin text-lime-500 shrink-0" />
+          <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
         ) : (
           <button
             type="button"
             onMouseDown={(e) => { e.preventDefault(); guardar(); }}
-            className="text-lime-500 hover:text-lime-600 shrink-0"
+            className="text-primary hover:text-primary-hover shrink-0"
           >
             <Check className="h-3.5 w-3.5" />
           </button>
@@ -142,7 +142,7 @@ function CampoContacto({
         <button
           type="button"
           onMouseDown={(e) => { e.preventDefault(); setVal(valor ?? ""); setEditando(false); }}
-          className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 shrink-0"
+          className="text-muted-foreground hover:text-text-secondary shrink-0"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -154,7 +154,7 @@ function CampoContacto({
   const actionHref = valor ? (tipo === "tel" ? `tel:${valor}` : `mailto:${valor}`) : null;
 
   return (
-    <div className="flex items-center gap-0.5 group min-w-0 rounded-lg px-1 py-1 hover:bg-stone-50 dark:hover:bg-white/4 transition-colors">
+    <div className="flex items-center gap-0.5 group min-w-0 rounded-lg px-1 py-1 hover:bg-muted transition-colors">
       {/* Botones de acción — siempre visibles */}
       {waHref && (
         <a
@@ -163,7 +163,7 @@ function CampoContacto({
           rel="noopener noreferrer"
           title="Abrir en WhatsApp"
           onClick={(e) => e.stopPropagation()}
-          className="h-6 w-6 flex items-center justify-center rounded-md text-stone-400 hover:text-green-500 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-400/10 transition-colors shrink-0"
+          className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-success hover:bg-success-muted transition-colors shrink-0"
         >
           <MessageCircle className="h-3.5 w-3.5" />
         </a>
@@ -173,7 +173,7 @@ function CampoContacto({
           href={actionHref}
           title={tipo === "tel" ? "Llamar" : "Enviar email"}
           onClick={(e) => e.stopPropagation()}
-          className="h-6 w-6 flex items-center justify-center rounded-md text-stone-400 hover:text-lime-600 dark:hover:text-lime-400 hover:bg-lime-50 dark:hover:bg-lime-400/10 transition-colors shrink-0"
+          className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary-muted transition-colors shrink-0"
         >
           {tipo === "tel" ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
         </a>
@@ -181,7 +181,7 @@ function CampoContacto({
       {/* Valor o placeholder */}
       <span className={cn(
         "flex-1 text-xs truncate mx-0.5",
-        valor ? "text-stone-700 dark:text-stone-300" : "text-stone-400 dark:text-stone-600 italic"
+        valor ? "text-text-secondary" : "text-muted-foreground italic"
       )}>
         {valor || placeholder}
       </span>
@@ -190,7 +190,7 @@ function CampoContacto({
         type="button"
         title={`Editar ${label}`}
         onClick={() => { setEditando(true); }}
-        className="h-6 w-6 flex items-center justify-center rounded-md text-stone-400 opacity-0 group-hover:opacity-100 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/10 transition-all shrink-0"
+        className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-text-secondary hover:bg-muted transition-all shrink-0"
       >
         <Pencil className="h-3 w-3" />
       </button>
@@ -347,15 +347,15 @@ export function GestorContactosPanel({
           <button
             type="button"
             onClick={() => { setModoCrear(false); form.reset(DEFAULTS_NUEVO); }}
-            className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Volver
           </button>
 
-          <div className="rounded-xl bg-lime-500/8 dark:bg-lime-400/8 border border-lime-500/15 dark:border-lime-400/15 px-4 py-3">
-            <p className="text-xs font-semibold text-lime-700 dark:text-lime-400">Nuevo contacto</p>
-            <p className="text-xs text-lime-600/70 dark:text-lime-500 mt-0.5">
+          <div className="rounded-xl bg-primary-muted border border-primary-border px-4 py-3">
+            <p className="text-xs font-semibold text-primary">Nuevo contacto</p>
+            <p className="text-xs text-primary/70 mt-0.5">
               Se creará y asignará a esta oportunidad
             </p>
           </div>
@@ -382,15 +382,15 @@ export function GestorContactosPanel({
               <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="nombre" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Nombre</FormLabel>
-                    <FormControl><Input className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9" {...field} /></FormControl>
+                    <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nombre</FormLabel>
+                    <FormControl><Input className="bg-input-bg border-input rounded-xl h-9" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="apellido" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Apellido</FormLabel>
-                    <FormControl><Input className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9" {...field} /></FormControl>
+                    <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Apellido</FormLabel>
+                    <FormControl><Input className="bg-input-bg border-input rounded-xl h-9" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -398,9 +398,9 @@ export function GestorContactosPanel({
 
               <FormField control={form.control} name="email" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Email</FormLabel>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</FormLabel>
                   <FormControl>
-                    <Input type="email" className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9" placeholder="correo@ejemplo.com" {...field} value={field.value ?? ""} />
+                    <Input type="email" className="bg-input-bg border-input rounded-xl h-9" placeholder="correo@ejemplo.com" {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -408,7 +408,7 @@ export function GestorContactosPanel({
 
               <FormField control={form.control} name="telefonoPrincipal" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Teléfono principal</FormLabel>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Teléfono principal</FormLabel>
                   <FormControl>
                     <PhoneInput value={field.value ?? ""} onChange={field.onChange} defaultCountryCode={defaultCountryCode} placeholder="000 000 0000" />
                   </FormControl>
@@ -418,7 +418,7 @@ export function GestorContactosPanel({
 
               <FormField control={form.control} name="telefonoSecundario" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Teléfono secundario</FormLabel>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Teléfono secundario</FormLabel>
                   <FormControl>
                     <PhoneInput value={field.value ?? ""} onChange={field.onChange} defaultCountryCode={defaultCountryCode} placeholder="000 000 0000" />
                   </FormControl>
@@ -428,9 +428,9 @@ export function GestorContactosPanel({
 
               <FormField control={form.control} name="cargo" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Cargo</FormLabel>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cargo</FormLabel>
                   <FormControl>
-                    <Input className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9" placeholder="Director, Gerente..." {...field} value={field.value ?? ""} />
+                    <Input className="bg-input-bg border-input rounded-xl h-9" placeholder="Director, Gerente..." {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -438,10 +438,10 @@ export function GestorContactosPanel({
 
               <FormField control={form.control} name="estado" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Estado</FormLabel>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Estado</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger className="bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl h-9"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="bg-input-bg border-input rounded-xl h-9"><SelectValue /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="ACTIVO">Activo</SelectItem>
@@ -455,9 +455,9 @@ export function GestorContactosPanel({
 
               <FormField control={form.control} name="notas" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">Notas</FormLabel>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notas</FormLabel>
                   <FormControl>
-                    <Textarea rows={3} className="resize-none bg-stone-50 dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl text-sm" placeholder="Información adicional..." {...field} value={field.value ?? ""} />
+                    <Textarea rows={3} className="resize-none bg-input-bg border-input rounded-xl text-sm" placeholder="Información adicional..." {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -466,7 +466,7 @@ export function GestorContactosPanel({
           </Form>
         </div>
 
-        <div className="flex-shrink-0 border-t border-stone-100 dark:border-white/10 px-6 py-4 flex justify-end gap-2">
+        <div className="flex-shrink-0 border-t border-border px-6 py-4 flex justify-end gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={() => { setModoCrear(false); form.reset(DEFAULTS_NUEVO); }} className="rounded-lg">
             Cancelar
           </Button>
@@ -475,7 +475,7 @@ export function GestorContactosPanel({
             onClick={form.handleSubmit(handleCrearNuevo)}
             size="sm"
             disabled={form.formState.isSubmitting}
-            className="bg-lime-500 text-stone-950 hover:bg-lime-400 rounded-xl px-5 font-semibold shadow-sm transition-all"
+            className="bg-primary text-primary-foreground hover:bg-primary-hover rounded-xl px-5 font-semibold shadow-sm transition-all"
           >
             {form.formState.isSubmitting ? "Creando..." : "Crear y asignar"}
           </Button>
@@ -491,7 +491,7 @@ export function GestorContactosPanel({
       {/* Header count */}
       {contactos.length > 0 && (
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             {contactos.length} contacto{contactos.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -500,14 +500,14 @@ export function GestorContactosPanel({
       {/* Empty state */}
       {contactos.length === 0 && !modoAgregar && (
         <div className="flex flex-col items-center justify-center py-12 text-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-stone-100 dark:bg-white/5 flex items-center justify-center">
-            <svg className="h-5 w-5 text-stone-400 dark:text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center">
+            <svg className="h-5 w-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </div>
           <div>
-            <p className="text-sm font-semibold text-stone-600 dark:text-stone-300">Sin contactos</p>
-            <p className="text-xs text-stone-400 dark:text-stone-600 mt-1">Agrega un contacto existente o crea uno nuevo</p>
+            <p className="text-sm font-semibold text-text-secondary">Sin contactos</p>
+            <p className="text-xs text-muted-foreground mt-1">Agrega un contacto existente o crea uno nuevo</p>
           </div>
         </div>
       )}
@@ -525,14 +525,14 @@ export function GestorContactosPanel({
             className={cn(
               "relative rounded-2xl border p-3.5 transition-all",
               rel.principal
-                ? "border-lime-300/60 dark:border-lime-400/25 bg-lime-50/40 dark:bg-lime-400/5"
-                : "border-stone-200 dark:border-white/10 bg-stone-50/40 dark:bg-white/4"
+                ? "border-primary-border bg-primary-muted/60"
+                : "border-border bg-muted/60"
             )}
           >
             {/* Loading overlay */}
             {isProcessing && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/70 dark:bg-stone-950/70 z-10">
-                <Loader2 className="h-4 w-4 animate-spin text-lime-500" />
+              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-surface-1/70 z-10">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
               </div>
             )}
 
@@ -545,11 +545,11 @@ export function GestorContactosPanel({
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">
+                  <span className="text-sm font-semibold text-foreground truncate">
                     {c.nombre} {c.apellido}
                   </span>
                   {rel.principal && (
-                    <span className="inline-flex items-center gap-0.5 rounded-full bg-lime-500/10 dark:bg-lime-400/15 border border-lime-400/25 px-1.5 py-0.5 text-[10px] font-bold text-lime-700 dark:text-lime-400 leading-none">
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-primary-muted border border-primary-border px-1.5 py-0.5 text-[10px] font-bold text-primary leading-none">
                       <Star className="h-2.5 w-2.5 fill-current" />
                       Principal
                     </span>
@@ -557,7 +557,7 @@ export function GestorContactosPanel({
                 </div>
 
                 {c.cargo && (
-                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{c.cargo}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{c.cargo}</p>
                 )}
 
                 {/* @usuario/ID de Instagram — referencia no editable, igual que en el Inbox */}
@@ -565,8 +565,8 @@ export function GestorContactosPanel({
                   const ig = c.identificadoresCanal?.find((i) => i.canal === "instagram");
                   if (!ig) return null;
                   return (
-                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-stone-500 dark:text-stone-400 min-w-0">
-                      <Camera className="h-3 w-3 shrink-0 text-stone-400 dark:text-stone-500" />
+                    <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground min-w-0">
+                      <Camera className="h-3 w-3 shrink-0 text-muted-foreground" />
                       <span className="font-mono truncate">
                         {ig.handle ? `@${ig.handle}` : `ID: ${ig.identificador}`}
                       </span>
@@ -575,8 +575,8 @@ export function GestorContactosPanel({
                 })()}
 
                 {/* Edición rápida de contacto */}
-                <div className="mt-2.5 space-y-0.5 border-t border-stone-100 dark:border-white/8 pt-2.5">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-stone-400 dark:text-stone-500 px-1 mb-1">
+                <div className="mt-2.5 space-y-0.5 border-t border-border-subtle pt-2.5">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground px-1 mb-1">
                     Editar rápido
                   </p>
 
@@ -600,13 +600,13 @@ export function GestorContactosPanel({
 
               {/* Menu */}
               <DropdownMenu>
-                <DropdownMenuTrigger className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-stone-100 dark:hover:bg-white/10 text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors flex-shrink-0 outline-none mt-0.5">
+                <DropdownMenuTrigger className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-text-secondary transition-colors flex-shrink-0 outline-none mt-0.5">
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
                   {!rel.principal && (
                     <DropdownMenuItem onClick={() => handleHacerPrincipal(rel.contactoId)}>
-                      <Star className="h-3.5 w-3.5 mr-2 text-lime-500" />
+                      <Star className="h-3.5 w-3.5 mr-2 text-primary" />
                       Hacer principal
                     </DropdownMenuItem>
                   )}
@@ -615,7 +615,7 @@ export function GestorContactosPanel({
                     Ver contacto
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    className="text-red-500 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-500/10 focus:text-red-600 dark:focus:text-red-300"
+                    className="text-danger focus:bg-danger-muted focus:text-danger-text"
                     onClick={() => handleRemover(rel.contactoId)}
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-2" />
@@ -631,7 +631,7 @@ export function GestorContactosPanel({
       {/* Agregar existente */}
       {modoAgregar ? (
         <div className="space-y-2 pt-1">
-          <p className="text-xs text-stone-500 dark:text-stone-400 font-medium">Buscar contacto</p>
+          <p className="text-xs text-muted-foreground font-medium">Buscar contacto</p>
           <Combobox
             opciones={opcionesDisponibles}
             valor=""
@@ -641,7 +641,7 @@ export function GestorContactosPanel({
           <button
             type="button"
             onClick={() => setModoAgregar(false)}
-            className="text-xs text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400 transition-colors"
+            className="text-xs text-muted-foreground hover:text-text-secondary transition-colors"
           >
             Cancelar
           </button>
@@ -654,8 +654,8 @@ export function GestorContactosPanel({
               onClick={() => setModoAgregar(true)}
               className={cn(
                 "flex items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-2.5 text-xs font-semibold transition-all w-full",
-                "border-stone-300 dark:border-white/15 text-stone-500 dark:text-stone-400",
-                "hover:border-lime-400 dark:hover:border-lime-400/50 hover:text-lime-600 dark:hover:text-lime-400 hover:bg-lime-50 dark:hover:bg-lime-400/5"
+                "border-border text-muted-foreground",
+                "hover:border-primary-border hover:text-primary hover:bg-primary-muted"
               )}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -667,8 +667,8 @@ export function GestorContactosPanel({
             onClick={() => setModoCrear(true)}
             className={cn(
               "flex items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-2.5 text-xs font-semibold transition-all w-full",
-              "border-stone-300 dark:border-white/15 text-stone-500 dark:text-stone-400",
-              "hover:border-indigo-400 dark:hover:border-indigo-400/50 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-400/5"
+              "border-border text-muted-foreground",
+              "hover:border-stage-purple-border hover:text-stage-purple-text hover:bg-stage-purple-muted"
             )}
           >
             <UserPlus className="h-3.5 w-3.5" />

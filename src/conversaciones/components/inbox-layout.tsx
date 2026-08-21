@@ -39,6 +39,10 @@ type EstadoConv = ConversacionResumen["estado"];
 
 const ESTADO_CFG: Record<EstadoConv, {
   dot: string;
+  /** Color del punto en la barra de estado (BarraEstado) — solo difiere del
+   *  `dot` de la lista en EN_ESPERA, donde el badge de la lista se queda en
+   *  el verde eucalipto del Inbox pero el banner pasa a ámbar (ver abajo). */
+  barDot?: string;
   pulse: boolean;
   barBg: string;
   barBorder: string;
@@ -60,14 +64,20 @@ const ESTADO_CFG: Record<EstadoConv, {
     badgeLabel: "Abierta",
   },
   EN_ESPERA: {
-    dot: "bg-primary",
+    // Badge de la lista ("Esperando"): verde eucalipto del Inbox — es la
+    // identidad de marca del Inbox, discreta.
+    dot: "bg-inbox-waiting-text",
+    // Banner grande ("Esperando respuesta del cliente"): es un estado de
+    // atención, no de marca — ámbar tenue en vez de verde, para no repetir
+    // el mismo verde en todos lados y que se lea como una señal distinta.
+    barDot: "bg-inbox-banner-dot",
     pulse: false,
-    barBg: "bg-primary-muted",
-    barBorder: "border-primary-border",
+    barBg: "bg-inbox-banner-bg",
+    barBorder: "border-inbox-banner-border",
     label: "Esperando respuesta del cliente",
-    labelColor: "text-primary",
-    badgeBg: "bg-primary-muted border-primary-border",
-    badgeText: "text-primary",
+    labelColor: "text-inbox-banner-title",
+    badgeBg: "bg-inbox-waiting-bg border-inbox-waiting-border",
+    badgeText: "text-inbox-waiting-text",
     badgeLabel: "Esperando",
   },
   CERRADA: {
@@ -556,7 +566,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition-colors",
                     activo
-                      ? "bg-primary-muted border-primary-border text-primary"
+                      ? "bg-inbox-accent-muted border-inbox-accent-border text-inbox-accent"
                       : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
@@ -564,7 +574,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                   {f.label}
                   <span className={cn(
                     "text-[10px] font-semibold tabular-nums",
-                    activo ? "text-primary" : "text-muted-foreground"
+                    activo ? "text-inbox-accent" : "text-muted-foreground"
                   )}>
                     {conteos[f.key]}
                   </span>
@@ -604,7 +614,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     className={cn(
                       "w-full text-left flex items-start gap-3 px-4 py-3 transition-colors border-l-2",
                       esActiva
-                        ? "bg-primary-muted border-l-primary"
+                        ? "bg-inbox-accent-muted border-l-inbox-accent"
                         : "border-l-transparent hover:bg-muted/70"
                     )}
                   >
@@ -657,7 +667,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                           </span>
                         ) : <span />}
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {noLeido && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                          {noLeido && <span className="h-1.5 w-1.5 rounded-full bg-inbox-accent" />}
                           <span className={cn(
                             "flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border",
                             cfg.badgeBg, cfg.badgeText
@@ -677,7 +687,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
       </aside>
 
       {/* ── Panel central: área de chat ── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-surface-1 dark:bg-transparent">
+      <div className="flex-1 flex flex-col overflow-hidden bg-background">
         {seleccionada === null || !convActiva ? (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
@@ -717,7 +727,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 className={cn(
                   "h-7 w-7 rounded-lg flex items-center justify-center transition-colors shrink-0",
                   panelContactoAbierto
-                    ? "bg-primary-muted text-primary"
+                    ? "bg-inbox-accent-muted text-inbox-accent"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
@@ -873,7 +883,7 @@ function BarraEstado({
     )}>
       {/* Indicador izquierdo */}
       <div className="flex items-center gap-2.5 min-w-0">
-        <div className={cn("h-2 w-2 rounded-full shrink-0", cfg.dot, cfg.pulse && "animate-pulse")} />
+        <div className={cn("h-2 w-2 rounded-full shrink-0", cfg.barDot ?? cfg.dot, cfg.pulse && "animate-pulse")} />
         <div className="min-w-0">
           <p className={cn("text-xs font-semibold leading-tight", cfg.labelColor)}>
             {cfg.label}
@@ -907,7 +917,7 @@ function BarraEstado({
             type="button"
             disabled={accionando}
             onClick={onMarcarRespondida}
-            className="flex items-center gap-1.5 text-[11px] font-semibold text-primary-foreground bg-primary hover:bg-primary-hover rounded-lg px-2.5 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-inbox-accent-foreground bg-inbox-accent hover:bg-inbox-accent-hover rounded-lg px-2.5 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
           >
             <Check className="h-3 w-3" />
             Marcar respondida

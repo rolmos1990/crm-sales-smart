@@ -128,6 +128,25 @@
   --color-badge-bg: var(--badge-bg);
   --color-badge-border: var(--badge-border);
   --color-badge-text: var(--badge-text);
+
+  /* ── Inbox — acento propio (eucalipto), ver claude-inbox-eucalipto.md ── */
+  --color-inbox-accent: var(--inbox-accent);
+  --color-inbox-accent-hover: var(--inbox-accent-hover);
+  --color-inbox-accent-icon: var(--inbox-accent-icon);
+  --color-inbox-accent-muted: var(--inbox-accent-muted);
+  --color-inbox-accent-border: var(--inbox-accent-border);
+  --color-inbox-accent-foreground: var(--inbox-accent-foreground);
+  --color-inbox-sent-bg: var(--inbox-sent-bg);
+  --color-inbox-sent-border: var(--inbox-sent-border);
+  --color-inbox-sent-text: var(--inbox-sent-text);
+  --color-inbox-waiting-bg: var(--inbox-waiting-bg);
+  --color-inbox-waiting-border: var(--inbox-waiting-border);
+  --color-inbox-waiting-text: var(--inbox-waiting-text);
+  --color-inbox-banner-bg: var(--inbox-banner-bg);
+  --color-inbox-banner-border: var(--inbox-banner-border);
+  --color-inbox-banner-dot: var(--inbox-banner-dot);
+  --color-inbox-banner-title: var(--inbox-banner-title);
+  --color-inbox-banner-text: var(--inbox-banner-text);
 }
 
 :root {
@@ -282,6 +301,27 @@
   --sidebar-accent-foreground: var(--nav-active-text);
   --sidebar-border: var(--border-subtle);
   --sidebar-ring: var(--primary);
+
+  /* ── Inbox — Light hereda el acento global tal cual (sin cambios de look
+     acá — el ajuste "eucalipto" que pidió el usuario es específico de Dark,
+     ver .dark más abajo) ── */
+  --inbox-accent: var(--primary);
+  --inbox-accent-hover: var(--primary-hover);
+  --inbox-accent-icon: var(--primary);
+  --inbox-accent-muted: var(--primary-muted);
+  --inbox-accent-border: var(--primary-border);
+  --inbox-accent-foreground: var(--primary-foreground);
+  --inbox-sent-bg: var(--primary-muted);
+  --inbox-sent-border: var(--primary-border);
+  --inbox-sent-text: var(--text-primary);
+  --inbox-waiting-bg: var(--primary-muted);
+  --inbox-waiting-border: var(--primary-border);
+  --inbox-waiting-text: var(--primary);
+  --inbox-banner-bg: var(--stage-amber-muted);
+  --inbox-banner-border: var(--stage-amber-border);
+  --inbox-banner-dot: var(--stage-amber);
+  --inbox-banner-title: var(--stage-amber-text);
+  --inbox-banner-text: var(--text-tertiary);
 }
 
 .dark {
@@ -292,6 +332,7 @@
      ════════════════════════════════════════════════════════════════ */
   --background: #0F1720;
   --background-deep: #0C131B;
+  --background-subtle: #111B25;
 
   --sidebar: #111B25;
   --sidebar-elevated: #16212C;
@@ -428,6 +469,34 @@
   --sidebar-accent-foreground: var(--nav-active-text);
   --sidebar-border: var(--border-subtle);
   --sidebar-ring: var(--primary);
+
+  /* ── Inbox — verde eucalipto oscuro, más sobrio que el --primary lima
+     general. El --primary global (botones/CTA/sidebar/etc. del resto de
+     Karia) NO cambia — esto es un acento propio solo para el Inbox, donde
+     el verde se repetía en demasiados elementos (seleccionada, banner,
+     mensajes, estados) y cansaba la vista. */
+  --inbox-accent: #5F9F7A;
+  --inbox-accent-hover: #70AD89;
+  --inbox-accent-icon: #86B99A;
+  --inbox-accent-muted: #182A24;
+  --inbox-accent-border: #315C49;
+  --inbox-accent-foreground: #F4FAF6;
+
+  --inbox-sent-bg: #1D382E;
+  --inbox-sent-border: #37644F;
+  --inbox-sent-text: #F0F5F2;
+
+  --inbox-waiting-bg: #22362B;
+  --inbox-waiting-border: #416B54;
+  --inbox-waiting-text: #8FC9A4;
+
+  /* Banner de estado ("Esperando respuesta del cliente"): ámbar, no verde
+     — es una señal de atención, distinta de la identidad de marca. */
+  --inbox-banner-bg: #302A1D;
+  --inbox-banner-border: #564923;
+  --inbox-banner-dot: #D7AD4A;
+  --inbox-banner-title: #F0D486;
+  --inbox-banner-text: #AFA58D;
 }
 
 @layer base {

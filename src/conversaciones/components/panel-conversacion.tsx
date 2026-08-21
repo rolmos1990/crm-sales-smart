@@ -207,8 +207,8 @@ export function PanelConversacion({
 
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-3 border-b border-border shrink-0">
-        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary-muted">
-          <MessageSquare className="h-4 w-4 text-primary" />
+        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-inbox-accent-muted">
+          <MessageSquare className="h-4 w-4 text-inbox-accent" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground truncate">{nombreContacto}</p>
@@ -240,7 +240,7 @@ export function PanelConversacion({
               }}
               className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap transition-colors ${
                 conversacionActiva === conv.id
-                  ? "bg-primary-muted text-primary border border-primary-border"
+                  ? "bg-inbox-accent-muted text-inbox-accent border border-inbox-accent-border"
                   : "bg-badge-bg text-badge-text hover:text-foreground"
               }`}
             >
@@ -254,8 +254,8 @@ export function PanelConversacion({
       {sinConversacion && (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 p-5">
           <div className="flex flex-col items-center gap-2 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-primary-muted flex items-center justify-center">
-              <MessageSquare className="h-6 w-6 text-primary" />
+            <div className="w-12 h-12 rounded-2xl bg-inbox-accent-muted flex items-center justify-center">
+              <MessageSquare className="h-6 w-6 text-inbox-accent" />
             </div>
             <p className="text-sm font-semibold text-text-secondary">Sin conversaciones</p>
             {telefonoContacto && (
@@ -285,7 +285,7 @@ export function PanelConversacion({
               type="button"
               onClick={handleIniciarConversacion}
               disabled={iniciando}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary-hover transition-all shadow-lg hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-inbox-accent text-inbox-accent-foreground text-sm font-semibold hover:bg-inbox-accent-hover transition-all shadow-lg hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {iniciando ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> Iniciando…</>

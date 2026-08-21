@@ -226,7 +226,7 @@ export function BadgesReacciones({
                     g.tipo === "INTERNA"
                       ? "bg-stage-amber-muted border-stage-amber-border text-stage-amber-text hover:bg-stage-amber-muted/70"
                       : g.esPropio
-                        ? "bg-primary-muted border-primary-border text-primary hover:bg-primary-muted/70"
+                        ? "bg-inbox-accent-muted border-inbox-accent-border text-inbox-accent hover:bg-inbox-accent-muted/70"
                         : "bg-badge-bg border-badge-border text-badge-text hover:bg-muted"
                   )}
                 >

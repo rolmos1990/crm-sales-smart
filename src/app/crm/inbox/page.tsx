@@ -23,8 +23,8 @@ export default async function InboxPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="shrink-0 px-6 pt-5 pb-4 border-b border-stone-200 dark:border-white/[0.06]">
-        <h1 className="text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-50">Inbox</h1>
+      <div className="shrink-0 px-6 pt-5 pb-4 border-b border-border">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Inbox</h1>
       </div>
       <div className="flex-1 overflow-hidden">
         <InboxLayout conversacionesIniciales={conversaciones} cuentas={cuentas} />

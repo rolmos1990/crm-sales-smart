@@ -95,7 +95,7 @@ function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
       <button
         type="button"
         onClick={() => fullSrc && setLightboxAbierto(true)}
-        className="block rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary/40"
+        className="block rounded-xl overflow-hidden border border-border hover:opacity-90 transition-opacity cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-inbox-accent/40"
         title="Ver imagen completa"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -128,7 +128,7 @@ const iconoEstado: Record<EstadoMensaje, React.ReactNode> = {
   RECIBIDO: <Check className="h-3 w-3" />,
   ENVIADO: <Check className="h-3 w-3" />,
   ENTREGADO: <CheckCheck className="h-3 w-3" />,
-  LEIDO: <CheckCheck className="h-3 w-3 text-primary" />,
+  LEIDO: <CheckCheck className="h-3 w-3 text-inbox-accent" />,
   FALLIDO: <AlertCircle className="h-3 w-3 text-danger" />,
 };
 
@@ -201,7 +201,7 @@ export function BurbujaMensaje({
             esNota
               ? "bg-stage-amber-muted border border-stage-amber-border text-stage-amber-text rounded-tr-sm"
               : esPropioONota
-                ? "bg-primary-muted border border-primary-border text-foreground rounded-tr-sm"
+                ? "bg-inbox-sent-bg border border-inbox-sent-border text-inbox-sent-text rounded-tr-sm"
                 : "bg-muted border border-border text-text-secondary rounded-tl-sm"
           )}
         >
@@ -232,7 +232,7 @@ export function BurbujaMensaje({
                   return (
                     <div className="flex flex-col gap-1.5 min-w-[200px]">
                       <div className="flex items-center gap-1.5">
-                        <Mic className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <Mic className="h-3.5 w-3.5 text-inbox-accent-icon shrink-0" />
                         <span className="text-xs text-muted-foreground">
                           {mensaje.tipo === "NOTA_VOZ" ? "Nota de voz" : "Audio"}
                           {minutos !== null && segundos !== null
@@ -274,7 +274,7 @@ export function BurbujaMensaje({
               <button
                 type="button"
                 onClick={() => onMarcarLeido(mensaje.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-primary flex items-center gap-0.5 whitespace-nowrap shrink-0"
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-inbox-accent flex items-center gap-0.5 whitespace-nowrap shrink-0"
               >
                 <Check className="h-2.5 w-2.5" />
                 Marcar leído
@@ -291,7 +291,7 @@ export function BurbujaMensaje({
                 <span className="text-muted-foreground">{iconoEstado[estadoEfectivo]}</span>
               )}
               {esContacto && !esNoLeido && (
-                <span className="text-[9px] text-primary/70 flex items-center gap-0.5">
+                <span className="text-[9px] text-inbox-accent/70 flex items-center gap-0.5">
                   <Check className="h-2.5 w-2.5" />
                   Leído
                 </span>

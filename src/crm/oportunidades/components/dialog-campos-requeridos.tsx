@@ -34,7 +34,7 @@ export function DialogCamposRequeridos({
     <AlertDialog open={open} onOpenChange={(o) => !o && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogMedia className="bg-amber-500/10 text-amber-500">
+          <AlertDialogMedia className="bg-stage-amber-muted text-stage-amber">
             <ShieldAlert />
           </AlertDialogMedia>
           <AlertDialogTitle>Campos requeridos</AlertDialogTitle>
@@ -43,7 +43,7 @@ export function DialogCamposRequeridos({
             <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
               <span
                 className="inline-block h-2 w-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: stageColor ?? "#94a3b8" }}
+                style={{ backgroundColor: stageColor ?? "var(--text-muted)" }}
               />
               {stageNombre}
             </span>
@@ -51,7 +51,7 @@ export function DialogCamposRequeridos({
             <ul className="mt-3 space-y-1.5">
               {camposFaltantes.map((campo) => (
                 <li key={campo} className="flex items-center gap-2 text-sm">
-                  <span className="text-amber-500 flex-shrink-0">✦</span>
+                  <span className="text-stage-amber flex-shrink-0">✦</span>
                   <span className="text-foreground">{campo}</span>
                 </li>
               ))}
@@ -62,7 +62,7 @@ export function DialogCamposRequeridos({
           <AlertDialogCancel onClick={onClose}>Entendido</AlertDialogCancel>
           {onIrACampos && (
             <AlertDialogAction
-              className="bg-lime-500 text-stone-950 hover:bg-lime-400"
+              className="bg-primary text-primary-foreground hover:bg-primary-hover"
               onClick={() => {
                 onClose();
                 onIrACampos();

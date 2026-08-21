@@ -55,7 +55,7 @@ export function SelectorCuentaCanal({ cuentas, seleccionada, onSeleccionar }: Se
               onClick={() => { onSeleccionar(c.id); setAbierto(false); }}
               className={cn(
                 "w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-muted transition-colors text-text-secondary",
-                seleccionada === c.id && "bg-primary-muted text-primary"
+                seleccionada === c.id && "bg-inbox-accent-muted text-inbox-accent"
               )}
             >
               {iconoCanal(c.canal)}

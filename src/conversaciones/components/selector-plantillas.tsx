@@ -276,7 +276,7 @@ export function SelectorPlantillas({
                       {extractVariables(plantillaActiva.contenidoTexto).map((v) => (
                         <span
                           key={v}
-                          className="text-[10px] bg-primary-muted text-primary border border-primary-border px-1.5 py-0.5 rounded"
+                          className="text-[10px] bg-inbox-accent-muted text-inbox-accent border border-inbox-accent-border px-1.5 py-0.5 rounded"
                         >
                           {v}
                         </span>
@@ -287,7 +287,7 @@ export function SelectorPlantillas({
 
               {/* Canal */}
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                <span className="w-3.5 h-3.5 rounded-full bg-success flex items-center justify-center text-[8px] text-primary-foreground shrink-0">
+                <span className="w-3.5 h-3.5 rounded-full bg-success flex items-center justify-center text-[8px] text-inbox-accent-foreground shrink-0">
                   ✓
                 </span>
                 <span>WhatsApp</span>
@@ -344,7 +344,7 @@ function ItemLista({ plantilla, activa, dataIdx, onHover, onClick }: ItemListaPr
       className={cn(
         "w-full text-left px-3 py-2 flex items-start gap-2 transition-all border-l-2",
         activa
-          ? "bg-primary-muted border-primary/50"
+          ? "bg-inbox-accent-muted border-inbox-accent/50"
           : "border-transparent hover:bg-muted"
       )}
     >

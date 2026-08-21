@@ -189,13 +189,13 @@ export function InputMensaje({
 
       {/* Preview de imagen adjunta */}
       {imagenAdjunta && (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-primary-muted border border-primary-border">
-          <ImageIcon className="h-3.5 w-3.5 text-primary shrink-0" />
-          <span className="text-xs text-primary flex-1 truncate">Imagen adjunta</span>
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-inbox-accent-muted border border-inbox-accent-border">
+          <ImageIcon className="h-3.5 w-3.5 text-inbox-accent shrink-0" />
+          <span className="text-xs text-inbox-accent flex-1 truncate">Imagen adjunta</span>
           <button
             type="button"
             onClick={() => setImagenAdjunta(null)}
-            className="text-primary/70 hover:text-primary transition-colors"
+            className="text-inbox-accent/70 hover:text-inbox-accent transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -219,8 +219,8 @@ export function InputMensaje({
               className={cn(
                 "flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-all",
                 generandoIA
-                  ? "border-primary-border bg-primary-muted text-primary cursor-wait"
-                  : "border-border text-muted-foreground hover:text-primary hover:border-primary-border hover:bg-primary-muted"
+                  ? "border-inbox-accent-border bg-inbox-accent-muted text-inbox-accent cursor-wait"
+                  : "border-border text-muted-foreground hover:text-inbox-accent hover:border-inbox-accent-border hover:bg-inbox-accent-muted"
               )}
             >
               {generandoIA ? (
@@ -276,7 +276,7 @@ export function InputMensaje({
         />
         <div className="flex items-center gap-1 shrink-0">
           {interpolando ? (
-            <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            <Loader2 className="h-4 w-4 text-inbox-accent animate-spin" />
           ) : (
             <>
               <Popover open={emojiPickerAbierto} onOpenChange={setEmojiPickerAbierto}>
@@ -319,7 +319,7 @@ export function InputMensaje({
               puedeEnviar
                 ? esNota
                   ? "bg-stage-amber text-text-inverse hover:bg-stage-amber/80"
-                  : "bg-primary text-primary-foreground hover:bg-primary-hover shadow-lg hover:scale-[1.05]"
+                  : "bg-inbox-accent text-inbox-accent-foreground hover:bg-inbox-accent-hover shadow-lg hover:scale-[1.05]"
                 : "text-muted-foreground/60 cursor-not-allowed"
             )}
           >
