@@ -124,8 +124,15 @@ export function construirWhereBase(instanciaId: string, zonaHoraria: string, fil
       { empresa: { is: { nombre: { contains: q, mode: "insensitive" } } } },
     ];
   }
+  // Oportunidad.productos (OportunidadProducto) nunca se escribe desde
+  // ningún form/Server Action del dominio — es una relación muerta, así que
+  // filtrar por ella siempre daba cero resultados. El producto real de una
+  // oportunidad vive en las líneas de sus cotizaciones (CotizacionLinea vía
+  // Cotizacion.oportunidadId), así que se filtra por ahí.
   if (filtros.productoIds && filtros.productoIds.length > 0) {
-    where.productos = { some: { productoId: { in: filtros.productoIds } } };
+    where.cotizaciones = {
+      some: { lineas: { some: { productoId: { in: filtros.productoIds } } } },
+    };
   }
   if (filtros.contactoIds && filtros.contactoIds.length > 0) {
     where.contactos = { some: { contactoId: { in: filtros.contactoIds } } };
@@ -160,7 +167,12 @@ export function construirWhereBase(instanciaId: string, zonaHoraria: string, fil
       ...(filtros.creadoHasta ? { lte: filtros.creadoHasta } : {}),
     };
   }
-  if (filtros.conCotizacion === true) where.cotizaciones = { some: {} };
+  // Si productoIds ya dejó armado where.cotizaciones (arriba), "some" con
+  // línea de producto ya implica "con cotización" — no hay que pisarlo.
+  // "sin cotización" sí se pisa a propósito: es incompatible con tener una
+  // línea de producto (sin cotización no puede haber línea), así que
+  // prevalece la condición más restrictiva.
+  if (filtros.conCotizacion === true) where.cotizaciones ??= { some: {} };
   else if (filtros.conCotizacion === false) where.cotizaciones = { none: {} };
 
   if (filtros.conActividadesPendientes) {

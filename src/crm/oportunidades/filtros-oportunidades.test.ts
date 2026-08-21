@@ -57,15 +57,28 @@ describe("construirWhereBase — filtros individuales", () => {
     expect(where.OR[0]).toEqual({ titulo: { contains: "Robson", mode: "insensitive" } });
   });
 
-  it("productoIds/contactoIds/tagIds usan `some...in` sobre la relación", () => {
+  it("contactoIds/tagIds usan `some...in` sobre la relación", () => {
     const where = construirWhereBase(INSTANCIA, ZONA, {
-      productoIds: ["p1", "p2"],
       contactoIds: ["c1"],
       tagIds: ["t1", "t2"],
     }) as any;
-    expect(where.productos).toEqual({ some: { productoId: { in: ["p1", "p2"] } } });
     expect(where.contactos).toEqual({ some: { contactoId: { in: ["c1"] } } });
     expect(where.tags).toEqual({ some: { tagId: { in: ["t1", "t2"] } } });
+  });
+
+  it("productoIds filtra por línea de producto en las cotizaciones de la oportunidad, no por Oportunidad.productos (relación muerta, nunca se escribe)", () => {
+    const where = construirWhereBase(INSTANCIA, ZONA, { productoIds: ["p1", "p2"] }) as any;
+    expect(where.productos).toBeUndefined();
+    expect(where.cotizaciones).toEqual({
+      some: { lineas: { some: { productoId: { in: ["p1", "p2"] } } } },
+    });
+  });
+
+  it("productoIds + conCotizacion:true no se pisan — la condición de producto ya implica tener cotización", () => {
+    const where = construirWhereBase(INSTANCIA, ZONA, { productoIds: ["p1"], conCotizacion: true }) as any;
+    expect(where.cotizaciones).toEqual({
+      some: { lineas: { some: { productoId: { in: ["p1"] } } } },
+    });
   });
 
   it("etapaId tiene prioridad sobre etapaLegacy cuando ambos vienen (no debería pasar en la práctica)", () => {
