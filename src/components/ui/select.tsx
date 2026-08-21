@@ -1,5 +1,10 @@
 "use client"
 
+// ⚠️ Este Select envuelve @base-ui/react/select (NO Radix). Si el `value` de
+// tus <SelectItem> no es idéntico a su etiqueta visible, DEBES pasar la prop
+// `items` (mapa valor→etiqueta) al <Select> raíz — si no, el trigger muestra
+// el value crudo hasta que el usuario abre el popup una vez. Ver docs/selects.md.
+
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 

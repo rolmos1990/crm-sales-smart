@@ -210,8 +210,12 @@ function EditorValor({
       case "LISTA": {
         const enModoLista = nodo.operator === "ESTA_EN" || nodo.operator === "NO_ESTA_EN";
         if (campo.allowedValues && !enModoLista) {
+          // `items` es obligatorio para que el Select (base-ui) muestre la
+          // etiqueta en el trigger — sin esto muestra el value crudo hasta
+          // que el usuario abre el popup una vez. Ver docs/selects.md.
+          const itemsLista = Object.fromEntries(campo.allowedValues.map((o) => [o.valor, o.etiqueta]));
           return (
-            <Select value={valorSimple} onValueChange={(v) => onChange({ value: v })}>
+            <Select items={itemsLista} value={valorSimple} onValueChange={(v) => onChange({ value: v })}>
               <SelectTrigger className="h-8 text-xs flex-1 min-w-[130px]"><SelectValue placeholder="Valor..." /></SelectTrigger>
               <SelectContent>
                 {campo.allowedValues.map((o) => <SelectItem key={o.valor} value={o.valor}>{o.etiqueta}</SelectItem>)}
@@ -309,6 +313,7 @@ function FilaCondicion({
         />
 
         <Select
+          items={Object.fromEntries(operadores.map((op) => [op, ETIQUETA_OPERADOR[op]]))}
           value={nodo.operator}
           onValueChange={(v) => onChange({ ...nodo, operator: v as OperadorCondicion, value: "" })}
         >
@@ -388,7 +393,11 @@ function GrupoCondiciones({
   return (
     <div className={cn("space-y-2", !esRaiz && "rounded-xl border border-dashed border-stone-300 dark:border-white/15 bg-stone-50/60 dark:bg-white/[0.02] p-2.5")}>
       <div className="flex items-center gap-2">
-        <Select value={grupo.logicalOperator} onValueChange={(v) => onChange({ ...grupo, logicalOperator: v as "AND" | "OR" })}>
+        <Select
+          items={{ AND: "Cumplir todas (Y)", OR: "Cumplir cualquiera (O)" }}
+          value={grupo.logicalOperator}
+          onValueChange={(v) => onChange({ ...grupo, logicalOperator: v as "AND" | "OR" })}
+        >
           <SelectTrigger className="h-7 w-[210px] text-xs">
             <SelectValue />
           </SelectTrigger>
