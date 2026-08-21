@@ -274,12 +274,19 @@ function ColumnaStage({
   const color = stage.color ?? "#818cf8";
 
   return (
-    // h-full: junto con el `align-items: stretch` por defecto de la fila en
-    // KanbanScrollContainer, hace que TODAS las columnas lleguen hasta la
-    // altura de la más alta (la de más tarjetas) — así una etapa con pocas
-    // oportunidades sigue siendo un blanco de suelta grande, no solo el
-    // recuadro chico alrededor de sus 2-3 tarjetas.
-    <div className="flex-shrink-0 w-[272px] h-full" data-testid="pipeline-column">
+    // Sin h-full acá a propósito: este div ES el flex item directo de la fila
+    // de columnas (data-kanban-scroll, ver KanbanScrollContainer) — su altura
+    // tiene que quedar en el valor por defecto (auto) para que participe del
+    // `align-items: stretch` de esa fila. Un `height: 100%` explícito, aunque
+    // el padre no tenga una altura definida, ya cuenta como "no auto" para el
+    // algoritmo de stretch y lo desactiva — por eso antes cada columna
+    // terminaba con la altura de su propio contenido en vez de la de la más
+    // alta. Una vez estirado por la fila, este div SÍ tiene una altura
+    // definida, así que el h-full de acá abajo (su hijo directo) vuelve a
+    // resolver con normalidad — y con eso, una etapa con pocas oportunidades
+    // sigue siendo un blanco de suelta grande, no solo el recuadro chico
+    // alrededor de sus 2-3 tarjetas.
+    <div className="flex-shrink-0 w-[272px]" data-testid="pipeline-column">
       <div
         className={cn(
           "flex h-full flex-col rounded-xl border transition-all duration-150",

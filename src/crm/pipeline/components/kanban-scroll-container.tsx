@@ -132,7 +132,11 @@ export function KanbanScrollContainer({
       <div
         ref={rowRef}
         data-kanban-scroll=""
-        className={`flex gap-4 ${
+        // items-stretch explícito (por defecto ya computa igual: `normal` en
+        // un flex row equivale a `stretch`) — así todas las columnas quedan a
+        // la altura de la más alta sin necesidad de medir nada por JS, ver
+        // ColumnaStage en pipeline-kanban-dinamico.tsx.
+        className={`flex items-stretch gap-4 ${
           showIndicator ? "pb-7" : "pb-6"
         } ${className ?? ""}`.trim()}
         onMouseDown={onMouseDown}
