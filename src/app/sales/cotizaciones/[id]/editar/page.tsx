@@ -8,6 +8,8 @@ import { obtenerCotizacionPorId } from "@/sales/cotizaciones/queries";
 import { asegurarContactoIncluido } from "@/sales/cotizaciones/actions";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
+import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { isoDesdePais } from "@/shared/lib/pais-iso";
 import type { CrearCotizacionInput } from "@/sales/cotizaciones/schema";
 
 export default async function EditarCotizacionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,15 +22,19 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
   let contactos: Awaited<ReturnType<typeof buscarContactos>> = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
   let transportistas: Awaited<ReturnType<typeof obtenerTransportistas>> = [];
+  let defaultCountryCode = "PA";
 
   try {
-    [cotizacion, empresas, contactos, productos, transportistas] = await Promise.all([
+    let config: Awaited<ReturnType<typeof obtenerConfiguracionEmpresa>> = null;
+    [cotizacion, empresas, contactos, productos, transportistas, config] = await Promise.all([
       obtenerCotizacionPorId(id, sesion.instanciaId),
       buscarEmpresas("", sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),
       obtenerProductosCatalogo(sesion.instanciaId),
       obtenerTransportistas(sesion.instanciaId),
+      obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
+    defaultCountryCode = isoDesdePais(config?.pais);
   } catch {
     // DB not configured
   }
@@ -116,6 +122,7 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
         cotizacionId={id}
         numero={cotizacion.numero}
         defaultValues={defaultValues}
+        defaultCountryCode={defaultCountryCode}
       />
     </div>
   );

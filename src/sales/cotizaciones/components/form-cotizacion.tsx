@@ -75,6 +75,10 @@ interface FormCotizacionProps {
   empresaFija?: boolean;
   /** Moneda preferida de la instancia; se usa solo al crear */
   monedaDefault?: string;
+  /** ISO alpha-2 del país configurado en Configuración → Empresa — el
+   *  <PhoneInput> de "Destinatario" lo usa como prefijo por defecto en vez
+   *  de +51 (Perú), su fallback interno. */
+  defaultCountryCode?: string;
 }
 
 const tieneContactoOrigen = (c?: Partial<DestinatarioCotizacionInput>) =>
@@ -137,6 +141,7 @@ export function FormCotizacion({
   contactoFijo = false,
   empresaFija = false,
   monedaDefault = "PEN",
+  defaultCountryCode = "PA",
 }: FormCotizacionProps) {
   const router = useRouter();
   const hayContactoOrigen = tieneContactoOrigen(contactoOrigen);
@@ -469,7 +474,7 @@ export function FormCotizacion({
                     <FormItem>
                       <FormLabel>Teléfono</FormLabel>
                       <FormControl>
-                        <PhoneInput value={field.value ?? ""} onChange={field.onChange} disabled={usarInfoContacto && hayContactoOrigen} />
+                        <PhoneInput value={field.value ?? ""} onChange={field.onChange} defaultCountryCode={defaultCountryCode} disabled={usarInfoContacto && hayContactoOrigen} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

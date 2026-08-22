@@ -36,6 +36,10 @@ interface SheetEditarPedidoProps {
   contactos: OpcionCombobox[];
   empresas: OpcionCombobox[];
   productos?: ProductoCatalogo[];
+  /** ISO alpha-2 del país configurado en Configuración → Empresa — el
+   *  <PhoneInput> de "Datos de facturación" lo usa como prefijo por defecto
+   *  en vez de +51 (Perú), su fallback interno. */
+  defaultCountryCode?: string;
 }
 
 function FormEditarPedido({
@@ -43,6 +47,7 @@ function FormEditarPedido({
   contactos,
   empresas,
   productos = [],
+  defaultCountryCode = "PA",
   onGuardado,
 }: SheetEditarPedidoProps & { onGuardado: () => void }) {
   const [mostrarDatosFacturacion, setMostrarDatosFacturacion] = useState(
@@ -178,24 +183,24 @@ function FormEditarPedido({
         </div>
 
         {/* Datos de facturación (colapsable) */}
-        <div className="rounded-lg border border-border">
+        <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 overflow-hidden">
           <button
             type="button"
-            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left hover:bg-muted/40 transition-colors rounded-lg"
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
             onClick={() => setMostrarDatosFacturacion(!mostrarDatosFacturacion)}
           >
             <span className="flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" />
+              <User className="h-4 w-4 text-stone-400" />
               Datos de facturación
-              <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+              <span className="text-xs text-stone-400 dark:text-stone-500 font-normal">(opcional)</span>
             </span>
             {mostrarDatosFacturacion
-              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              ? <ChevronUp className="h-4 w-4 text-stone-400" />
+              : <ChevronDown className="h-4 w-4 text-stone-400" />}
           </button>
 
           {mostrarDatosFacturacion && (
-            <div className="px-4 pb-4 pt-1 border-t border-border space-y-4">
+            <div className="px-4 pb-4 pt-1 border-t border-stone-200 dark:border-white/10 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="nombre" render={({ field }) => (
                   <FormItem>
@@ -217,7 +222,7 @@ function FormEditarPedido({
                   <FormItem>
                     <FormLabel>Teléfono</FormLabel>
                     <FormControl>
-                      <PhoneInput value={field.value ?? ""} onChange={field.onChange} />
+                      <PhoneInput value={field.value ?? ""} onChange={field.onChange} defaultCountryCode={defaultCountryCode} />
                     </FormControl>
                   </FormItem>
                 )} />
@@ -253,7 +258,7 @@ function FormEditarPedido({
 
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium">Líneas del pedido</h3>
+            <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Líneas del pedido</h3>
             <Button
               type="button" size="sm" variant="outline"
               onClick={() => append({ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 })}
@@ -262,10 +267,10 @@ function FormEditarPedido({
             </Button>
           </div>
 
-          <div className="border rounded-lg overflow-hidden">
+          <div className="rounded-xl border border-stone-200/70 dark:border-white/5 overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
+              <thead className="bg-stone-50 dark:bg-white/[0.03]">
+                <tr className="text-xs text-stone-500 dark:text-stone-400">
                   <th className="text-left px-3 py-2 font-medium">Descripción</th>
                   <th className="text-right px-3 py-2 font-medium w-20">Cant.</th>
                   <th className="text-right px-3 py-2 font-medium w-28">Precio</th>
@@ -282,7 +287,7 @@ function FormEditarPedido({
                   const subLinea = cantidad * precio * (1 - descuento / 100);
 
                   return (
-                    <tr key={field.id} className="border-t">
+                    <tr key={field.id} className="border-t border-stone-100 dark:border-white/5">
                       <td className="px-2 py-1.5">
                         {productos.length > 0 && (
                           <SelectorProductoLinea
@@ -323,13 +328,13 @@ function FormEditarPedido({
                           onChange={(valor) => form.setValue(`lineas.${idx}.descuento`, valor)}
                         />
                       </td>
-                      <td className="px-3 py-1.5 text-right font-medium tabular-nums">
+                      <td className="px-3 py-1.5 text-right font-medium tabular-nums text-stone-900 dark:text-stone-100">
                         {simbolo} {subLinea.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-1.5">
                         <Button
                           type="button" variant="ghost" size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          className="h-7 w-7 text-stone-400 hover:text-destructive"
                           disabled={fields.length === 1}
                           onClick={() => remove(idx)}
                         >
@@ -342,19 +347,19 @@ function FormEditarPedido({
               </tbody>
             </table>
 
-            <div className="border-t bg-muted/30 px-3 py-3 flex flex-col items-end gap-1">
+            <div className="border-t border-stone-100 dark:border-white/5 bg-stone-50/60 dark:bg-white/[0.02] px-4 py-3 flex flex-col items-end gap-1">
               <div className="flex gap-8 text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="tabular-nums">{simbolo} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="text-stone-500 dark:text-stone-400">Subtotal</span>
+                <span className="tabular-nums text-stone-700 dark:text-stone-300">{simbolo} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex gap-8 text-sm">
-                <span className="text-muted-foreground">IGV ({impuesto}%)</span>
-                <span className="tabular-nums">{simbolo} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="text-stone-500 dark:text-stone-400">IGV ({impuesto}%)</span>
+                <span className="tabular-nums text-stone-700 dark:text-stone-300">{simbolo} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
-              <Separator className="my-1 w-52" />
-              <div className="flex gap-8 text-base font-semibold">
-                <span>Total</span>
-                <span className="tabular-nums">{simbolo} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+              <Separator className="my-1 w-52 bg-stone-200 dark:bg-white/10" />
+              <div className="flex gap-8 items-baseline">
+                <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Total</span>
+                <span className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50">{simbolo} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -379,7 +384,11 @@ function FormEditarPedido({
           <Button type="button" variant="outline" onClick={onGuardado}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isPending}>
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-sm transition-all hover:scale-[1.02]"
+          >
             {isPending
               ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Guardando...</>
               : "Guardar cambios"}
@@ -390,7 +399,7 @@ function FormEditarPedido({
   );
 }
 
-export function DialogEditarPedido({ pedido, contactos, empresas, productos = [] }: SheetEditarPedidoProps) {
+export function DialogEditarPedido({ pedido, contactos, empresas, productos = [], defaultCountryCode = "PA" }: SheetEditarPedidoProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -429,6 +438,7 @@ export function DialogEditarPedido({ pedido, contactos, empresas, productos = []
                 contactos={contactos}
                 empresas={empresas}
                 productos={productos}
+                defaultCountryCode={defaultCountryCode}
                 onGuardado={() => setOpen(false)}
               />
             </div>

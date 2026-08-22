@@ -7,7 +7,8 @@ import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerOportunidadPorId } from "@/crm/oportunidades/queries";
-import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
+import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { isoDesdePais } from "@/shared/lib/pais-iso";
 import type { CrearCotizacionInput } from "@/sales/cotizaciones/schema";
 
 export default async function NuevaCotizacionPage({
@@ -23,15 +24,19 @@ export default async function NuevaCotizacionPage({
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
   let transportistas: Awaited<ReturnType<typeof obtenerTransportistas>> = [];
   let monedaDefault = "PEN";
+  let defaultCountryCode = "PA";
 
   try {
-    [empresas, contactos, productos, monedaDefault, transportistas] = await Promise.all([
+    let config: Awaited<ReturnType<typeof obtenerConfiguracionEmpresa>> = null;
+    [empresas, contactos, productos, monedaDefault, transportistas, config] = await Promise.all([
       buscarEmpresas("", sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),
       obtenerProductosCatalogo(sesion.instanciaId),
       obtenerMonedaPrincipal(sesion.instanciaId),
       obtenerTransportistas(sesion.instanciaId),
+      obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
+    defaultCountryCode = isoDesdePais(config?.pais);
   } catch {
     // DB not configured
   }
@@ -82,6 +87,7 @@ export default async function NuevaCotizacionPage({
         oportunidadId={params.oportunidadId}
         defaultValues={defaultValues}
         monedaDefault={monedaDefault}
+        defaultCountryCode={defaultCountryCode}
       />
     </div>
   );

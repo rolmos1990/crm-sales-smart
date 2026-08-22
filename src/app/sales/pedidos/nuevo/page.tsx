@@ -9,7 +9,8 @@ import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
-import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
+import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { isoDesdePais } from "@/shared/lib/pais-iso";
 
 export default async function NuevoPedidoPage() {
   const sesion = await requireSesion();
@@ -18,14 +19,18 @@ export default async function NuevoPedidoPage() {
   let contactos: any[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
   let monedaDefault = "PEN";
+  let defaultCountryCode = "PA";
 
   try {
-    [empresas, contactos, productos, monedaDefault] = await Promise.all([
+    let config: Awaited<ReturnType<typeof obtenerConfiguracionEmpresa>> = null;
+    [empresas, contactos, productos, monedaDefault, config] = await Promise.all([
       buscarEmpresas("", sesion.instanciaId),
       buscarContactos("", sesion.instanciaId),
       obtenerProductosCatalogo(sesion.instanciaId),
       obtenerMonedaPrincipal(sesion.instanciaId),
+      obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
+    defaultCountryCode = isoDesdePais(config?.pais);
   } catch {
     // DB not configured
   }
@@ -39,7 +44,7 @@ export default async function NuevoPedidoPage() {
         <ButtonLink variant="ghost" size="icon-sm" href="/sales/pedidos"><ArrowLeft className="h-4 w-4" /></ButtonLink>
       </div>
       <PageHeader titulo="Nuevo pedido" descripcion="Crea un pedido con líneas de productos" />
-      <FormPedido empresas={opcionesEmpresas} contactos={opcionesContactos} productos={productos} monedaDefault={monedaDefault} />
+      <FormPedido empresas={opcionesEmpresas} contactos={opcionesContactos} productos={productos} monedaDefault={monedaDefault} defaultCountryCode={defaultCountryCode} />
     </div>
   );
 }

@@ -27,6 +27,8 @@ import { SeccionEntregaDigital } from "@/sales/pedidos/components/seccion-entreg
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { isoDesdePais } from "@/shared/lib/pais-iso";
 import { cn } from "@/lib/utils";
 
 const TRANSICIONES: Record<string, string[]> = {
@@ -60,14 +62,18 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
   let opcionesEmpresas: { valor: string; etiqueta: string }[] = [];
   let opcionesContactos: { valor: string; etiqueta: string }[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
+  let defaultCountryCode = "PA";
 
   try {
-    [pedido, opcionesEmpresas, opcionesContactos, productos] = await Promise.all([
+    let config: Awaited<ReturnType<typeof obtenerConfiguracionEmpresa>> = null;
+    [pedido, opcionesEmpresas, opcionesContactos, productos, config] = await Promise.all([
       obtenerPedidoPorId(id, sesion.instanciaId),
       buscarEmpresas("", sesion.instanciaId).then(r => r.map((e: any) => ({ valor: e.id, etiqueta: e.nombre }))),
       buscarContactos("", sesion.instanciaId).then(r => r.map((c: any) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }))),
       obtenerProductosCatalogo(sesion.instanciaId),
+      obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
+    defaultCountryCode = isoDesdePais(config?.pais);
   } catch {
     // DB not configured
   }
@@ -209,6 +215,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
               contactos={opcionesContactos}
               empresas={opcionesEmpresas}
               productos={productos}
+              defaultCountryCode={defaultCountryCode}
             />
           )}
           {puedeMod && usandoFlujo ? (

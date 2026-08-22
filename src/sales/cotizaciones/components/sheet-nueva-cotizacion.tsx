@@ -106,6 +106,7 @@ export function SheetNuevaCotizacion({
             transportistas={datos.transportistas}
             oportunidadId={oportunidadId}
             monedaDefault={datos.monedaDefault}
+            defaultCountryCode={datos.defaultCountryCode}
             defaultValues={{
               contactoId: contactoId ?? "",
               empresaId: empresaId ?? "",

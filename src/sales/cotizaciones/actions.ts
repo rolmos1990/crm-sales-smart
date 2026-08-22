@@ -13,7 +13,8 @@ import { generarPedidoDesdeCotizacion } from "./services/generar-pedido-desde-co
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
-import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
+import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { isoDesdePais } from "@/shared/lib/pais-iso";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
@@ -467,14 +468,18 @@ export async function obtenerDatosFormularioCotizacion(): Promise<{
   productos: ProductoCatalogo[];
   monedaDefault: string;
   transportistas: Awaited<ReturnType<typeof obtenerTransportistas>>;
+  /** ISO alpha-2 del país configurado en Configuración → Empresa — para que
+   *  <PhoneInput> preseleccione el prefijo correcto en vez de +51 (Perú). */
+  defaultCountryCode: string;
 }> {
   const sesion = await requireSesion();
-  const [empresas, contactos, productos, monedaDefault, transportistas] = await Promise.all([
+  const [empresas, contactos, productos, monedaDefault, transportistas, config] = await Promise.all([
     buscarEmpresas("", sesion.instanciaId),
     buscarContactos("", sesion.instanciaId),
     obtenerProductosCatalogo(sesion.instanciaId),
     obtenerMonedaPrincipal(sesion.instanciaId),
     obtenerTransportistas(sesion.instanciaId),
+    obtenerConfiguracionEmpresa(sesion.instanciaId),
   ]);
   return {
     empresas: empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre })),
@@ -483,6 +488,7 @@ export async function obtenerDatosFormularioCotizacion(): Promise<{
     productos,
     monedaDefault,
     transportistas,
+    defaultCountryCode: isoDesdePais(config?.pais),
   };
 }
 
@@ -533,6 +539,7 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
   productos: ProductoCatalogo[];
   monedaDefault: string;
   transportistas: Awaited<ReturnType<typeof obtenerTransportistas>>;
+  defaultCountryCode: string;
 } | null> {
   const auth = await requirePermisoAction("cotizaciones", "modificar");
   if (!auth.ok) return null;

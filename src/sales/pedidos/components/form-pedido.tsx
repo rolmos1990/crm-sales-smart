@@ -19,6 +19,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
+import { PhoneInput } from "@/components/ui/phone-input";
 import type { ProductoCatalogo } from "@/shared/productos/types";
 import { crearPedido, editarPedido } from "../actions";
 import { EditarPedidoSchema, type EditarPedidoInput } from "../schema";
@@ -53,12 +54,16 @@ interface FormPedidoProps {
   empresas: OpcionCombobox[];
   productos?: ProductoCatalogo[];
   monedaDefault?: string;
+  /** ISO alpha-2 del país configurado en Configuración → Empresa — el
+   *  <PhoneInput> de "Datos del comprador" lo usa como prefijo por defecto
+   *  en vez de +51 (Perú), su fallback interno. */
+  defaultCountryCode?: string;
   pedidoExistente?: PedidoParaEdicion;
   onGuardado?: () => void;
 }
 
 export function FormPedido({
-  contactos, empresas, productos = [], monedaDefault = "PEN",
+  contactos, empresas, productos = [], monedaDefault = "PEN", defaultCountryCode = "PA",
   pedidoExistente, onGuardado,
 }: FormPedidoProps) {
   const router = useRouter();
@@ -244,7 +249,7 @@ export function FormPedido({
               <FormItem>
                 <FormLabel>Teléfono</FormLabel>
                 <FormControl>
-                  <Input placeholder="+51 999 888 777" {...field} value={field.value ?? ""} />
+                  <PhoneInput value={field.value ?? ""} onChange={field.onChange} defaultCountryCode={defaultCountryCode} />
                 </FormControl>
               </FormItem>
             )} />
@@ -278,7 +283,7 @@ export function FormPedido({
 
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium">Líneas del pedido</h3>
+            <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Líneas del pedido</h3>
             <Button
               type="button" size="sm" variant="outline"
               onClick={() => append({ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 })}
@@ -287,10 +292,10 @@ export function FormPedido({
             </Button>
           </div>
 
-          <div className="border rounded-lg overflow-hidden">
+          <div className="rounded-xl border border-stone-200/70 dark:border-white/5 overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
+              <thead className="bg-stone-50 dark:bg-white/[0.03]">
+                <tr className="text-xs text-stone-500 dark:text-stone-400">
                   <th className="text-left px-3 py-2 font-medium">Descripción</th>
                   <th className="text-right px-3 py-2 font-medium w-20">Cant.</th>
                   <th className="text-right px-3 py-2 font-medium w-28">Precio</th>
@@ -307,7 +312,7 @@ export function FormPedido({
                   const subLinea = cantidad * precio * (1 - descuento / 100);
 
                   return (
-                    <tr key={field.id} className="border-t">
+                    <tr key={field.id} className="border-t border-stone-100 dark:border-white/5">
                       <td className="px-2 py-1.5">
                         {productos.length > 0 && (
                           <SelectorProductoLinea
@@ -350,13 +355,13 @@ export function FormPedido({
                           onChange={(valor) => form.setValue(`lineas.${idx}.descuento`, valor)}
                         />
                       </td>
-                      <td className="px-3 py-1.5 text-right font-medium tabular-nums">
+                      <td className="px-3 py-1.5 text-right font-medium tabular-nums text-stone-900 dark:text-stone-100">
                         {moneda} {subLinea.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-1.5">
                         <Button
                           type="button" variant="ghost" size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          className="h-7 w-7 text-stone-400 hover:text-destructive"
                           disabled={fields.length === 1}
                           onClick={() => remove(idx)}
                         >
@@ -369,19 +374,19 @@ export function FormPedido({
               </tbody>
             </table>
 
-            <div className="border-t bg-muted/30 px-3 py-3 flex flex-col items-end gap-1">
+            <div className="border-t border-stone-100 dark:border-white/5 bg-stone-50/60 dark:bg-white/[0.02] px-4 py-3 flex flex-col items-end gap-1">
               <div className="flex gap-8 text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="tabular-nums">{moneda} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="text-stone-500 dark:text-stone-400">Subtotal</span>
+                <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex gap-8 text-sm">
-                <span className="text-muted-foreground">IGV ({impuesto}%)</span>
-                <span className="tabular-nums">{moneda} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="text-stone-500 dark:text-stone-400">IGV ({impuesto}%)</span>
+                <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
-              <Separator className="my-1 w-52" />
-              <div className="flex gap-8 text-base font-semibold">
-                <span>Total</span>
-                <span className="tabular-nums">{moneda} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+              <Separator className="my-1 w-52 bg-stone-200 dark:bg-white/10" />
+              <div className="flex gap-8 items-baseline">
+                <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Total</span>
+                <span className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50">{moneda} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -400,7 +405,11 @@ export function FormPedido({
           <Button type="button" variant="outline" onClick={() => onGuardado ? onGuardado() : router.back()}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={form.formState.isSubmitting}>
+          <Button
+            type="submit"
+            disabled={form.formState.isSubmitting}
+            className="bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-sm transition-all hover:scale-[1.02]"
+          >
             {form.formState.isSubmitting
               ? (esEdicion ? "Guardando..." : "Creando...")
               : (esEdicion ? "Guardar cambios" : "Crear pedido")}
