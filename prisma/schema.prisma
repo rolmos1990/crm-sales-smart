@@ -1605,11 +1605,23 @@ model MensajeConversacion {
   enviadoEn DateTime?
   leidoEn   DateTime?
 
+  // Info funcional del fallo cuando estado = FALLIDO (ver EnvioMensajeError
+  // en src/conversaciones/errores.ts) — no el stack trace técnico, eso
+  // sigue solo en logs. codigoError es el slug estable que usa el frontend
+  // para no depender del texto (localizado) que devuelve Meta.
+  codigoError String?
+  motivoError String?
+  fechaError  DateTime?
+
   reacciones MensajeReaccion[]
 
   @@index([conversacionId])
   @@index([creadoEn])
   @@index([remitente])
+  // Último mensaje del CONTACTO en una conversación — la ventana de
+  // mensajería de Instagram se calcula desde ahí, no desde el último
+  // mensaje en general (ver instagram-ventana.ts).
+  @@index([conversacionId, remitente, creadoEn])
 }
 
 model MensajeReaccion {

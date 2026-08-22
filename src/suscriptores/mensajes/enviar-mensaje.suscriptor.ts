@@ -7,6 +7,8 @@ import type { ComandoEnviarMensajePayload } from "@/eventos/contratos/enviar-men
 import { prisma } from "@/shared/db/prisma";
 import { obtenerProvider } from "@/conversaciones/providers/registry";
 import { resolverUrlMedia } from "@/lib/resolve-media-url";
+import { EnvioMensajeError } from "@/conversaciones/errores";
+import { obtenerEstadoVentanaMensajeria } from "@/conversaciones/providers/instagram-ventana";
 
 export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensajePayload> {
   readonly queue = QUEUES.MENSAJE_ENVIAR;
@@ -24,18 +26,75 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
       throw new Error(`[EnviarMensaje] No hay provider para canal "${cuentaCanal.canal}"`);
     }
 
-    console.log(`[EnviarMensaje] Enviando por ${cuentaCanal.canal} → ${destinatario}${mediaUrl ? ` | media: ${mediaUrl}` : ""}`);
-    const result = await provider.enviarMensaje({
-      destinatario,
-      contenido: contenido ?? "",
-      tipo: tipo as Parameters<typeof provider.enviarMensaje>[0]["tipo"],
-      // proveedorAuth vive en la columna de CuentaCanal (no en el JSON de
-      // configuracion) — se mezcla acá para que el provider de Instagram
-      // pueda elegir el host de Graph API correcto sin que cada canal tenga
-      // que saber de esta diferencia. Ver instagram-estrategia-auth.ts.
-      configuracion: { ...(cuentaCanal.configuracion as Record<string, unknown>), proveedorAuth: cuentaCanal.proveedorAuth },
-      mediaUrl,
-    });
+    // Ventana de mensajería — solo Instagram la exige (Meta rechaza con
+    // code 10 pasadas las 24h sin tag, y pasados los 7 días ni con tag).
+    // Se resuelve ACÁ (no en instagram.ts, que no tiene acceso a Prisma) y
+    // ANTES de llamar al provider — si ya sabemos que Meta lo va a
+    // rechazar, no tiene sentido gastar la llamada de red (ver Caso D del
+    // pedido: "No llamar innecesariamente a Meta").
+    let tag: "HUMAN_AGENT" | undefined;
+    if (cuentaCanal.canal === "instagram") {
+      const ultimoDelContacto = await prisma.mensajeConversacion.findFirst({
+        where: { conversacionId, remitente: "CONTACTO" },
+        orderBy: { creadoEn: "desc" },
+        select: { creadoEn: true },
+      });
+      const estadoVentana = obtenerEstadoVentanaMensajeria(ultimoDelContacto?.creadoEn ?? null);
+      const cfg = cuentaCanal.configuracion as { humanAgentEnabled?: boolean };
+
+      if (estadoVentana === "FUERA_DE_VENTANA") {
+        throw new EnvioMensajeError({
+          codigo: "FUERA_VENTANA_MENSAJERIA",
+          mensaje: "La ventana de mensajería de Instagram para este contacto ya venció (más de 7 días desde su último mensaje).",
+          reintentable: false,
+        });
+      }
+      if (estadoVentana === "HUMAN_AGENT") {
+        if (!cfg.humanAgentEnabled) {
+          throw new EnvioMensajeError({
+            codigo: "HUMAN_AGENT_NO_APROBADO",
+            mensaje: "La ventana estándar de 24h de Instagram expiró y esta integración no tiene habilitada la extensión para agentes humanos.",
+            reintentable: false,
+          });
+        }
+        tag = "HUMAN_AGENT";
+      }
+      // VENTANA_NORMAL → tag queda undefined, envío normal (sin tag).
+    }
+
+    console.log(`[EnviarMensaje] Enviando por ${cuentaCanal.canal} → ${destinatario}${mediaUrl ? ` | media: ${mediaUrl}` : ""}${tag ? ` | tag: ${tag}` : ""}`);
+
+    let result: { idExterno: string };
+    try {
+      result = await provider.enviarMensaje({
+        destinatario,
+        contenido: contenido ?? "",
+        tipo: tipo as Parameters<typeof provider.enviarMensaje>[0]["tipo"],
+        // proveedorAuth vive en la columna de CuentaCanal (no en el JSON de
+        // configuracion) — se mezcla acá para que el provider de Instagram
+        // pueda elegir el host de Graph API correcto sin que cada canal tenga
+        // que saber de esta diferencia. Ver instagram-estrategia-auth.ts.
+        configuracion: { ...(cuentaCanal.configuracion as Record<string, unknown>), proveedorAuth: cuentaCanal.proveedorAuth },
+        mediaUrl,
+        tag,
+      });
+    } catch (err) {
+      // Log estructurado (sin tokens/credenciales) — ConsumidorBase ya loguea
+      // el intento/eventId/tipo genérico; esto suma el detalle específico de
+      // mensajería que esa capa no conoce (mensajeId, conversationId).
+      const detalle = err instanceof EnvioMensajeError ? err : null;
+      console.error("[EnviarMensaje] Fallo de envío", {
+        provider: cuentaCanal.canal,
+        eventId: envelope.eventId,
+        conversationId: conversacionId,
+        messageId: mensajeId,
+        errorCode: detalle?.codigo ?? "ERROR_DESCONOCIDO",
+        metaCode: detalle?.metaCode,
+        metaSubcode: detalle?.metaSubcode,
+        retryable: detalle?.reintentable ?? true,
+      });
+      throw err;
+    }
     console.log(`[EnviarMensaje] Enviado OK → idExterno: ${result.idExterno}`);
 
     await prisma.mensajeConversacion.update({
@@ -50,21 +109,31 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
     });
   }
 
-  // Se agotaron los MAX_INTENTOS de ConsumidorBase (ej. token vencido,
-  // ventana de 24h de Instagram cerrada, el provider caído) — sin esto el
-  // mensaje queda en ENVIADO para siempre: agotados los reintentos va a la
-  // dead-letter queue (crm.muertos), que no tiene consumidor. Reutiliza el
-  // mismo evento MensajeEnviado para avisarle al frontend — panel-conversacion.tsx
-  // solo lo usa como señal de "volvé a pedir los mensajes", no le importa el
-  // nombre ni el payload más allá de eso.
+  // Se llama tanto al agotar los MAX_INTENTOS de ConsumidorBase (error
+  // transitorio que nunca se recuperó) como de inmediato, en el primer
+  // intento, cuando el error se clasificó como no reintentable (ver
+  // EnvioMensajeError — token vencido, ventana cerrada, HUMAN_AGENT no
+  // aprobado). En ambos casos el mensaje queda definitivamente sin
+  // entregar — sin esto quedaba en ENVIADO para siempre (dead-letter
+  // queue crm.muertos, sin consumidor). Reutiliza el evento MensajeEnviado
+  // para avisarle al frontend — panel-conversacion.tsx solo lo usa como
+  // señal de "volvé a pedir los mensajes", no le importa el nombre ni el
+  // payload más allá de eso.
   protected async alAgotarReintentos(
-    envelope: EventoEnvelope<ComandoEnviarMensajePayload>
+    envelope: EventoEnvelope<ComandoEnviarMensajePayload>,
+    error: unknown
   ): Promise<void> {
     const { instanciaId, payload } = envelope;
     const { mensajeId, conversacionId } = payload;
+    const detalle = error instanceof EnvioMensajeError ? error : null;
     await prisma.mensajeConversacion.update({
       where: { id: mensajeId },
-      data: { estado: "FALLIDO" },
+      data: {
+        estado: "FALLIDO",
+        codigoError: detalle?.codigo ?? "ERROR_DESCONOCIDO",
+        motivoError: detalle?.message ?? (error instanceof Error ? error.message : String(error)),
+        fechaError: new Date(),
+      },
     });
     void publicadorEventos.publicar(EventosSistema.MensajeEnviado, instanciaId, {
       mensajeId,

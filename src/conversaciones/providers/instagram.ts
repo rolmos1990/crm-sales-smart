@@ -1,6 +1,112 @@
 import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, ReaccionCanalPayload } from "./types";
 import type { MensajeEntranteNormalizado, TipoMensaje } from "../types";
 import { resolverApiBaseIG } from "./instagram-estrategia-auth";
+import { EnvioMensajeError } from "../errores";
+
+// Forma del error que devuelve la Graph API de Meta — ver
+// https://developers.facebook.com/docs/graph-api/guides/error-handling.
+// El texto de `message` viene en el idioma de la cuenta (en producción
+// llegó en finés para el mismo error "fuera de ventana"), así que la
+// clasificación de abajo se apoya en `code`/`error_subcode` (estables,
+// numéricos), nunca en el texto.
+interface ErrorMetaGraphAPI {
+  error?: {
+    message?: string;
+    type?: string;
+    code?: number;
+    error_subcode?: number;
+    fbtrace_id?: string;
+  };
+}
+
+// code 10, subcode 2534022: la ventana de 24h/7d ya venció — confirmado
+// contra un error real de producción ("Tämä viesti on lähetetty sallitun
+// ikkunan ulkopuolella" = "outside allowed window").
+const IG_SUBCODE_FUERA_VENTANA = 2534022;
+// code 190: access token inválido/vencido (estándar de Graph API, no
+// específico de mensajería).
+const IG_CODE_TOKEN_INVALIDO = 190;
+
+/** Clasifica un error de la Graph API de Instagram en un DetalleErrorEnvio
+ *  — decide si conviene reintentar o no. `usoTagHumanAgent` es el tag con
+ *  el que se armó la request que Meta está rechazando: un code 10 en una
+ *  request CON tag HUMAN_AGENT (que no sea la ventana vencida, subcode
+ *  distinto de 2534022) es casi siempre "la app no tiene esa capability
+ *  aprobada" — Meta no expone un subcode propio y estable para esto, así
+ *  que se infiere del contexto de la request en vez de parsear el texto
+ *  (localizado) del mensaje. Exportada para poder testearla sin pegarle a
+ *  la red — ver instagram.test.ts. */
+export function clasificarErrorInstagram(
+  httpStatus: number | null,
+  body: ErrorMetaGraphAPI,
+  usoTagHumanAgent: boolean
+): EnvioMensajeError {
+  const meta = body.error;
+  const metaCode = meta?.code;
+  const metaSubcode = meta?.error_subcode;
+
+  if (httpStatus === 429) {
+    return new EnvioMensajeError({
+      codigo: "RATE_LIMIT",
+      mensaje: "Instagram está limitando la cantidad de mensajes en este momento — se reintentará.",
+      reintentable: true,
+      metaCode, metaSubcode, httpStatus,
+    });
+  }
+
+  if (httpStatus !== null && httpStatus >= 500) {
+    return new EnvioMensajeError({
+      codigo: "ERROR_TEMPORAL_META",
+      mensaje: "Instagram tuvo un error temporal al recibir el mensaje — se reintentará.",
+      reintentable: true,
+      metaCode, metaSubcode, httpStatus,
+    });
+  }
+
+  if (metaCode === IG_CODE_TOKEN_INVALIDO) {
+    return new EnvioMensajeError({
+      codigo: "TOKEN_INVALIDO",
+      mensaje: "El token de acceso de esta cuenta de Instagram es inválido o venció — hay que reconectar la integración.",
+      reintentable: false,
+      metaCode, metaSubcode, httpStatus: httpStatus ?? undefined,
+    });
+  }
+
+  if (metaCode === 10) {
+    if (metaSubcode === IG_SUBCODE_FUERA_VENTANA) {
+      return new EnvioMensajeError({
+        codigo: "FUERA_VENTANA_MENSAJERIA",
+        mensaje: "La ventana de mensajería de Instagram para este contacto ya venció.",
+        reintentable: false,
+        metaCode, metaSubcode, httpStatus: httpStatus ?? undefined,
+      });
+    }
+    if (usoTagHumanAgent) {
+      return new EnvioMensajeError({
+        codigo: "HUMAN_AGENT_NO_APROBADO",
+        mensaje: "La ventana estándar de 24h de Instagram expiró y esta integración no tiene habilitada la extensión para agentes humanos.",
+        reintentable: false,
+        metaCode, metaSubcode, httpStatus: httpStatus ?? undefined,
+      });
+    }
+    return new EnvioMensajeError({
+      codigo: "PERMISO_DENEGADO_META",
+      mensaje: "Instagram rechazó el envío por un permiso no habilitado en la integración.",
+      reintentable: false,
+      metaCode, metaSubcode, httpStatus: httpStatus ?? undefined,
+    });
+  }
+
+  // Error desconocido/sin clasificar — conservador: se mantiene la
+  // estrategia actual (reintentar) en vez de arriesgarse a descartar un
+  // mensaje que en realidad era recuperable.
+  return new EnvioMensajeError({
+    codigo: "ERROR_DESCONOCIDO_META",
+    mensaje: meta?.message ?? "Instagram devolvió un error al enviar el mensaje.",
+    reintentable: true,
+    metaCode, metaSubcode, httpStatus: httpStatus ?? undefined,
+  });
+}
 
 export class InstagramProvider implements ICanalProvider {
   readonly canal = "instagram";
@@ -53,40 +159,57 @@ export class InstagramProvider implements ICanalProvider {
       messageBody = { text: payload.contenido ?? "" };
     }
 
-    console.log(`[Instagram] enviarMensaje → destinatario: ${payload.destinatario}`);
+    console.log(`[Instagram] enviarMensaje → destinatario: ${payload.destinatario}${payload.tag ? ` | tag: ${payload.tag}` : ""}`);
 
-    const res = await fetch(`${IG_API}/${instagramBusinessAccountId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      // messaging_type + tag HUMAN_AGENT: por defecto Meta solo deja
-      // responder dentro de las 24h desde el último mensaje del contacto
-      // (error code 10 / subcode 2534022, "outside allowed window" cuando
-      // se vence). El tag HUMAN_AGENT extiende esa ventana a 7 días para
-      // conversaciones ya iniciadas por el contacto que un agente (humano o
-      // la IA respondiendo en su nombre, ver generar-respuesta-ia.suscriptor.ts
-      // — mismo camino de envío) está atendiendo — no aplica a mensajes que
-      // el negocio inicia sin que el contacto haya escrito antes.
-      body: JSON.stringify({
-        recipient: { id: payload.destinatario },
-        message: messageBody,
-        messaging_type: "MESSAGE_TAG",
-        tag: "HUMAN_AGENT",
-      }),
-    });
+    // El tag (hoy solo HUMAN_AGENT) lo decide quien arma el payload
+    // (EnviarMensajeSuscriptor, según la ventana de mensajería — ver
+    // instagram-ventana.ts) — este provider no calcula ninguna ventana, solo
+    // lo traduce al request de Meta: sin tag, RESPONSE normal (dentro de
+    // las 24h); con tag, MESSAGE_TAG (extiende a 7 días si la integración
+    // tiene la capability aprobada — si no, Meta responde code 10 y
+    // clasificarErrorInstagram() lo marca HUMAN_AGENT_NO_APROBADO).
+    let res: Response;
+    try {
+      res = await fetch(`${IG_API}/${instagramBusinessAccountId}/messages`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipient: { id: payload.destinatario },
+          message: messageBody,
+          messaging_type: payload.tag ? "MESSAGE_TAG" : "RESPONSE",
+          ...(payload.tag ? { tag: payload.tag } : {}),
+        }),
+      });
+    } catch (err) {
+      // fetch() tiró antes de llegar a tener una respuesta — timeout, DNS,
+      // conexión caída, etc.: siempre transitorio.
+      throw new EnvioMensajeError({
+        codigo: "ERROR_RED",
+        mensaje: "No se pudo contactar a Instagram — se reintentará.",
+        reintentable: true,
+      });
+    }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(`[Instagram] Error al enviar mensaje: ${JSON.stringify(err)}`);
+      const body = await res.json().catch(() => ({})) as ErrorMetaGraphAPI;
+      throw clasificarErrorInstagram(res.status, body, payload.tag === "HUMAN_AGENT");
     }
 
     const data = await res.json() as { message_id?: string };
     const idExterno = data.message_id;
 
     if (!idExterno) {
-      throw new Error("[Instagram] La API no retornó message_id");
+      // 200 OK sin message_id no debería pasar — forma de respuesta
+      // inesperada, no un rechazo de Meta. Conservador: reintentable.
+      throw new EnvioMensajeError({
+        codigo: "RESPUESTA_INESPERADA",
+        mensaje: "Instagram no devolvió un id de mensaje.",
+        reintentable: true,
+        httpStatus: res.status,
+      });
     }
 
     console.log(`[Instagram] Enviado OK → message_id: ${idExterno}`);

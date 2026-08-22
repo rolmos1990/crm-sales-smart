@@ -136,7 +136,7 @@ export async function obtenerMensajesConversacion(
     take: limite,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
-  return mensajes as MensajeConMeta[];
+  return mensajes as unknown as MensajeConMeta[];
 }
 
 export async function obtenerCuentasCanal(instanciaId: string) {

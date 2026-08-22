@@ -288,7 +288,15 @@ export function BurbujaMensaje({
                 {format(new Date(mensaje.creadoEn), "HH:mm", { locale: es })}
               </span>
               {esPropioONota && !esNota && (
-                <span className="text-muted-foreground">{iconoEstado[estadoEfectivo]}</span>
+                <span
+                  className="text-muted-foreground"
+                  // motivoError es el texto funcional ya pensado para el
+                  // usuario (ver EnvioMensajeError) — nunca el crudo de
+                  // Meta, que además viene en el idioma de la cuenta.
+                  title={estadoEfectivo === "FALLIDO" ? mensaje.motivoError ?? undefined : undefined}
+                >
+                  {iconoEstado[estadoEfectivo]}
+                </span>
               )}
               {esContacto && !esNoLeido && (
                 <span className="text-[9px] text-inbox-accent/70 flex items-center gap-0.5">

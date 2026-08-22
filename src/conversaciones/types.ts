@@ -34,6 +34,11 @@ export interface MensajeConMeta {
   creadoEn: Date;
   enviadoEn: Date | null;
   leidoEn: Date | null;
+  // Info funcional del fallo cuando estado = FALLIDO — ver EnvioMensajeError.
+  // codigoError es el slug estable (ej. "HUMAN_AGENT_NO_APROBADO"); motivoError
+  // es el texto pensado para mostrarle al usuario, no el crudo de Meta.
+  codigoError?: string | null;
+  motivoError?: string | null;
   reacciones?: MensajeReaccionResumen[];
   // Media enriquecida (imágenes procesadas)
   mediaArchivoId: string | null;

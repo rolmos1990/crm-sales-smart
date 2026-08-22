@@ -21,6 +21,12 @@ export interface MensajeSalientePayload {
   mediaMimeType?: string;
   plantillaId?: string;
   configuracion: Record<string, unknown>; // credenciales del CuentaCanal
+  /** Tag de mensaje de Meta a usar (hoy solo "HUMAN_AGENT", ver
+   *  instagram-ventana.ts) — quien arma el payload (EnviarMensajeSuscriptor)
+   *  decide si corresponde, según la ventana de mensajería; el provider
+   *  solo lo pasa tal cual. Providers que no lo soportan (WhatsApp, email)
+   *  lo ignoran. */
+  tag?: "HUMAN_AGENT";
 }
 
 export interface MensajeLeidoPayload {

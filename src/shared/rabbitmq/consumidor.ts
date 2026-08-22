@@ -1,7 +1,7 @@
 import type amqplib from "amqplib";
 import { obtenerCanal } from "./conexion";
 import { EXCHANGE } from "./exchanges";
-import type { EventoEnvelope } from "./tipos";
+import { esErrorConReintentabilidad, type EventoEnvelope } from "./tipos";
 
 const MAX_INTENTOS = 3;
 const PREFETCH = 10;
@@ -12,12 +12,13 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
 
   abstract manejar(envelope: EventoEnvelope<TPayload>): Promise<void>;
 
-  /** Se llama cuando un mensaje agota sus MAX_INTENTOS y se va a la
-   *  dead-letter queue (crm.muertos, sin consumidor) — por defecto no hace
-   *  nada. Los suscriptores que necesiten reflejar el fallo definitivo en
-   *  algún lado (ej. EnviarMensajeSuscriptor marcando FALLIDO) lo
-   *  sobreescriben. Un error acá se loguea pero nunca debe impedir el nack
-   *  final. */
+  /** Se llama cuando un mensaje queda definitivamente sin procesar — agotó
+   *  sus MAX_INTENTOS, o el error declaró `reintentable: false` (ver
+   *  ErrorConReintentabilidad) — y se va a la dead-letter queue
+   *  (crm.muertos, sin consumidor). Por defecto no hace nada. Los
+   *  suscriptores que necesiten reflejar el fallo definitivo en algún lado
+   *  (ej. EnviarMensajeSuscriptor marcando FALLIDO) lo sobreescriben. Un
+   *  error acá se loguea pero nunca debe impedir el nack final. */
   protected async alAgotarReintentos(
     envelope: EventoEnvelope<TPayload>,
     error: unknown
@@ -66,12 +67,24 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
       await this.manejar(envelope);
       ch.ack(msg);
     } catch (err) {
+      // Si el error declara explícitamente que no vale la pena reintentarlo
+      // (ver ErrorConReintentabilidad/EnvioMensajeError — ej. un permiso
+      // denegado por Meta, ninguna cantidad de reintentos lo arregla), se
+      // corta ahí mismo sin importar en qué intento estemos. Un Error común
+      // (sin esa forma) sigue exactamente la política de siempre: reintenta
+      // hasta agotar MAX_INTENTOS — esto no cambia nada para el resto de
+      // los suscriptores que todavía no adoptaron la excepción tipada.
+      const reintentablePorTipo = esErrorConReintentabilidad(err) ? err.reintentable : true;
+      const agotoIntentos = intentos + 1 >= MAX_INTENTOS;
+
       console.error(
-        `[${this.constructor.name}] Error procesando ${envelope.tipo} | eventId: ${envelope.eventId} | intento ${intentos + 1}/${MAX_INTENTOS}:`,
+        `[${this.constructor.name}] Error procesando ${envelope.tipo} | eventId: ${envelope.eventId} | intento ${intentos + 1}/${MAX_INTENTOS}` +
+          (esErrorConReintentabilidad(err) ? ` | reintentable: ${err.reintentable}` : "") +
+          ":",
         err
       );
 
-      if (intentos + 1 < MAX_INTENTOS) {
+      if (reintentablePorTipo && !agotoIntentos) {
         // nack(requeue=true) no serviría acá — en una cola clásica vuelve
         // a poner el MISMO mensaje con sus headers originales intactos,
         // nunca incrementa nada. Se republica una copia con el contador
@@ -86,7 +99,7 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
         await this.alAgotarReintentos(envelope, err).catch((hookErr) =>
           console.error(`[${this.constructor.name}] alAgotarReintentos falló:`, hookErr)
         );
-        ch.nack(msg, false, false); // agotados los intentos → dead-letter (crm.muertos)
+        ch.nack(msg, false, false); // definitivo (agotó intentos o no es reintentable) → dead-letter (crm.muertos)
       }
     }
   }
