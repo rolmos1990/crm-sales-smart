@@ -19,6 +19,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "KariaApp",
   description: "Gestión de clientes, oportunidades y ventas",
+  other: {
+    "facebook-domain-verification": "a1fsxm5z431o2d72pdacdnkh9fsae6",
+  },
 };
 
 export default function RootLayout({
