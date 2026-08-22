@@ -8,9 +8,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow, format, differenceInMinutes, differenceInHours, differenceInDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { AvatarContacto } from "./avatar-contacto";
 import { BurbujaMensaje } from "./burbuja-mensaje";
@@ -129,6 +130,24 @@ function infoCanal(canal: string | undefined): { Icono: LucideIcon; clase: strin
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Formato compacto para el indicador de última respuesta del cliente
+// (header del chat, ver InboxLayout) — deliberadamente más corto que
+// formatDistanceToNow (que da "hace 5 minutos"/"hace 1 hora"): acá el
+// espacio es mínimo, así que "min"/"h"/"día(s)" en vez de la palabra
+// completa. Mismo dato que después va a alimentar la ventana de mensajería
+// de Instagram (ver obtenerEstadoVentanaMensajeria en
+// src/conversaciones/providers/instagram-ventana.ts) — por ahora solo se
+// muestra, sin ninguna lógica de color/estado asociada.
+function formatearTiempoCompacto(fecha: Date, ahora: Date): string {
+  const minutos = differenceInMinutes(ahora, fecha);
+  if (minutos < 1) return "hace instantes";
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = differenceInHours(ahora, fecha);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = differenceInDays(ahora, fecha);
+  return `hace ${dias} día${dias === 1 ? "" : "s"}`;
+}
 
 async function fetchUltimosMensajes(conversacionId: string): Promise<MensajeConMeta[]> {
   const res = await fetch(`/api/conversaciones/${conversacionId}/mensajes?recientes=50`);
@@ -512,6 +531,20 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     [todosLosMensajes, idsLeidosLocal]
   );
 
+  // Última respuesta/mensaje ENTRANTE del cliente — no el último mensaje de
+  // la conversación en general (ese puede ser del agente y no debe reiniciar
+  // este indicador). mensajesRecientes alcanza y sobra: son los últimos 50
+  // en orden ascendente, así que cualquier mensaje de CONTACTO ahí adentro
+  // ya es, por construcción, el más reciente de toda la conversación
+  // (mensajesAnteriores, cargado por paginación "cargar anteriores", es
+  // siempre más viejo — no puede cambiar este resultado).
+  const ultimoMensajeContactoEn = useMemo(() => {
+    for (let i = mensajesRecientes.length - 1; i >= 0; i--) {
+      if (mensajesRecientes[i].remitente === "CONTACTO") return new Date(mensajesRecientes[i].creadoEn);
+    }
+    return null;
+  }, [mensajesRecientes]);
+
   const convNombreBase = convActiva
     ? `${convActiva.contacto.nombre} ${convActiva.contacto.apellido}`.trim()
     : "";
@@ -720,6 +753,19 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 )}
               </div>
               {isFetching && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />}
+              {ultimoMensajeContactoEn && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 whitespace-nowrap cursor-default">
+                      <Clock className="h-3 w-3 shrink-0" />
+                      {formatearTiempoCompacto(ultimoMensajeContactoEn, new Date())}
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs">
+                      Última respuesta del cliente
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <button
                 type="button"
                 onClick={() => setPanelContactoAbierto((v) => !v)}
