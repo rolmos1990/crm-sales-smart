@@ -197,7 +197,9 @@
       "Bash(awk '/^:root {/,/^}/' src/app/globals.css)",
       "Bash(awk '/^\\\\.dark {/,/^}/' src/app/globals.css)",
       "Bash(grep -qE \"Export encountered an error|Generating static pages \\\\\\([0-9]+/[0-9]+\\\\\\)$|✓ Generating static pages|Failed to compile\" /tmp/build_oportunidades.txt)",
-      "Bash(tail -n 15 /tmp/build_oportunidades.txt)"
+      "Bash(tail -n 15 /tmp/build_oportunidades.txt)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000 --max-time 3)",
+      "Bash(pkill -f \"next dev\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

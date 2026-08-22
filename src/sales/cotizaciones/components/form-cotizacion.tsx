@@ -195,15 +195,18 @@ export function FormCotizacion({
   // primera línea con producto vinculado decide el bloque; sin producto en
   // ninguna línea, Físico por defecto. Solo para mostrar el bloque correcto
   // en este formulario — el servidor vuelve a resolverlo al guardar.
-  const productoTipoPorId = useMemo(
-    () => new Map(productos.map((p) => [p.id, p.tipo])),
-    [productos]
-  );
-  const tipoCumplimiento = useMemo<TipoProducto>(() => {
-    const primeraConProducto = lineas.find((l) => l.productoId && productoTipoPorId.has(l.productoId));
-    if (!primeraConProducto?.productoId) return "FISICO";
-    return productoTipoPorId.get(primeraConProducto.productoId) ?? "FISICO";
-  }, [lineas, productoTipoPorId]);
+  //
+  // Sin useMemo a propósito: react-hook-form muta `lineas` (de form.watch)
+  // en el mismo array al hacer setValue — la referencia no cambia, así que
+  // un useMemo con `lineas` como dependencia queda "pegado" en el primer
+  // valor y nunca recalcula, aunque el resto del form (precio, subtotal más
+  // abajo) sí se vea actualizado. subtotal/total tampoco están memoizados
+  // por la misma razón — se recalculan en cada render, que es barato acá.
+  const productoTipoPorId = new Map(productos.map((p) => [p.id, p.tipo]));
+  const primeraLineaConProducto = lineas.find((l) => l.productoId && productoTipoPorId.has(l.productoId));
+  const tipoCumplimiento: TipoProducto = primeraLineaConProducto?.productoId
+    ? (productoTipoPorId.get(primeraLineaConProducto.productoId) ?? "FISICO")
+    : "FISICO";
 
   const subtotal = lineas.reduce((acc, l) => {
     const base = (l.cantidad ?? 0) * (l.precioUnitario ?? 0);
