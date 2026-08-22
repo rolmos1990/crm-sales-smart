@@ -280,6 +280,13 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
         toast.error("Error al marcar como leído");
       } else {
         queryClient.invalidateQueries({ queryKey: ["inbox-mensajes", seleccionada] });
+        // marcarMensajesLeidos solo toca MensajeConversacion — nunca el
+        // array `conversaciones` (fuente de la lista izquierda y de
+        // BarraEstado). Sin este refresco puntual (ver
+        // handleConversacionActualizada), el indicador de "no leído" de la
+        // lista y el conteo del banner se quedaban con el dato viejo hasta
+        // el próximo SSE o auto-refresh.
+        handleConversacionActualizada(seleccionada);
       }
     });
   };
@@ -416,6 +423,11 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
         toast.error(result.error ?? "Error al marcar respondida");
       } else {
         toast.success("Marcada como respondida");
+        // actualizarEstado ya cambió `estado` a mano (para que se sienta
+        // instantáneo) — esto confirma con el servidor y trae el resto de
+        // los campos que ese patch local no toca (actualizadoEn, etc.), así
+        // la lista y el banner quedan con el dato real, no solo el parche.
+        handleConversacionActualizada(id);
       }
     });
   };
@@ -427,6 +439,8 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
       if (!result.ok) {
         actualizarEstado(id, estadoPrev);
         toast.error(result.error ?? "Error al reabrir");
+      } else {
+        handleConversacionActualizada(id);
       }
     });
   };
@@ -440,6 +454,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
         toast.error(result.error ?? "Error al cerrar");
       } else {
         toast.success("Conversación cerrada");
+        handleConversacionActualizada(id);
       }
     });
   };
