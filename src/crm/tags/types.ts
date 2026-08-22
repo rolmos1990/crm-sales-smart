@@ -24,4 +24,10 @@ export const COLORES_TAG = [
   { valor: "#f87171", etiqueta: "Rojo" },
   { valor: "#fbbf24", etiqueta: "Ámbar" },
   { valor: "#a8a29e", etiqueta: "Piedra" },
+  { valor: "#2dd4bf", etiqueta: "Turquesa" },
+  { valor: "#38bdf8", etiqueta: "Celeste" },
+  { valor: "#818cf8", etiqueta: "Índigo" },
+  { valor: "#e879f9", etiqueta: "Fucsia" },
+  { valor: "#facc15", etiqueta: "Amarillo" },
+  { valor: "#94a3b8", etiqueta: "Grafito" },
 ] as const;
