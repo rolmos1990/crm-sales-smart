@@ -49,4 +49,27 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
       instanciaId,
     });
   }
+
+  // Se agotaron los MAX_INTENTOS de ConsumidorBase (ej. token vencido,
+  // ventana de 24h de Instagram cerrada, el provider caído) — sin esto el
+  // mensaje queda en ENVIADO para siempre: agotados los reintentos va a la
+  // dead-letter queue (crm.muertos), que no tiene consumidor. Reutiliza el
+  // mismo evento MensajeEnviado para avisarle al frontend — panel-conversacion.tsx
+  // solo lo usa como señal de "volvé a pedir los mensajes", no le importa el
+  // nombre ni el payload más allá de eso.
+  protected async alAgotarReintentos(
+    envelope: EventoEnvelope<ComandoEnviarMensajePayload>
+  ): Promise<void> {
+    const { instanciaId, payload } = envelope;
+    const { mensajeId, conversacionId } = payload;
+    await prisma.mensajeConversacion.update({
+      where: { id: mensajeId },
+      data: { estado: "FALLIDO" },
+    });
+    void publicadorEventos.publicar(EventosSistema.MensajeEnviado, instanciaId, {
+      mensajeId,
+      conversacionId,
+      instanciaId,
+    });
+  }
 }

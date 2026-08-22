@@ -12,6 +12,17 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
 
   abstract manejar(envelope: EventoEnvelope<TPayload>): Promise<void>;
 
+  /** Se llama cuando un mensaje agota sus MAX_INTENTOS y se va a la
+   *  dead-letter queue (crm.muertos, sin consumidor) — por defecto no hace
+   *  nada. Los suscriptores que necesiten reflejar el fallo definitivo en
+   *  algún lado (ej. EnviarMensajeSuscriptor marcando FALLIDO) lo
+   *  sobreescriben. Un error acá se loguea pero nunca debe impedir el nack
+   *  final. */
+  protected async alAgotarReintentos(
+    envelope: EventoEnvelope<TPayload>,
+    error: unknown
+  ): Promise<void> {}
+
   async iniciar(): Promise<void> {
     const ch = await obtenerCanal();
     await ch.prefetch(PREFETCH);
@@ -54,6 +65,11 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
       );
 
       const reintentar = intentos < MAX_INTENTOS - 1;
+      if (!reintentar) {
+        await this.alAgotarReintentos(envelope, err).catch((hookErr) =>
+          console.error(`[${this.constructor.name}] alAgotarReintentos falló:`, hookErr)
+        );
+      }
       ch.nack(msg, false, reintentar);
     }
   }
