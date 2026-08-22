@@ -22,6 +22,8 @@ import { BotonesTransicion } from "@/sales/pedidos/components/botones-transicion
 import { DialogEditarPedido } from "@/sales/pedidos/components/dialog-editar-pedido";
 import { TimelineHistorialEtapas } from "@/sales/pedidos/components/timeline-historial-etapas";
 import { SeccionEntrega } from "@/sales/pedidos/components/seccion-entrega";
+import { SeccionServicio } from "@/sales/pedidos/components/seccion-servicio";
+import { SeccionEntregaDigital } from "@/sales/pedidos/components/seccion-entrega-digital";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
@@ -389,16 +391,35 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
         </Card>
       )}
 
-      {/* ── Entrega y seguimiento ────────────────────────────────── */}
-      <SeccionEntrega
-        pedidoId={pedido.id}
-        instanciaId={sesion.instanciaId}
-        rol={sesion.rol}
-        flujoVentaEtapa={etapaActual}
-        entrega={(pedido as any).entrega ?? null}
-        costoEnvio={costoEnvio}
-        moneda={pedido.moneda}
-      />
+      {/* ── Entrega / Servicio / Entrega digital y seguimiento ──────
+          Solo una se renderiza, según tipoCumplimiento (ver
+          resolverTipoCumplimiento en actions.ts) — igual comportamiento
+          que hoy para pedidos 100% físicos. */}
+      {(pedido as any).tipoCumplimiento === "SERVICIO" ? (
+        <SeccionServicio
+          pedidoId={pedido.id}
+          rol={sesion.rol}
+          flujoVentaEtapa={etapaActual}
+          servicio={(pedido as any).servicio ?? null}
+        />
+      ) : (pedido as any).tipoCumplimiento === "DIGITAL" ? (
+        <SeccionEntregaDigital
+          pedidoId={pedido.id}
+          rol={sesion.rol}
+          flujoVentaEtapa={etapaActual}
+          entregaDigital={(pedido as any).entregaDigital ?? null}
+        />
+      ) : (
+        <SeccionEntrega
+          pedidoId={pedido.id}
+          instanciaId={sesion.instanciaId}
+          rol={sesion.rol}
+          flujoVentaEtapa={etapaActual}
+          entrega={(pedido as any).entrega ?? null}
+          costoEnvio={costoEnvio}
+          moneda={pedido.moneda}
+        />
+      )}
 
       {/* ── Campos adicionales de la oportunidad ─────────────────── */}
       {camposOportunidad.length > 0 && (

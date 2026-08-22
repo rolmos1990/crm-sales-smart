@@ -18,7 +18,7 @@ import {
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { useSesion } from "@/shared/auth/sesion-context";
 import { eliminarProducto } from "../actions";
-import type { Producto } from "../types";
+import { TIPO_PRODUCTO_LABELS, type Producto } from "../types";
 
 function ImagenProducto({ src, nombre }: { src: string | null; nombre: string }) {
   if (!src) {
@@ -118,6 +118,11 @@ const columnasFijas: ColumnDef<Producto>[] = [
     cell: ({ row }) => row.original.sku
       ? <span className="font-mono text-xs bg-stone-100 dark:bg-white/8 border border-stone-200 dark:border-white/10 px-2 py-0.5 rounded-md text-stone-700 dark:text-stone-300">{row.original.sku}</span>
       : <span className="text-stone-400 dark:text-stone-600">—</span>,
+  },
+  {
+    accessorKey: "tipo",
+    header: "Tipo",
+    cell: ({ row }) => <Badge variant="outline">{TIPO_PRODUCTO_LABELS[row.original.tipo]}</Badge>,
   },
   {
     accessorKey: "categoria",

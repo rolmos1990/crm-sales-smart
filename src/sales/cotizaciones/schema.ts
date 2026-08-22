@@ -32,6 +32,33 @@ export const EntregaCotizacionSchema = z.object({
   costoEnvio: z.number().min(0).optional(),
 });
 
+// Sin campos obligatorios a propósito — el Flujo de Venta resuelve después
+// qué debe completarse para avanzar de etapa, esto solo guarda el dato.
+export const ServicioCotizacionSchema = z.object({
+  modalidad: z.enum(["EN_ESTABLECIMIENTO", "A_DOMICILIO", "REMOTO", "OTRO"]).optional(),
+  fecha: z.date().optional().nullable(),
+  hora: z.string().max(20).optional().or(z.literal("")),
+  duracion: z.string().max(100).optional().or(z.literal("")),
+  ubicacion: z.string().max(200).optional().or(z.literal("")),
+  direccion: z.string().max(300).optional().or(z.literal("")),
+  responsable: z.string().max(200).optional().or(z.literal("")),
+  instrucciones: z.string().max(500).optional().or(z.literal("")),
+  observaciones: z.string().max(500).optional().or(z.literal("")),
+});
+
+export const EntregaDigitalCotizacionSchema = z.object({
+  metodo: z.enum(["EMAIL", "LINK", "DESCARGA", "ACCESO", "LICENCIA", "MANUAL", "OTRO"]).optional(),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  url: z.string().max(500).optional().or(z.literal("")),
+  archivo: z.string().max(500).optional().or(z.literal("")),
+  codigo: z.string().max(200).optional().or(z.literal("")),
+  usuarioAcceso: z.string().max(200).optional().or(z.literal("")),
+  fechaEntrega: z.date().optional().nullable(),
+  fechaExpiracion: z.date().optional().nullable(),
+  instrucciones: z.string().max(500).optional().or(z.literal("")),
+  observaciones: z.string().max(500).optional().or(z.literal("")),
+});
+
 export const CrearCotizacionSchema = z.object({
   estado: z.enum(["BORRADOR", "REVISADA", "APROBADA", "ENVIADA", "RECHAZADA", "VENCIDA"]).optional(),
   fechaVencimiento: z.date().optional(),
@@ -44,7 +71,12 @@ export const CrearCotizacionSchema = z.object({
   empresaId: z.string().optional().or(z.literal("")),
   oportunidadId: z.string().optional().or(z.literal("")),
   destinatario: DestinatarioCotizacionSchema.optional(),
+  // Solo uno de estos tres se persiste — cuál, lo decide el servidor según
+  // tipoCumplimiento (derivado de las líneas, ver actions.ts). No es un
+  // campo que mande el cliente.
   entrega: EntregaCotizacionSchema.optional(),
+  servicio: ServicioCotizacionSchema.optional(),
+  entregaDigital: EntregaDigitalCotizacionSchema.optional(),
   lineas: z.array(LineaCotizacionSchema).min(1, "Debe agregar al menos un producto"),
 });
 
@@ -55,3 +87,5 @@ export type ActualizarCotizacionInput = z.infer<typeof ActualizarCotizacionSchem
 export type LineaCotizacionInput = z.infer<typeof LineaCotizacionSchema>;
 export type DestinatarioCotizacionInput = z.infer<typeof DestinatarioCotizacionSchema>;
 export type EntregaCotizacionInput = z.infer<typeof EntregaCotizacionSchema>;
+export type ServicioCotizacionInput = z.infer<typeof ServicioCotizacionSchema>;
+export type EntregaDigitalCotizacionInput = z.infer<typeof EntregaDigitalCotizacionSchema>;

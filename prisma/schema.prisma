@@ -98,6 +98,38 @@ enum EstadoEntrega {
   DEVUELTO
 }
 
+// Tipo de producto — determina qué bloque de cumplimiento usa una
+// Cotización/Pedido (ver TipoProducto en Cotizacion/Pedido más abajo).
+// Sin reglas de obligatoriedad acá — eso lo resuelve después el Flujo de
+// Venta con sus propias reglas de validación.
+enum TipoProducto {
+  FISICO
+  SERVICIO
+  DIGITAL
+}
+
+// Modalidad de un ServicioCotizacion/ServicioPedido — todos los campos de
+// ese bloque son abiertos/opcionales a propósito.
+enum ModalidadServicio {
+  EN_ESTABLECIMIENTO
+  A_DOMICILIO
+  REMOTO
+  OTRO
+}
+
+// Método de un EntregaDigitalCotizacion/EntregaDigitalPedido — no
+// reutiliza MetodoEntrega.DIGITAL (ese es el canal de un delivery físico,
+// un concepto distinto).
+enum MetodoEntregaDigital {
+  EMAIL
+  LINK
+  DESCARGA
+  ACCESO
+  LICENCIA
+  MANUAL
+  OTRO
+}
+
 enum TipoCampoPersonalizado {
   TEXTO
   TEXTO_LARGO
@@ -755,21 +787,25 @@ model CampoPersonalizadoValor {
 // =====================
 
 model Producto {
-  id                 String   @id @default(cuid())
+  id                 String       @id @default(cuid())
   sku                String?
   nombre             String
   descripcion        String?
-  precio             Decimal  @default(0)
-  moneda             String   @default("PEN")
+  precio             Decimal      @default(0)
+  moneda             String       @default("PEN")
   categoria          String?
-  unidad             String   @default("unidad")
+  // Determina qué bloque de cumplimiento usa una Cotización/Pedido que
+  // incluya este producto — ver TipoProducto, ServicioCotizacion/Pedido y
+  // EntregaDigitalCotizacion/Pedido.
+  tipo               TipoProducto @default(FISICO)
+  unidad             String       @default("unidad")
   imagenUrl          String?
-  activo             Boolean  @default(true)
-  manejaStock        Boolean  @default(false)
-  cantidadDisponible Decimal  @default(0)
+  activo             Boolean      @default(true)
+  manejaStock        Boolean      @default(false)
+  cantidadDisponible Decimal      @default(0)
   metadata           Json?
-  creadoEn           DateTime @default(now())
-  actualizadoEn      DateTime @updatedAt
+  creadoEn           DateTime     @default(now())
+  actualizadoEn      DateTime     @updatedAt
 
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -853,6 +889,11 @@ model Cotizacion {
   moneda           String           @default("PEN")
   notas            String?
   metadata         Json?
+  // Calculado en el servidor a partir del producto de la primera línea que
+  // tenga uno vinculado (FISICO si ninguna línea tiene producto) — nunca lo
+  // manda el cliente. Determina cuál de entrega/servicio/entregaDigital usa
+  // esta cotización. Ver resolverTipoCumplimiento en actions.ts.
+  tipoCumplimiento TipoProducto     @default(FISICO)
   creadoEn         DateTime         @default(now())
   actualizadoEn    DateTime         @updatedAt
 
@@ -874,11 +915,14 @@ model Cotizacion {
   usuarioInstanciaId String?
   usuarioInstancia   UsuarioInstancia? @relation(fields: [usuarioInstanciaId], references: [id])
 
-  lineas      CotizacionLinea[]
-  pedidos     Pedido[]
-  campos      CampoPersonalizadoValor[]
-  actividades Actividad[]
-  entrega     EntregaCotizacion?
+  lineas         CotizacionLinea[]
+  pedidos        Pedido[]
+  campos         CampoPersonalizadoValor[]
+  actividades    Actividad[]
+  // Solo una de estas tres existe a la vez, según tipoCumplimiento.
+  entrega        EntregaCotizacion?
+  servicio       ServicioCotizacion?
+  entregaDigital EntregaDigitalCotizacion?
 
   @@unique([instanciaId, numero])
   @@index([instanciaId])
@@ -891,6 +935,7 @@ model Cotizacion {
 // que el usuario tenga que volver a registrarla (ver aprobarCotizacion).
 // A esta altura (cotización, antes de despachar nada) todavía no existen
 // numeroGuia/urlSeguimiento — esos se completan recién en el Pedido.
+// Solo aplica cuando Cotizacion.tipoCumplimiento = FISICO.
 model EntregaCotizacion {
   id            String        @id @default(cuid())
   metodoEntrega MetodoEntrega @default(COURIER_EXTERNO)
@@ -905,6 +950,52 @@ model EntregaCotizacion {
 
   transportistaId String?
   transportista   Transportista? @relation(fields: [transportistaId], references: [id])
+
+  @@index([cotizacionId])
+}
+
+// Cumplimiento cuando Cotizacion.tipoCumplimiento = SERVICIO — espejo de
+// ServicioPedido. Todos los campos abiertos/opcionales a propósito: las
+// reglas de obligatoriedad se resuelven después desde el Flujo de Venta.
+model ServicioCotizacion {
+  id            String             @id @default(cuid())
+  modalidad     ModalidadServicio?
+  fecha         DateTime?
+  hora          String?
+  duracion      String?
+  ubicacion     String?
+  direccion     String?
+  responsable   String?
+  instrucciones String?
+  observaciones String?
+  creadoEn      DateTime           @default(now())
+  actualizadoEn DateTime           @updatedAt
+
+  cotizacionId String     @unique
+  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+
+  @@index([cotizacionId])
+}
+
+// Cumplimiento cuando Cotizacion.tipoCumplimiento = DIGITAL — espejo de
+// EntregaDigitalPedido. Todos los campos abiertos/opcionales.
+model EntregaDigitalCotizacion {
+  id              String                @id @default(cuid())
+  metodo          MetodoEntregaDigital?
+  email           String?
+  url             String?
+  archivo         String?
+  codigo          String?
+  usuarioAcceso   String?
+  fechaEntrega    DateTime?
+  fechaExpiracion DateTime?
+  instrucciones   String?
+  observaciones   String?
+  creadoEn        DateTime              @default(now())
+  actualizadoEn   DateTime              @updatedAt
+
+  cotizacionId String     @unique
+  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
 
   @@index([cotizacionId])
 }
@@ -945,24 +1036,28 @@ model Pedido {
   ruc           String?
   empresaNombre String?
 
-  fechaPedido     DateTime  @default(now())
-  fechaEntrega    DateTime?
+  fechaPedido      DateTime     @default(now())
+  fechaEntrega     DateTime?
   // Fecha límite para tener en cuenta el pedido (deadline configurable por el
   // usuario) — usada para las métricas "Pendientes"/"Expirados" del listado.
-  fechaExpiracion DateTime?
-  subtotal        Decimal   @default(0)
-  descuento       Decimal   @default(0)
-  impuesto        Decimal   @default(0)
+  fechaExpiracion  DateTime?
+  subtotal         Decimal      @default(0)
+  descuento        Decimal      @default(0)
+  impuesto         Decimal      @default(0)
   // Costo de envío — se suma al `total` (lo que paga el cliente) pero se
   // excluye a propósito de "Total ventas"/"Total ventas · mes actual" en
   // los KPIs del listado (no es ganancia, ver obtenerPedidosKpis).
-  costoEnvio      Decimal   @default(0)
-  total           Decimal   @default(0)
-  moneda          String    @default("PEN")
-  notas           String?
-  metadata        Json?
-  creadoEn        DateTime  @default(now())
-  actualizadoEn   DateTime  @updatedAt
+  costoEnvio       Decimal      @default(0)
+  total            Decimal      @default(0)
+  moneda           String       @default("PEN")
+  notas            String?
+  metadata         Json?
+  // Igual que Cotizacion.tipoCumplimiento — se copia directo de la
+  // cotización de origen si el pedido nace de una aprobación, o se calcula
+  // igual (primera línea con producto) si el pedido se crea directo.
+  tipoCumplimiento TipoProducto @default(FISICO)
+  creadoEn         DateTime     @default(now())
+  actualizadoEn    DateTime     @updatedAt
 
   contactoId String?
   contacto   Contacto? @relation(fields: [contactoId], references: [id])
@@ -997,7 +1092,10 @@ model Pedido {
   historial       PedidoHistorial[]
   disparadorJobs  DisparadorJob[]
   actividades     Actividad[]
+  // Solo una de estas tres existe a la vez, según tipoCumplimiento.
   entrega         EntregaPedido?
+  servicio        ServicioPedido?
+  entregaDigital  EntregaDigitalPedido?
 
   @@unique([instanciaId, numero])
   @@index([instanciaId])
@@ -1047,6 +1145,7 @@ model Transportista {
   @@index([instanciaId])
 }
 
+// Solo aplica cuando Pedido.tipoCumplimiento = FISICO.
 model EntregaPedido {
   id             String        @id @default(cuid())
   metodoEntrega  MetodoEntrega @default(COURIER_EXTERNO)
@@ -1063,6 +1162,53 @@ model EntregaPedido {
 
   transportistaId String?
   transportista   Transportista? @relation(fields: [transportistaId], references: [id])
+
+  @@index([pedidoId])
+}
+
+// Cumplimiento cuando Pedido.tipoCumplimiento = SERVICIO — espejo de
+// ServicioCotizacion. Todos los campos abiertos/opcionales a propósito:
+// las reglas de obligatoriedad se resuelven después desde el Flujo de
+// Venta.
+model ServicioPedido {
+  id            String             @id @default(cuid())
+  modalidad     ModalidadServicio?
+  fecha         DateTime?
+  hora          String?
+  duracion      String?
+  ubicacion     String?
+  direccion     String?
+  responsable   String?
+  instrucciones String?
+  observaciones String?
+  creadoEn      DateTime           @default(now())
+  actualizadoEn DateTime           @updatedAt
+
+  pedidoId String @unique
+  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@index([pedidoId])
+}
+
+// Cumplimiento cuando Pedido.tipoCumplimiento = DIGITAL — espejo de
+// EntregaDigitalCotizacion. Todos los campos abiertos/opcionales.
+model EntregaDigitalPedido {
+  id              String                @id @default(cuid())
+  metodo          MetodoEntregaDigital?
+  email           String?
+  url             String?
+  archivo         String?
+  codigo          String?
+  usuarioAcceso   String?
+  fechaEntrega    DateTime?
+  fechaExpiracion DateTime?
+  instrucciones   String?
+  observaciones   String?
+  creadoEn        DateTime              @default(now())
+  actualizadoEn   DateTime              @updatedAt
+
+  pedidoId String @unique
+  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   @@index([pedidoId])
 }

@@ -44,6 +44,8 @@ export async function generarPedidoDesdeCotizacion(
         },
       },
       entrega: true,
+      servicio: true,
+      entregaDigital: true,
     },
   });
   if (!cotizacion) {
@@ -120,6 +122,9 @@ export async function generarPedidoDesdeCotizacion(
         email:              dest.email || null,
         flujoVentaId:       flujoTenant?.id ?? null,
         flujoVentaEtapaId:  etapaInicial?.id ?? null,
+        // Ya resuelto al crear/editar la cotización — se copia tal cual, no
+        // hay que recalcularlo (ver resolverTipoCumplimiento en cotizaciones/actions.ts).
+        tipoCumplimiento:   cotizacion.tipoCumplimiento,
         lineas: {
           create: cotizacion.lineas.map((l) => ({
             productoId:     l.productoId,
@@ -146,6 +151,35 @@ export async function generarPedidoDesdeCotizacion(
             // pedido, listos para completarse ahí.
             numeroGuia:      null,
             urlSeguimiento:  null,
+          },
+        } : undefined,
+        // Mismo criterio que entrega: se copia el bloque de cumplimiento que
+        // corresponda (Servicio o Entrega digital) directo desde la cotización.
+        servicio: cotizacion.servicio ? {
+          create: {
+            modalidad:     cotizacion.servicio.modalidad,
+            fecha:         cotizacion.servicio.fecha,
+            hora:          cotizacion.servicio.hora,
+            duracion:      cotizacion.servicio.duracion,
+            ubicacion:     cotizacion.servicio.ubicacion,
+            direccion:     cotizacion.servicio.direccion,
+            responsable:   cotizacion.servicio.responsable,
+            instrucciones: cotizacion.servicio.instrucciones,
+            observaciones: cotizacion.servicio.observaciones,
+          },
+        } : undefined,
+        entregaDigital: cotizacion.entregaDigital ? {
+          create: {
+            metodo:          cotizacion.entregaDigital.metodo,
+            email:           cotizacion.entregaDigital.email,
+            url:             cotizacion.entregaDigital.url,
+            archivo:         cotizacion.entregaDigital.archivo,
+            codigo:          cotizacion.entregaDigital.codigo,
+            usuarioAcceso:   cotizacion.entregaDigital.usuarioAcceso,
+            fechaEntrega:    cotizacion.entregaDigital.fechaEntrega,
+            fechaExpiracion: cotizacion.entregaDigital.fechaExpiracion,
+            instrucciones:   cotizacion.entregaDigital.instrucciones,
+            observaciones:   cotizacion.entregaDigital.observaciones,
           },
         } : undefined,
         // Campos personalizados heredados de la oportunidad — mismo campoId

@@ -7,6 +7,7 @@ export const CrearProductoSchema = z.object({
   precio: z.number({ error: "El precio es requerido" }).min(0, "El precio debe ser mayor o igual a 0"),
   moneda: z.string().optional(),
   categoria: z.string().max(100).optional().or(z.literal("")),
+  tipo: z.enum(["FISICO", "SERVICIO", "DIGITAL"]).optional(),
   unidad: z.string().max(50).optional().or(z.literal("")),
   imagenUrl: z
     .string()

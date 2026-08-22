@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { crearProducto, actualizarProducto } from "../actions";
 import { CrearProductoSchema, type CrearProductoInput } from "../schema";
-import type { Producto } from "../types";
+import { TIPO_PRODUCTO_LABELS, type Producto, type TipoProducto } from "../types";
 import { MediaUploader } from "@/components/media/media-uploader";
 import { vincularMediaArchivo } from "@/lib/media/server-actions";
 
@@ -42,6 +42,7 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
       precio: inicial?.precio ?? 0,
       moneda: inicial?.moneda ?? monedaDefault,
       categoria: inicial?.categoria ?? "",
+      tipo: inicial?.tipo ?? "FISICO",
       unidad: inicial?.unidad ?? "",
       imagenUrl: inicial?.imagenUrl ?? "",
       activo: inicial?.activo ?? true,
@@ -146,14 +147,33 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
           )} />
         </div>
 
-        <FormField control={form.control} name="categoria" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Categoría</FormLabel>
-            <FormControl>
-              <Input placeholder="Software, Consultoría, Hardware..." {...field} value={field.value ?? ""} />
-            </FormControl>
-          </FormItem>
-        )} />
+        {/* Tipo + Categoría */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField control={form.control} name="tipo" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo</FormLabel>
+              {/* Determina qué bloque de cumplimiento usa la Cotización/Pedido
+                  que incluya este producto (Entrega / Servicio / Entrega
+                  digital y seguimiento) — ver form-cotizacion.tsx. */}
+              <Select onValueChange={field.onChange} value={field.value ?? "FISICO"}>
+                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                <SelectContent>
+                  {(Object.keys(TIPO_PRODUCTO_LABELS) as TipoProducto[]).map((tipo) => (
+                    <SelectItem key={tipo} value={tipo}>{TIPO_PRODUCTO_LABELS[tipo]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="categoria" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Categoría</FormLabel>
+              <FormControl>
+                <Input placeholder="Software, Consultoría, Hardware..." {...field} value={field.value ?? ""} />
+              </FormControl>
+            </FormItem>
+          )} />
+        </div>
 
         <FormField control={form.control} name="descripcion" render={({ field }) => (
           <FormItem>

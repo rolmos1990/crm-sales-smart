@@ -16,8 +16,31 @@ import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
-import type { ProductoCatalogo } from "@/shared/productos/types";
+import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
 import type { ResultadoAccion, Cotizacion } from "./types";
+import type { LineaCotizacionInput } from "./schema";
+
+/**
+ * Determina qué bloque de cumplimiento corresponde (Físico/Servicio/
+ * Digital) a partir de la primera línea con un producto vinculado — así lo
+ * decidió el usuario (no es elegible a mano, ni se recalcula en cada
+ * lectura: se resuelve acá una sola vez y se guarda en Cotizacion/Pedido).
+ * Sin producto vinculado en ninguna línea, por defecto es FISICO.
+ */
+async function resolverTipoCumplimiento(lineas: LineaCotizacionInput[]): Promise<TipoProducto> {
+  const productoIds = lineas.map(l => l.productoId).filter((id): id is string => !!id);
+  if (productoIds.length === 0) return "FISICO";
+
+  const productos = await prisma.producto.findMany({
+    where: { id: { in: productoIds } },
+    select: { id: true, tipo: true },
+  });
+  const tipoPorId = new Map(productos.map(p => [p.id, p.tipo]));
+
+  const primeraConProducto = lineas.find(l => l.productoId && tipoPorId.has(l.productoId));
+  if (!primeraConProducto?.productoId) return "FISICO";
+  return tipoPorId.get(primeraConProducto.productoId) as TipoProducto;
+}
 
 export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<Cotizacion>> {
   const validado = CrearCotizacionSchema.safeParse(datos);
@@ -28,7 +51,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
 
   try {
     const sesion = auth.sesion;
-    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, ...resto } = validado.data;
+    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, servicio, entregaDigital, ...resto } = validado.data;
     const numero = await generarNumeroCotizacion(sesion.instanciaId);
 
     const subtotal = lineas.reduce((acc, l) => {
@@ -39,9 +62,14 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     const costoEnvio = entrega?.costoEnvio ?? 0;
     const total = subtotal + impuestoMonto + costoEnvio;
 
-    // Solo se registra la entrega si el usuario realmente tocó algo de esa
-    // sección — evita crear una fila EntregaCotizacion vacía por defecto.
-    const hayEntrega = entrega && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId);
+    const tipoCumplimiento = await resolverTipoCumplimiento(lineas);
+
+    // Solo se registra el bloque de cumplimiento si el usuario realmente
+    // tocó algo de esa sección Y coincide con el tipo resuelto — evita crear
+    // una fila vacía por defecto, o de un bloque que no corresponde.
+    const hayEntrega = tipoCumplimiento === "FISICO" && entrega && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId);
+    const hayServicio = tipoCumplimiento === "SERVICIO" && servicio && (servicio.modalidad || servicio.fecha || servicio.hora || servicio.duracion || servicio.ubicacion || servicio.direccion || servicio.responsable || servicio.instrucciones || servicio.observaciones);
+    const hayEntregaDigital = tipoCumplimiento === "DIGITAL" && entregaDigital && (entregaDigital.metodo || entregaDigital.email || entregaDigital.url || entregaDigital.archivo || entregaDigital.codigo || entregaDigital.usuarioAcceso || entregaDigital.fechaEntrega || entregaDigital.fechaExpiracion || entregaDigital.instrucciones || entregaDigital.observaciones);
 
     const cotizacion = await prisma.cotizacion.create({
       data: {
@@ -52,6 +80,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
         impuesto: impuestoMonto,
         costoEnvio,
         total,
+        tipoCumplimiento,
         notas: notas || null,
         contactoId, // requerido por el schema — la cotización siempre nace ligada a un contacto
         empresaId: empresaId || null,
@@ -69,11 +98,38 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
         },
         entrega: hayEntrega ? {
           create: {
-            metodoEntrega: entrega.metodoEntrega || "COURIER_EXTERNO",
-            estadoEntrega: entrega.estadoEntrega || "PENDIENTE",
-            transportistaId: entrega.transportistaId || null,
-            fechaEstimada: entrega.fechaEstimada || null,
-            observaciones: entrega.observaciones || null,
+            metodoEntrega: entrega!.metodoEntrega || "COURIER_EXTERNO",
+            estadoEntrega: entrega!.estadoEntrega || "PENDIENTE",
+            transportistaId: entrega!.transportistaId || null,
+            fechaEstimada: entrega!.fechaEstimada || null,
+            observaciones: entrega!.observaciones || null,
+          },
+        } : undefined,
+        servicio: hayServicio ? {
+          create: {
+            modalidad: servicio!.modalidad || null,
+            fecha: servicio!.fecha || null,
+            hora: servicio!.hora || null,
+            duracion: servicio!.duracion || null,
+            ubicacion: servicio!.ubicacion || null,
+            direccion: servicio!.direccion || null,
+            responsable: servicio!.responsable || null,
+            instrucciones: servicio!.instrucciones || null,
+            observaciones: servicio!.observaciones || null,
+          },
+        } : undefined,
+        entregaDigital: hayEntregaDigital ? {
+          create: {
+            metodo: entregaDigital!.metodo || null,
+            email: entregaDigital!.email || null,
+            url: entregaDigital!.url || null,
+            archivo: entregaDigital!.archivo || null,
+            codigo: entregaDigital!.codigo || null,
+            usuarioAcceso: entregaDigital!.usuarioAcceso || null,
+            fechaEntrega: entregaDigital!.fechaEntrega || null,
+            fechaExpiracion: entregaDigital!.fechaExpiracion || null,
+            instrucciones: entregaDigital!.instrucciones || null,
+            observaciones: entregaDigital!.observaciones || null,
           },
         } : undefined,
       },
@@ -106,10 +162,18 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
       return { exito: false, error: "Solo se pueden modificar cotizaciones en estado borrador" };
     }
 
-    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, ...resto } = validado.data;
+    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, servicio, entregaDigital, ...resto } = validado.data;
+
+    // Si vienen líneas nuevas, el tipo de cumplimiento se vuelve a resolver
+    // sobre ellas (puede cambiar si se reemplaza el producto de la línea);
+    // si no vienen, se conserva el ya guardado.
+    const tipoCumplimiento = lineas
+      ? await resolverTipoCumplimiento(lineas as LineaCotizacionInput[])
+      : (cotizacionExistente.tipoCumplimiento as TipoProducto);
 
     let updateData: Record<string, unknown> = {
       ...resto,
+      tipoCumplimiento,
       notas: notas !== undefined ? notas || null : undefined,
       // contactoId nunca se limpia: el schema exige que, si viene, sea un id no vacío
       // (se puede cambiar de contacto, pero la cotización nunca se queda sin uno).
@@ -124,7 +188,7 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
     }
 
     if (entrega !== undefined) {
-      const hayEntrega = entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId;
+      const hayEntrega = tipoCumplimiento === "FISICO" && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId);
       const datosEntrega = {
         metodoEntrega: entrega.metodoEntrega || "COURIER_EXTERNO",
         estadoEntrega: entrega.estadoEntrega || "PENDIENTE",
@@ -134,6 +198,43 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
       };
       updateData.entrega = hayEntrega ? {
         upsert: { create: datosEntrega, update: datosEntrega },
+      } : undefined;
+    }
+
+    if (servicio !== undefined) {
+      const hayServicio = tipoCumplimiento === "SERVICIO" && (servicio.modalidad || servicio.fecha || servicio.hora || servicio.duracion || servicio.ubicacion || servicio.direccion || servicio.responsable || servicio.instrucciones || servicio.observaciones);
+      const datosServicio = {
+        modalidad: servicio.modalidad || null,
+        fecha: servicio.fecha || null,
+        hora: servicio.hora || null,
+        duracion: servicio.duracion || null,
+        ubicacion: servicio.ubicacion || null,
+        direccion: servicio.direccion || null,
+        responsable: servicio.responsable || null,
+        instrucciones: servicio.instrucciones || null,
+        observaciones: servicio.observaciones || null,
+      };
+      updateData.servicio = hayServicio ? {
+        upsert: { create: datosServicio, update: datosServicio },
+      } : undefined;
+    }
+
+    if (entregaDigital !== undefined) {
+      const hayEntregaDigital = tipoCumplimiento === "DIGITAL" && (entregaDigital.metodo || entregaDigital.email || entregaDigital.url || entregaDigital.archivo || entregaDigital.codigo || entregaDigital.usuarioAcceso || entregaDigital.fechaEntrega || entregaDigital.fechaExpiracion || entregaDigital.instrucciones || entregaDigital.observaciones);
+      const datosEntregaDigital = {
+        metodo: entregaDigital.metodo || null,
+        email: entregaDigital.email || null,
+        url: entregaDigital.url || null,
+        archivo: entregaDigital.archivo || null,
+        codigo: entregaDigital.codigo || null,
+        usuarioAcceso: entregaDigital.usuarioAcceso || null,
+        fechaEntrega: entregaDigital.fechaEntrega || null,
+        fechaExpiracion: entregaDigital.fechaExpiracion || null,
+        instrucciones: entregaDigital.instrucciones || null,
+        observaciones: entregaDigital.observaciones || null,
+      };
+      updateData.entregaDigital = hayEntregaDigital ? {
+        upsert: { create: datosEntregaDigital, update: datosEntregaDigital },
       } : undefined;
     }
 

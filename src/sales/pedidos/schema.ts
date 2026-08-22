@@ -87,9 +87,47 @@ export const ActualizarEntregaPedidoSchema = z.object({
   costoEnvio:      z.number().min(0).optional(),
 });
 
+// Sin campos obligatorios a propósito — el Flujo de Venta resuelve después
+// qué debe completarse para avanzar de etapa, esto solo guarda el dato
+// (mismo criterio que ActualizarEntregaPedidoSchema).
+export const ModalidadServicioEnum = z.enum(["EN_ESTABLECIMIENTO", "A_DOMICILIO", "REMOTO", "OTRO"]);
+
+export const ActualizarServicioPedidoSchema = z.object({
+  pedidoId: z.string().min(1),
+  modalidad: ModalidadServicioEnum.optional().nullable(),
+  fecha: z.string().datetime({ offset: true }).optional().nullable(),
+  hora: z.string().max(20).optional().or(z.literal("")),
+  duracion: z.string().max(100).optional().or(z.literal("")),
+  ubicacion: z.string().max(200).optional().or(z.literal("")),
+  direccion: z.string().max(300).optional().or(z.literal("")),
+  responsable: z.string().max(200).optional().or(z.literal("")),
+  instrucciones: z.string().max(500).optional().or(z.literal("")),
+  observaciones: z.string().max(500).optional().or(z.literal("")),
+});
+
+// No reutiliza MetodoEntregaEnum.DIGITAL — ese es el canal de un delivery
+// físico, un concepto distinto (ver MetodoEntregaDigital en schema.prisma).
+export const MetodoEntregaDigitalEnum = z.enum(["EMAIL", "LINK", "DESCARGA", "ACCESO", "LICENCIA", "MANUAL", "OTRO"]);
+
+export const ActualizarEntregaDigitalPedidoSchema = z.object({
+  pedidoId: z.string().min(1),
+  metodo: MetodoEntregaDigitalEnum.optional().nullable(),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  url: z.string().max(500).optional().or(z.literal("")),
+  archivo: z.string().max(500).optional().or(z.literal("")),
+  codigo: z.string().max(200).optional().or(z.literal("")),
+  usuarioAcceso: z.string().max(200).optional().or(z.literal("")),
+  fechaEntrega: z.string().datetime({ offset: true }).optional().nullable(),
+  fechaExpiracion: z.string().datetime({ offset: true }).optional().nullable(),
+  instrucciones: z.string().max(500).optional().or(z.literal("")),
+  observaciones: z.string().max(500).optional().or(z.literal("")),
+});
+
 export type CrearPedidoInput = z.infer<typeof CrearPedidoSchema>;
 export type EditarPedidoInput = z.infer<typeof EditarPedidoSchema>;
 export type ActualizarEstadoPedidoInput = z.infer<typeof ActualizarEstadoPedidoSchema>;
 export type ActualizarEntregaPedidoInput = z.infer<typeof ActualizarEntregaPedidoSchema>;
+export type ActualizarServicioPedidoInput = z.infer<typeof ActualizarServicioPedidoSchema>;
+export type ActualizarEntregaDigitalPedidoInput = z.infer<typeof ActualizarEntregaDigitalPedidoSchema>;
 export type LineaPedidoInput = z.infer<typeof LineaPedidoSchema>;
 export type LineaPedidoEditInput = z.infer<typeof LineaPedidoEditSchema>;

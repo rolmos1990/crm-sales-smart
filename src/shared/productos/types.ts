@@ -1,3 +1,15 @@
+/** Determina qué bloque de cumplimiento usa una Cotización/Pedido que
+ *  incluya este producto — ver ServicioCotizacion/Pedido y
+ *  EntregaDigitalCotizacion/Pedido. Sin reglas de obligatoriedad acá; eso
+ *  lo resuelve después el Flujo de Venta. */
+export type TipoProducto = "FISICO" | "SERVICIO" | "DIGITAL";
+
+export const TIPO_PRODUCTO_LABELS: Record<TipoProducto, string> = {
+  FISICO: "Físico",
+  SERVICIO: "Servicio",
+  DIGITAL: "Digital",
+};
+
 export interface Producto {
   id: string;
   sku: string | null;
@@ -6,6 +18,7 @@ export interface Producto {
   precio: number;
   moneda: string;
   categoria: string | null;
+  tipo: TipoProducto;
   unidad: string | null;
   imagenUrl: string | null;
   activo: boolean;
@@ -15,7 +28,9 @@ export interface Producto {
   actualizadoEn: Date;
 }
 
-/** Versión reducida para selectores en cotizaciones/pedidos */
+/** Versión reducida para selectores en cotizaciones/pedidos — incluye
+ *  `tipo` porque de ahí se deriva el tipoCumplimiento de la
+ *  Cotización/Pedido (ver resolverTipoCumplimiento en cada actions.ts). */
 export interface ProductoCatalogo {
   id: string;
   sku: string | null;
@@ -26,6 +41,7 @@ export interface ProductoCatalogo {
   imagenUrl: string | null;
   manejaStock: boolean;
   cantidadDisponible: number;
+  tipo: TipoProducto;
 }
 
 export type ResultadoAccion<T = void> =

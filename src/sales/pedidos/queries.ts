@@ -243,6 +243,8 @@ export async function obtenerPedidoPorId(id: string, instanciaId: string) {
           transportista: { select: { id: true, nombre: true, tipo: true } },
         },
       },
+      servicio: true,
+      entregaDigital: true,
       historialEtapas: {
         select: {
           id: true,

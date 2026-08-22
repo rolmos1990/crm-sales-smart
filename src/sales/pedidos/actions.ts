@@ -5,10 +5,36 @@ import { prisma } from "@/shared/db/prisma";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
-import { CrearPedidoSchema, ActualizarEstadoPedidoSchema, EditarPedidoSchema, ActualizarEntregaPedidoSchema } from "./schema";
+import {
+  CrearPedidoSchema, ActualizarEstadoPedidoSchema, EditarPedidoSchema, ActualizarEntregaPedidoSchema,
+  ActualizarServicioPedidoSchema, ActualizarEntregaDigitalPedidoSchema,
+} from "./schema";
+import type { LineaPedidoInput, LineaPedidoEditInput } from "./schema";
 import { generarNumeroPedido } from "./queries";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import type { ResultadoAccion, Pedido } from "./types";
+import type { TipoProducto } from "@/shared/productos/types";
+
+/**
+ * Igual que resolverTipoCumplimiento en cotizaciones/actions.ts: primera
+ * línea con producto vinculado decide el bloque de cumplimiento; sin
+ * producto en ninguna línea, FISICO por defecto. Se resuelve una sola vez
+ * al crear/editar y se guarda — no se recalcula en cada lectura.
+ */
+async function resolverTipoCumplimiento(lineas: (LineaPedidoInput | LineaPedidoEditInput)[]): Promise<TipoProducto> {
+  const productoIds = lineas.map(l => l.productoId).filter((id): id is string => !!id);
+  if (productoIds.length === 0) return "FISICO";
+
+  const productos = await prisma.producto.findMany({
+    where: { id: { in: productoIds } },
+    select: { id: true, tipo: true },
+  });
+  const tipoPorId = new Map(productos.map(p => [p.id, p.tipo]));
+
+  const primeraConProducto = lineas.find(l => l.productoId && tipoPorId.has(l.productoId));
+  if (!primeraConProducto?.productoId) return "FISICO";
+  return tipoPorId.get(primeraConProducto.productoId) as TipoProducto;
+}
 
 export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedido>> {
   const validado = CrearPedidoSchema.safeParse(datos);
@@ -56,6 +82,7 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     }, 0);
     const impuestoMonto = subtotal * (impuesto / 100);
     const total = subtotal + impuestoMonto;
+    const tipoCumplimiento = await resolverTipoCumplimiento(lineas);
 
     const pedido = await prisma.pedido.create({
       data: {
@@ -65,6 +92,7 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
         subtotal,
         impuesto: impuestoMonto,
         total,
+        tipoCumplimiento,
         notas: notas || null,
         contactoId: contactoId || null,
         empresaId: empresaId || null,
@@ -274,6 +302,9 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     // El costo de envío no se edita desde acá (vive en "Entrega y
     // seguimiento") — se conserva tal cual para no perderlo al editar líneas.
     const total = subtotal + impuestoMonto + Number(pedidoActual.costoEnvio);
+    // Puede cambiar si se reemplaza el producto de alguna línea — mismo
+    // criterio que en Cotización (ver resolverTipoCumplimiento arriba).
+    const tipoCumplimiento = await resolverTipoCumplimiento(lineasNuevas);
 
     // Consolidar todos los cambios en una sola entrada de historial
     const valorAnt: Record<string, unknown> = {};
@@ -358,6 +389,7 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
           subtotal,
           impuesto: impuestoMonto,
           total,
+          tipoCumplimiento,
         },
       });
 
@@ -536,6 +568,154 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
       usuarioNombre: usuarioNombre ?? null,
       ...(valorAnterior && { valorAnterior }),
       valorNuevo,
+    },
+  });
+
+  revalidatePath("/sales/pedidos");
+  revalidatePath(`/sales/pedidos/${pedidoId}`);
+  return { exito: true, datos: undefined };
+}
+
+/**
+ * Igual patrón que actualizarEntregaPedido, para pedidos cuyo
+ * tipoCumplimiento es SERVICIO (ver ServicioPedido en schema.prisma).
+ */
+export async function actualizarServicioPedido(datos: unknown): Promise<ResultadoAccion<undefined>> {
+  const validado = ActualizarServicioPedidoSchema.safeParse(datos);
+  if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
+
+  const auth = await requirePermisoAction("configuracion", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  const { pedidoId, fecha, ...campos } = validado.data;
+
+  const [pedido, usuarioNombre] = await Promise.all([
+    prisma.pedido.findFirst({
+      where: { id: pedidoId, instanciaId: auth.sesion.instanciaId },
+      select: {
+        flujoVentaEtapa: { select: { permiteEditarEntrega: true } },
+        servicio: {
+          select: {
+            modalidad: true, fecha: true, hora: true, duracion: true, ubicacion: true,
+            direccion: true, responsable: true, instrucciones: true, observaciones: true,
+          },
+        },
+      },
+    }),
+    auth.sesion.usuarioId
+      ? prisma.usuario.findFirst({ where: { id: auth.sesion.usuarioId }, select: { nombre: true } }).then(u => u?.nombre ?? null)
+      : Promise.resolve(null),
+  ]);
+
+  if (!pedido) return { exito: false, error: "Pedido no encontrado" };
+  if (!pedido.flujoVentaEtapa?.permiteEditarEntrega) {
+    return { exito: false, error: "La etapa actual del pedido no permite editar el servicio" };
+  }
+
+  const esNuevo = !pedido.servicio;
+  const nuevaFecha = fecha ? new Date(fecha) : null;
+
+  await prisma.servicioPedido.upsert({
+    where: { pedidoId },
+    create: { pedidoId, ...campos, fecha: nuevaFecha },
+    update: { ...campos, fecha: nuevaFecha },
+  });
+
+  const valorAnterior = esNuevo ? undefined : {
+    modalidad:     pedido.servicio!.modalidad,
+    fecha:         pedido.servicio!.fecha?.toISOString() ?? null,
+    hora:          pedido.servicio!.hora,
+    duracion:      pedido.servicio!.duracion,
+    ubicacion:     pedido.servicio!.ubicacion,
+    direccion:     pedido.servicio!.direccion,
+    responsable:   pedido.servicio!.responsable,
+    instrucciones: pedido.servicio!.instrucciones,
+    observaciones: pedido.servicio!.observaciones,
+  };
+
+  await prisma.pedidoHistorial.create({
+    data: {
+      pedidoId,
+      accion: esNuevo ? "SERVICIO_REGISTRADO" : "SERVICIO_ACTUALIZADO",
+      usuarioId:     auth.sesion.usuarioId ?? null,
+      usuarioNombre: usuarioNombre ?? null,
+      ...(valorAnterior && { valorAnterior }),
+      valorNuevo: { ...campos, fecha: fecha ?? null },
+    },
+  });
+
+  revalidatePath("/sales/pedidos");
+  revalidatePath(`/sales/pedidos/${pedidoId}`);
+  return { exito: true, datos: undefined };
+}
+
+/**
+ * Igual patrón que actualizarEntregaPedido, para pedidos cuyo
+ * tipoCumplimiento es DIGITAL (ver EntregaDigitalPedido en schema.prisma).
+ */
+export async function actualizarEntregaDigitalPedido(datos: unknown): Promise<ResultadoAccion<undefined>> {
+  const validado = ActualizarEntregaDigitalPedidoSchema.safeParse(datos);
+  if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
+
+  const auth = await requirePermisoAction("configuracion", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  const { pedidoId, fechaEntrega, fechaExpiracion, ...campos } = validado.data;
+
+  const [pedido, usuarioNombre] = await Promise.all([
+    prisma.pedido.findFirst({
+      where: { id: pedidoId, instanciaId: auth.sesion.instanciaId },
+      select: {
+        flujoVentaEtapa: { select: { permiteEditarEntrega: true } },
+        entregaDigital: {
+          select: {
+            metodo: true, email: true, url: true, archivo: true, codigo: true, usuarioAcceso: true,
+            fechaEntrega: true, fechaExpiracion: true, instrucciones: true, observaciones: true,
+          },
+        },
+      },
+    }),
+    auth.sesion.usuarioId
+      ? prisma.usuario.findFirst({ where: { id: auth.sesion.usuarioId }, select: { nombre: true } }).then(u => u?.nombre ?? null)
+      : Promise.resolve(null),
+  ]);
+
+  if (!pedido) return { exito: false, error: "Pedido no encontrado" };
+  if (!pedido.flujoVentaEtapa?.permiteEditarEntrega) {
+    return { exito: false, error: "La etapa actual del pedido no permite editar la entrega digital" };
+  }
+
+  const esNueva = !pedido.entregaDigital;
+  const nuevaFechaEntrega = fechaEntrega ? new Date(fechaEntrega) : null;
+  const nuevaFechaExpiracion = fechaExpiracion ? new Date(fechaExpiracion) : null;
+
+  await prisma.entregaDigitalPedido.upsert({
+    where: { pedidoId },
+    create: { pedidoId, ...campos, fechaEntrega: nuevaFechaEntrega, fechaExpiracion: nuevaFechaExpiracion },
+    update: { ...campos, fechaEntrega: nuevaFechaEntrega, fechaExpiracion: nuevaFechaExpiracion },
+  });
+
+  const valorAnterior = esNueva ? undefined : {
+    metodo:          pedido.entregaDigital!.metodo,
+    email:           pedido.entregaDigital!.email,
+    url:             pedido.entregaDigital!.url,
+    archivo:         pedido.entregaDigital!.archivo,
+    codigo:          pedido.entregaDigital!.codigo,
+    usuarioAcceso:   pedido.entregaDigital!.usuarioAcceso,
+    fechaEntrega:    pedido.entregaDigital!.fechaEntrega?.toISOString() ?? null,
+    fechaExpiracion: pedido.entregaDigital!.fechaExpiracion?.toISOString() ?? null,
+    instrucciones:   pedido.entregaDigital!.instrucciones,
+    observaciones:   pedido.entregaDigital!.observaciones,
+  };
+
+  await prisma.pedidoHistorial.create({
+    data: {
+      pedidoId,
+      accion: esNueva ? "ENTREGA_DIGITAL_REGISTRADA" : "ENTREGA_DIGITAL_ACTUALIZADA",
+      usuarioId:     auth.sesion.usuarioId ?? null,
+      usuarioNombre: usuarioNombre ?? null,
+      ...(valorAnterior && { valorAnterior }),
+      valorNuevo: { ...campos, fechaEntrega: fechaEntrega ?? null, fechaExpiracion: fechaExpiracion ?? null },
     },
   });
 
