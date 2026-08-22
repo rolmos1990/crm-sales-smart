@@ -53,7 +53,14 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
       return;
     }
 
-    const intentos = (msg.properties.headers?.["x-delivery-count"] as number | undefined) ?? 0;
+    // x-delivery-count solo lo rellena RabbitMQ en colas quorum — las de
+    // este proyecto son clásicas (ver conexion.ts, queueOpts, sin
+    // x-queue-type: "quorum"), así que ese header nunca llega y esto
+    // siempre daba 0 sin importar cuántas veces ya se reintentó. El
+    // conteo real se lleva a mano en "x-intentos", un header propio que
+    // nosotros mismos seteamos al republicar más abajo — en la primera
+    // entrega no existe todavía, por eso el fallback a 0.
+    const intentos = (msg.properties.headers?.["x-intentos"] as number | undefined) ?? 0;
 
     try {
       await this.manejar(envelope);
@@ -64,13 +71,23 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
         err
       );
 
-      const reintentar = intentos < MAX_INTENTOS - 1;
-      if (!reintentar) {
+      if (intentos + 1 < MAX_INTENTOS) {
+        // nack(requeue=true) no serviría acá — en una cola clásica vuelve
+        // a poner el MISMO mensaje con sus headers originales intactos,
+        // nunca incrementa nada. Se republica una copia con el contador
+        // subido y se hace ack() del original (ya quedó reemplazado).
+        ch.sendToQueue(this.queue, msg.content, {
+          persistent: true,
+          contentType: msg.properties.contentType,
+          headers: { ...msg.properties.headers, "x-intentos": intentos + 1 },
+        });
+        ch.ack(msg);
+      } else {
         await this.alAgotarReintentos(envelope, err).catch((hookErr) =>
           console.error(`[${this.constructor.name}] alAgotarReintentos falló:`, hookErr)
         );
+        ch.nack(msg, false, false); // agotados los intentos → dead-letter (crm.muertos)
       }
-      ch.nack(msg, false, reintentar);
     }
   }
 }
