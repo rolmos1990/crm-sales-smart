@@ -61,9 +61,19 @@ export class InstagramProvider implements ICanalProvider {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
+      // messaging_type + tag HUMAN_AGENT: por defecto Meta solo deja
+      // responder dentro de las 24h desde el último mensaje del contacto
+      // (error code 10 / subcode 2534022, "outside allowed window" cuando
+      // se vence). El tag HUMAN_AGENT extiende esa ventana a 7 días para
+      // conversaciones ya iniciadas por el contacto que un agente (humano o
+      // la IA respondiendo en su nombre, ver generar-respuesta-ia.suscriptor.ts
+      // — mismo camino de envío) está atendiendo — no aplica a mensajes que
+      // el negocio inicia sin que el contacto haya escrito antes.
       body: JSON.stringify({
         recipient: { id: payload.destinatario },
         message: messageBody,
+        messaging_type: "MESSAGE_TAG",
+        tag: "HUMAN_AGENT",
       }),
     });
 
