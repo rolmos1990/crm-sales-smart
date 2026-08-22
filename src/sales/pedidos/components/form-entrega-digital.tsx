@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { CampoCodigoLicencia } from "@/shared/ui/campo-codigo-licencia";
 import { actualizarEntregaDigitalPedido } from "../actions";
 import { ActualizarEntregaDigitalPedidoSchema, type ActualizarEntregaDigitalPedidoInput } from "../schema";
 import { METODO_ENTREGA_DIGITAL_LABELS } from "../constantes";
@@ -23,38 +24,43 @@ interface EntregaDigitalActual {
   email?: string | null;
   url?: string | null;
   archivo?: string | null;
-  codigo?: string | null;
   usuarioAcceso?: string | null;
   fechaEntrega?: Date | string | null;
   fechaExpiracion?: Date | string | null;
   instrucciones?: string | null;
   observaciones?: string | null;
+  /** Nunca el código real — ver src/shared/lib/codigo-sensible.ts. */
+  tieneCodigoConfigurado?: boolean;
 }
 
 interface FormEntregaDigitalProps {
-  pedidoId: string;
+  pedidoLineaId: string;
   entregaDigital?: EntregaDigitalActual | null;
 }
 
-export function FormEntregaDigital({ pedidoId, entregaDigital }: FormEntregaDigitalProps) {
+export function FormEntregaDigital({ pedidoLineaId, entregaDigital }: FormEntregaDigitalProps) {
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<ActualizarEntregaDigitalPedidoInput>({
     resolver: zodResolver(ActualizarEntregaDigitalPedidoSchema),
     defaultValues: {
-      pedidoId,
+      pedidoLineaId,
       metodo:          (entregaDigital?.metodo ?? null) as ActualizarEntregaDigitalPedidoInput["metodo"],
       email:           entregaDigital?.email ?? "",
       url:             entregaDigital?.url ?? "",
       archivo:         entregaDigital?.archivo ?? "",
-      codigo:          entregaDigital?.codigo ?? "",
       usuarioAcceso:   entregaDigital?.usuarioAcceso ?? "",
       fechaEntrega:    entregaDigital?.fechaEntrega ? new Date(entregaDigital.fechaEntrega).toISOString() : null,
       fechaExpiracion: entregaDigital?.fechaExpiracion ? new Date(entregaDigital.fechaExpiracion).toISOString() : null,
       instrucciones:   entregaDigital?.instrucciones ?? "",
       observaciones:   entregaDigital?.observaciones ?? "",
+      codigoAccion:    entregaDigital?.tieneCodigoConfigurado ? "CONSERVAR" : undefined,
+      codigoNuevo:     "",
     },
   });
+
+  const codigoAccion = form.watch("codigoAccion") ?? "CONSERVAR";
+  const codigoNuevo = form.watch("codigoNuevo") ?? "";
 
   const onSubmit = (valores: ActualizarEntregaDigitalPedidoInput) => {
     startTransition(async () => {
@@ -139,19 +145,20 @@ export function FormEntregaDigital({ pedidoId, entregaDigital }: FormEntregaDigi
         </div>
 
         <div className="grid grid-cols-3 gap-4">
-          <FormField
-            control={form.control}
-            name="codigo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código / Licencia</FormLabel>
-                <FormControl>
-                  <Input placeholder="Código de activación..." {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <FormItem>
+            <FormLabel>Código / Licencia</FormLabel>
+            <CampoCodigoLicencia
+              origen="pedido"
+              tieneCodigoConfigurado={!!form.watch("codigoAccion")}
+              accion={codigoAccion === "REEMPLAZAR" ? "REEMPLAZAR" : "CONSERVAR"}
+              onAccionChange={(a) => form.setValue("codigoAccion", a)}
+              valorNuevo={codigoNuevo}
+              onValorNuevoChange={(v) => {
+                form.setValue("codigoNuevo", v);
+                form.setValue("codigoAccion", "REEMPLAZAR");
+              }}
+            />
+          </FormItem>
           <FormField
             control={form.control}
             name="usuarioAcceso"

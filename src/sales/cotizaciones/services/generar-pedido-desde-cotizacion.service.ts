@@ -41,11 +41,14 @@ export async function generarPedidoDesdeCotizacion(
       lineas: {
         include: {
           producto: { select: { id: true, nombre: true, manejaStock: true, cantidadDisponible: true } },
+          // Por línea, no por documento — ver EntregaDigitalCotizacion.
+          // Esto es una copia servidor↔servidor (nunca sale hacia un
+          // cliente), así que acá sí se lee `codigo` en texto plano.
+          entregaDigital: true,
         },
       },
       entrega: true,
       servicio: true,
-      entregaDigital: true,
     },
   });
   if (!cotizacion) {
@@ -125,18 +128,9 @@ export async function generarPedidoDesdeCotizacion(
         // Ya resuelto al crear/editar la cotización — se copia tal cual, no
         // hay que recalcularlo (ver resolverTipoCumplimiento en cotizaciones/actions.ts).
         tipoCumplimiento:   cotizacion.tipoCumplimiento,
-        lineas: {
-          create: cotizacion.lineas.map((l) => ({
-            productoId:     l.productoId,
-            descripcion:    l.descripcion,
-            cantidad:       l.cantidad,
-            precioUnitario: l.precioUnitario,
-            descuento:      l.descuento,
-            impuesto:       l.impuesto,
-            subtotal:       l.subtotal,
-            total:          l.total,
-          })),
-        },
+        // Las líneas se crean por separado más abajo (una a una, no en
+        // bloque) — cada una puede traer su propio entregaDigital anidado,
+        // y así queda su propio id disponible para esa creación anidada.
         // La entrega ya capturada en la cotización pasa directo al pedido —
         // el usuario no tiene que volver a registrarla (ver EntregaCotizacion).
         entrega: cotizacion.entrega ? {
@@ -168,20 +162,6 @@ export async function generarPedidoDesdeCotizacion(
             observaciones: cotizacion.servicio.observaciones,
           },
         } : undefined,
-        entregaDigital: cotizacion.entregaDigital ? {
-          create: {
-            metodo:          cotizacion.entregaDigital.metodo,
-            email:           cotizacion.entregaDigital.email,
-            url:             cotizacion.entregaDigital.url,
-            archivo:         cotizacion.entregaDigital.archivo,
-            codigo:          cotizacion.entregaDigital.codigo,
-            usuarioAcceso:   cotizacion.entregaDigital.usuarioAcceso,
-            fechaEntrega:    cotizacion.entregaDigital.fechaEntrega,
-            fechaExpiracion: cotizacion.entregaDigital.fechaExpiracion,
-            instrucciones:   cotizacion.entregaDigital.instrucciones,
-            observaciones:   cotizacion.entregaDigital.observaciones,
-          },
-        } : undefined,
         // Campos personalizados heredados de la oportunidad — mismo campoId
         // y valor, como snapshot al momento de aprobar.
         campos: camposOportunidad.length > 0 ? {
@@ -192,6 +172,39 @@ export async function generarPedidoDesdeCotizacion(
         } : undefined,
       },
     });
+
+    // Una a una (no `lineas: { create: [...] }` en bloque): cada línea
+    // puede traer su propio entregaDigital anidado, copiado tal cual desde
+    // la línea de la cotización de origen (ver CotizacionLinea.entregaDigital).
+    for (const l of cotizacion.lineas) {
+      await tx.pedidoLinea.create({
+        data: {
+          pedidoId:       nuevoPedido.id,
+          productoId:     l.productoId,
+          descripcion:    l.descripcion,
+          cantidad:       l.cantidad,
+          precioUnitario: l.precioUnitario,
+          descuento:      l.descuento,
+          impuesto:       l.impuesto,
+          subtotal:       l.subtotal,
+          total:          l.total,
+          entregaDigital: l.entregaDigital ? {
+            create: {
+              metodo:          l.entregaDigital.metodo,
+              email:           l.entregaDigital.email,
+              url:             l.entregaDigital.url,
+              archivo:         l.entregaDigital.archivo,
+              codigo:          l.entregaDigital.codigo,
+              usuarioAcceso:   l.entregaDigital.usuarioAcceso,
+              fechaEntrega:    l.entregaDigital.fechaEntrega,
+              fechaExpiracion: l.entregaDigital.fechaExpiracion,
+              instrucciones:   l.entregaDigital.instrucciones,
+              observaciones:   l.entregaDigital.observaciones,
+            },
+          } : undefined,
+        },
+      });
+    }
 
     if (etapaInicial) {
       await tx.pedidoHistorialEtapa.create({

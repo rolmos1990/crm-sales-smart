@@ -411,10 +411,15 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
         />
       ) : (pedido as any).tipoCumplimiento === "DIGITAL" ? (
         <SeccionEntregaDigital
-          pedidoId={pedido.id}
           rol={sesion.rol}
           flujoVentaEtapa={etapaActual}
-          entregaDigital={(pedido as any).entregaDigital ?? null}
+          lineas={((pedido as any).lineas ?? [])
+            .filter((l: any) => l.producto?.tipo === "DIGITAL")
+            .map((l: any) => ({
+              pedidoLineaId: l.id,
+              nombreProducto: l.producto?.nombre ?? l.descripcion ?? null,
+              entregaDigital: l.entregaDigital ?? null,
+            }))}
         />
       ) : (
         <SeccionEntrega

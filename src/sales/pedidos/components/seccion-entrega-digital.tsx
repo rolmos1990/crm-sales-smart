@@ -1,27 +1,35 @@
-import { Download, Mail, Link2, Hash, User, Calendar, FileText, Lock } from "lucide-react";
+import { Download, Mail, Link2, User, Calendar, FileText, Lock, Package, Check } from "lucide-react";
 import { FormEntregaDigital } from "./form-entrega-digital";
 import type { Rol } from "@/generated/prisma/enums";
 import { METODO_ENTREGA_DIGITAL_LABELS } from "../constantes";
 
 interface EntregaDigitalActual {
-  id: string;
   metodo?: string | null;
   email?: string | null;
   url?: string | null;
   archivo?: string | null;
-  codigo?: string | null;
   usuarioAcceso?: string | null;
   fechaEntrega?: Date | null;
   fechaExpiracion?: Date | null;
   instrucciones?: string | null;
   observaciones?: string | null;
+  /** Nunca el código real — ver src/shared/lib/codigo-sensible.ts. */
+  tieneCodigoConfigurado?: boolean;
+}
+
+interface LineaDigital {
+  pedidoLineaId: string;
+  nombreProducto: string | null;
+  entregaDigital: EntregaDigitalActual | null;
 }
 
 interface SeccionEntregaDigitalProps {
-  pedidoId: string;
   rol: Rol;
   flujoVentaEtapa?: { permiteEditarEntrega: boolean } | null;
-  entregaDigital?: EntregaDigitalActual | null;
+  /** Una por cada línea del pedido cuyo producto es DIGITAL — un pedido
+   *  puede tener varios productos DIGITAL distintos, cada uno con su
+   *  propia entrega (ver EntregaDigitalPedido en schema.prisma). */
+  lineas: LineaDigital[];
 }
 
 function CampoInfo({ icono: Icono, label, valor }: { icono: React.ElementType; label: string; valor?: string | null }) {
@@ -38,10 +46,9 @@ function CampoInfo({ icono: Icono, label, valor }: { icono: React.ElementType; l
 }
 
 export async function SeccionEntregaDigital({
-  pedidoId,
   rol,
   flujoVentaEtapa,
-  entregaDigital,
+  lineas,
 }: SeccionEntregaDigitalProps) {
   const puedeEditar = ["OWNER", "ADMIN"].includes(rol) && (flujoVentaEtapa?.permiteEditarEntrega ?? false);
 
@@ -64,69 +71,8 @@ export async function SeccionEntregaDigital({
         )}
       </div>
 
-      <div className="p-5">
-        {puedeEditar ? (
-          <FormEntregaDigital pedidoId={pedidoId} entregaDigital={entregaDigital} />
-        ) : entregaDigital ? (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-            <CampoInfo
-              icono={Download}
-              label="Método"
-              valor={entregaDigital.metodo ? METODO_ENTREGA_DIGITAL_LABELS[entregaDigital.metodo] : null}
-            />
-            <CampoInfo icono={Mail} label="Email" valor={entregaDigital.email} />
-            <CampoInfo icono={Hash} label="Código / Licencia" valor={entregaDigital.codigo} />
-            <CampoInfo icono={User} label="Usuario / Referencia" valor={entregaDigital.usuarioAcceso} />
-            <CampoInfo
-              icono={Calendar}
-              label="Fecha de entrega"
-              valor={entregaDigital.fechaEntrega
-                ? new Date(entregaDigital.fechaEntrega).toLocaleDateString("es-PE", { dateStyle: "medium" })
-                : null
-              }
-            />
-            <CampoInfo
-              icono={Calendar}
-              label="Fecha de expiración"
-              valor={entregaDigital.fechaExpiracion
-                ? new Date(entregaDigital.fechaExpiracion).toLocaleDateString("es-PE", { dateStyle: "medium" })
-                : null
-              }
-            />
-            {(entregaDigital.url || entregaDigital.archivo) && (
-              <div className="col-span-2 flex items-start gap-2">
-                <Link2 className="h-3.5 w-3.5 text-stone-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-[10px] uppercase tracking-wide text-stone-400 dark:text-stone-500">
-                    {entregaDigital.url ? "URL / Link" : "Archivo / Recurso"}
-                  </p>
-                  {entregaDigital.url ? (
-                    <a
-                      href={entregaDigital.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-lime-600 dark:text-lime-400 hover:underline truncate block max-w-sm"
-                    >
-                      {entregaDigital.url}
-                    </a>
-                  ) : (
-                    <p className="text-sm text-stone-700 dark:text-stone-300">{entregaDigital.archivo}</p>
-                  )}
-                </div>
-              </div>
-            )}
-            <CampoInfo
-              icono={FileText}
-              label="Instrucciones"
-              valor={entregaDigital.instrucciones}
-            />
-            <CampoInfo
-              icono={FileText}
-              label="Observaciones"
-              valor={entregaDigital.observaciones}
-            />
-          </div>
-        ) : (
+      <div className="p-5 space-y-4">
+        {lineas.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="h-10 w-10 rounded-xl bg-stone-100 dark:bg-white/5 flex items-center justify-center mb-3">
               <Download className="h-5 w-5 text-stone-400" />
@@ -143,6 +89,81 @@ export async function SeccionEntregaDigital({
               </p>
             )}
           </div>
+        ) : (
+          lineas.map(({ pedidoLineaId, nombreProducto, entregaDigital }) => (
+            <div key={pedidoLineaId} className={lineas.length > 1 ? "rounded-xl border border-stone-100 dark:border-white/5 p-4" : ""}>
+              {lineas.length > 1 && (
+                <p className="flex items-center gap-1.5 text-xs font-medium text-stone-500 dark:text-stone-400 mb-3">
+                  <Package className="h-3.5 w-3.5" />
+                  {nombreProducto || "Producto"}
+                </p>
+              )}
+              {puedeEditar ? (
+                <FormEntregaDigital pedidoLineaId={pedidoLineaId} entregaDigital={entregaDigital} />
+              ) : entregaDigital ? (
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <CampoInfo
+                    icono={Download}
+                    label="Método"
+                    valor={entregaDigital.metodo ? METODO_ENTREGA_DIGITAL_LABELS[entregaDigital.metodo] : null}
+                  />
+                  <CampoInfo icono={Mail} label="Email" valor={entregaDigital.email} />
+                  <CampoInfo icono={Check} label="Código / Licencia" valor={entregaDigital.tieneCodigoConfigurado ? "Configurado" : null} />
+                  <CampoInfo icono={User} label="Usuario / Referencia" valor={entregaDigital.usuarioAcceso} />
+                  <CampoInfo
+                    icono={Calendar}
+                    label="Fecha de entrega"
+                    valor={entregaDigital.fechaEntrega
+                      ? new Date(entregaDigital.fechaEntrega).toLocaleDateString("es-PE", { dateStyle: "medium" })
+                      : null
+                    }
+                  />
+                  <CampoInfo
+                    icono={Calendar}
+                    label="Fecha de expiración"
+                    valor={entregaDigital.fechaExpiracion
+                      ? new Date(entregaDigital.fechaExpiracion).toLocaleDateString("es-PE", { dateStyle: "medium" })
+                      : null
+                    }
+                  />
+                  {(entregaDigital.url || entregaDigital.archivo) && (
+                    <div className="col-span-2 flex items-start gap-2">
+                      <Link2 className="h-3.5 w-3.5 text-stone-400 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-stone-400 dark:text-stone-500">
+                          {entregaDigital.url ? "URL / Link" : "Archivo / Recurso"}
+                        </p>
+                        {entregaDigital.url ? (
+                          <a
+                            href={entregaDigital.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-lime-600 dark:text-lime-400 hover:underline truncate block max-w-sm"
+                          >
+                            {entregaDigital.url}
+                          </a>
+                        ) : (
+                          <p className="text-sm text-stone-700 dark:text-stone-300">{entregaDigital.archivo}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <CampoInfo
+                    icono={FileText}
+                    label="Instrucciones"
+                    valor={entregaDigital.instrucciones}
+                  />
+                  <CampoInfo
+                    icono={FileText}
+                    label="Observaciones"
+                    valor={entregaDigital.observaciones}
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-stone-500 dark:text-stone-500">Sin datos de entrega digital</p>
+              )}
+            </div>
+          ))
         )}
       </div>
     </div>

@@ -813,11 +813,40 @@ model Producto {
   oportunidadLineas OportunidadProducto[]
   cotizacionLineas  CotizacionLinea[]
   pedidoLineas      PedidoLinea[]
+  // Plantilla de entrega digital — solo se usa cuando tipo = DIGITAL. Se
+  // copia como snapshot independiente a cada línea que use este producto
+  // (ver EntregaDigitalCotizacion/Pedido); editar esto después NUNCA
+  // cambia una Cotización/Pedido ya creada.
+  entregaDigital    ProductoEntregaDigital?
 
   @@index([instanciaId])
   @@index([sku])
   @@index([nombre])
   @@index([categoria])
+}
+
+// Valores por defecto de entrega digital de un Producto — ver comentario en
+// Producto.entregaDigital. Todos los campos abiertos/opcionales, igual
+// criterio que EntregaDigitalCotizacion/Pedido. Sin `email` a propósito: el
+// email es del comprador, no del producto.
+model ProductoEntregaDigital {
+  id                  String                @id @default(cuid())
+  metodo              MetodoEntregaDigital?
+  url                 String?
+  archivo             String?
+  codigo              String?
+  usuarioAcceso       String?
+  instrucciones       String?
+  observaciones       String?
+  requiereSeguimiento Boolean               @default(false)
+  tipoSeguimiento     String?
+  creadoEn            DateTime              @default(now())
+  actualizadoEn       DateTime              @updatedAt
+
+  productoId String   @unique
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  @@index([productoId])
 }
 
 // =====================
@@ -915,14 +944,16 @@ model Cotizacion {
   usuarioInstanciaId String?
   usuarioInstancia   UsuarioInstancia? @relation(fields: [usuarioInstanciaId], references: [id])
 
-  lineas         CotizacionLinea[]
-  pedidos        Pedido[]
-  campos         CampoPersonalizadoValor[]
-  actividades    Actividad[]
-  // Solo una de estas tres existe a la vez, según tipoCumplimiento.
-  entrega        EntregaCotizacion?
-  servicio       ServicioCotizacion?
-  entregaDigital EntregaDigitalCotizacion?
+  lineas      CotizacionLinea[]
+  pedidos     Pedido[]
+  campos      CampoPersonalizadoValor[]
+  actividades Actividad[]
+  // entrega/servicio: solo una existe a la vez, según tipoCumplimiento —
+  // sin cambios. entregaDigital ya NO vive acá: pasó a CotizacionLinea
+  // (una cotización puede tener varios productos DIGITAL, cada uno con su
+  // propia entrega — ver CotizacionLinea.entregaDigital).
+  entrega     EntregaCotizacion?
+  servicio    ServicioCotizacion?
 
   @@unique([instanciaId, numero])
   @@index([instanciaId])
@@ -977,8 +1008,12 @@ model ServicioCotizacion {
   @@index([cotizacionId])
 }
 
-// Cumplimiento cuando Cotizacion.tipoCumplimiento = DIGITAL — espejo de
-// EntregaDigitalPedido. Todos los campos abiertos/opcionales.
+// Cumplimiento cuando la línea usa un producto DIGITAL — espejo de
+// EntregaDigitalPedido. Todos los campos abiertos/opcionales. Anclada a la
+// LÍNEA (no a la cotización completa): una cotización con varios productos
+// DIGITAL distintos tiene una fila independiente por cada uno — se copia
+// como snapshot desde Producto.entregaDigital al agregar la línea, y queda
+// totalmente editable sin depender del producto (ver actions.ts).
 model EntregaDigitalCotizacion {
   id              String                @id @default(cuid())
   metodo          MetodoEntregaDigital?
@@ -994,10 +1029,10 @@ model EntregaDigitalCotizacion {
   creadoEn        DateTime              @default(now())
   actualizadoEn   DateTime              @updatedAt
 
-  cotizacionId String     @unique
-  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  cotizacionLineaId String          @unique
+  cotizacionLinea   CotizacionLinea @relation(fields: [cotizacionLineaId], references: [id], onDelete: Cascade)
 
-  @@index([cotizacionId])
+  @@index([cotizacionLineaId])
 }
 
 model CotizacionLinea {
@@ -1017,6 +1052,8 @@ model CotizacionLinea {
 
   productoId String?
   producto   Producto? @relation(fields: [productoId], references: [id])
+
+  entregaDigital EntregaDigitalCotizacion?
 }
 
 // =====================
@@ -1092,10 +1129,11 @@ model Pedido {
   historial       PedidoHistorial[]
   disparadorJobs  DisparadorJob[]
   actividades     Actividad[]
-  // Solo una de estas tres existe a la vez, según tipoCumplimiento.
+  // entrega/servicio: solo una existe a la vez, según tipoCumplimiento —
+  // sin cambios. entregaDigital ya NO vive acá: pasó a PedidoLinea (mismo
+  // motivo que en Cotizacion — ver PedidoLinea.entregaDigital).
   entrega         EntregaPedido?
   servicio        ServicioPedido?
-  entregaDigital  EntregaDigitalPedido?
 
   @@unique([instanciaId, numero])
   @@index([instanciaId])
@@ -1122,6 +1160,8 @@ model PedidoLinea {
 
   productoId String?
   producto   Producto? @relation(fields: [productoId], references: [id])
+
+  entregaDigital EntregaDigitalPedido?
 }
 
 // =====================
@@ -1192,6 +1232,8 @@ model ServicioPedido {
 
 // Cumplimiento cuando Pedido.tipoCumplimiento = DIGITAL — espejo de
 // EntregaDigitalCotizacion. Todos los campos abiertos/opcionales.
+// Anclada a la LÍNEA — ver comentario en EntregaDigitalCotizacion (mismo
+// motivo: un pedido puede tener varios productos DIGITAL distintos).
 model EntregaDigitalPedido {
   id              String                @id @default(cuid())
   metodo          MetodoEntregaDigital?
@@ -1207,10 +1249,10 @@ model EntregaDigitalPedido {
   creadoEn        DateTime              @default(now())
   actualizadoEn   DateTime              @updatedAt
 
-  pedidoId String @unique
-  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pedidoLineaId String      @unique
+  pedidoLinea   PedidoLinea @relation(fields: [pedidoLineaId], references: [id], onDelete: Cascade)
 
-  @@index([pedidoId])
+  @@index([pedidoLineaId])
 }
 
 // =====================

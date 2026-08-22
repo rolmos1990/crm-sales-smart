@@ -15,11 +15,22 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { CampoCodigoLicencia } from "@/shared/ui/campo-codigo-licencia";
 import { crearProducto, actualizarProducto } from "../actions";
 import { CrearProductoSchema, type CrearProductoInput } from "../schema";
 import { TIPO_PRODUCTO_LABELS, type Producto, type TipoProducto } from "../types";
 import { MediaUploader } from "@/components/media/media-uploader";
 import { vincularMediaArchivo } from "@/lib/media/server-actions";
+
+const METODO_ENTREGA_DIGITAL_LABELS: Record<string, string> = {
+  EMAIL: "Email",
+  LINK: "Link",
+  DESCARGA: "Descarga",
+  ACCESO: "Acceso",
+  LICENCIA: "Licencia",
+  MANUAL: "Manual",
+  OTRO: "Otro",
+};
 
 interface FormProductoProps {
   instanciaId: string;
@@ -48,8 +59,25 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
       activo: inicial?.activo ?? true,
       manejaStock: inicial?.manejaStock ?? false,
       cantidadDisponible: inicial?.cantidadDisponible ?? 0,
+      entregaDigital: {
+        metodo: inicial?.entregaDigital?.metodo ?? undefined,
+        url: inicial?.entregaDigital?.url ?? "",
+        archivo: inicial?.entregaDigital?.archivo ?? "",
+        usuarioAcceso: inicial?.entregaDigital?.usuarioAcceso ?? "",
+        instrucciones: inicial?.entregaDigital?.instrucciones ?? "",
+        observaciones: inicial?.entregaDigital?.observaciones ?? "",
+        requiereSeguimiento: inicial?.entregaDigital?.requiereSeguimiento ?? false,
+        tipoSeguimiento: inicial?.entregaDigital?.tipoSeguimiento ?? "",
+        // Sin acción todavía — el componente solo la usa si ya hay código.
+        codigoAccion: inicial?.entregaDigital?.tieneCodigoConfigurado ? "CONSERVAR" : undefined,
+        codigoNuevo: "",
+      },
     },
   });
+
+  const tipo = form.watch("tipo") ?? "FISICO";
+  const codigoAccion = form.watch("entregaDigital.codigoAccion") ?? "CONSERVAR";
+  const codigoNuevo = form.watch("entregaDigital.codigoNuevo") ?? "";
 
   const onSubmit = async (datos: CrearProductoInput) => {
     if (modo === "crear") {
@@ -208,6 +236,133 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
             <FormMessage />
           </FormItem>
         )} />
+
+        {/* Entrega digital — solo cuando tipo = DIGITAL. Estos son los
+            valores por defecto (plantilla) que se copian a cada línea de
+            Cotización/Pedido que use este producto; el agente los puede
+            personalizar después sin afectar al producto. */}
+        {tipo === "DIGITAL" && (
+          <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4 space-y-4">
+            <p className="text-sm font-medium text-stone-700 dark:text-stone-300">
+              Entrega digital
+              <span className="text-xs font-normal text-stone-400 dark:text-stone-500 ml-1">
+                (valores por defecto — se copian a cada cotización/pedido)
+              </span>
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField control={form.control} name="entregaDigital.metodo" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Método <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? "__ninguno__"}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue>{field.value ? METODO_ENTREGA_DIGITAL_LABELS[field.value] : "Sin especificar"}</SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="__ninguno__">Sin especificar</SelectItem>
+                      {Object.entries(METODO_ENTREGA_DIGITAL_LABELS).map(([v, l]) => (
+                        <SelectItem key={v} value={v}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )} />
+              <FormItem>
+                <FormLabel>Código / Licencia <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                <CampoCodigoLicencia
+                  origen="producto"
+                  tieneCodigoConfigurado={inicial?.entregaDigital?.tieneCodigoConfigurado ?? false}
+                  accion={codigoAccion === "REEMPLAZAR" ? "REEMPLAZAR" : "CONSERVAR"}
+                  onAccionChange={(a) => form.setValue("entregaDigital.codigoAccion", a)}
+                  valorNuevo={codigoNuevo}
+                  onValorNuevoChange={(v) => {
+                    form.setValue("entregaDigital.codigoNuevo", v);
+                    // Escribir acá siempre implica "usar este valor" — tanto si
+                    // reemplaza uno existente como si es el primero que se configura.
+                    form.setValue("entregaDigital.codigoAccion", "REEMPLAZAR");
+                  }}
+                />
+              </FormItem>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField control={form.control} name="entregaDigital.url" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL / Link <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://..." {...field} value={field.value ?? ""} />
+                  </FormControl>
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="entregaDigital.archivo" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Archivo / Recurso <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="Nombre del archivo o recurso..." {...field} value={field.value ?? ""} />
+                  </FormControl>
+                </FormItem>
+              )} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FormField control={form.control} name="entregaDigital.usuarioAcceso" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Usuario / Referencia <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="Usuario de acceso..." {...field} value={field.value ?? ""} />
+                  </FormControl>
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="entregaDigital.tipoSeguimiento" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de seguimiento <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ej: Activación" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="entregaDigital.requiereSeguimiento" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Requiere seguimiento</FormLabel>
+                  <div className="h-9 flex items-center">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={field.value}
+                      onClick={() => field.onChange(!field.value)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        field.value ? "bg-lime-500 dark:bg-lime-500" : "bg-stone-300 dark:bg-white/20"
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        field.value ? "translate-x-6" : "translate-x-1"
+                      }`} />
+                    </button>
+                  </div>
+                </FormItem>
+              )} />
+            </div>
+
+            <FormField control={form.control} name="entregaDigital.instrucciones" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Instrucciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                <FormControl>
+                  <Textarea placeholder="Instrucciones de acceso o uso..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
+                </FormControl>
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="entregaDigital.observaciones" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Observaciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                <FormControl>
+                  <Textarea placeholder="Notas adicionales..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
+                </FormControl>
+              </FormItem>
+            )} />
+          </div>
+        )}
 
         {/* Control de stock */}
         <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4 space-y-4">

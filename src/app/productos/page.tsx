@@ -17,7 +17,9 @@ export default async function ProductosPage() {
 
   try {
     const datos = await obtenerProductos(sesion.instanciaId);
-    productos = datos.map((p) => ({ ...p, precio: Number(p.precio), cantidadDisponible: Number(p.cantidadDisponible) })) as Producto[];
+    // El listado no necesita entregaDigital (solo la ficha/edición la usa) —
+    // obtenerProductos no la trae, así que se completa en null acá.
+    productos = datos.map((p) => ({ ...p, precio: Number(p.precio), cantidadDisponible: Number(p.cantidadDisponible), entregaDigital: null })) as Producto[];
   } catch {
     // DB not configured — show empty state
   }

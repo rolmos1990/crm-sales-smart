@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, Minus, X, FileText, Mail, Phone, Pencil,
+  Plus, Trash2, Minus, X, FileText, Mail, Phone, Pencil, Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ import {
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { CampoCodigoLicencia } from "@/shared/ui/campo-codigo-licencia";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
 import { buscarContactosAction } from "@/crm/contactos/actions";
 import { crearCotizacion, actualizarCotizacion } from "../actions";
@@ -179,7 +180,8 @@ export function FormCotizacion({
       destinatario: { nombre: "", apellido: "", telefono: "", email: "" },
       entrega: { metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE", costoEnvio: 0 },
       servicio: { hora: "", duracion: "", ubicacion: "", direccion: "", responsable: "", instrucciones: "", observaciones: "" },
-      entregaDigital: { email: "", url: "", archivo: "", codigo: "", usuarioAcceso: "", instrucciones: "", observaciones: "" },
+      // entregaDigital ya no va acá — es por línea (ver lineas[].entregaDigital,
+      // precargado en onSeleccionar cuando el producto elegido es Digital).
       lineas: [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
       ...defaultValues,
     },
@@ -208,10 +210,18 @@ export function FormCotizacion({
   // abajo) sí se vea actualizado. subtotal/total tampoco están memoizados
   // por la misma razón — se recalculan en cada render, que es barato acá.
   const productoTipoPorId = new Map(productos.map((p) => [p.id, p.tipo]));
+  const productoPorId = new Map(productos.map((p) => [p.id, p]));
   const primeraLineaConProducto = lineas.find((l) => l.productoId && productoTipoPorId.has(l.productoId));
   const tipoCumplimiento: TipoProducto = primeraLineaConProducto?.productoId
     ? (productoTipoPorId.get(primeraLineaConProducto.productoId) ?? "FISICO")
     : "FISICO";
+
+  // Índices de las líneas cuyo producto es Digital — una cotización puede
+  // tener varios productos Digital distintos, cada uno con su propia
+  // entrega (ver EntregaDigitalCotizacion, ahora por línea).
+  const indicesLineasDigital = lineas
+    .map((l, idx) => (l.productoId && productoTipoPorId.get(l.productoId) === "DIGITAL" ? idx : -1))
+    .filter((idx) => idx !== -1);
 
   const subtotal = lineas.reduce((acc, l) => {
     const base = (l.cantidad ?? 0) * (l.precioUnitario ?? 0);
@@ -538,6 +548,22 @@ export function FormCotizacion({
                                 form.setValue(`lineas.${idx}.productoId`, p.id);
                                 form.setValue(`lineas.${idx}.descripcion`, p.nombre);
                                 form.setValue(`lineas.${idx}.precioUnitario`, p.precio);
+                                // Producto = plantilla: precarga los valores por
+                                // defecto de entrega digital en esta línea (snapshot
+                                // editable — no una referencia viva al producto).
+                                if (p.tipo === "DIGITAL") {
+                                  form.setValue(`lineas.${idx}.entregaDigital`, {
+                                    metodo: p.entregaDigital?.metodo ?? undefined,
+                                    email: "",
+                                    url: p.entregaDigital?.url ?? "",
+                                    archivo: p.entregaDigital?.archivo ?? "",
+                                    usuarioAcceso: p.entregaDigital?.usuarioAcceso ?? "",
+                                    instrucciones: p.entregaDigital?.instrucciones ?? "",
+                                    observaciones: p.entregaDigital?.observaciones ?? "",
+                                    codigoAccion: p.entregaDigital?.tieneCodigoConfigurado ? "CONSERVAR" : undefined,
+                                    codigoNuevo: "",
+                                  });
+                                }
                               }}
                               onLimpiar={() => form.setValue(`lineas.${idx}.productoId`, "")}
                             />
@@ -869,121 +895,143 @@ export function FormCotizacion({
               </>
             )}
 
-            {tipoCumplimiento === "DIGITAL" && (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField control={form.control} name="entregaDigital.metodo" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Método <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? "__ninguno__"}>
+            {tipoCumplimiento === "DIGITAL" && indicesLineasDigital.map((idx) => {
+              const nombreProducto = lineas[idx]?.productoId ? productoPorId.get(lineas[idx].productoId!)?.nombre : null;
+              const codigoAccion = form.watch(`lineas.${idx}.entregaDigital.codigoAccion`) ?? "CONSERVAR";
+              const codigoNuevo = form.watch(`lineas.${idx}.entregaDigital.codigoNuevo`) ?? "";
+              // "Configurado" si ya hay una acción registrada — solo pasa
+              // cuando el producto/línea trae un código (ver onSeleccionar).
+              const tieneCodigoConfigurado = !!form.watch(`lineas.${idx}.entregaDigital.codigoAccion`);
+
+              return (
+                <div key={idx} className="rounded-xl border border-stone-200/70 dark:border-white/5 p-4 space-y-4">
+                  {indicesLineasDigital.length > 1 && (
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-stone-500 dark:text-stone-400">
+                      <Package className="h-3.5 w-3.5" />
+                      {nombreProducto || `Línea ${idx + 1}`}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name={`lineas.${idx}.entregaDigital.metodo`} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Método <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? "__ninguno__"}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue>{field.value ? METODO_ENTREGA_DIGITAL_LABELS[field.value] : "Sin especificar"}</SelectValue>
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="__ninguno__">Sin especificar</SelectItem>
+                            {Object.entries(METODO_ENTREGA_DIGITAL_LABELS).map(([v, l]) => (
+                              <SelectItem key={v} value={v}>{l}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name={`lineas.${idx}.entregaDigital.email`} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue>{field.value ? METODO_ENTREGA_DIGITAL_LABELS[field.value] : "Sin especificar"}</SelectValue>
-                          </SelectTrigger>
+                          <Input type="email" placeholder="cliente@email.com" {...field} value={field.value ?? ""} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="__ninguno__">Sin especificar</SelectItem>
-                          {Object.entries(METODO_ENTREGA_DIGITAL_LABELS).map(([v, l]) => (
-                            <SelectItem key={v} value={v}>{l}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="entregaDigital.email" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="cliente@email.com" {...field} value={field.value ?? ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </div>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField control={form.control} name="entregaDigital.url" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>URL / Link <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://..." {...field} value={field.value ?? ""} />
-                      </FormControl>
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="entregaDigital.archivo" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Archivo / Recurso <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nombre del archivo o recurso..." {...field} value={field.value ?? ""} />
-                      </FormControl>
-                    </FormItem>
-                  )} />
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name={`lineas.${idx}.entregaDigital.url`} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>URL / Link <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://..." {...field} value={field.value ?? ""} />
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name={`lineas.${idx}.entregaDigital.archivo`} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Archivo / Recurso <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nombre del archivo o recurso..." {...field} value={field.value ?? ""} />
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormField control={form.control} name="entregaDigital.codigo" render={({ field }) => (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormItem>
                       <FormLabel>Código / Licencia <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Input placeholder="Código de activación..." {...field} value={field.value ?? ""} />
-                      </FormControl>
+                      <CampoCodigoLicencia
+                        origen="linea"
+                        tieneCodigoConfigurado={tieneCodigoConfigurado}
+                        accion={codigoAccion === "REEMPLAZAR" ? "REEMPLAZAR" : "CONSERVAR"}
+                        onAccionChange={(a) => form.setValue(`lineas.${idx}.entregaDigital.codigoAccion`, a)}
+                        valorNuevo={codigoNuevo}
+                        onValorNuevoChange={(v) => {
+                          form.setValue(`lineas.${idx}.entregaDigital.codigoNuevo`, v);
+                          form.setValue(`lineas.${idx}.entregaDigital.codigoAccion`, "REEMPLAZAR");
+                        }}
+                      />
                     </FormItem>
-                  )} />
-                  <FormField control={form.control} name="entregaDigital.usuarioAcceso" render={({ field }) => (
+                    <FormField control={form.control} name={`lineas.${idx}.entregaDigital.usuarioAcceso`} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Usuario / Referencia <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormControl>
+                          <Input placeholder="Usuario de acceso..." {...field} value={field.value ?? ""} />
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name={`lineas.${idx}.entregaDigital.fechaEntrega`} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fecha de entrega <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormControl>
+                          <SmartDatePicker
+                            value={field.value ?? undefined}
+                            onChange={field.onChange}
+                            placeholder="Seleccionar fecha"
+                            presets={["today", "plus5", "plus15", "custom"]}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <FormField control={form.control} name={`lineas.${idx}.entregaDigital.fechaExpiracion`} render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Usuario / Referencia <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Input placeholder="Usuario de acceso..." {...field} value={field.value ?? ""} />
-                      </FormControl>
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="entregaDigital.fechaEntrega" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fecha de entrega <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Fecha de expiración <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <SmartDatePicker
                           value={field.value ?? undefined}
                           onChange={field.onChange}
                           placeholder="Seleccionar fecha"
-                          presets={["today", "plus5", "plus15", "custom"]}
+                          presets={["today", "plus5", "plus15", "plus1m", "custom"]}
                         />
                       </FormControl>
                     </FormItem>
                   )} />
+
+                  <FormField control={form.control} name={`lineas.${idx}.entregaDigital.instrucciones`} render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Instrucciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Instrucciones de acceso o uso..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name={`lineas.${idx}.entregaDigital.observaciones`} render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Observaciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Notas sobre la entrega digital..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                    </FormItem>
+                  )} />
                 </div>
-
-                <FormField control={form.control} name="entregaDigital.fechaExpiracion" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Fecha de expiración <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                    <FormControl>
-                      <SmartDatePicker
-                        value={field.value ?? undefined}
-                        onChange={field.onChange}
-                        placeholder="Seleccionar fecha"
-                        presets={["today", "plus5", "plus15", "plus1m", "custom"]}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="entregaDigital.instrucciones" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Instrucciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Instrucciones de acceso o uso..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="entregaDigital.observaciones" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Observaciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Notas sobre la entrega digital..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                  </FormItem>
-                )} />
-              </>
-            )}
+              );
+            })}
           </section>
         </div>
       </form>

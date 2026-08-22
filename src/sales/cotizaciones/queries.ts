@@ -1,8 +1,16 @@
 import { prisma } from "@/shared/db/prisma";
+import { ocultarCodigo } from "@/shared/lib/codigo-sensible";
 
 const incluirRelaciones = {
   contacto: { select: { id: true, nombre: true, apellido: true } },
   empresa: { select: { id: true, nombre: true } },
+} as const;
+
+// `codigo` se trae de Prisma pero nunca sale de esta función tal cual — ver
+// ocultarCodigo, aplicado siempre antes del `return`.
+const SELECT_ENTREGA_DIGITAL_LINEA = {
+  metodo: true, email: true, url: true, archivo: true, codigo: true, usuarioAcceso: true,
+  fechaEntrega: true, fechaExpiracion: true, instrucciones: true, observaciones: true,
 } as const;
 
 export async function obtenerCotizaciones(instanciaId: string) {
@@ -14,17 +22,30 @@ export async function obtenerCotizaciones(instanciaId: string) {
 }
 
 export async function obtenerCotizacionPorId(id: string, instanciaId: string) {
-  return prisma.cotizacion.findFirst({
+  const cotizacion = await prisma.cotizacion.findFirst({
     where: { id, instanciaId },
     include: {
       ...incluirRelaciones,
-      lineas: { include: { producto: { select: { id: true, nombre: true } } } },
+      lineas: {
+        include: {
+          producto: { select: { id: true, nombre: true } },
+          // Por línea (no por documento) — una cotización puede tener
+          // varios productos DIGITAL distintos, cada uno con su propia
+          // entrega (ver EntregaDigitalCotizacion en schema.prisma).
+          entregaDigital: { select: SELECT_ENTREGA_DIGITAL_LINEA },
+        },
+      },
       entrega: { include: { transportista: { select: { id: true, nombre: true, tipo: true } } } },
       // Solo para saber si ya se generó el pedido (ej. mostrar "Reintentar"
       // cuando quedó APROBADA sin pedido por una falla en el manejador async).
       pedidos: { select: { id: true, numero: true } },
     },
   });
+  if (!cotizacion) return null;
+  return {
+    ...cotizacion,
+    lineas: cotizacion.lineas.map((l) => ({ ...l, entregaDigital: ocultarCodigo(l.entregaDigital) })),
+  };
 }
 
 export async function obtenerCotizacionesPorContacto(contactoId: string, instanciaId: string) {

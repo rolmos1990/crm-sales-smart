@@ -12,6 +12,7 @@ import {
 import type { LineaPedidoInput, LineaPedidoEditInput } from "./schema";
 import { generarNumeroPedido } from "./queries";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
+import { resolverCodigoEfectivo } from "@/shared/lib/codigo-sensible";
 import type { ResultadoAccion, Pedido } from "./types";
 import type { TipoProducto } from "@/shared/productos/types";
 
@@ -650,8 +651,14 @@ export async function actualizarServicioPedido(datos: unknown): Promise<Resultad
 }
 
 /**
- * Igual patrón que actualizarEntregaPedido, para pedidos cuyo
- * tipoCumplimiento es DIGITAL (ver EntregaDigitalPedido en schema.prisma).
+ * Igual patrón que actualizarEntregaPedido, para líneas de pedido cuyo
+ * producto es DIGITAL (ver EntregaDigitalPedido en schema.prisma) — por
+ * línea, no por pedido completo, porque un pedido puede tener varios
+ * productos DIGITAL distintos, cada uno con su propia entrega.
+ *
+ * `codigo` nunca viaja del cliente en texto plano: el servidor resuelve el
+ * valor efectivo vía resolverCodigoEfectivo (CONSERVAR dejA el que ya
+ * había, REEMPLAZAR usa codigoNuevo) — ver src/shared/lib/codigo-sensible.ts.
  */
 export async function actualizarEntregaDigitalPedido(datos: unknown): Promise<ResultadoAccion<undefined>> {
   const validado = ActualizarEntregaDigitalPedidoSchema.safeParse(datos);
@@ -660,13 +667,14 @@ export async function actualizarEntregaDigitalPedido(datos: unknown): Promise<Re
   const auth = await requirePermisoAction("configuracion", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
 
-  const { pedidoId, fechaEntrega, fechaExpiracion, ...campos } = validado.data;
+  const { pedidoLineaId, fechaEntrega, fechaExpiracion, codigoAccion, codigoNuevo, ...campos } = validado.data;
 
-  const [pedido, usuarioNombre] = await Promise.all([
-    prisma.pedido.findFirst({
-      where: { id: pedidoId, instanciaId: auth.sesion.instanciaId },
+  const [linea, usuarioNombre] = await Promise.all([
+    prisma.pedidoLinea.findFirst({
+      where: { id: pedidoLineaId, pedido: { instanciaId: auth.sesion.instanciaId } },
       select: {
-        flujoVentaEtapa: { select: { permiteEditarEntrega: true } },
+        pedidoId: true,
+        pedido: { select: { flujoVentaEtapa: { select: { permiteEditarEntrega: true } } } },
         entregaDigital: {
           select: {
             metodo: true, email: true, url: true, archivo: true, codigo: true, usuarioAcceso: true,
@@ -680,46 +688,49 @@ export async function actualizarEntregaDigitalPedido(datos: unknown): Promise<Re
       : Promise.resolve(null),
   ]);
 
-  if (!pedido) return { exito: false, error: "Pedido no encontrado" };
-  if (!pedido.flujoVentaEtapa?.permiteEditarEntrega) {
+  if (!linea) return { exito: false, error: "Línea de pedido no encontrada" };
+  if (!linea.pedido.flujoVentaEtapa?.permiteEditarEntrega) {
     return { exito: false, error: "La etapa actual del pedido no permite editar la entrega digital" };
   }
 
-  const esNueva = !pedido.entregaDigital;
+  const esNueva = !linea.entregaDigital;
   const nuevaFechaEntrega = fechaEntrega ? new Date(fechaEntrega) : null;
   const nuevaFechaExpiracion = fechaExpiracion ? new Date(fechaExpiracion) : null;
+  const codigoEfectivo = resolverCodigoEfectivo({ codigoAccion, codigoNuevo }, linea.entregaDigital?.codigo ?? null);
 
   await prisma.entregaDigitalPedido.upsert({
-    where: { pedidoId },
-    create: { pedidoId, ...campos, fechaEntrega: nuevaFechaEntrega, fechaExpiracion: nuevaFechaExpiracion },
-    update: { ...campos, fechaEntrega: nuevaFechaEntrega, fechaExpiracion: nuevaFechaExpiracion },
+    where: { pedidoLineaId },
+    create: { pedidoLineaId, ...campos, codigo: codigoEfectivo, fechaEntrega: nuevaFechaEntrega, fechaExpiracion: nuevaFechaExpiracion },
+    update: { ...campos, codigo: codigoEfectivo, fechaEntrega: nuevaFechaEntrega, fechaExpiracion: nuevaFechaExpiracion },
   });
 
+  // Sin `codigo` real en el historial — no se registran códigos/licencias
+  // sensibles en logs/auditoría, solo si había/hay uno configurado.
   const valorAnterior = esNueva ? undefined : {
-    metodo:          pedido.entregaDigital!.metodo,
-    email:           pedido.entregaDigital!.email,
-    url:             pedido.entregaDigital!.url,
-    archivo:         pedido.entregaDigital!.archivo,
-    codigo:          pedido.entregaDigital!.codigo,
-    usuarioAcceso:   pedido.entregaDigital!.usuarioAcceso,
-    fechaEntrega:    pedido.entregaDigital!.fechaEntrega?.toISOString() ?? null,
-    fechaExpiracion: pedido.entregaDigital!.fechaExpiracion?.toISOString() ?? null,
-    instrucciones:   pedido.entregaDigital!.instrucciones,
-    observaciones:   pedido.entregaDigital!.observaciones,
+    metodo:              linea.entregaDigital!.metodo,
+    email:               linea.entregaDigital!.email,
+    url:                 linea.entregaDigital!.url,
+    archivo:             linea.entregaDigital!.archivo,
+    codigoConfigurado:   !!linea.entregaDigital!.codigo,
+    usuarioAcceso:       linea.entregaDigital!.usuarioAcceso,
+    fechaEntrega:        linea.entregaDigital!.fechaEntrega?.toISOString() ?? null,
+    fechaExpiracion:     linea.entregaDigital!.fechaExpiracion?.toISOString() ?? null,
+    instrucciones:       linea.entregaDigital!.instrucciones,
+    observaciones:       linea.entregaDigital!.observaciones,
   };
 
   await prisma.pedidoHistorial.create({
     data: {
-      pedidoId,
+      pedidoId: linea.pedidoId,
       accion: esNueva ? "ENTREGA_DIGITAL_REGISTRADA" : "ENTREGA_DIGITAL_ACTUALIZADA",
       usuarioId:     auth.sesion.usuarioId ?? null,
       usuarioNombre: usuarioNombre ?? null,
       ...(valorAnterior && { valorAnterior }),
-      valorNuevo: { ...campos, fechaEntrega: fechaEntrega ?? null, fechaExpiracion: fechaExpiracion ?? null },
+      valorNuevo: { ...campos, codigoConfigurado: !!codigoEfectivo, fechaEntrega: fechaEntrega ?? null, fechaExpiracion: fechaExpiracion ?? null },
     },
   });
 
   revalidatePath("/sales/pedidos");
-  revalidatePath(`/sales/pedidos/${pedidoId}`);
+  revalidatePath(`/sales/pedidos/${linea.pedidoId}`);
   return { exito: true, datos: undefined };
 }

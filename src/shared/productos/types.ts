@@ -10,6 +10,27 @@ export const TIPO_PRODUCTO_LABELS: Record<TipoProducto, string> = {
   DIGITAL: "Digital",
 };
 
+/** Mismo enum que EntregaDigitalCotizacion/Pedido.metodo — ver
+ *  MetodoEntregaDigital en schema.prisma. */
+export type MetodoEntregaDigital = "EMAIL" | "LINK" | "DESCARGA" | "ACCESO" | "LICENCIA" | "MANUAL" | "OTRO";
+
+/** Plantilla de entrega digital de un Producto — SIN el campo `codigo`
+ *  real: solo `tieneCodigoConfigurado`, nunca el valor (ver
+ *  src/shared/lib/codigo-sensible.ts). Se copia como snapshot editable a
+ *  cada línea de Cotización/Pedido que use este producto — nunca es una
+ *  referencia viva. */
+export interface EntregaDigitalProductoInfo {
+  metodo: MetodoEntregaDigital | null;
+  url: string | null;
+  archivo: string | null;
+  usuarioAcceso: string | null;
+  instrucciones: string | null;
+  observaciones: string | null;
+  requiereSeguimiento: boolean;
+  tipoSeguimiento: string | null;
+  tieneCodigoConfigurado: boolean;
+}
+
 export interface Producto {
   id: string;
   sku: string | null;
@@ -26,11 +47,15 @@ export interface Producto {
   cantidadDisponible: number;
   creadoEn: Date;
   actualizadoEn: Date;
+  /** Solo relevante cuando tipo = DIGITAL. */
+  entregaDigital: EntregaDigitalProductoInfo | null;
 }
 
 /** Versión reducida para selectores en cotizaciones/pedidos — incluye
  *  `tipo` porque de ahí se deriva el tipoCumplimiento de la
- *  Cotización/Pedido (ver resolverTipoCumplimiento en cada actions.ts). */
+ *  Cotización/Pedido (ver resolverTipoCumplimiento en cada actions.ts), y
+ *  `entregaDigital` porque de ahí se precargan los valores por defecto de
+ *  la línea al elegir el producto (ver SelectorProductoLinea.onSeleccionar). */
 export interface ProductoCatalogo {
   id: string;
   sku: string | null;
@@ -42,6 +67,7 @@ export interface ProductoCatalogo {
   manejaStock: boolean;
   cantidadDisponible: number;
   tipo: TipoProducto;
+  entregaDigital: EntregaDigitalProductoInfo | null;
 }
 
 export type ResultadoAccion<T = void> =

@@ -1,6 +1,7 @@
 import { prisma } from "@/shared/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { obtenerEtapasFlujoActivo } from "@/sales/flujo-venta/queries";
+import { ocultarCodigo } from "@/shared/lib/codigo-sensible";
 
 const incluirRelaciones = {
   contacto: { select: { id: true, nombre: true, apellido: true, email: true, telefonoPrincipal: true, telefonoSecundario: true, cargo: true } },
@@ -213,12 +214,25 @@ export async function obtenerPedidosKpis(
   };
 }
 
+// `codigo` se trae de Prisma pero nunca sale de esta función tal cual — ver
+// ocultarCodigo, aplicado siempre antes del `return`.
+const SELECT_ENTREGA_DIGITAL_LINEA = {
+  metodo: true, email: true, url: true, archivo: true, codigo: true, usuarioAcceso: true,
+  fechaEntrega: true, fechaExpiracion: true, instrucciones: true, observaciones: true,
+} as const;
+
 export async function obtenerPedidoPorId(id: string, instanciaId: string) {
-  return prisma.pedido.findFirst({
+  const pedido = await prisma.pedido.findFirst({
     where: { id, instanciaId },
     include: {
       ...incluirRelaciones,
-      lineas: { include: { producto: { select: { id: true, nombre: true } } } },
+      lineas: {
+        include: {
+          producto: { select: { id: true, nombre: true, tipo: true } },
+          // Por línea, no por pedido completo — ver EntregaDigitalPedido.
+          entregaDigital: { select: SELECT_ENTREGA_DIGITAL_LINEA },
+        },
+      },
       cotizacion: {
         select: {
           id: true,
@@ -244,7 +258,6 @@ export async function obtenerPedidoPorId(id: string, instanciaId: string) {
         },
       },
       servicio: true,
-      entregaDigital: true,
       historialEtapas: {
         select: {
           id: true,
@@ -275,6 +288,11 @@ export async function obtenerPedidoPorId(id: string, instanciaId: string) {
       },
     },
   });
+  if (!pedido) return null;
+  return {
+    ...pedido,
+    lineas: pedido.lineas.map((l) => ({ ...l, entregaDigital: ocultarCodigo(l.entregaDigital) })),
+  };
 }
 
 export async function generarNumeroPedido(instanciaId: string): Promise<string> {

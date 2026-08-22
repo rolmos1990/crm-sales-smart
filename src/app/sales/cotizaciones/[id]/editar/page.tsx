@@ -52,6 +52,22 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
     cantidad: Number(l.cantidad),
     precioUnitario: Number(l.precioUnitario),
     descuento: Number(l.descuento),
+    // Por línea, no por documento — ver EntregaDigitalCotizacion. Sin
+    // `codigo` real: solo si ya hay uno configurado (tieneCodigoConfigurado,
+    // via ocultarCodigo en queries.ts), nunca el valor.
+    entregaDigital: l.entregaDigital ? {
+      metodo: l.entregaDigital.metodo ?? undefined,
+      email: l.entregaDigital.email ?? "",
+      url: l.entregaDigital.url ?? "",
+      archivo: l.entregaDigital.archivo ?? "",
+      usuarioAcceso: l.entregaDigital.usuarioAcceso ?? "",
+      fechaEntrega: l.entregaDigital.fechaEntrega ? new Date(l.entregaDigital.fechaEntrega) : undefined,
+      fechaExpiracion: l.entregaDigital.fechaExpiracion ? new Date(l.entregaDigital.fechaExpiracion) : undefined,
+      instrucciones: l.entregaDigital.instrucciones ?? "",
+      observaciones: l.entregaDigital.observaciones ?? "",
+      codigoAccion: l.entregaDigital.tieneCodigoConfigurado ? "CONSERVAR" as const : undefined,
+      codigoNuevo: "",
+    } : undefined,
   }));
 
   // El % de IGV no se guarda como tal — solo el monto ya calculado — así que

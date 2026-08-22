@@ -201,7 +201,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000 --max-time 3)",
       "Bash(pkill -f \"next dev\")",
       "Bash(python3 -c ' *)",
-      "Bash(sips -g pixelWidth -g pixelHeight test-results/vis-pedido-nuevo-dark.png)"
+      "Bash(sips -g pixelWidth -g pixelHeight test-results/vis-pedido-nuevo-dark.png)",
+      "Bash(xargs -I{} head -15 {})"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

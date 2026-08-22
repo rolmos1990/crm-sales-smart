@@ -109,18 +109,25 @@ export const ActualizarServicioPedidoSchema = z.object({
 // físico, un concepto distinto (ver MetodoEntregaDigital en schema.prisma).
 export const MetodoEntregaDigitalEnum = z.enum(["EMAIL", "LINK", "DESCARGA", "ACCESO", "LICENCIA", "MANUAL", "OTRO"]);
 
+// Por línea, no por pedido completo — un pedido puede tener varios
+// productos DIGITAL distintos, cada uno con su propia entrega (ver
+// EntregaDigitalPedido en schema.prisma). Sin `codigo` real a propósito —
+// el cliente solo puede pedir "conservar" o "reemplazar" (ver
+// src/shared/lib/codigo-sensible.ts), nunca manda ni recibe el valor
+// existente.
 export const ActualizarEntregaDigitalPedidoSchema = z.object({
-  pedidoId: z.string().min(1),
+  pedidoLineaId: z.string().min(1),
   metodo: MetodoEntregaDigitalEnum.optional().nullable(),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   url: z.string().max(500).optional().or(z.literal("")),
   archivo: z.string().max(500).optional().or(z.literal("")),
-  codigo: z.string().max(200).optional().or(z.literal("")),
   usuarioAcceso: z.string().max(200).optional().or(z.literal("")),
   fechaEntrega: z.string().datetime({ offset: true }).optional().nullable(),
   fechaExpiracion: z.string().datetime({ offset: true }).optional().nullable(),
   instrucciones: z.string().max(500).optional().or(z.literal("")),
   observaciones: z.string().max(500).optional().or(z.literal("")),
+  codigoAccion: z.enum(["CONSERVAR", "REEMPLAZAR"]).optional(),
+  codigoNuevo: z.string().max(200).optional().or(z.literal("")),
 });
 
 export type CrearPedidoInput = z.infer<typeof CrearPedidoSchema>;

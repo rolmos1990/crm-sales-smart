@@ -16,10 +16,11 @@ import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import { isoDesdePais } from "@/shared/lib/pais-iso";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
+import { resolverCodigoEfectivo, ocultarCodigo } from "@/shared/lib/codigo-sensible";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
 import type { ResultadoAccion, Cotizacion } from "./types";
-import type { LineaCotizacionInput } from "./schema";
+import type { LineaCotizacionInput, EntregaDigitalCotizacionInput } from "./schema";
 
 /**
  * Determina qué bloque de cumplimiento corresponde (Físico/Servicio/
@@ -43,6 +44,59 @@ async function resolverTipoCumplimiento(lineas: LineaCotizacionInput[]): Promise
   return tipoPorId.get(primeraConProducto.productoId) as TipoProducto;
 }
 
+const SELECT_PRODUCTO_ENTREGA_DIGITAL = {
+  metodo: true, url: true, archivo: true, codigo: true, usuarioAcceso: true,
+  instrucciones: true, observaciones: true, requiereSeguimiento: true, tipoSeguimiento: true,
+} as const;
+
+/**
+ * Trae, por productoId, la plantilla de entrega digital (incluido el
+ * código real — esto es servidor↔servidor, nunca sale de acá) — solo tiene
+ * sentido llamarlo cuando tipoCumplimiento = DIGITAL. Batch, mismo criterio
+ * que resolverTipoCumplimiento.
+ */
+async function obtenerPlantillasEntregaDigital(productoIds: string[]) {
+  if (productoIds.length === 0) return new Map<string, { tipo: TipoProducto; entregaDigital: { codigo: string | null } | null }>();
+  const productos = await prisma.producto.findMany({
+    where: { id: { in: [...new Set(productoIds)] } },
+    select: { id: true, tipo: true, entregaDigital: { select: SELECT_PRODUCTO_ENTREGA_DIGITAL } },
+  });
+  return new Map(productos.map(p => [p.id, p]));
+}
+
+/** true si el agente tocó algo, o el producto ya trae un código configurado
+ *  para heredar — evita crear una fila EntregaDigitalCotizacion vacía. */
+function hayDatosEntregaDigitalLinea(
+  entregaLinea: EntregaDigitalCotizacionInput | undefined,
+  productoTieneCodigo: boolean,
+): boolean {
+  return !!(entregaLinea && (
+    entregaLinea.metodo || entregaLinea.email || entregaLinea.url || entregaLinea.archivo ||
+    entregaLinea.usuarioAcceso || entregaLinea.fechaEntrega || entregaLinea.fechaExpiracion ||
+    entregaLinea.instrucciones || entregaLinea.observaciones ||
+    (entregaLinea.codigoAccion === "REEMPLAZAR" && entregaLinea.codigoNuevo)
+  )) || productoTieneCodigo;
+}
+
+/** Datos listos para el `create` de EntregaDigitalCotizacion de una línea —
+ *  `codigo` resuelto server-side vía resolverCodigoEfectivo, nunca
+ *  confiando en un valor crudo del cliente salvo REEMPLAZAR explícito. */
+function datosEntregaDigitalLinea(entregaLinea: EntregaDigitalCotizacionInput | undefined, codigoExistente: string | null) {
+  const e = entregaLinea ?? {};
+  return {
+    metodo: e.metodo || null,
+    email: e.email || null,
+    url: e.url || null,
+    archivo: e.archivo || null,
+    usuarioAcceso: e.usuarioAcceso || null,
+    fechaEntrega: e.fechaEntrega || null,
+    fechaExpiracion: e.fechaExpiracion || null,
+    instrucciones: e.instrucciones || null,
+    observaciones: e.observaciones || null,
+    codigo: resolverCodigoEfectivo(e, codigoExistente),
+  };
+}
+
 export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<Cotizacion>> {
   const validado = CrearCotizacionSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
@@ -52,7 +106,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
 
   try {
     const sesion = auth.sesion;
-    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, servicio, entregaDigital, ...resto } = validado.data;
+    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, servicio, ...resto } = validado.data;
     const numero = await generarNumeroCotizacion(sesion.instanciaId);
 
     const subtotal = lineas.reduce((acc, l) => {
@@ -70,7 +124,13 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     // una fila vacía por defecto, o de un bloque que no corresponde.
     const hayEntrega = tipoCumplimiento === "FISICO" && entrega && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId);
     const hayServicio = tipoCumplimiento === "SERVICIO" && servicio && (servicio.modalidad || servicio.fecha || servicio.hora || servicio.duracion || servicio.ubicacion || servicio.direccion || servicio.responsable || servicio.instrucciones || servicio.observaciones);
-    const hayEntregaDigital = tipoCumplimiento === "DIGITAL" && entregaDigital && (entregaDigital.metodo || entregaDigital.email || entregaDigital.url || entregaDigital.archivo || entregaDigital.codigo || entregaDigital.usuarioAcceso || entregaDigital.fechaEntrega || entregaDigital.fechaExpiracion || entregaDigital.instrucciones || entregaDigital.observaciones);
+
+    // Plantillas de entrega digital por producto — solo si esta cotización
+    // es DIGITAL (mismo gate que hoy, generalizado a que cada línea DIGITAL
+    // tenga su propia fila en vez de una sola global para todo el documento).
+    const plantillasDigital = tipoCumplimiento === "DIGITAL"
+      ? await obtenerPlantillasEntregaDigital(lineas.map(l => l.productoId).filter((id): id is string => !!id))
+      : new Map();
 
     const cotizacion = await prisma.cotizacion.create({
       data: {
@@ -88,14 +148,21 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
         oportunidadId: oportunidadId || null,
         metadata: destinatario ? { destinatario } : undefined,
         lineas: {
-          create: lineas.map(l => ({
-            productoId: l.productoId || null,
-            descripcion: l.descripcion || null,
-            cantidad: l.cantidad,
-            precioUnitario: l.precioUnitario,
-            descuento: l.descuento,
-            subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
-          })),
+          create: lineas.map(l => {
+            const productoInfo = l.productoId ? plantillasDigital.get(l.productoId) : undefined;
+            const esLineaDigital = productoInfo?.tipo === "DIGITAL";
+            const codigoProducto = productoInfo?.entregaDigital?.codigo ?? null;
+            const hayEntregaLinea = esLineaDigital && hayDatosEntregaDigitalLinea(l.entregaDigital, !!codigoProducto);
+            return {
+              productoId: l.productoId || null,
+              descripcion: l.descripcion || null,
+              cantidad: l.cantidad,
+              precioUnitario: l.precioUnitario,
+              descuento: l.descuento,
+              subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
+              entregaDigital: hayEntregaLinea ? { create: datosEntregaDigitalLinea(l.entregaDigital, codigoProducto) } : undefined,
+            };
+          }),
         },
         entrega: hayEntrega ? {
           create: {
@@ -117,20 +184,6 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
             responsable: servicio!.responsable || null,
             instrucciones: servicio!.instrucciones || null,
             observaciones: servicio!.observaciones || null,
-          },
-        } : undefined,
-        entregaDigital: hayEntregaDigital ? {
-          create: {
-            metodo: entregaDigital!.metodo || null,
-            email: entregaDigital!.email || null,
-            url: entregaDigital!.url || null,
-            archivo: entregaDigital!.archivo || null,
-            codigo: entregaDigital!.codigo || null,
-            usuarioAcceso: entregaDigital!.usuarioAcceso || null,
-            fechaEntrega: entregaDigital!.fechaEntrega || null,
-            fechaExpiracion: entregaDigital!.fechaExpiracion || null,
-            instrucciones: entregaDigital!.instrucciones || null,
-            observaciones: entregaDigital!.observaciones || null,
           },
         } : undefined,
       },
@@ -163,7 +216,7 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
       return { exito: false, error: "Solo se pueden modificar cotizaciones en estado borrador" };
     }
 
-    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, servicio, entregaDigital, ...resto } = validado.data;
+    const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, servicio, ...resto } = validado.data;
 
     // Si vienen líneas nuevas, el tipo de cumplimiento se vuelve a resolver
     // sobre ellas (puede cambiar si se reemplaza el producto de la línea);
@@ -220,24 +273,10 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
       } : undefined;
     }
 
-    if (entregaDigital !== undefined) {
-      const hayEntregaDigital = tipoCumplimiento === "DIGITAL" && (entregaDigital.metodo || entregaDigital.email || entregaDigital.url || entregaDigital.archivo || entregaDigital.codigo || entregaDigital.usuarioAcceso || entregaDigital.fechaEntrega || entregaDigital.fechaExpiracion || entregaDigital.instrucciones || entregaDigital.observaciones);
-      const datosEntregaDigital = {
-        metodo: entregaDigital.metodo || null,
-        email: entregaDigital.email || null,
-        url: entregaDigital.url || null,
-        archivo: entregaDigital.archivo || null,
-        codigo: entregaDigital.codigo || null,
-        usuarioAcceso: entregaDigital.usuarioAcceso || null,
-        fechaEntrega: entregaDigital.fechaEntrega || null,
-        fechaExpiracion: entregaDigital.fechaExpiracion || null,
-        instrucciones: entregaDigital.instrucciones || null,
-        observaciones: entregaDigital.observaciones || null,
-      };
-      updateData.entregaDigital = hayEntregaDigital ? {
-        upsert: { create: datosEntregaDigital, update: datosEntregaDigital },
-      } : undefined;
-    }
+    // entregaDigital ya no es un campo de nivel-documento — se maneja por
+    // línea, dentro del bloque `if (lineas)` de más abajo (ver §6 del plan:
+    // las líneas se borran y recrean en cada edición, así que hay que leer
+    // el código existente ANTES de borrar para poder "conservarlo").
 
     // El formulario siempre reenvía `lineas` junto con `entrega` al guardar
     // (es un único form), así que alcanza con recalcular el total acá — pero
@@ -258,20 +297,50 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
       updateData = { ...updateData, subtotal, impuesto: impuestoMonto, costoEnvio, total };
 
       if (lineas) {
+        // Plantillas de entrega digital por producto (para líneas nuevas o
+        // sin código previo — mismo criterio que crearCotizacion).
+        const plantillasDigital = tipoCumplimiento === "DIGITAL"
+          ? await obtenerPlantillasEntregaDigital(lineas.map(l => l.productoId).filter((v): v is string => !!v))
+          : new Map();
+
+        // Leer el código ya guardado por producto ANTES de borrar las
+        // líneas viejas — es lo único que permite que "conservar" sobreviva
+        // al deleteMany+recreate de acá abajo (ver §6 del plan). Un Map, no
+        // un objeto: `.has()` distingue "no había línea de este producto"
+        // (usar el default del producto) de "había línea, código null"
+        // (conservar null — no resucitar el default del producto).
+        const codigoExistentePorProducto = new Map<string, string | null>();
+        const lineasExistentes = await prisma.cotizacionLinea.findMany({
+          where: { cotizacionId: id },
+          select: { productoId: true, entregaDigital: { select: { codigo: true } } },
+        });
+        for (const le of lineasExistentes) {
+          if (le.productoId && le.entregaDigital) codigoExistentePorProducto.set(le.productoId, le.entregaDigital.codigo);
+        }
+
         await prisma.cotizacionLinea.deleteMany({ where: { cotizacionId: id } });
         await prisma.cotizacion.update({
           where: { id },
           data: {
             ...updateData,
             lineas: {
-              create: lineas.map(l => ({
-                productoId: l.productoId || null,
-                descripcion: l.descripcion || null,
-                cantidad: l.cantidad ?? 1,
-                precioUnitario: l.precioUnitario ?? 0,
-                descuento: l.descuento ?? 0,
-                subtotal: (l.cantidad ?? 1) * (l.precioUnitario ?? 0) * (1 - (l.descuento ?? 0) / 100),
-              })),
+              create: lineas.map(l => {
+                const productoInfo = l.productoId ? plantillasDigital.get(l.productoId) : undefined;
+                const esLineaDigital = productoInfo?.tipo === "DIGITAL";
+                const codigoExistente = l.productoId && codigoExistentePorProducto.has(l.productoId)
+                  ? codigoExistentePorProducto.get(l.productoId)!
+                  : (productoInfo?.entregaDigital?.codigo ?? null);
+                const hayEntregaLinea = esLineaDigital && hayDatosEntregaDigitalLinea(l.entregaDigital, !!codigoExistente);
+                return {
+                  productoId: l.productoId || null,
+                  descripcion: l.descripcion || null,
+                  cantidad: l.cantidad ?? 1,
+                  precioUnitario: l.precioUnitario ?? 0,
+                  descuento: l.descuento ?? 0,
+                  subtotal: (l.cantidad ?? 1) * (l.precioUnitario ?? 0) * (1 - (l.descuento ?? 0) / 100),
+                  entregaDigital: hayEntregaLinea ? { create: datosEntregaDigitalLinea(l.entregaDigital, codigoExistente) } : undefined,
+                };
+              }),
             },
           },
         });
@@ -564,6 +633,22 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
     cantidad: Number(l.cantidad),
     precioUnitario: Number(l.precioUnitario),
     descuento: Number(l.descuento),
+    // Por línea, no por documento — ver EntregaDigitalCotizacion. Sin
+    // `codigo` real: solo si ya hay uno configurado (tieneCodigoConfigurado,
+    // via ocultarCodigo en queries.ts), nunca el valor.
+    entregaDigital: l.entregaDigital ? {
+      metodo: l.entregaDigital.metodo ?? undefined,
+      email: l.entregaDigital.email ?? "",
+      url: l.entregaDigital.url ?? "",
+      archivo: l.entregaDigital.archivo ?? "",
+      usuarioAcceso: l.entregaDigital.usuarioAcceso ?? "",
+      fechaEntrega: l.entregaDigital.fechaEntrega ? new Date(l.entregaDigital.fechaEntrega) : undefined,
+      fechaExpiracion: l.entregaDigital.fechaExpiracion ? new Date(l.entregaDigital.fechaExpiracion) : undefined,
+      instrucciones: l.entregaDigital.instrucciones ?? "",
+      observaciones: l.entregaDigital.observaciones ?? "",
+      codigoAccion: l.entregaDigital.tieneCodigoConfigurado ? "CONSERVAR" as const : undefined,
+      codigoNuevo: "",
+    } : undefined,
   }));
 
   const subtotalNum = Number(cotizacion.subtotal);
