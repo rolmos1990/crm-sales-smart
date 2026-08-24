@@ -2,10 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX, EyeOff } from "lucide-react";
+import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX, EyeOff, Search, X, MoreVertical } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { PipelineSwitcher } from "./pipeline-switcher";
 import { PanelConfigPipeline } from "./panel-config-pipeline";
@@ -38,6 +42,77 @@ interface PipelineWrapperProps {
   tags?: Tag[];
   defaultCountryCode?: string;
   hayFiltrosAplicados?: boolean;
+}
+
+/**
+ * Búsqueda compacta de la barra móvil — un ícono que expande un input.
+ * No es un sistema de filtros aparte: escribe/lee el mismo query param
+ * `titulo` que ya usa el drawer de filtros (`leerFiltrosDeUrl`/`aplicar` en
+ * pipeline-filtros-drawer.tsx), así que el badge "Filtros (N)" y el propio
+ * drawer quedan sincronizados solos, sin tocarlos.
+ */
+function BuscarTituloMovil() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [abierto, setAbierto] = useState(false);
+  const [valor, setValor] = useState(() => searchParams.get("titulo") ?? "");
+
+  // Si el título cambia por otra vía (ej. se limpió desde el drawer de
+  // filtros), refleja el valor real de la URL en vez de quedar desalineado.
+  useEffect(() => {
+    setValor(searchParams.get("titulo") ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get("titulo")]);
+
+  // Mismo patrón de debounce ya usado en oportunidades-filtros.tsx — no
+  // navega por cada tecla.
+  useEffect(() => {
+    const actual = searchParams.get("titulo") ?? "";
+    if (valor === actual) return;
+    const t = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (valor.trim()) params.set("titulo", valor.trim());
+      else params.delete("titulo");
+      const query = params.toString();
+      router.push(query ? `${pathname}?${query}` : pathname);
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor]);
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        aria-label="Buscar oportunidad"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      >
+        <Search className="h-4 w-4" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 items-center gap-1.5">
+      <Input
+        autoFocus
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        placeholder="Buscar oportunidad..."
+        className="h-10 rounded-lg text-[13px]"
+      />
+      <button
+        type="button"
+        onClick={() => { setValor(""); setAbierto(false); }}
+        aria-label="Cerrar búsqueda"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
 }
 
 export function PipelineWrapper({
@@ -150,8 +225,69 @@ export function PipelineWrapper({
 
   return (
     <div className="flex flex-col gap-4 p-5 h-full overflow-hidden">
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* ── Header móvil (<768px) ──────────────────────────────────
+          Reemplaza la barra de escritorio (ver más abajo, oculta con
+          `hidden md:flex`) por dos filas compactas: selector de pipeline +
+          menú ⋮ con las acciones poco frecuentes, y buscar + filtros. Todo
+          reutilizado — mismos componentes/estado/URL que ya usa la barra de
+          escritorio, ningún filtro ni acción nueva. */}
+      <div className="flex md:hidden flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <PipelineSwitcher
+            pipelines={pipelines}
+            pipelineActualId={pipelineActualId}
+            onSwitch={handleSwitch}
+            onConfigurar={esDinamico && puedeMod ? () => setModoConfig(true) : undefined}
+          />
+          <div className="flex-1" />
+          {!modoConfig && (hayEtapasOcultas || puedeMod) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label="Más acciones del pipeline"
+                className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {pipelineActual && hayEtapasOcultas && (
+                  <DropdownMenuItem onClick={toggleVerOcultos}>
+                    <EyeOff className="h-3.5 w-3.5" />
+                    {verOcultos ? "Ocultar ganado/perdido" : "Ver ocultos"}
+                  </DropdownMenuItem>
+                )}
+                {puedeMod && (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      router.push(
+                        esDinamico && pipelineActual?.stages[0]
+                          ? `/crm/oportunidades/nueva?pipelineId=${pipelineActual.id}&stageId=${pipelineActual.stages[0].id}`
+                          : "/crm/oportunidades/nueva"
+                      )
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Nueva oportunidad
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+
+        {!modoConfig && pipelineActual && pipelineActual.stages.length > 0 && (
+          <div className="flex items-center gap-2">
+            <BuscarTituloMovil />
+            <PipelineFiltrosDrawer
+              contactos={contactosFiltro ?? contactos}
+              empresas={empresas}
+              tags={tags}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ── Header de escritorio (>=768px) ─────────────────────────── */}
+      <div className="hidden md:flex items-center gap-2 flex-wrap">
         <PipelineSwitcher
           pipelines={pipelines}
           pipelineActualId={pipelineActualId}

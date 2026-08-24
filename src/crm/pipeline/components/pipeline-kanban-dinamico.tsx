@@ -25,17 +25,32 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle, Loader2, FileText, FileCheck2 } from "lucide-react";
+import {
+  CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle, Loader2, FileText, FileCheck2,
+  MoreVertical, ArrowRightLeft, Pencil,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useMoverAStageMutation } from "@/crm/oportunidades/hooks";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/shared/hooks/use-media-query";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { PipelineConStages, PipelineStage, OportunidadEnStage } from "../types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import { WorkspaceOportunidad } from "@/crm/oportunidades/components/workspace-oportunidad";
 import type { Oportunidad } from "@/crm/oportunidades/types";
 import { KanbanScrollContainer } from "./kanban-scroll-container";
+
+/** Por debajo de este ancho, el tablero pasa de columnas Kanban a una sola
+ *  etapa con tabs horizontales (ver PipelineKanbanDinamico). 768px, no el
+ *  1024px del drawer del sidebar — son adaptaciones independientes con
+ *  criterios propios. */
+const MOBILE_BREAKPOINT_QUERY = "(max-width: 767px)";
 
 const formatearMoneda = (valor: number, moneda: string) =>
   new Intl.NumberFormat("es-PE", {
@@ -66,7 +81,134 @@ function InsigniaCotizacion({ estado }: { estado: OportunidadEnStage["estadoCoti
   );
 }
 
-// ── Tarjeta draggable ─────────────────────────────────────────────
+// ── Tarjeta — contenido puro ──────────────────────────────────────
+// Sin dnd-kit ni wrapper: la misma UI para la tarjeta Kanban (arrastrable,
+// ver TarjetaOportunidad) y la tarjeta móvil (sin drag, ver
+// TarjetaOportunidadMovil) — evita duplicar el markup completo entre las
+// dos variantes (ver docs/pipeline responsive), a costa de un `variant` que
+// solo ajusta detalles menores (máx. 2 etiquetas + "+N" en móvil, tarjetas
+// más "aireadas" en vez del compacto de columna).
+function ContenidoTarjetaOportunidad({
+  oportunidad,
+  stageColor,
+  variant = "kanban",
+}: {
+  oportunidad: OportunidadEnStage;
+  stageColor: string;
+  variant?: "kanban" | "mobile";
+}) {
+  const esMovil = variant === "mobile";
+  const tagsVisibles = esMovil ? oportunidad.tags.slice(0, 2) : oportunidad.tags;
+  const tagsDeMas = esMovil ? oportunidad.tags.length - tagsVisibles.length : 0;
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border select-none",
+        "bg-card",
+        "shadow-sm dark:shadow-[0_2px_10px_-6px_rgba(0,0,0,0.55)]",
+        esMovil ? "p-4 space-y-3" : "p-3.5 space-y-3"
+      )}
+      style={{ borderColor: `${stageColor}35` }}
+    >
+      {/* Indicador de etapa — línea fina, color desaturado, sin resplandor */}
+      <div
+        className="h-[2px] rounded-full -mt-0.5 mb-0.5"
+        style={{ backgroundColor: stageColor, opacity: 0.5 }}
+      />
+
+      {/* Identidad: qué pide el cliente (título) + quién es (contacto / empresa) */}
+      <div className="space-y-1.5">
+        {/* En móvil se reserva espacio a la derecha (pr-8) para el botón ⋮
+            flotante de TarjetaOportunidadMovil — sin esto la insignia de
+            cotización quedaría debajo del botón cuando ambos están presentes. */}
+        <div className={cn("flex items-start justify-between gap-2", esMovil && "pr-8")}>
+          <p className={cn("font-semibold leading-snug line-clamp-2 text-foreground", esMovil ? "text-[15px]" : "text-[14px]")}>
+            {oportunidad.titulo}
+          </p>
+          <InsigniaCotizacion estado={oportunidad.estadoCotizacion} />
+        </div>
+        {(oportunidad.contacto || oportunidad.empresa) && (
+          <div className="space-y-0.5">
+            {oportunidad.contacto && (
+              <div className="flex items-center gap-1.5 min-w-0">
+                <User className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className="text-[12.5px] text-muted-foreground truncate">
+                  {oportunidad.contacto.nombre} {oportunidad.contacto.apellido}
+                </span>
+              </div>
+            )}
+            {oportunidad.empresa && (
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <span className="text-[12.5px] text-muted-foreground truncate">
+                  {oportunidad.empresa.nombre}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Separador sutil entre identidad e información comercial */}
+      <div className="border-t border-card-divider" />
+
+      {/* Monto (izquierda) + vencimiento (derecha, cápsula neutral) */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[15px] font-semibold tabular-nums text-foreground">
+          {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
+        </span>
+        {oportunidad.fechaCierre && (
+          <span className="inline-flex items-center gap-1 rounded-md border border-badge-border bg-badge-bg px-1.5 py-0.5 text-[10.5px] font-medium text-badge-text shrink-0">
+            <CalendarDays className="h-3 w-3 shrink-0" />
+            Vence {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
+          </span>
+        )}
+      </div>
+
+      {/* Etiquetas — Kanban sin límite; móvil máx. 2 + "+N" (ver esMovil arriba) */}
+      {oportunidad.tags && oportunidad.tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {tagsVisibles.map(({ tagId, tag }) => (
+            <span
+              key={tagId}
+              className="inline-flex items-center gap-1.5 rounded-full border border-badge-border bg-badge-bg px-2 py-0.5 text-[10px] font-medium text-badge-text"
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: tag.color ?? "#78716c", opacity: 0.75 }}
+              />
+              {tag.nombre}
+            </span>
+          ))}
+          {tagsDeMas > 0 && (
+            <span className="inline-flex items-center rounded-full border border-badge-border bg-badge-bg px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              +{tagsDeMas}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Progreso — relleno del color de etapa desaturado, sin resplandor */}
+      <div className="flex items-center gap-2.5">
+        <div className="flex-1 bg-muted rounded-full h-1 overflow-hidden">
+          <div
+            className="rounded-full h-1 transition-all"
+            style={{ width: `${oportunidad.probabilidad}%`, backgroundColor: stageColor, opacity: 0.55 }}
+          />
+        </div>
+        <span className="text-[10px] font-medium text-muted-foreground tabular-nums w-7 text-right">
+          {oportunidad.probabilidad}%
+        </span>
+        {oportunidad.nuevoMensaje && (
+          <span className="h-1.5 w-1.5 rounded-full bg-success/80 shrink-0" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Tarjeta draggable (Kanban de escritorio) ───────────────────────
 
 function TarjetaOportunidad({
   oportunidad,
@@ -108,105 +250,120 @@ function TarjetaOportunidad({
     >
       <div
         className={cn(
-          "block cursor-pointer rounded-xl border select-none",
-          "bg-card",
-          "shadow-sm dark:shadow-[0_2px_10px_-6px_rgba(0,0,0,0.55)]",
-          "hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
-          "transition-all duration-150 p-3.5 space-y-3",
+          "cursor-pointer transition-all duration-150 hover:shadow-sm dark:hover:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.7)]",
           // Se está arrastrando: transparencia (queda leyéndose como el
           // "hueco" que marca dónde va a caer) + borde resaltado — mismo
           // tamaño y forma de siempre, nada de escalar ni rotar acá (eso lo
           // hace la copia flotante de <TarjetaOverlay>, ver DragOverlay).
           isDragging && "opacity-40 shadow-none ring-2 ring-primary/70 dark:ring-primary/50"
         )}
-        style={{ borderColor: `${stageColor}35` }}
       >
-        {/* Indicador de etapa — línea fina, color desaturado, sin resplandor */}
-        <div
-          className="h-[2px] rounded-full -mt-0.5 mb-0.5"
-          style={{ backgroundColor: stageColor, opacity: 0.5 }}
-        />
+        <ContenidoTarjetaOportunidad oportunidad={oportunidad} stageColor={stageColor} variant="kanban" />
+      </div>
+    </div>
+  );
+}
 
-        {/* Identidad: qué pide el cliente (título) + quién es (contacto / empresa) */}
-        <div className="space-y-1.5">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-[14px] font-semibold leading-snug line-clamp-2 text-foreground">
-              {oportunidad.titulo}
-            </p>
-            <InsigniaCotizacion estado={oportunidad.estadoCotizacion} />
-          </div>
-          {(oportunidad.contacto || oportunidad.empresa) && (
-            <div className="space-y-0.5">
-              {oportunidad.contacto && (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <User className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="text-[12px] text-muted-foreground truncate">
-                    {oportunidad.contacto.nombre} {oportunidad.contacto.apellido}
-                  </span>
-                </div>
-              )}
-              {oportunidad.empresa && (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="text-[12px] text-muted-foreground truncate">
-                    {oportunidad.empresa.nombre}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+// ── Tarjeta móvil (sin dnd-kit) ─────────────────────────────────────
+// Misma tarjeta (ver ContenidoTarjetaOportunidad) sin useSortable/DndContext
+// — en móvil el movimiento entre etapas se hace por el menú ⋮, no
+// arrastrando (ver Objetivo del pedido: no es obligatorio montar el
+// contexto de drag & drop completo en móvil).
 
-        {/* Separador sutil entre identidad e información comercial */}
-        <div className="border-t border-card-divider" />
+function TarjetaOportunidadMovil({
+  oportunidad,
+  stageColor,
+  stagesDestino,
+  onCardClick,
+  onMover,
+  stageGanadoId,
+  stagePerdidoId,
+  puedeMod = true,
+}: {
+  oportunidad: OportunidadEnStage;
+  stageColor: string;
+  /** Etapas del tablero a las que se puede mover (la actual queda afuera). */
+  stagesDestino: PipelineStage[];
+  onCardClick: (op: OportunidadEnStage) => void;
+  onMover: (op: OportunidadEnStage, destinoStageId: string) => void;
+  stageGanadoId?: string;
+  stagePerdidoId?: string;
+  puedeMod?: boolean;
+}) {
+  const [moverAbierto, setMoverAbierto] = useState(false);
 
-        {/* Monto (izquierda) + vencimiento (derecha, cápsula neutral) */}
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[15px] font-semibold tabular-nums text-foreground">
-            {formatearMoneda(oportunidad.valor, oportunidad.moneda)}
-          </span>
-          {oportunidad.fechaCierre && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-badge-border bg-badge-bg px-1.5 py-0.5 text-[10.5px] font-medium text-badge-text shrink-0">
-              <CalendarDays className="h-3 w-3 shrink-0" />
-              Vence {format(new Date(oportunidad.fechaCierre), "dd MMM", { locale: es })}
-            </span>
-          )}
-        </div>
+  return (
+    <div className="relative">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onCardClick(oportunidad)}
+        onKeyDown={(e) => { if (e.key === "Enter") onCardClick(oportunidad); }}
+        className="cursor-pointer"
+      >
+        <ContenidoTarjetaOportunidad oportunidad={oportunidad} stageColor={stageColor} variant="mobile" />
+      </div>
 
-        {/* Etiquetas — diseño neutral, sin límite de cantidad */}
-        {oportunidad.tags && oportunidad.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {oportunidad.tags.map(({ tagId, tag }) => (
-              <span
-                key={tagId}
-                className="inline-flex items-center gap-1.5 rounded-full border border-badge-border bg-badge-bg px-2 py-0.5 text-[10px] font-medium text-badge-text"
+      {puedeMod && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Más acciones"
+            className="absolute top-3 right-3.5 flex h-11 w-11 -m-2.5 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onClick={() => onCardClick(oportunidad)}>
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </DropdownMenuItem>
+            {stagesDestino.length > 0 && (
+              <DropdownMenuItem onClick={() => setMoverAbierto(true)}>
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Mover a etapa…
+              </DropdownMenuItem>
+            )}
+            {(stageGanadoId || stagePerdidoId) && <DropdownMenuSeparator />}
+            {stageGanadoId && (
+              <DropdownMenuItem onClick={() => onMover(oportunidad, stageGanadoId)} className="text-success focus:text-success">
+                <Trophy className="h-3.5 w-3.5" />
+                Marcar como ganado
+              </DropdownMenuItem>
+            )}
+            {stagePerdidoId && (
+              <DropdownMenuItem onClick={() => onMover(oportunidad, stagePerdidoId)} className="text-danger focus:text-danger">
+                <XCircle className="h-3.5 w-3.5" />
+                Marcar como perdido
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
+      {/* "Selector ligero" pedido para mover de etapa — bottom sheet (mismo
+          primitivo Sheet que ya usa el resto de la app, side="bottom"), no
+          un componente nuevo. Reutiliza el mismo onMover→confirmarMovimiento
+          que ya usan el drag & drop y "Marcar como ganado/perdido". */}
+      <Sheet open={moverAbierto} onOpenChange={setMoverAbierto}>
+        <SheetContent side="bottom" className="max-h-[70vh] rounded-t-2xl border-border bg-modal">
+          <SheetHeader>
+            <SheetTitle>Mover a etapa</SheetTitle>
+          </SheetHeader>
+          <div className="overflow-y-auto px-4 pb-4 space-y-1">
+            {stagesDestino.map((stage) => (
+              <button
+                key={stage.id}
+                onClick={() => { onMover(oportunidad, stage.id); setMoverAbierto(false); }}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 min-h-11 text-left text-[14px] font-medium text-foreground hover:bg-muted transition-colors"
               >
-                <span
-                  className="h-1.5 w-1.5 rounded-full shrink-0"
-                  style={{ backgroundColor: tag.color ?? "#78716c", opacity: 0.75 }}
-                />
-                {tag.nombre}
-              </span>
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color ?? "#818cf8" }} />
+                {stage.nombre}
+              </button>
             ))}
           </div>
-        )}
-
-        {/* Progreso — relleno del color de etapa desaturado, sin resplandor */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex-1 bg-muted rounded-full h-1 overflow-hidden">
-            <div
-              className="rounded-full h-1 transition-all"
-              style={{ width: `${oportunidad.probabilidad}%`, backgroundColor: stageColor, opacity: 0.55 }}
-            />
-          </div>
-          <span className="text-[10px] font-medium text-muted-foreground tabular-nums w-7 text-right">
-            {oportunidad.probabilidad}%
-          </span>
-          {oportunidad.nuevoMensaje && (
-            <span className="h-1.5 w-1.5 rounded-full bg-success/80 shrink-0" />
-          )}
-        </div>
-      </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -508,6 +665,156 @@ function ZonasResultadoRapido({
   );
 }
 
+// ── Tabs de etapas (móvil) ──────────────────────────────────────────
+// role="tablist" real — cada tab controla el panel de la etapa
+// seleccionada (aria-controls, ver el id del panel más abajo en el
+// render móvil de PipelineKanbanDinamico).
+
+function TabsEtapasMovil({
+  stages,
+  conteos,
+  selectedStageId,
+  onSelect,
+}: {
+  stages: PipelineStage[];
+  conteos: Map<string, number>;
+  selectedStageId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  useEffect(() => {
+    if (!selectedStageId) return;
+    tabRefs.current.get(selectedStageId)?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [selectedStageId]);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const idx = stages.findIndex((s) => s.id === selectedStageId);
+    if (idx === -1) return;
+    let siguiente: PipelineStage | undefined;
+    if (e.key === "ArrowRight") siguiente = stages[idx + 1];
+    else if (e.key === "ArrowLeft") siguiente = stages[idx - 1];
+    if (!siguiente) return;
+    e.preventDefault();
+    onSelect(siguiente.id);
+    tabRefs.current.get(siguiente.id)?.focus();
+  };
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Etapas del pipeline"
+      onKeyDown={onKeyDown}
+      className="flex gap-2 overflow-x-auto overscroll-x-contain px-4 -mx-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      style={{ scrollSnapType: "x proximity" }}
+    >
+      {stages.map((stage) => {
+        const activo = stage.id === selectedStageId;
+        const color = stage.color ?? "#818cf8";
+        return (
+          <button
+            key={stage.id}
+            ref={(el) => { if (el) tabRefs.current.set(stage.id, el); else tabRefs.current.delete(stage.id); }}
+            role="tab"
+            id={`pipeline-tab-${stage.id}`}
+            aria-selected={activo}
+            aria-controls={`pipeline-panel-${stage.id}`}
+            tabIndex={activo ? 0 : -1}
+            onClick={() => onSelect(stage.id)}
+            style={{
+              scrollSnapAlign: "center",
+              ...(activo ? { borderColor: `${color}55`, backgroundColor: `${color}12`, color } : undefined),
+            }}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-xl border px-3 min-h-11 text-[13px] font-medium transition-colors",
+              !activo && "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            <span>{stage.nombre}</span>
+            <span className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded bg-badge-bg text-[10px] font-bold text-badge-text">
+              {conteos.get(stage.id) ?? 0}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Resumen de la etapa activa (móvil) ──────────────────────────────
+
+function ResumenEtapaMovil({
+  stage,
+  conteo,
+  total,
+  pipelineId,
+  puedeMod,
+}: {
+  stage: PipelineStage;
+  conteo: number;
+  total: number;
+  pipelineId: string;
+  puedeMod: boolean;
+}) {
+  const color = stage.color ?? "#818cf8";
+  return (
+    <div className="rounded-xl border border-column-border bg-column-bg overflow-hidden shrink-0">
+      <div className="h-[2px] opacity-70" style={{ backgroundColor: color }} />
+      <div className="flex items-center justify-between px-3.5 pt-2.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className="inline-flex items-center rounded-md px-2 py-0.5 text-[12px] font-semibold truncate"
+            style={{ backgroundColor: `${color}15`, color }}
+          >
+            {stage.nombre}
+          </span>
+          <span className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded bg-badge-bg text-[10px] font-bold text-badge-text">
+            {conteo}
+          </span>
+        </div>
+        {puedeMod && (
+          <Link href={`/crm/oportunidades/nueva?pipelineId=${pipelineId}&stageId=${stage.id}`}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </Link>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 px-3.5 pt-1 pb-2.5 text-[11px]">
+        <Receipt className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <span className="text-muted-foreground font-medium">Total</span>
+        <span className="font-semibold tabular-nums text-foreground">{formatearMoneda(total, "PEN")}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── FAB "Nueva oportunidad" (móvil) ──────────────────────────────────
+// Fixed a la ventana, no al contenedor de scroll del tablero — mismo
+// destino que ya usa el botón "Nueva oportunidad" de escritorio
+// (pipeline-wrapper.tsx), solo reposicionado/restilado para móvil.
+// bottom: 88px deja lugar debajo para un segundo FAB (ej. el de IA, si la
+// página lo agrega) sin superponerse — ver pedido original.
+
+function FabNuevaOportunidad({ pipelineId, stageId }: { pipelineId: string; stageId: string | null }) {
+  if (!stageId) return null;
+  return (
+    <Link
+      href={`/crm/oportunidades/nueva?pipelineId=${pipelineId}&stageId=${stageId}`}
+      aria-label="Nueva oportunidad"
+      style={{
+        position: "fixed",
+        right: "16px",
+        bottom: "calc(88px + env(safe-area-inset-bottom))",
+        zIndex: 30,
+      }}
+      className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_24px_-6px_color-mix(in_oklab,var(--primary)_55%,transparent)] hover:bg-primary-hover active:scale-95 transition-all"
+    >
+      <Plus className="h-6 w-6" />
+    </Link>
+  );
+}
+
 // ── Kanban principal ──────────────────────────────────────────────
 
 interface PipelineKanbanDinamicoProps {
@@ -572,6 +879,20 @@ export function PipelineKanbanDinamico({
   const activeCardRef = useRef<OportunidadEnStage | null>(null);
   const moverMutation = useMoverAStageMutation();
 
+  // Vista móvil (una sola etapa + tabs) vs. Kanban de escritorio. `montado`
+  // evita montar el DndContext completo (todas las columnas, sensores de
+  // puntero) durante el primer render en un celular real: sin esto, SSR e
+  // hidratación siempre devuelven `esMobile=false` (ver useMediaQuery) y el
+  // Kanban de escritorio completo llegaría a montarse un instante antes de
+  // corregirse — acá se espera al primer efecto (mismo momento en que
+  // useMediaQuery ya tiene el valor real) para elegir el árbol correcto
+  // directamente, sin ese parpadeo/doble montaje.
+  const [montado, setMontado] = useState(false);
+  useEffect(() => setMontado(true), []);
+  const esMobile = useMediaQuery(MOBILE_BREAKPOINT_QUERY);
+
+  const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+
   // Resincroniza con los datos frescos del servidor (ej. tras el auto-refresh
   // periódico, que trae nuevoMensaje/oportunidades actualizadas, o tras subir
   // ?limite= al "cargar más" — ver más abajo) — pero nunca mientras hay un
@@ -611,6 +932,19 @@ export function PipelineKanbanDinamico({
   const stagesColumnas = verOcultos
     ? pipeline.stages
     : pipeline.stages.filter((s) => !(s.esGanado || s.esPerdido) || s.visible);
+
+  // Etapa activa de la vista móvil: conserva la selección si sigue siendo
+  // válida (ver Objetivo del pedido — "conservar la etapa seleccionada si
+  // ya existe en estado"); si no hay ninguna todavía o la que había dejó de
+  // existir en `stagesColumnas` (ej. se apagó "Ver ocultos"), cae a la
+  // primera etapa visible. No depende de la URL a propósito: cambiar de tab
+  // no debe navegar ni disparar un refetch del Server Component.
+  useEffect(() => {
+    setSelectedStageId((actual) =>
+      actual && stagesColumnas.some((s) => s.id === actual) ? actual : (stagesColumnas[0]?.id ?? null)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stagesColumnas]);
 
   // Etapas destino de las zonas rápidas "Ganado"/"Perdido" que aparecen al
   // arrastrar — si el pipeline tiene más de una marcada, se usa la primera.
@@ -856,17 +1190,7 @@ export function PipelineKanbanDinamico({
     if (over && (over.id === ZONA_GANADO_ID || over.id === ZONA_PERDIDO_ID)) {
       const nuevoStageId = over.id === ZONA_GANADO_ID ? stageGanado?.id : stagePerdido?.id;
       if (!nuevoStageId || nuevoStageId === origen) { if (snapshot) setLocalOps(snapshot); return; }
-      const nuevoStage = pipeline.stages.find((s) => s.id === nuevoStageId);
-      setLocalOps((prev) => {
-        const next = new Map(prev);
-        next.set(origen, (next.get(origen) ?? []).filter((o) => o.id !== oportunidad.id));
-        next.set(nuevoStageId, [
-          { ...oportunidad, stageId: nuevoStageId, pipelineId: pipeline.id, probabilidad: nuevoStage?.probabilidad ?? oportunidad.probabilidad },
-          ...(next.get(nuevoStageId) ?? []),
-        ]);
-        return next;
-      });
-      confirmarMovimiento(oportunidad, origen, nuevoStageId);
+      moverOportunidadDesdeMenu(oportunidad, nuevoStageId);
       return;
     }
 
@@ -931,6 +1255,28 @@ export function PipelineKanbanDinamico({
         },
       },
     );
+  };
+
+  // Mueve una oportunidad a otra etapa SIN pasar por un drag — misma
+  // operación (splice local + confirmarMovimiento) que ya hacía a mano la
+  // rama de las zonas rápidas Ganado/Perdido en handleDragEnd (ver abajo,
+  // ahora reusa esta función); es también lo que dispara el menú ⋮ de la
+  // tarjeta móvil ("Mover a etapa…", "Marcar como ganado/perdido" — ver
+  // TarjetaOportunidadMovil), que no tiene ningún gesto de arrastre detrás.
+  const moverOportunidadDesdeMenu = (oportunidad: OportunidadEnStage, destino: string) => {
+    const origen = encontrarStageDe(oportunidad.id, localOps) ?? oportunidad.stageId;
+    if (!origen || destino === origen) return;
+    const nuevoStage = pipeline.stages.find((s) => s.id === destino);
+    setLocalOps((prev) => {
+      const next = new Map(prev);
+      next.set(origen, (next.get(origen) ?? []).filter((o) => o.id !== oportunidad.id));
+      next.set(destino, [
+        { ...oportunidad, stageId: destino, pipelineId: pipeline.id, probabilidad: nuevoStage?.probabilidad ?? oportunidad.probabilidad },
+        ...(next.get(destino) ?? []),
+      ]);
+      return next;
+    });
+    confirmarMovimiento(oportunidad, origen, destino);
   };
 
   const handleUpdate = (updated: Oportunidad & { stageId?: string | null }) => {
@@ -1033,63 +1379,135 @@ export function PipelineKanbanDinamico({
     setSelected(null);
   };
 
+  const stageActiva = stagesColumnas.find((s) => s.id === selectedStageId) ?? null;
+  const itemsEtapaActiva = selectedStageId ? localOps.get(selectedStageId) ?? [] : [];
+
   return (
     <>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={detectarColision}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <KanbanScrollContainer
-          stageColors={stagesColumnas.map((s) => s.color ?? "#818cf8")}
-        >
-          {stagesColumnas.map((stage) => {
-            const items = localOps.get(stage.id) ?? [];
-            return (
-              <ColumnaStage
-                key={stage.id}
-                stage={stage}
+      {!montado ? (
+        // Ni el árbol de escritorio ni el móvil todavía — evita montar (y
+        // desmontar un instante después) el DndContext completo en un
+        // celular real. Ver comentario en `montado` más arriba.
+        <div className="space-y-3">
+          <Skeleton className="h-11 w-2/3 rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-28 w-full rounded-xl" />
+        </div>
+      ) : esMobile ? (
+        <div className="flex h-full flex-col gap-3">
+          <TabsEtapasMovil
+            stages={stagesColumnas}
+            conteos={localConteos}
+            selectedStageId={selectedStageId}
+            onSelect={setSelectedStageId}
+          />
+
+          {stageActiva && (
+            <div
+              id={`pipeline-panel-${stageActiva.id}`}
+              role="tabpanel"
+              aria-labelledby={`pipeline-tab-${stageActiva.id}`}
+              className="flex flex-1 flex-col gap-3 min-h-0"
+            >
+              <ResumenEtapaMovil
+                stage={stageActiva}
+                conteo={Math.max(localConteos.get(stageActiva.id) ?? 0, itemsEtapaActiva.length)}
+                total={localTotales.get(stageActiva.id) ?? 0}
                 pipelineId={pipeline.id}
-                items={items}
-                total={localTotales.get(stage.id) ?? 0}
-                conteo={Math.max(localConteos.get(stage.id) ?? 0, items.length)}
-                onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
                 puedeMod={puedeMod}
-                resaltada={!!activeCard && items.some((o) => o.id === activeCard.id)}
-                scrolled={scrolled}
               />
-            );
-          })}
-        </KanbanScrollContainer>
 
-        {/* Centinela para "cargar más" — invisible, solo mientras falten
-            oportunidades por traer en alguna etapa. Vive fuera de
-            KanbanScrollContainer para no interferir con el scroll horizontal. */}
-        {hayMasPorCargar && <div ref={sentinelRef} aria-hidden className="h-px" />}
+              {itemsEtapaActiva.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border py-10 text-center text-[12.5px] text-muted-foreground">
+                  Sin oportunidades en esta etapa
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 pb-24">
+                  {itemsEtapaActiva.map((op) => (
+                    <TarjetaOportunidadMovil
+                      key={op.id}
+                      oportunidad={op}
+                      stageColor={stageActiva.color ?? "#818cf8"}
+                      stagesDestino={stagesColumnas.filter((s) => s.id !== stageActiva.id)}
+                      onCardClick={(o) => setSelected({ id: o.id, stageId: o.stageId ?? null })}
+                      onMover={moverOportunidadDesdeMenu}
+                      stageGanadoId={puedeMod ? stageGanado?.id : undefined}
+                      stagePerdidoId={puedeMod ? stagePerdido?.id : undefined}
+                      puedeMod={puedeMod}
+                    />
+                  ))}
+                </div>
+              )}
 
-        {cargandoMas && (
-          <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Cargando más oportunidades…
-          </div>
-        )}
+              {hayMasPorCargar && <div ref={sentinelRef} aria-hidden className="h-px" />}
+              {cargandoMas && (
+                <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Cargando más oportunidades…
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Zonas rápidas Ganado/Perdido — siempre presentes al pie del
-            tablero (discretas en reposo), para soltar directo sin buscar la
-            columna correspondiente (útil si está lejos o escondida por "Ver
-            ocultos"). Fuera de KanbanScrollContainer a propósito: no viajan
-            con el scroll horizontal, quedan fijas debajo de las columnas. */}
-        {puedeMod && (stageGanado || stagePerdido) && (
-          <ZonasResultadoRapido stageGanado={stageGanado} stagePerdido={stagePerdido} dragging={!!activeCard} />
-        )}
+          {puedeMod && <FabNuevaOportunidad pipelineId={pipeline.id} stageId={selectedStageId} />}
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={detectarColision}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <KanbanScrollContainer
+            stageColors={stagesColumnas.map((s) => s.color ?? "#818cf8")}
+          >
+            {stagesColumnas.map((stage) => {
+              const items = localOps.get(stage.id) ?? [];
+              return (
+                <ColumnaStage
+                  key={stage.id}
+                  stage={stage}
+                  pipelineId={pipeline.id}
+                  items={items}
+                  total={localTotales.get(stage.id) ?? 0}
+                  conteo={Math.max(localConteos.get(stage.id) ?? 0, items.length)}
+                  onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
+                  puedeMod={puedeMod}
+                  resaltada={!!activeCard && items.some((o) => o.id === activeCard.id)}
+                  scrolled={scrolled}
+                />
+              );
+            })}
+          </KanbanScrollContainer>
 
-        <DragOverlay dropAnimation={{ duration: 150 }}>
-          {activeCard && <TarjetaOverlay oportunidad={activeCard} />}
-        </DragOverlay>
-      </DndContext>
+          {/* Centinela para "cargar más" — invisible, solo mientras falten
+              oportunidades por traer en alguna etapa. Vive fuera de
+              KanbanScrollContainer para no interferir con el scroll horizontal. */}
+          {hayMasPorCargar && <div ref={sentinelRef} aria-hidden className="h-px" />}
+
+          {cargandoMas && (
+            <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Cargando más oportunidades…
+            </div>
+          )}
+
+          {/* Zonas rápidas Ganado/Perdido — siempre presentes al pie del
+              tablero (discretas en reposo), para soltar directo sin buscar la
+              columna correspondiente (útil si está lejos o escondida por "Ver
+              ocultos"). Fuera de KanbanScrollContainer a propósito: no viajan
+              con el scroll horizontal, quedan fijas debajo de las columnas. */}
+          {puedeMod && (stageGanado || stagePerdido) && (
+            <ZonasResultadoRapido stageGanado={stageGanado} stagePerdido={stagePerdido} dragging={!!activeCard} />
+          )}
+
+          <DragOverlay dropAnimation={{ duration: 150 }}>
+            {activeCard && <TarjetaOverlay oportunidad={activeCard} />}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       <WorkspaceOportunidad
         oportunidadId={selected?.id ?? null}

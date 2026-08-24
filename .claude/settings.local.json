@@ -212,7 +212,10 @@
       "Bash(node /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/5cd9d5a1-9ed2-4f61-9cb3-3b812a3de465/scratchpad/check-sidebar.mjs)",
       "Bash(node check-sidebar.tmp.mjs)",
       "Bash(node check-sidebar2.tmp.mjs)",
-      "Bash(rm -f /Users/ramonolmos/Repositories/crm-sales-smart/check-sidebar*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-a11y*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-dark*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-debug.png /Users/ramonolmos/Repositories/crm-sales-smart/check-nav-final.png /Users/ramonolmos/Repositories/crm-sales-smart/check-dark-mobile-open.png /Users/ramonolmos/Repositories/crm-sales-smart/check-dark-desktop.png *)"
+      "Bash(rm -f /Users/ramonolmos/Repositories/crm-sales-smart/check-sidebar*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-a11y*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-dark*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-debug.png /Users/ramonolmos/Repositories/crm-sales-smart/check-nav-final.png /Users/ramonolmos/Repositories/crm-sales-smart/check-dark-mobile-open.png /Users/ramonolmos/Repositories/crm-sales-smart/check-dark-desktop.png *)",
+      "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-pipeline4.tmp.mjs)",
+      "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-pipeline3.tmp.mjs)",
+      "Bash(rm -f /Users/ramonolmos/Repositories/crm-sales-smart/check-pipeline*.tmp.mjs *)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
