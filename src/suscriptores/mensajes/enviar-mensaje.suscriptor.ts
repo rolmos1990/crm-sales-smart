@@ -29,9 +29,10 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
     // Ventana de mensajería — solo Instagram la exige (Meta rechaza con
     // code 10 pasadas las 24h sin tag, y pasados los 7 días ni con tag).
     // Se resuelve ACÁ (no en instagram.ts, que no tiene acceso a Prisma) y
-    // ANTES de llamar al provider — si ya sabemos que Meta lo va a
-    // rechazar, no tiene sentido gastar la llamada de red (ver Caso D del
-    // pedido: "No llamar innecesariamente a Meta").
+    // ANTES de llamar al provider. La capability "Human Agent" ya está
+    // aprobada por Meta para esta app, así que entre 24h y 7 días se manda
+    // el tag directo — solo se corta local cuando ya pasaron los 7 días,
+    // caso en el que Meta rechazaría con o sin tag.
     let tag: "HUMAN_AGENT" | undefined;
     if (cuentaCanal.canal === "instagram") {
       const ultimoDelContacto = await prisma.mensajeConversacion.findFirst({
@@ -40,7 +41,6 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
         select: { creadoEn: true },
       });
       const estadoVentana = obtenerEstadoVentanaMensajeria(ultimoDelContacto?.creadoEn ?? null);
-      const cfg = cuentaCanal.configuracion as { humanAgentEnabled?: boolean };
 
       if (estadoVentana === "FUERA_DE_VENTANA") {
         throw new EnvioMensajeError({
@@ -50,13 +50,6 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
         });
       }
       if (estadoVentana === "HUMAN_AGENT") {
-        if (!cfg.humanAgentEnabled) {
-          throw new EnvioMensajeError({
-            codigo: "HUMAN_AGENT_NO_APROBADO",
-            mensaje: "La ventana estándar de 24h de Instagram expiró y esta integración no tiene habilitada la extensión para agentes humanos.",
-            reintentable: false,
-          });
-        }
         tag = "HUMAN_AGENT";
       }
       // VENTANA_NORMAL → tag queda undefined, envío normal (sin tag).
