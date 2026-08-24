@@ -195,6 +195,18 @@ export class InstagramProvider implements ICanalProvider {
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({})) as ErrorMetaGraphAPI;
+      // Diagnóstico: el texto y el fbtrace_id de Meta no viajan en
+      // EnvioMensajeError (solo code/subcode/httpStatus) — se loguean acá,
+      // en el borde donde todavía se tiene el body crudo, para poder
+      // confirmar la causa exacta de un code 10 sin subcode conocido
+      // (ej. HUMAN_AGENT) contra el panel de errores de Meta for Developers.
+      console.error("[Instagram] Meta rechazó el envío", {
+        httpStatus: res.status,
+        metaCode: body.error?.code,
+        metaSubcode: body.error?.error_subcode,
+        metaMessage: body.error?.message,
+        fbtraceId: body.error?.fbtrace_id,
+      });
       throw clasificarErrorInstagram(res.status, body, payload.tag === "HUMAN_AGENT");
     }
 
