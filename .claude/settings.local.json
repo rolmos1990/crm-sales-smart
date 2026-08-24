@@ -203,7 +203,9 @@
       "Bash(python3 -c ' *)",
       "Bash(sips -g pixelWidth -g pixelHeight test-results/vis-pedido-nuevo-dark.png)",
       "Bash(xargs -I{} head -15 {})",
-      "Bash(curl -s -L http://localhost:3000/ --max-time 10)"
+      "Bash(curl -s -L http://localhost:3000/ --max-time 10)",
+      "Bash(grep -rn \"conversaciones/\\\\[id\\\\]/contexto\\\\|/contexto\\\\`\\\\|conversaciones.*contexto\" src --include=\"*.ts\" --include=\"*.tsx\")",
+      "Bash(grep -rn \"api/conversaciones/.*mensajes\\\\|api/conversaciones/\\\\[id\\\\]\\\\|conversaciones/\\\\${.*}/mensajes\\\\|conversaciones/\\\\\" + \" src --include=\"*.ts\" --include=\"*.tsx\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

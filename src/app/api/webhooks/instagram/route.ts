@@ -4,6 +4,7 @@ import { obtenerProvider } from "@/conversaciones/providers/registry";
 import { TIPOS_EVENTO, TIPOS_COMANDO } from "@/shared/eventos/registro";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { resolverApiBaseIG } from "@/conversaciones/providers/instagram-estrategia-auth";
+import { verificarFirmaWebhookMeta } from "@/shared/lib/verificar-firma-webhook-meta";
 import type { TipoMensaje } from "@/generated/prisma/enums";
 
 export const runtime = "nodejs";
@@ -167,6 +168,22 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const rawText = await req.text();
+
+  // Sin esto, cualquiera que descubra esta URL y un identificador/pageId de
+  // una cuenta conectada podría inyectar mensajes falsos — HMAC sobre el
+  // cuerpo crudo, igual al que Meta ya manda en X-Hub-Signature-256. Se
+  // prueba contra los dos App Secret posibles (flujo legacy Facebook Login
+  // vs. flujo activo Instagram Login) porque una cuenta puede estar
+  // conectada por cualquiera de los dos — ver verificar-firma-webhook-meta.ts.
+  const firmaValida = verificarFirmaWebhookMeta(
+    rawText,
+    req.headers.get("x-hub-signature-256"),
+    [process.env.META_APP_SECRET, process.env.META_INSTAGRAM_APP_SECRET],
+  );
+  if (!firmaValida) {
+    console.warn("[IG Webhook] Firma inválida o ausente — request rechazada");
+    return new NextResponse("Forbidden", { status: 403 });
+  }
 
   console.log(JSON.stringify({
     event: "IG_WEBHOOK_POST",

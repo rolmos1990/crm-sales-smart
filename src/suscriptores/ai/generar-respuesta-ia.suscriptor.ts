@@ -105,6 +105,11 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
       contenido: contenidoFinal,
       tipo: "TEXTO",
       esNotaInterna: false,
+      // Este worker no tiene sesión de usuario (corre en cola, sin request
+      // HTTP) — el instanciaId ya se validó contra la conversación arriba
+      // (línea ~29), así que se pasa explícitamente para que enviarMensaje
+      // no intente resolverlo por sesión (ver docs/META-INSTAGRAM-PRODUCTION-AUDIT.md, hallazgo #2).
+      instanciaId,
     });
 
     if (!resultado.ok) {

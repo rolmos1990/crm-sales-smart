@@ -96,6 +96,62 @@ export async function conectarCuentaInstagramLogin(
 }
 
 /**
+ * Renueva el token de larga duración de una cuenta conectada por Instagram
+ * Login antes de que expire (~60 días de vida; Meta permite renovarlo
+ * mientras todavía tenga al menos 24h) — sin esto, las cuentas conectadas
+ * dejan de funcionar silenciosamente al vencer el token (ver
+ * docs/META-INSTAGRAM-PRODUCTION-AUDIT.md, hallazgo #3). Endpoint propio de
+ * Instagram Login — no requiere el App Secret, el token mismo autentica el
+ * pedido. Solo aplica a `proveedorAuth: "Instagram"`; el flujo legacy de
+ * Facebook Login (`MetaFacebook`) usa `fb_exchange_token` y no está
+ * cubierto acá a propósito (ver §G.7 del documento de auditoría).
+ */
+export async function renovarTokenInstagram(
+  cuentaCanalId: string,
+): Promise<{ renovado: boolean; error?: string }> {
+  const cuenta = await prisma.cuentaCanal.findUnique({
+    where: { id: cuentaCanalId },
+    select: { configuracion: true, proveedorAuth: true },
+  });
+  if (!cuenta || cuenta.proveedorAuth !== "Instagram") {
+    return { renovado: false, error: "Cuenta no encontrada o no es de Instagram Login" };
+  }
+
+  const cfg = cuenta.configuracion as Record<string, unknown> & { accessToken?: string };
+  if (!cfg.accessToken) {
+    return { renovado: false, error: "Cuenta sin token configurado" };
+  }
+
+  const res = await fetch(
+    `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token` +
+      `&access_token=${encodeURIComponent(cfg.accessToken)}`,
+    { cache: "no-store" },
+  );
+  const json = (await res.json().catch(() => ({}))) as {
+    access_token?: string;
+    expires_in?: number;
+    error?: unknown;
+  };
+
+  if (!json.access_token) {
+    console.warn(`[IG Token] No se pudo renovar el token de la cuenta ${cuentaCanalId}:`, json.error ?? `HTTP ${res.status}`);
+    return { renovado: false, error: "Meta no devolvió un token nuevo" };
+  }
+
+  await prisma.cuentaCanal.update({
+    where: { id: cuentaCanalId },
+    data: {
+      configuracion: { ...cfg, accessToken: json.access_token },
+      // Meta documenta ~60 días; se usa expires_in si viene, con ese valor
+      // como respaldo si la respuesta no lo trae.
+      tokenExpiraEn: new Date(Date.now() + (json.expires_in ?? 60 * 24 * 60 * 60) * 1000),
+      tokenRenovadoEn: new Date(),
+    },
+  });
+  return { renovado: true };
+}
+
+/**
  * Suscribe explícitamente la cuenta profesional a los eventos de webhook que
  * el CRM sabe procesar hoy. Completar el OAuth NO suscribe nada por sí solo
  * — hay que llamar esto siempre tras conectar.

@@ -430,6 +430,12 @@ export async function enviarMensaje(input: {
   esNotaInterna?: boolean;
   usuarioId?: string;
   mediaUrl?: string;
+  /** Solo para llamadores internos de confianza (workers de cola, ej.
+   *  GenerarRespuestaIASuscriptor) que ya resolvieron y validaron el
+   *  instanciaId contra la conversación antes de llegar acá — nunca lo
+   *  manda un cliente. Si no viene, se resuelve por sesión (llamada desde
+   *  el navegador). Ver docs/META-INSTAGRAM-PRODUCTION-AUDIT.md, hallazgo #2. */
+  instanciaId?: string;
 }): Promise<{ ok: true; mensaje: { id: string } } | { ok: false; error: string }> {
   try {
     const validado = EnviarMensajeSchema.parse(input);
@@ -438,6 +444,14 @@ export async function enviarMensaje(input: {
       where: { id: validado.conversacionId },
       include: { cuentaCanal: true, contacto: true },
     });
+
+    // Aislamiento multi-tenant: un llamador de confianza (worker) trae su
+    // propio instanciaId ya validado; si no, se exige sesión real y se
+    // compara contra ella — nunca se confía en la conversación por su solo id.
+    const instanciaIdEsperado = input.instanciaId ?? (await requireSesion()).instanciaId;
+    if (conversacion.instanciaId !== instanciaIdEsperado) {
+      return { ok: false, error: "Conversación no encontrada" };
+    }
 
     // Crear mensaje en BD de inmediato (optimistic — el agente lo ve al instante)
     const mensaje = await prisma.mensajeConversacion.create({

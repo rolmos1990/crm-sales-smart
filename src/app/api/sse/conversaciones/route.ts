@@ -1,4 +1,5 @@
 import { manejadorSSE } from "@/shared/eventos/sse";
+import { requireSesion } from "@/shared/auth/sesion";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,14 @@ export async function GET(req: Request) {
 
   if (!instanciaId) {
     return new Response("instanciaId requerido", { status: 400 });
+  }
+
+  // Sin esto, cualquier usuario autenticado podía pasar el instanciaId de
+  // otro tenant y suscribirse a sus eventos de mensajería en tiempo real —
+  // ver docs/META-INSTAGRAM-PRODUCTION-AUDIT.md, hallazgo #2.
+  const sesion = await requireSesion();
+  if (instanciaId !== sesion.instanciaId) {
+    return new Response("Forbidden", { status: 403 });
   }
 
   const encoder = new TextEncoder();

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/db/prisma";
+import { requireSesion } from "@/shared/auth/sesion";
 import type { ContextoInterpolacion } from "@/conversaciones/interpolacion";
 
 export async function GET(
@@ -7,9 +8,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const sesion = await requireSesion();
 
-  const conversacion = await prisma.conversacion.findUnique({
-    where: { id },
+  // Sin esto, cualquier usuario autenticado de cualquier tenant podía leer
+  // PII del contacto/empresa de otro tenant si adivinaba un conversacionId
+  // — ver docs/META-INSTAGRAM-PRODUCTION-AUDIT.md, hallazgo #2.
+  const conversacion = await prisma.conversacion.findFirst({
+    where: { id, instanciaId: sesion.instanciaId },
     include: {
       contacto: {
         include: { empresa: true },
