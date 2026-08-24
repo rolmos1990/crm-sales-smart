@@ -23,10 +23,13 @@ import {
   GitBranch,
   Database,
   Truck,
+  Menu,
+  X,
 } from "lucide-react";
 import { Toaster } from "sonner";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
+import { Sheet, SheetContent, SheetClose } from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +40,11 @@ import { cerrarSesion } from "@/shared/auth/auth-service";
 import { puedeVerModulo } from "@/shared/auth/permisos";
 import { SesionProvider } from "@/shared/auth/sesion-context";
 import type { Rol } from "@/generated/prisma/enums";
+
+// Breakpoint en el que el sidebar fijo de escritorio pasa a ser un drawer
+// móvil — 1024px (Tailwind `lg`), no `md` (768px): tablets en portrait
+// también deben recibir el comportamiento de drawer.
+const MOBILE_DRAWER_BREAKPOINT = "(min-width: 1024px)";
 
 const NAVEGACION = [
   {
@@ -74,6 +82,8 @@ const NAVEGACION = [
     ],
   },
 ];
+
+type GrupoNav = (typeof NAVEGACION)[number];
 
 /**
  * Detecta si el contenedor scrollable tiene contenido oculto debajo, para
@@ -115,16 +125,39 @@ function useScrollFade<T extends HTMLElement>(deps: unknown[]) {
   return { ref, hasMoreBelow };
 }
 
+/**
+ * Cierra el drawer móvil apenas el viewport cruza a escritorio (>=1024px) —
+ * sin esto, si alguien lo dejó abierto en móvil y gira la pantalla o
+ * redimensiona la ventana, el overlay/drawer quedarían montados de más.
+ * Solo corre en el cliente (matchMedia no existe en SSR) y no participa del
+ * primer render, así que no genera mismatch de hidratación.
+ */
+function useCerrarAlLlegarAEscritorio(cerrar: () => void) {
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_DRAWER_BREAKPOINT);
+    const handler = (e: MediaQueryList | MediaQueryListEvent) => {
+      if (e.matches) cerrar();
+    };
+    handler(mq);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
 function NavItem({
   href,
   etiqueta,
   Icono,
   exact,
+  onNavigate,
 }: {
   href: string;
   etiqueta: string;
   Icono: React.ElementType;
   exact?: boolean;
+  /** Se llama al hacer click — usado por el drawer móvil para cerrarse al navegar. */
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const activo = exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
@@ -132,6 +165,7 @@ function NavItem({
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className={cn(
         "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-all duration-150",
         activo
@@ -145,8 +179,71 @@ function NavItem({
           activo ? "text-nav-active-icon" : "text-muted-foreground"
         )}
       />
-      {etiqueta}
+      <span className="flex-1 min-w-0 truncate">{etiqueta}</span>
     </Link>
+  );
+}
+
+/**
+ * Lista de navegación agrupada — única fuente de verdad tanto para el
+ * sidebar fijo de escritorio como para el drawer móvil (ver `AppLayout`).
+ * No calcula scroll ni layout propio: quien la use decide el contenedor.
+ */
+function SidebarNavList({
+  navFiltrado,
+  navRef,
+  onNavigate,
+}: {
+  navFiltrado: GrupoNav[];
+  navRef?: React.Ref<HTMLElement>;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav ref={navRef} className="sidebar-scroll absolute inset-0 py-3 px-2.5 space-y-4">
+      {navFiltrado.map((grupo) => (
+        <div key={grupo.grupo}>
+          <p className="px-2.5 mb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">
+            {grupo.grupo}
+          </p>
+          <div className="space-y-px">
+            {grupo.items.map((item) => (
+              <NavItem key={item.href} {...item} onNavigate={onNavigate} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+/** Logo + nombre de la app. En el drawer móvil recibe `onClose` y suma el botón X. */
+function SidebarLogo({ onClose }: { onClose?: () => void }) {
+  return (
+    <div className="flex h-[52px] items-center justify-between px-4 border-b border-border">
+      <Link href="/crm" className="flex items-center gap-2.5 group" onClick={onClose}>
+        <div className="rounded-lg bg-primary p-1.5 shadow-[0_0_14px_color-mix(in_oklab,var(--primary)_40%,transparent)] group-hover:shadow-[0_0_20px_color-mix(in_oklab,var(--primary)_55%,transparent)] transition-all duration-200">
+          <Leaf className="h-3.5 w-3.5 text-primary-foreground" />
+        </div>
+        <div className="flex flex-col leading-none gap-0.5">
+          <span className="text-[13px] font-semibold tracking-tight text-foreground">
+            KariaApp
+          </span>
+          <span className="text-[10px] text-muted-foreground tracking-wide font-medium">
+            CRM & Sales
+          </span>
+        </div>
+      </Link>
+
+      {onClose && (
+        <SheetClose
+          aria-label="Cerrar menú principal"
+          onClick={onClose}
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors -mr-2"
+        >
+          <X className="h-4 w-4" />
+        </SheetClose>
+      )}
+    </div>
   );
 }
 
@@ -208,6 +305,18 @@ function UserMenuDropdown({ usuario }: { usuario: UsuarioMenu }) {
   );
 }
 
+/** Bloque de usuario fijo al pie del sidebar — igual en escritorio y en el drawer móvil. */
+function SidebarUserFooter({ usuario }: { usuario?: UsuarioMenu }) {
+  return (
+    <div className="border-t border-border p-2.5 flex-shrink-0">
+      <div className="flex items-center gap-1">
+        <UserMenuDropdown usuario={usuario ?? null} />
+        <ThemeToggle />
+      </div>
+    </div>
+  );
+}
+
 export function AppLayout({
   children,
   usuario,
@@ -217,6 +326,9 @@ export function AppLayout({
   usuario?: UsuarioMenu;
   rol?: Rol;
 }) {
+  const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const navFiltrado = NAVEGACION.map((grupo) => ({
     ...grupo,
     items: grupo.items.filter((item) =>
@@ -226,49 +338,26 @@ export function AppLayout({
 
   const navItemsCount = navFiltrado.reduce((total, grupo) => total + grupo.items.length, 0);
   const { ref: navRef, hasMoreBelow } = useScrollFade<HTMLElement>([navItemsCount]);
+  const { ref: navRefMovil, hasMoreBelow: hasMoreBelowMovil } = useScrollFade<HTMLElement>([
+    navItemsCount,
+    mobileOpen,
+  ]);
+
+  // Cerrar el drawer al cambiar de ruta (incluye seleccionar un ítem de nav).
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useCerrarAlLlegarAEscritorio(() => setMobileOpen(false));
 
   return (
     <div className="app-gradient-bg flex h-screen overflow-hidden bg-background">
-      {/* Sidebar */}
-      <aside className="hidden md:flex w-56 flex-col border-r border-border bg-sidebar flex-shrink-0">
-        {/* Logo */}
-        <div className="flex h-[52px] items-center px-4 border-b border-border">
-          <Link href="/crm" className="flex items-center gap-2.5 group">
-            <div className="rounded-lg bg-primary p-1.5 shadow-[0_0_14px_color-mix(in_oklab,var(--primary)_40%,transparent)] group-hover:shadow-[0_0_20px_color-mix(in_oklab,var(--primary)_55%,transparent)] transition-all duration-200">
-              <Leaf className="h-3.5 w-3.5 text-primary-foreground" />
-            </div>
-            <div className="flex flex-col leading-none gap-0.5">
-              <span className="text-[13px] font-semibold tracking-tight text-foreground">
-                KariaApp
-              </span>
-              <span className="text-[10px] text-muted-foreground tracking-wide font-medium">
-                CRM & Sales
-              </span>
-            </div>
-          </Link>
-        </div>
+      {/* Sidebar fijo — solo escritorio (>=1024px) */}
+      <aside className="hidden lg:flex w-56 flex-col border-r border-border bg-sidebar flex-shrink-0">
+        <SidebarLogo />
 
-        {/* Nav */}
         <div className="relative flex-1 min-h-0">
-          <nav
-            ref={navRef}
-            className="sidebar-scroll absolute inset-0 py-3 px-2.5 space-y-4"
-          >
-            {navFiltrado.map((grupo) => (
-              <div key={grupo.grupo}>
-                <p className="px-2.5 mb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">
-                  {grupo.grupo}
-                </p>
-                <div className="space-y-px">
-                  {grupo.items.map((item) => (
-                    <NavItem key={item.href} {...item} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </nav>
-
-          {/* Indicador de contenido adicional debajo — degradado sutil, sin iconos */}
+          <SidebarNavList navFiltrado={navFiltrado} navRef={navRef} />
           <div
             aria-hidden
             className={cn(
@@ -280,23 +369,84 @@ export function AppLayout({
           />
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-border p-2.5">
-          <div className="flex items-center gap-1">
-            <UserMenuDropdown usuario={usuario ?? null} />
-            <ThemeToggle />
-          </div>
-        </div>
+        <SidebarUserFooter usuario={usuario} />
       </aside>
+
+      {/* Drawer móvil/tablet (<1024px) — reutiliza Sheet (base-ui Dialog):
+          focus trap, aria-modal, Escape, click-fuera y bloqueo de scroll
+          del body ya vienen resueltos por la primitiva, no se reimplementan
+          acá. Solo se personaliza el ancho/animación para que se sienta
+          como un drawer (slide completo), no como el sheet lateral genérico
+          que usa el resto de la app. */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent
+          id="sidebar-drawer-movil"
+          side="left"
+          showCloseButton={false}
+          aria-label="Menú principal"
+          // base-ui ya aplica el comportamiento modal real (focus trap,
+          // scroll lock, `inert` en el fondo) pero no emite el atributo
+          // aria-modal — se agrega a mano para cumplir el contrato de
+          // accesibilidad explícito (lectores de pantalla que sí lo leen).
+          aria-modal="true"
+          className={cn(
+            "p-0 flex flex-col gap-0 bg-sidebar border-border",
+            "data-[side=left]:w-[min(82vw,360px)] data-[side=left]:max-w-none data-[side=left]:sm:max-w-none",
+            "data-[side=left]:data-starting-style:translate-x-[-100%] data-[side=left]:data-ending-style:translate-x-[-100%]",
+            "transition-[transform,opacity] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
+            "motion-reduce:transition-none"
+          )}
+        >
+          <SidebarLogo onClose={() => setMobileOpen(false)} />
+
+          <div className="relative flex-1 min-h-0">
+            <SidebarNavList
+              navFiltrado={navFiltrado}
+              navRef={navRefMovil}
+              onNavigate={() => setMobileOpen(false)}
+            />
+            <div
+              aria-hidden
+              className={cn(
+                "pointer-events-none absolute inset-x-0 bottom-0 h-[50px] transition-opacity duration-150 ease-out motion-reduce:transition-none",
+                "bg-gradient-to-t from-sidebar to-transparent",
+                hasMoreBelowMovil ? "opacity-100" : "opacity-0"
+              )}
+            />
+          </div>
+
+          <SidebarUserFooter usuario={usuario} />
+        </SheetContent>
+      </Sheet>
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-12 border-b border-border flex items-center px-6 gap-4 flex-shrink-0 bg-sidebar/80 dark:backdrop-blur-xl">
+        <header className="h-[52px] border-b border-border flex items-center px-4 lg:px-6 gap-3 flex-shrink-0 bg-sidebar/80 dark:backdrop-blur-xl">
+          {/* Hamburguesa + logo compacto — solo <1024px */}
+          <div className="flex lg:hidden items-center gap-2 min-w-0">
+            <button
+              type="button"
+              aria-label="Abrir menú principal"
+              aria-expanded={mobileOpen}
+              aria-controls="sidebar-drawer-movil"
+              onClick={() => setMobileOpen(true)}
+              className="flex h-11 w-11 -ml-2 items-center justify-center rounded-lg text-foreground hover:bg-muted transition-colors flex-shrink-0"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <Link href="/crm" className="flex items-center gap-2 min-w-0">
+              <div className="rounded-md bg-primary p-1 flex-shrink-0">
+                <Leaf className="h-3 w-3 text-primary-foreground" />
+              </div>
+              <span className="text-[13px] font-semibold tracking-tight text-foreground truncate">
+                KariaApp
+              </span>
+            </Link>
+          </div>
+
           <div className="flex-1" />
           <div className="flex items-center gap-3">
-            <div className="md:hidden">
-              <ThemeToggle />
-            </div>
+            <ThemeToggle />
           </div>
         </header>
         <main className="flex-1 overflow-y-auto bg-background">
