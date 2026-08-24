@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/shared/hooks/use-media-query";
 
 export interface PlantillaItem {
   id: string;
@@ -55,6 +57,11 @@ interface SelectorPlantillasProps {
   onSeleccionar: (plantilla: PlantillaItem) => void;
   onCerrar: () => void;
   onAutocompletar: (alias: string) => void;
+  /** Solo lo usa la variante móvil: su propio input de "Escribe para
+   *  filtrar…" escribe acá en vez de directo en el textarea del mensaje
+   *  (ver ContentedorFiltroMovil) — mismo `filtro`/`filtradas` de siempre,
+   *  ninguna lógica de búsqueda nueva. */
+  onFiltroChange?: (valor: string) => void;
 }
 
 export function SelectorPlantillas({
@@ -63,8 +70,13 @@ export function SelectorPlantillas({
   onSeleccionar,
   onCerrar,
   onAutocompletar,
+  onFiltroChange,
 }: SelectorPlantillasProps) {
   const [indice, setIndice] = useState(0);
+  // Mismo umbral que Pipeline/Inbox — <768 el panel pasa de dos columnas
+  // (lista + preview, pensado para mouse) a una sola columna de filas
+  // compactas (ver `ordenadas.map` más abajo, rama `esMobile`).
+  const esMobile = useMediaQuery("(max-width: 767px)");
   const [usos, setUsos] = useState<Record<string, number>>({});
   const listaRef = useRef<HTMLDivElement>(null);
 
@@ -158,6 +170,76 @@ export function SelectorPlantillas({
     document.addEventListener("keydown", handleKey, { capture: true });
     return () => document.removeEventListener("keydown", handleKey, { capture: true });
   }, [ordenadas.length, plantillaActiva, onSeleccionar, onCerrar, onAutocompletar]);
+
+  // ── Variante móvil: una sola columna de filas, sin preview lateral (no
+  // entra en un viewport angosto) — mismo `ordenadas`/`indice`/handlers de
+  // arriba, cero lógica de filtrado nueva. El header trae su propio input
+  // porque en el mock de referencia el filtro se escribe ahí, no en el
+  // textarea del mensaje — `onFiltroChange` reenvía al mismo mecanismo que
+  // ya arma `filtro` en input-mensaje.tsx (setTexto("/"+valor)).
+  if (esMobile) {
+    return (
+      <div
+        role="listbox"
+        aria-label="Plantillas rápidas"
+        className="absolute bottom-full left-0 right-0 mb-1 z-50 flex max-h-[60vh] flex-col rounded-xl border border-border bg-dropdown shadow-[0_20px_60px_-20px_rgba(0,0,0,0.5)] overflow-hidden"
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-border-subtle shrink-0">
+          <p className="text-[13px] font-semibold text-foreground">Plantillas rápidas</p>
+          <button
+            type="button"
+            onClick={onCerrar}
+            aria-label="Cerrar plantillas"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-3 py-2 border-b border-border-subtle shrink-0">
+          <input
+            type="text"
+            autoFocus
+            value={filtro}
+            onChange={(e) => onFiltroChange?.(e.target.value)}
+            placeholder="Escribe para filtrar…"
+            className="w-full h-9 rounded-lg border border-input bg-input-bg px-3 text-[13px] text-foreground placeholder:text-input-placeholder outline-none focus:border-input-focus/50"
+          />
+        </div>
+
+        {ordenadas.length === 0 ? (
+          <p className="px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+            Sin plantillas para &ldquo;{filtro}&rdquo;
+          </p>
+        ) : (
+          <div ref={listaRef} className="flex-1 overflow-y-auto py-1">
+            {ordenadas.slice(0, 6).map((p, i) => (
+              <button
+                key={p.id}
+                type="button"
+                role="option"
+                aria-selected={indice === i}
+                data-sel-idx={i}
+                onClick={() => {
+                  registrarUsoPlantilla(p.alias);
+                  setUsos(cargarUsos());
+                  onSeleccionar(p);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2.5 px-3 py-2.5 min-h-11 text-left transition-colors border-l-2",
+                  indice === i ? "bg-inbox-accent-muted border-inbox-accent/50" : "border-transparent active:bg-muted"
+                )}
+              >
+                <span className="text-[13px] font-semibold text-inbox-accent shrink-0">/{p.alias}</span>
+                <span className="text-[12px] text-muted-foreground truncate flex-1">{p.descripcion ?? p.nombre}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (ordenadas.length === 0) {
     return (

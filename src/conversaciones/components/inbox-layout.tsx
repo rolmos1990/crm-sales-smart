@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare, MessagesSquare, ChevronUp, Loader2, UserCircle2,
   Check, RotateCcw, XCircle, Clock, Clock3, Search, MessageCircle, Camera, Mail,
+  ArrowLeft, MoreVertical, ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -12,7 +13,12 @@ import { formatDistanceToNow, format, differenceInMinutes, differenceInHours, di
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { EmptyState } from "@/shared/ui/empty-state";
+import { useMediaQuery } from "@/shared/hooks/use-media-query";
 import { AvatarContacto } from "./avatar-contacto";
 import { BurbujaMensaje } from "./burbuja-mensaje";
 import { EventoSistema } from "./evento-sistema";
@@ -191,7 +197,26 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   const [seleccionada, setSeleccionada] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("abiertas");
   const [busqueda, setBusqueda] = useState("");
+  // Panel de info: en escritorio (>=1024) es una columna fija, controlada
+  // por `panelContactoAbierto` (default visible, sin cambios de
+  // comportamiento). Por debajo de eso pasa a Sheet (drawer en
+  // tablet/768-1023, bottom sheet en móvil/<768 — ver `esMobile` más abajo),
+  // con su propio estado de apertura por defecto CERRADO: usar el mismo
+  // booleano para ambos casos habría abierto el sheet solo con seleccionar
+  // una conversación la primera vez, sin que nadie lo pidiera.
   const [panelContactoAbierto, setPanelContactoAbierto] = useState(true);
+  const [sheetInfoAbierto, setSheetInfoAbierto] = useState(false);
+  // Umbral compartido con el drawer del sidebar (src/shared/ui/app-sidebar.tsx)
+  // — <1024 el panel de info deja de ser una columna fija.
+  const esCompacto = useMediaQuery("(max-width: 1023px)");
+  // Umbral propio del Inbox (igual al de Pipeline) — <768 la lista y el chat
+  // pasan a ser vistas mutuamente excluyentes en vez de columnas lado a lado.
+  const esMobile = useMediaQuery("(max-width: 767px)");
+
+  const abrirInfo = () => {
+    if (esCompacto) setSheetInfoAbierto(true);
+    else setPanelContactoAbierto((v) => !v);
+  };
 
   const [enviando, startEnviando] = useTransition();
   const [accionando, startAccion] = useTransition();
@@ -571,8 +596,20 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   return (
     <div className="flex h-full overflow-hidden">
 
-      {/* ── Panel izquierdo: lista de conversaciones ── */}
-      <aside className="w-72 lg:w-96 shrink-0 border-r border-border flex flex-col bg-background-subtle">
+      {/* ── Panel izquierdo: lista de conversaciones ──
+          Ancho completo en móvil (<768) — a esa altura es la vista completa,
+          no una columna angosta. Se oculta con `hidden` (no se desmonta)
+          cuando hay una conversación seleccionada Y el viewport es <768:
+          por debajo de eso, seguir montada es lo que conserva scroll,
+          búsqueda y filtro sin volver a pedir la lista al servidor — nunca
+          se pierde de vista en tablet/escritorio (>=768), que muestran
+          lista + chat lado a lado como hoy. */}
+      <aside
+        className={cn(
+          "w-full md:w-72 lg:w-96 shrink-0 border-r border-border flex-col bg-background-subtle",
+          seleccionada ? "hidden md:flex" : "flex"
+        )}
+      >
 
         {/* Buscador + filtros */}
         <div className="px-4 pt-4 pb-3 border-b border-border shrink-0 space-y-3">
@@ -734,8 +771,13 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
         </ul>
       </aside>
 
-      {/* ── Panel central: área de chat ── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-background">
+      {/* ── Panel central: área de chat ──
+          Oculto (no desmontado) en móvil mientras no hay conversación
+          seleccionada — sin conversación no hay nada montado adentro más
+          que el EmptyState, así que ocultarlo es barato; con conversación
+          seleccionada pasa a `flex` (pantalla completa en móvil, columna
+          central en tablet/escritorio). */}
+      <div className={cn("flex-1 flex-col overflow-hidden bg-background", !seleccionada ? "hidden md:flex" : "flex")}>
         {seleccionada === null || !convActiva ? (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
@@ -746,32 +788,43 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
           </div>
         ) : (
           <>
-            {/* Encabezado del chat */}
-            <div className="px-4 py-3 border-b border-border shrink-0 flex items-center gap-3">
+            {/* Encabezado del chat — sticky de hecho (shrink-0 dentro de un
+                flex-col con overflow en el hijo de mensajes, no acá) */}
+            <div className="px-3 md:px-4 py-3 border-b border-border shrink-0 flex items-center gap-2 md:gap-3">
+              {/* Volver a la lista — solo <768px; en tablet/escritorio la
+                  lista ya está visible al lado, no hace falta. */}
+              <button
+                type="button"
+                onClick={() => setSeleccionada(null)}
+                aria-label="Volver a conversaciones"
+                className="md:hidden -ml-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <ArrowLeft className="h-4.5 w-4.5" />
+              </button>
               <AvatarContacto
                 nombre={convActiva.contacto.nombre}
                 apellido={convActiva.contacto.apellido}
                 avatarUrl={convActiva.contacto.avatarUrl}
-                className="h-8 w-8 text-xs"
+                className="h-8 w-8 text-xs shrink-0"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-foreground truncate">{convNombre}</p>
                   {convSinIdentificar && (
-                    <span className="shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
+                    <span className="hidden sm:inline-flex shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
                       Sin identificar
                     </span>
                   )}
                 </div>
                 {convActiva.cuentaCanal && (
-                  <p className="text-[10px] text-muted-foreground">{convActiva.cuentaCanal.nombre}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{convActiva.cuentaCanal.nombre}</p>
                 )}
               </div>
               {isFetching && <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />}
               {ultimoMensajeContactoEn && (
                 <TooltipProvider>
                   <Tooltip>
-                    <TooltipTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 whitespace-nowrap cursor-default">
+                    <TooltipTrigger className="hidden md:flex items-center gap-1 text-[10px] text-muted-foreground shrink-0 whitespace-nowrap cursor-default">
                       <Clock className="h-3 w-3 shrink-0" />
                       {formatearTiempoCompacto(ultimoMensajeContactoEn, new Date())}
                     </TooltipTrigger>
@@ -783,17 +836,42 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               )}
               <button
                 type="button"
-                onClick={() => setPanelContactoAbierto((v) => !v)}
-                title={panelContactoAbierto ? "Ocultar info de contacto" : "Ver info de contacto"}
+                onClick={abrirInfo}
+                title={esCompacto ? "Ver info de contacto" : panelContactoAbierto ? "Ocultar info de contacto" : "Ver info de contacto"}
+                aria-expanded={esCompacto ? sheetInfoAbierto : panelContactoAbierto}
                 className={cn(
-                  "h-7 w-7 rounded-lg flex items-center justify-center transition-colors shrink-0",
-                  panelContactoAbierto
+                  "h-9 w-9 md:h-7 md:w-7 rounded-lg flex items-center justify-center transition-colors shrink-0",
+                  (esCompacto ? sheetInfoAbierto : panelContactoAbierto)
                     ? "bg-inbox-accent-muted text-inbox-accent"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <UserCircle2 className="h-4 w-4" />
               </button>
+
+              {/* Menú contextual — solo <768px; acciones poco frecuentes que
+                  no compiten con "Marcar respondida"/"Cerrar" de la barra de
+                  estado (BarraEstado, ya visible debajo del header). */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label="Más acciones de la conversación"
+                  className="md:hidden flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setSheetInfoAbierto(true)}>
+                    <UserCircle2 className="h-3.5 w-3.5" />
+                    Ver perfil
+                  </DropdownMenuItem>
+                  {convActiva.estado !== "CERRADA" && (
+                    <DropdownMenuItem onClick={() => handleCerrar(convActiva.id)}>
+                      <XCircle className="h-3.5 w-3.5" />
+                      Cerrar conversación
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Barra de estado */}
@@ -882,28 +960,82 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 </button>
               </div>
             ) : (
-              <InputMensaje
-                conversacionId={seleccionada}
-                cuentas={cuentas}
-                cuentaSeleccionadaId={cuentaSeleccionadaId}
-                onCambiarCuenta={setCuentaSeleccionadaId}
-                onEnviar={handleEnviar}
-                enviando={enviando}
-              />
+              <>
+                {/* Acceso rápido — solo si falta un dato importante, y solo
+                    <1024 (en escritorio el panel de contacto ya está a la
+                    vista por defecto, este acceso sería redundante ahí). */}
+                {esCompacto && (!convActiva.contacto.telefonoPrincipal || !convActiva.contacto.email) && (
+                  <button
+                    type="button"
+                    onClick={abrirInfo}
+                    className="mx-3 mb-2 flex items-center gap-2 rounded-xl border border-inbox-accent-border bg-inbox-accent-muted px-3 py-2.5 text-left transition-colors hover:bg-inbox-accent-muted/70"
+                  >
+                    <UserCircle2 className="h-4 w-4 shrink-0 text-inbox-accent" />
+                    <span className="text-[12.5px] font-semibold text-inbox-accent flex-1">Completar datos</span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      {!convActiva.contacto.telefonoPrincipal && (
+                        <span className="text-[10px] font-medium text-muted-foreground bg-badge-bg border border-badge-border rounded-full px-2 py-0.5">Teléfono</span>
+                      )}
+                      {!convActiva.contacto.email && (
+                        <span className="text-[10px] font-medium text-muted-foreground bg-badge-bg border border-badge-border rounded-full px-2 py-0.5">Email</span>
+                      )}
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-inbox-accent" />
+                  </button>
+                )}
+
+                <InputMensaje
+                  conversacionId={seleccionada}
+                  cuentas={cuentas}
+                  cuentaSeleccionadaId={cuentaSeleccionadaId}
+                  onCambiarCuenta={setCuentaSeleccionadaId}
+                  onEnviar={handleEnviar}
+                  enviando={enviando}
+                />
+              </>
             )}
           </>
         )}
       </div>
 
-      {/* ── Panel derecho: info de contacto ── */}
-      {seleccionada && convActiva && panelContactoAbierto && (
-        <div className="w-64 lg:w-72 xl:w-80 shrink-0 flex flex-col min-h-0">
-          <PanelContactoInbox
-            conversacion={convActiva}
-            onContactoActualizado={handleContactoActualizado}
-            onConversacionActualizada={handleConversacionActualizada}
-          />
-        </div>
+      {/* ── Panel derecho: info de contacto ──
+          >=1024: columna fija de siempre. <1024: el mismo
+          PanelContactoInbox, sin ningún cambio interno, dentro de un Sheet
+          — drawer lateral en tablet (768-1023), bottom sheet en móvil
+          (<768, ~90% de alto). Nunca los dos montados a la vez. */}
+      {esCompacto ? (
+        <Sheet open={!!(seleccionada && convActiva && sheetInfoAbierto)} onOpenChange={setSheetInfoAbierto}>
+          <SheetContent
+            side={esMobile ? "bottom" : "right"}
+            className={cn(
+              "flex flex-col gap-0 p-0 border-border bg-modal",
+              esMobile ? "h-[90vh] max-h-[90vh] rounded-t-2xl" : "w-full sm:max-w-sm data-[side=right]:sm:max-w-sm"
+            )}
+          >
+            <SheetHeader className="border-b border-border px-4 py-3 shrink-0">
+              <SheetTitle>Información</SheetTitle>
+            </SheetHeader>
+            {convActiva && (
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <PanelContactoInbox
+                  conversacion={convActiva}
+                  onContactoActualizado={handleContactoActualizado}
+                  onConversacionActualizada={handleConversacionActualizada}
+                />
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
+      ) : (
+        seleccionada && convActiva && panelContactoAbierto && (
+          <div className="w-64 lg:w-72 xl:w-80 shrink-0 flex flex-col min-h-0">
+            <PanelContactoInbox
+              conversacion={convActiva}
+              onContactoActualizado={handleContactoActualizado}
+              onConversacionActualizada={handleConversacionActualizada}
+            />
+          </div>
+        )
       )}
     </div>
   );
@@ -938,8 +1070,11 @@ function BarraEstado({
   });
 
   return (
+    // Columna en móvil (evita que 2 botones de acción se aprieten contra la
+    // etiqueta y se superpongan a 375px, ver "Marcar bloque como leído" +
+    // "Marcar respondida" juntos) — fila de siempre desde `sm` (640px).
     <div className={cn(
-      "px-4 py-2.5 border-b shrink-0 flex items-center justify-between gap-3",
+      "px-4 py-2.5 border-b shrink-0 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3",
       cfg.barBg, cfg.barBorder
     )}>
       {/* Indicador izquierdo */}
@@ -957,7 +1092,7 @@ function BarraEstado({
       </div>
 
       {/* Acciones rápidas según estado */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center flex-wrap gap-1.5 sm:shrink-0">
         {mensajesNoLeidosCount > 0 && (
           <button
             type="button"

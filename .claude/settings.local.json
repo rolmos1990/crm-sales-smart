@@ -215,7 +215,12 @@
       "Bash(rm -f /Users/ramonolmos/Repositories/crm-sales-smart/check-sidebar*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-a11y*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-dark*.tmp.mjs /Users/ramonolmos/Repositories/crm-sales-smart/check-debug.png /Users/ramonolmos/Repositories/crm-sales-smart/check-nav-final.png /Users/ramonolmos/Repositories/crm-sales-smart/check-dark-mobile-open.png /Users/ramonolmos/Repositories/crm-sales-smart/check-dark-desktop.png *)",
       "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-pipeline4.tmp.mjs)",
       "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-pipeline3.tmp.mjs)",
-      "Bash(rm -f /Users/ramonolmos/Repositories/crm-sales-smart/check-pipeline*.tmp.mjs *)"
+      "Bash(rm -f /Users/ramonolmos/Repositories/crm-sales-smart/check-pipeline*.tmp.mjs *)",
+      "Bash(node /tmp/check-data.mjs)",
+      "Bash(node check-data.tmp.mjs)",
+      "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox2.tmp.mjs)",
+      "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox4.tmp.mjs)",
+      "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox6.tmp.mjs)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

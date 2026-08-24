@@ -157,6 +157,15 @@ export function InputMensaje({
     setFiltroSelector("");
   };
 
+  // Usado solo por la variante móvil de SelectorPlantillas (su propio input
+  // "Escribe para filtrar…", ver selector-plantillas.tsx) — escribe en el
+  // mismo `texto` que ya conduce todo lo demás (envío, placeholder, etc.),
+  // no un estado de filtro aparte.
+  const actualizarFiltroSelector = (valor: string) => {
+    setFiltroSelector(valor);
+    setTexto(`/${valor}`);
+  };
+
   const handleSugerenciaIA = () => {
     startGenerandoIA(async () => {
       const resultado = await generarSugerenciaIA(conversacionId);
@@ -172,7 +181,10 @@ export function InputMensaje({
   const puedeEnviar = (texto.trim() || imagenAdjunta) && !enviando && !interpolando;
 
   return (
-    <div className="border-t border-border p-2 space-y-2 relative">
+    // pb con env(safe-area-inset-bottom) — 0 en la enorme mayoría de
+    // dispositivos (no-op ahí), evita que el home indicator de iOS tape el
+    // compositor en los que sí tienen inset.
+    <div className="border-t border-border p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] space-y-2 relative">
       {/* Selector de plantillas flotante */}
       {selectorVisible && plantillas.length > 0 && (
         <SelectorPlantillas
@@ -184,6 +196,7 @@ export function InputMensaje({
             setTexto(`/${alias}`);
             setFiltroSelector(alias);
           }}
+          onFiltroChange={actualizarFiltroSelector}
         />
       )}
 
@@ -281,7 +294,7 @@ export function InputMensaje({
             <>
               <Popover open={emojiPickerAbierto} onOpenChange={setEmojiPickerAbierto}>
                 <PopoverTrigger
-                  className="text-muted-foreground hover:text-text-secondary p-1 rounded transition-colors"
+                  className="flex h-9 w-9 md:h-auto md:w-auto items-center justify-center text-muted-foreground hover:text-text-secondary md:p-1 rounded transition-colors"
                   title="Insertar emoji"
                 >
                   <Smile className="h-4 w-4" />
@@ -303,7 +316,7 @@ export function InputMensaje({
               </Popover>
               <button
                 type="button"
-                className="text-muted-foreground hover:text-text-secondary p-1 rounded transition-colors"
+                className="flex h-9 w-9 md:h-auto md:w-auto items-center justify-center text-muted-foreground hover:text-text-secondary md:p-1 rounded transition-colors"
                 title="Adjuntar archivo"
               >
                 <Paperclip className="h-4 w-4" />
@@ -315,7 +328,7 @@ export function InputMensaje({
             onClick={handleEnviar}
             disabled={!puedeEnviar}
             className={cn(
-              "p-1.5 rounded-lg transition-all",
+              "flex h-10 w-10 md:h-auto md:w-auto items-center justify-center rounded-full md:rounded-lg p-1.5 transition-all",
               puedeEnviar
                 ? esNota
                   ? "bg-stage-amber text-text-inverse hover:bg-stage-amber/80"
