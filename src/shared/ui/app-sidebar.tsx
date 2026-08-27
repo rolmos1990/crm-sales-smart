@@ -328,6 +328,7 @@ export function AppLayout({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
 
   const navFiltrado = NAVEGACION.map((grupo) => ({
     ...grupo,
@@ -347,6 +348,31 @@ export function AppLayout({
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  // `<main>` es un contenedor de scroll propio (overflow-y-auto), no la
+  // ventana — App Router solo resetea el scroll de `window` al navegar, así
+  // que sin esto una sección larga (ej. Dashboard) deja `<main>` scrolleado
+  // y la siguiente sección (ej. Pipeline) aparece "cortada" desde la mitad.
+  // Depende solo de `pathname` (no de los searchParams): un cambio de
+  // sección real lo dispara, pero un `router.refresh()` (auto-refresh del
+  // Pipeline) no cambia el pathname y por lo tanto no entra acá — el scroll
+  // de esa actualización en segundo plano se preserva tal cual ya funciona.
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [pathname]);
+
+  // Evita que el navegador intente restaurar por su cuenta una posición de
+  // scroll previa (p. ej. al usar atrás/adelante) que quede en conflicto con
+  // el reinicio manual de arriba — práctica estándar al manejar el scroll a
+  // mano en una SPA. Se fija una sola vez, no depende de `pathname`.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("scrollRestoration" in window.history)) return;
+    const anterior = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => {
+      window.history.scrollRestoration = anterior;
+    };
+  }, []);
 
   useCerrarAlLlegarAEscritorio(() => setMobileOpen(false));
 
@@ -449,7 +475,7 @@ export function AppLayout({
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto bg-background">
+        <main ref={mainRef} className="flex-1 overflow-y-auto bg-background">
           <SesionProvider rol={rol ?? "INVITADO"}>
             {children}
           </SesionProvider>

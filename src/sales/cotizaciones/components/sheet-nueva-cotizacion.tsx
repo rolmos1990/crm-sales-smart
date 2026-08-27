@@ -75,7 +75,7 @@ export function SheetNuevaCotizacion({
 
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-5xl bg-white dark:bg-stone-950 border-l border-stone-200 dark:border-white/10 shadow-2xl"
+        className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-5xl bg-modal border-l border-border shadow-2xl"
         showCloseButton={false}
       >
         {/* El título visual real lo pinta FormCotizacion en su propio header;
@@ -87,13 +87,13 @@ export function SheetNuevaCotizacion({
         {cargando && (
           <div className="flex items-center justify-center h-40 gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-lime-500 dark:text-lime-400" />
-            <span className="text-sm text-stone-400">Cargando formulario…</span>
+            <span className="text-sm text-muted-foreground">Cargando formulario…</span>
           </div>
         )}
 
         {!cargando && error && (
           <div className="flex items-center justify-center h-40 px-6">
-            <p className="text-sm text-red-500 text-center">{error}</p>
+            <p className="text-sm text-destructive text-center">{error}</p>
           </div>
         )}
 

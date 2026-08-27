@@ -183,24 +183,24 @@ function FormEditarPedido({
         </div>
 
         {/* Datos de facturación (colapsable) */}
-        <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 overflow-hidden">
+        <div className="rounded-xl border border-border bg-muted overflow-hidden">
           <button
             type="button"
-            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left text-foreground hover:bg-muted transition-colors"
             onClick={() => setMostrarDatosFacturacion(!mostrarDatosFacturacion)}
           >
             <span className="flex items-center gap-2">
-              <User className="h-4 w-4 text-stone-400" />
+              <User className="h-4 w-4 text-muted-foreground" />
               Datos de facturación
-              <span className="text-xs text-stone-400 dark:text-stone-500 font-normal">(opcional)</span>
+              <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
             </span>
             {mostrarDatosFacturacion
-              ? <ChevronUp className="h-4 w-4 text-stone-400" />
-              : <ChevronDown className="h-4 w-4 text-stone-400" />}
+              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
 
           {mostrarDatosFacturacion && (
-            <div className="px-4 pb-4 pt-1 border-t border-stone-200 dark:border-white/10 space-y-4">
+            <div className="px-4 pb-4 pt-1 border-t border-border space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="nombre" render={({ field }) => (
                   <FormItem>
@@ -258,7 +258,7 @@ function FormEditarPedido({
 
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Líneas del pedido</h3>
+            <h3 className="text-sm font-semibold text-foreground">Líneas del pedido</h3>
             <Button
               type="button" size="sm" variant="outline"
               onClick={() => append({ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 })}
@@ -267,10 +267,10 @@ function FormEditarPedido({
             </Button>
           </div>
 
-          <div className="rounded-xl border border-stone-200/70 dark:border-white/5 overflow-hidden">
+          <div className="rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-stone-50 dark:bg-white/[0.03]">
-                <tr className="text-xs text-stone-500 dark:text-stone-400">
+              <thead className="bg-muted">
+                <tr className="text-xs text-muted-foreground">
                   <th className="text-left px-3 py-2 font-medium">Descripción</th>
                   <th className="text-right px-3 py-2 font-medium w-20">Cant.</th>
                   <th className="text-right px-3 py-2 font-medium w-28">Precio</th>
@@ -287,7 +287,7 @@ function FormEditarPedido({
                   const subLinea = cantidad * precio * (1 - descuento / 100);
 
                   return (
-                    <tr key={field.id} className="border-t border-stone-100 dark:border-white/5">
+                    <tr key={field.id} className="border-t border-border">
                       <td className="px-2 py-1.5">
                         {productos.length > 0 && (
                           <SelectorProductoLinea
@@ -328,13 +328,13 @@ function FormEditarPedido({
                           onChange={(valor) => form.setValue(`lineas.${idx}.descuento`, valor)}
                         />
                       </td>
-                      <td className="px-3 py-1.5 text-right font-medium tabular-nums text-stone-900 dark:text-stone-100">
+                      <td className="px-3 py-1.5 text-right font-medium tabular-nums text-foreground">
                         {simbolo} {subLinea.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-1.5">
                         <Button
                           type="button" variant="ghost" size="icon"
-                          className="h-7 w-7 text-stone-400 hover:text-destructive"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
                           disabled={fields.length === 1}
                           onClick={() => remove(idx)}
                         >
@@ -347,19 +347,19 @@ function FormEditarPedido({
               </tbody>
             </table>
 
-            <div className="border-t border-stone-100 dark:border-white/5 bg-stone-50/60 dark:bg-white/[0.02] px-4 py-3 flex flex-col items-end gap-1">
+            <div className="border-t border-border bg-muted/60 px-4 py-3 flex flex-col items-end gap-1">
               <div className="flex gap-8 text-sm">
-                <span className="text-stone-500 dark:text-stone-400">Subtotal</span>
-                <span className="tabular-nums text-stone-700 dark:text-stone-300">{simbolo} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="tabular-nums text-foreground">{simbolo} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex gap-8 text-sm">
-                <span className="text-stone-500 dark:text-stone-400">IGV ({impuesto}%)</span>
-                <span className="tabular-nums text-stone-700 dark:text-stone-300">{simbolo} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="text-muted-foreground">IGV ({impuesto}%)</span>
+                <span className="tabular-nums text-foreground">{simbolo} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
-              <Separator className="my-1 w-52 bg-stone-200 dark:bg-white/10" />
+              <Separator className="my-1 w-52 bg-border" />
               <div className="flex gap-8 items-baseline">
-                <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Total</span>
-                <span className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50">{simbolo} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                <span className="text-sm font-semibold text-foreground">Total</span>
+                <span className="text-lg font-bold tabular-nums text-foreground">{simbolo} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -412,19 +412,19 @@ export function DialogEditarPedido({ pedido, contactos, empresas, productos = []
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="right"
-          className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-5xl bg-white dark:bg-stone-950 border-l border-stone-200 dark:border-white/10 shadow-2xl"
+          className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-5xl bg-modal border-l border-border shadow-2xl"
           showCloseButton={false}
         >
-          <SheetHeader className="border-b border-stone-100 dark:border-white/10 px-6 py-4 flex-shrink-0">
+          <SheetHeader className="border-b border-border px-6 py-4 flex-shrink-0">
             <div className="flex items-center gap-2">
               <div className="rounded-lg bg-lime-500/10 dark:bg-lime-400/10 p-1.5">
                 <ShoppingCart className="h-3.5 w-3.5 text-lime-600 dark:text-lime-400" />
               </div>
               <div>
-                <SheetTitle className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                <SheetTitle className="text-sm font-semibold text-foreground">
                   Editar pedido
                 </SheetTitle>
-                <p className="text-xs text-stone-400 dark:text-stone-500 font-mono mt-0.5">
+                <p className="text-xs text-muted-foreground font-mono mt-0.5">
                   {pedido.id.slice(0, 8).toUpperCase()}
                 </p>
               </div>

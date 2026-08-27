@@ -286,17 +286,17 @@ export function FormCotizacion({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(guardar)} className="flex flex-col flex-1 min-h-0">
         {/* ── Header ─────────────────────────────────────────────── */}
-        <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-stone-100 dark:border-white/5 bg-white/95 dark:bg-stone-950/95 backdrop-blur px-6 py-4 flex-shrink-0">
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border bg-modal/95 backdrop-blur px-6 py-4 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="rounded-lg bg-lime-500/10 dark:bg-lime-400/10 p-1.5 flex-shrink-0">
               <FileText className="h-4 w-4 text-lime-600 dark:text-lime-400" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">
+              <h2 className="text-sm font-semibold text-foreground truncate">
                 {modoEdicion ? `Editar ${numero ?? "cotización"}` : "Nueva cotización"}
               </h2>
               {contactoCompacto && (
-                <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{contactoCompacto.nombre}</p>
+                <p className="text-xs text-muted-foreground truncate">{contactoCompacto.nombre}</p>
               )}
             </div>
           </div>
@@ -317,7 +317,7 @@ export function FormCotizacion({
             <button
               type="button"
               onClick={cerrar}
-              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -325,10 +325,10 @@ export function FormCotizacion({
         </div>
 
         {/* ── Nav de secciones (solo scroll, no wizard) ─────────────── */}
-        <div className="flex items-center gap-2 px-6 py-2.5 text-xs text-stone-400 dark:text-stone-500 border-b border-stone-100 dark:border-white/5 flex-shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-2 px-6 py-2.5 text-xs text-muted-foreground border-b border-border flex-shrink-0 overflow-x-auto">
           {SECCIONES.map((s, i) => (
             <span key={s.id} className="flex items-center gap-2 whitespace-nowrap">
-              {i > 0 && <span className="text-stone-300 dark:text-white/10">—</span>}
+              {i > 0 && <span className="text-muted-foreground">—</span>}
               <button
                 type="button"
                 onClick={() => scrollASeccion(s.id)}
@@ -369,7 +369,7 @@ export function FormCotizacion({
                   <FormControl>
                     <DecimalInput value={field.value} onChange={field.onChange} />
                   </FormControl>
-                  <p className="text-[11px] text-stone-400 dark:text-stone-600">Por defecto 0%</p>
+                  <p className="text-[11px] text-muted-foreground">Por defecto 0%</p>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -391,7 +391,7 @@ export function FormCotizacion({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="empresaId" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Empresa <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                  <FormLabel>Empresa <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                   <FormControl>
                     <Combobox
                       opciones={empresas}
@@ -424,14 +424,14 @@ export function FormCotizacion({
 
             {/* Tarjeta compacta del contacto, o campos completos si se está editando */}
             {contactoCompacto && !editandoCliente ? (
-              <div className="flex items-center justify-between gap-4 rounded-xl bg-stone-50 dark:bg-white/[0.03] border border-stone-200/70 dark:border-white/5 px-4 py-3">
+              <div className="flex items-center justify-between gap-4 rounded-xl bg-muted border border-border px-4 py-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="h-9 w-9 rounded-full bg-lime-500/15 dark:bg-lime-400/10 text-lime-700 dark:text-lime-400 flex items-center justify-center text-sm font-semibold flex-shrink-0">
                     {inicial(contactoCompacto.nombre)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">{contactoCompacto.nombre}</p>
-                    <div className="flex items-center gap-3 text-xs text-stone-400 dark:text-stone-500 truncate">
+                    <p className="text-sm font-medium text-foreground truncate">{contactoCompacto.nombre}</p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground truncate">
                       {contactoCompacto.telefono && (
                         <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{contactoCompacto.telefono}</span>
                       )}
@@ -447,16 +447,16 @@ export function FormCotizacion({
                 </Button>
               </div>
             ) : (
-              <div className="rounded-xl border border-stone-200/70 dark:border-white/5 px-4 py-4 space-y-4">
+              <div className="rounded-xl border border-border px-4 py-4 space-y-4">
                 {hayContactoOrigen && (
                   <label className="flex items-center gap-2.5 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={usarInfoContacto}
                       onChange={(e) => handleToggleInfoContacto(e.target.checked)}
-                      className="h-4 w-4 rounded border-stone-300 dark:border-white/20 text-lime-600 focus:ring-lime-500 accent-lime-500"
+                      className="h-4 w-4 rounded border-border text-lime-600 focus:ring-lime-500 accent-lime-500"
                     />
-                    <span className="text-sm text-stone-600 dark:text-stone-400">
+                    <span className="text-sm text-muted-foreground">
                       Usar información del contacto seleccionado
                     </span>
                   </label>
@@ -500,7 +500,7 @@ export function FormCotizacion({
                   )} />
                 </div>
                 {contactoCompacto && (
-                  <button type="button" onClick={() => setEditandoCliente(false)} className="text-xs text-stone-400 hover:text-lime-600 dark:hover:text-lime-400 transition-colors">
+                  <button type="button" onClick={() => setEditandoCliente(false)} className="text-xs text-muted-foreground hover:text-lime-600 dark:hover:text-lime-400 transition-colors">
                     Volver a la vista compacta
                   </button>
                 )}
@@ -511,16 +511,16 @@ export function FormCotizacion({
           {/* ── 2. Productos y precios ─────────────────────────────── */}
           <section id="seccion-productos" className="space-y-3 scroll-mt-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Productos y precios</h3>
+              <h3 className="text-sm font-semibold text-foreground">Productos y precios</h3>
               <Button type="button" size="sm" variant="outline" onClick={() => append({ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 })}>
                 <Plus className="h-4 w-4" />Agregar producto
               </Button>
             </div>
 
-            <div className="rounded-xl border border-stone-200/70 dark:border-white/5 overflow-hidden">
+            <div className="rounded-xl border border-border overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-stone-50 dark:bg-white/[0.03]">
-                  <tr className="text-xs text-stone-500 dark:text-stone-400">
+                <thead className="bg-muted">
+                  <tr className="text-xs text-muted-foreground">
                     <th className="text-left px-3 py-2 font-medium">Producto / Descripción</th>
                     <th className="text-center px-3 py-2 font-medium w-32">Cantidad</th>
                     <th className="text-right px-3 py-2 font-medium w-24">Precio</th>
@@ -538,7 +538,7 @@ export function FormCotizacion({
                     const subLinea = cantidad * precio * (1 - descuento / 100);
 
                     return (
-                      <tr key={field.id} className="border-t border-stone-100 dark:border-white/5">
+                      <tr key={field.id} className="border-t border-border">
                         <td className="px-2 py-1.5 min-w-[180px]">
                           {productos.length > 0 && (
                             <SelectorProductoLinea
@@ -579,7 +579,7 @@ export function FormCotizacion({
                             <button
                               type="button"
                               onClick={() => form.setValue(`lineas.${idx}.cantidad`, Math.max(0.01, Math.round((cantidad - 1) * 100) / 100))}
-                              className="h-7 w-7 flex-shrink-0 rounded-md border border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5 flex items-center justify-center transition-colors"
+                              className="h-7 w-7 flex-shrink-0 rounded-md border border-border text-muted-foreground hover:bg-muted flex items-center justify-center transition-colors"
                             >
                               <Minus className="h-3 w-3" />
                             </button>
@@ -591,7 +591,7 @@ export function FormCotizacion({
                             <button
                               type="button"
                               onClick={() => form.setValue(`lineas.${idx}.cantidad`, Math.round((cantidad + 1) * 100) / 100)}
-                              className="h-7 w-7 flex-shrink-0 rounded-md border border-stone-200 dark:border-white/10 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5 flex items-center justify-center transition-colors"
+                              className="h-7 w-7 flex-shrink-0 rounded-md border border-border text-muted-foreground hover:bg-muted flex items-center justify-center transition-colors"
                             >
                               <Plus className="h-3 w-3" />
                             </button>
@@ -611,10 +611,10 @@ export function FormCotizacion({
                               value={lineas[idx]?.descuento}
                               onChange={(valor) => form.setValue(`lineas.${idx}.descuento`, valor)}
                             />
-                            <span className="text-xs text-stone-400">%</span>
+                            <span className="text-xs text-muted-foreground">%</span>
                           </div>
                         </td>
-                        <td className="px-2 py-1.5 text-right text-xs text-stone-400 dark:text-stone-500">
+                        <td className="px-2 py-1.5 text-right text-xs text-muted-foreground">
                           {impuesto}%
                         </td>
                         <td className="px-3 py-1.5 text-right font-medium tabular-nums">
@@ -623,7 +623,7 @@ export function FormCotizacion({
                         <td className="px-2 py-1.5">
                           <Button
                             type="button" variant="ghost" size="icon"
-                            className="h-7 w-7 text-stone-400 hover:text-destructive"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
                             disabled={fields.length === 1}
                             onClick={() => remove(idx)}
                           >
@@ -636,24 +636,24 @@ export function FormCotizacion({
                 </tbody>
               </table>
 
-              <div className="border-t border-stone-100 dark:border-white/5 bg-stone-50/60 dark:bg-white/[0.02] px-4 py-3 flex flex-col items-end gap-1">
+              <div className="border-t border-border bg-muted/60 px-4 py-3 flex flex-col items-end gap-1">
                 <div className="flex gap-8 text-sm">
-                  <span className="text-stone-500 dark:text-stone-400">Subtotal</span>
-                  <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="tabular-nums text-foreground">{moneda} {subtotal.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex gap-8 text-sm">
-                  <span className="text-stone-500 dark:text-stone-400">Impuesto ({impuesto}%)</span>
-                  <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                  <span className="text-muted-foreground">Impuesto ({impuesto}%)</span>
+                  <span className="tabular-nums text-foreground">{moneda} {impuestoMonto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
                 </div>
                 {costoEnvio > 0 && (
                   <div className="flex gap-8 text-sm">
-                    <span className="text-stone-500 dark:text-stone-400">Costo de envío</span>
-                    <span className="tabular-nums text-stone-700 dark:text-stone-300">{moneda} {costoEnvio.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                    <span className="text-muted-foreground">Costo de envío</span>
+                    <span className="tabular-nums text-foreground">{moneda} {costoEnvio.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 <div className="flex gap-8 items-baseline mt-1">
-                  <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Total</span>
-                  <span className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50">{moneda} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
+                  <span className="text-sm font-semibold text-foreground">Total</span>
+                  <span className="text-lg font-bold tabular-nums text-foreground">{moneda} {total.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>
@@ -676,7 +676,7 @@ export function FormCotizacion({
 
           {/* ── 3. Entrega / Servicio / Entrega digital y seguimiento ── */}
           <section id="seccion-entrega" className="space-y-4 scroll-mt-4">
-            <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+            <h3 className="text-sm font-semibold text-foreground">
               {ETIQUETA_SECCION_CUMPLIMIENTO[tipoCumplimiento]}
             </h3>
 
@@ -705,7 +705,7 @@ export function FormCotizacion({
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-[11px] text-stone-400 dark:text-stone-600">Selecciona el método de entrega</p>
+                      <p className="text-[11px] text-muted-foreground">Selecciona el método de entrega</p>
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="entrega.estadoEntrega" render={({ field }) => (
@@ -757,7 +757,7 @@ export function FormCotizacion({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name="entrega.fechaEstimada" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Fecha estimada de entrega <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Fecha estimada de entrega <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <SmartDatePicker
                           value={field.value ?? undefined}
@@ -771,21 +771,21 @@ export function FormCotizacion({
 
                   <FormField control={form.control} name="entrega.costoEnvio" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Costo de envío <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Costo de envío <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <DecimalInput
                           value={field.value ?? 0}
                           onChange={field.onChange}
                         />
                       </FormControl>
-                      <p className="text-[11px] text-stone-400 dark:text-stone-600">Se suma al total, no cuenta como ganancia en reportes</p>
+                      <p className="text-[11px] text-muted-foreground">Se suma al total, no cuenta como ganancia en reportes</p>
                     </FormItem>
                   )} />
                 </div>
 
                 <FormField control={form.control} name="entrega.observaciones" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Observaciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                    <FormLabel>Observaciones <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                     <FormControl>
                       <Textarea placeholder="Notas sobre la entrega..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
                     </FormControl>
@@ -799,7 +799,7 @@ export function FormCotizacion({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name="servicio.modalidad" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Modalidad <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Modalidad <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <Select onValueChange={field.onChange} value={field.value ?? "__ninguna__"}>
                         <FormControl>
                           <SelectTrigger>
@@ -817,7 +817,7 @@ export function FormCotizacion({
                   )} />
                   <FormField control={form.control} name="servicio.fecha" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Fecha <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Fecha <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <SmartDatePicker
                           value={field.value ?? undefined}
@@ -833,7 +833,7 @@ export function FormCotizacion({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <FormField control={form.control} name="servicio.hora" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Hora / franja horaria <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Hora / franja horaria <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <Input placeholder="10:00 am, mañana..." {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -841,7 +841,7 @@ export function FormCotizacion({
                   )} />
                   <FormField control={form.control} name="servicio.duracion" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Duración <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Duración <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <Input placeholder="1 hora, 2 sesiones..." {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -849,7 +849,7 @@ export function FormCotizacion({
                   )} />
                   <FormField control={form.control} name="servicio.responsable" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Responsable / Técnico <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Responsable / Técnico <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <Input placeholder="Nombre del responsable..." {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -860,7 +860,7 @@ export function FormCotizacion({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name="servicio.ubicacion" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Ubicación <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Ubicación <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <Input placeholder="Nombre del lugar..." {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -868,7 +868,7 @@ export function FormCotizacion({
                   )} />
                   <FormField control={form.control} name="servicio.direccion" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Dirección <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Dirección <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <Input placeholder="Dirección completa..." {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -878,7 +878,7 @@ export function FormCotizacion({
 
                 <FormField control={form.control} name="servicio.instrucciones" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Instrucciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                    <FormLabel>Instrucciones <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                     <FormControl>
                       <Textarea placeholder="Instrucciones para el técnico o responsable..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
                     </FormControl>
@@ -886,7 +886,7 @@ export function FormCotizacion({
                 )} />
                 <FormField control={form.control} name="servicio.observaciones" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Observaciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                    <FormLabel>Observaciones <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                     <FormControl>
                       <Textarea placeholder="Notas sobre el servicio..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
                     </FormControl>
@@ -904,9 +904,9 @@ export function FormCotizacion({
               const tieneCodigoConfigurado = !!form.watch(`lineas.${idx}.entregaDigital.codigoAccion`);
 
               return (
-                <div key={idx} className="rounded-xl border border-stone-200/70 dark:border-white/5 p-4 space-y-4">
+                <div key={idx} className="rounded-xl border border-border p-4 space-y-4">
                   {indicesLineasDigital.length > 1 && (
-                    <p className="flex items-center gap-1.5 text-xs font-medium text-stone-500 dark:text-stone-400">
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <Package className="h-3.5 w-3.5" />
                       {nombreProducto || `Línea ${idx + 1}`}
                     </p>
@@ -915,7 +915,7 @@ export function FormCotizacion({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name={`lineas.${idx}.entregaDigital.metodo`} render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Método <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormLabel>Método <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                         <Select onValueChange={field.onChange} value={field.value ?? "__ninguno__"}>
                           <FormControl>
                             <SelectTrigger>
@@ -933,7 +933,7 @@ export function FormCotizacion({
                     )} />
                     <FormField control={form.control} name={`lineas.${idx}.entregaDigital.email`} render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormLabel>Email <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                         <FormControl>
                           <Input type="email" placeholder="cliente@email.com" {...field} value={field.value ?? ""} />
                         </FormControl>
@@ -945,7 +945,7 @@ export function FormCotizacion({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name={`lineas.${idx}.entregaDigital.url`} render={({ field }) => (
                       <FormItem>
-                        <FormLabel>URL / Link <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormLabel>URL / Link <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                         <FormControl>
                           <Input placeholder="https://..." {...field} value={field.value ?? ""} />
                         </FormControl>
@@ -953,7 +953,7 @@ export function FormCotizacion({
                     )} />
                     <FormField control={form.control} name={`lineas.${idx}.entregaDigital.archivo`} render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Archivo / Recurso <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormLabel>Archivo / Recurso <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                         <FormControl>
                           <Input placeholder="Nombre del archivo o recurso..." {...field} value={field.value ?? ""} />
                         </FormControl>
@@ -963,7 +963,7 @@ export function FormCotizacion({
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormItem>
-                      <FormLabel>Código / Licencia <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Código / Licencia <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <CampoCodigoLicencia
                         origen="linea"
                         tieneCodigoConfigurado={tieneCodigoConfigurado}
@@ -978,7 +978,7 @@ export function FormCotizacion({
                     </FormItem>
                     <FormField control={form.control} name={`lineas.${idx}.entregaDigital.usuarioAcceso`} render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Usuario / Referencia <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormLabel>Usuario / Referencia <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                         <FormControl>
                           <Input placeholder="Usuario de acceso..." {...field} value={field.value ?? ""} />
                         </FormControl>
@@ -986,7 +986,7 @@ export function FormCotizacion({
                     )} />
                     <FormField control={form.control} name={`lineas.${idx}.entregaDigital.fechaEntrega`} render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Fecha de entrega <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                        <FormLabel>Fecha de entrega <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                         <FormControl>
                           <SmartDatePicker
                             value={field.value ?? undefined}
@@ -1001,7 +1001,7 @@ export function FormCotizacion({
 
                   <FormField control={form.control} name={`lineas.${idx}.entregaDigital.fechaExpiracion`} render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Fecha de expiración <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Fecha de expiración <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <SmartDatePicker
                           value={field.value ?? undefined}
@@ -1015,7 +1015,7 @@ export function FormCotizacion({
 
                   <FormField control={form.control} name={`lineas.${idx}.entregaDigital.instrucciones`} render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Instrucciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Instrucciones <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <Textarea placeholder="Instrucciones de acceso o uso..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -1023,7 +1023,7 @@ export function FormCotizacion({
                   )} />
                   <FormField control={form.control} name={`lineas.${idx}.entregaDigital.observaciones`} render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Observaciones <span className="text-stone-400 font-normal">(opcional)</span></FormLabel>
+                      <FormLabel>Observaciones <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
                       <FormControl>
                         <Textarea placeholder="Notas sobre la entrega digital..." rows={2} className="resize-none" {...field} value={field.value ?? ""} />
                       </FormControl>

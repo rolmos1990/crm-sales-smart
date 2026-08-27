@@ -67,7 +67,7 @@ export function SheetEditarCotizacion({ cotizacionId, onActualizada }: SheetEdit
       <button
         type="button"
         onClick={() => handleOpenChange(true)}
-        className="h-5 w-5 flex items-center justify-center rounded text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-white/8 transition-colors"
+        className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         title="Editar cotización"
       >
         <Pencil className="h-3 w-3" />
@@ -75,7 +75,7 @@ export function SheetEditarCotizacion({ cotizacionId, onActualizada }: SheetEdit
 
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-5xl bg-white dark:bg-stone-950 border-l border-stone-200 dark:border-white/10 shadow-2xl"
+        className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-5xl bg-modal border-l border-border shadow-2xl"
         showCloseButton={false}
       >
         {/* El título visual real lo pinta FormCotizacion en su propio header;
@@ -87,19 +87,19 @@ export function SheetEditarCotizacion({ cotizacionId, onActualizada }: SheetEdit
         {cargando && (
           <div className="flex items-center justify-center h-40 gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-lime-500 dark:text-lime-400" />
-            <span className="text-sm text-stone-400">Cargando cotización…</span>
+            <span className="text-sm text-muted-foreground">Cargando cotización…</span>
           </div>
         )}
 
         {!cargando && error && (
           <div className="flex items-center justify-center h-40 px-6">
-            <p className="text-sm text-red-500 text-center">{error}</p>
+            <p className="text-sm text-destructive text-center">{error}</p>
           </div>
         )}
 
         {!cargando && datos && !datos.editable && (
           <div className="flex items-center justify-center h-40 px-6">
-            <p className="text-sm text-stone-500 dark:text-stone-400 text-center">
+            <p className="text-sm text-muted-foreground text-center">
               Solo se pueden editar cotizaciones en estado borrador.
             </p>
           </div>
