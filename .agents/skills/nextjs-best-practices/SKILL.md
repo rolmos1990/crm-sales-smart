@@ -111,9 +111,9 @@ Does it need...?
 
 ### Bundle Optimization
 
-- Dynamic imports for heavy components
-- Route-based code splitting (automatic)
-- Analyze with bundle analyzer
+Route-based code splitting is automatic in App Router. For everything else (dynamic imports,
+deferring third-party scripts, conditional loading), see `react-best-practices` (`bundle-*`
+rules) — that skill covers this in depth and this one won't duplicate it.
 
 ---
 
@@ -180,7 +180,7 @@ Does it need...?
 | Fetch in client components | Fetch in server |
 | Skip loading states | Use loading.tsx |
 | Ignore error boundaries | Use error.tsx |
-| Large client bundles | Dynamic imports |
+| Large client bundles | Dynamic imports — see `react-best-practices` `bundle-*` |
 
 ---
 

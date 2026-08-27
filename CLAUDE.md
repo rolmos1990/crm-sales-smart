@@ -124,17 +124,20 @@ Reglas clave para este proyecto:
 
 ---
 
-### `ui-component`
+### `design-systems`
 Aplicar al:
-- Crear un nuevo componente primitivo en `src/components/ui/`
-- Extender o modificar un componente shadcn/ui existente
-- Necesitar un componente reutilizable de bajo nivel (badge, input, button variante)
+- Crear un nuevo componente primitivo en `src/components/ui/`, o extender uno de shadcn/ui existente
+- Crear una sección compuesta que aparece en múltiples páginas (lista con filtros, grid de cards KPI, tabla de datos con acciones, form section)
+- Revisar o ajustar dark mode / light mode, o cuando una pantalla se vea básica, plana o inconsistente
+- Evitar copiar markup idéntico entre módulos CRM y Sales
 
 Reglas para este proyecto:
 - Inspeccionar primero `src/components/ui/` — no crear duplicados
-- Usar tokens semánticos de Tailwind v4: `bg-card`, `text-foreground`, `border-border`
+- Usar tokens semánticos de Tailwind v4: `bg-card`, `text-foreground`, `border-border` (fuente de verdad: `src/app/globals.css`)
 - Pasar `className` siempre via `cn()` para permitir override
 - Usar `data-slot` para identificación del componente
+- Patrones ya existentes a reutilizar: cards KPI con skeleton (`crm/page.tsx`), tablas de lista con link y badge (`lista-contactos.tsx`, `lista-empresas.tsx`), forms con `<Form>` + `<FormField>` (`form-contacto.tsx`, `form-empresa.tsx`)
+- Si el componente ya cumple la identidad visual del proyecto, dejarlo igual — no rediseñar por rediseñar
 - **`<Select>` (`src/components/ui/select.tsx`)**: envuelve `@base-ui/react/select`
   (no Radix). Si el `value` de las `<SelectItem>` no es idéntico a su etiqueta
   visible, el `<Select>` raíz DEBE recibir la prop `items` (mapa `valor →
@@ -143,34 +146,25 @@ Reglas para este proyecto:
   usuario abre el popup una vez. Ver `docs/selects.md` para el detalle y el
   checklist antes de tocar o crear cualquier `<Select>`.
 
----
-
-### `ui-pattern`
-Aplicar al:
-- Crear una sección compuesta que aparece en múltiples páginas (lista con filtros, grid de cards KPI, tabla de datos con acciones)
-- Necesitar un patrón de layout reutilizable (form section, stat grid, detail card, filter bar)
-- Evitar copiar markup idéntico entre módulos CRM y Sales
-
-Patrones ya existentes en el proyecto a reutilizar:
-- Cards KPI con skeleton (`crm/page.tsx`)
-- Tablas de lista con link y badge (`lista-contactos.tsx`, `lista-empresas.tsx`)
-- Forms con `<Form>` + `<FormField>` (`form-contacto.tsx`, `form-empresa.tsx`)
+Detalle completo (identidad visual y tokens, generación de componentes primitivos, generación
+de patrones compuestos): `.agents/skills/design-systems/`. Este skill reemplaza a los antiguos
+`ui-component` y `ui-pattern` (fusionados para evitar solapamiento).
 
 ---
 
 ### `seo-audit`
-Aplicar cuando:
+Uso puntual, no en cada feature. Aplicar solo cuando:
 - Se trabaja en páginas de marketing o públicas (landing page en `src/app/page.tsx`)
 - Se solicita revisar o agregar metadata (`title`, `description`, Open Graph)
 - Se pide optimizar Core Web Vitals o performance de carga
 - Se necesita implementar `generateMetadata` en una ruta
 
-Contexto: El CRM es una app privada (requiere auth), por lo que SEO aplica principalmente a la landing page y páginas de acceso público.
+Contexto: El CRM es una app privada (requiere auth), por lo que SEO aplica principalmente a la landing page y páginas de acceso público — no a las pantallas internas del CRM.
 
 ---
 
 ### `readme`
-Aplicar cuando:
+Uso puntual, no en el desarrollo del día a día. Aplicar solo cuando:
 - Se pide generar o actualizar el `README.md`
 - Se solicita "documenta el proyecto" o "escribe la documentación"
 
@@ -191,20 +185,6 @@ Reglas clave para este proyecto:
 - Nunca concatenar strings para construir queries — Prisma ya parametriza
 - Usar `Promise.all` para queries independientes en paralelo (patrón ya establecido en `crm/page.tsx`)
 - Los errores de servidor no deben exponer detalles internos al cliente
-
----
-
-### `prompt-engineering-patterns`
-Aplicar **siempre** cuando:
-- Se pide generar, mejorar o diseñar un prompt para un LLM
-- Se pide crear un system prompt para un agente o asistente
-- Se pide optimizar instrucciones para Claude u otro modelo
-- Se diseña una plantilla de prompt con variables o few-shot examples
-
-Técnicas a aplicar por defecto:
-- Jerarquía `[System Context] → [Task Instruction] → [Examples] → [Input Data] → [Output Format]`
-- Progressive Disclosure: empezar simple, añadir complejidad solo si es necesario
-- Incluir formato de salida explícito cuando el output debe ser estructurado
 
 ---
 
@@ -230,78 +210,3 @@ npm run db:seed      # Poblar base de datos con datos de prueba
 npm run db:studio    # Abrir Prisma Studio
 ```
 
----
----
-
-## `premium-olive-ui`
-
-Aplicar cuando:
-- Se diseñen dashboards, menús, cards, layouts o pantallas principales
-- La UI se vea básica, plana o poco moderna
-- Se pida mejorar dark mode, glassmorphism o minimalismo visual
-
-Objetivo:
-Crear una interfaz moderna tipo SaaS premium usando:
-- Dark Mode elegante
-- Glassmorfismo sutil
-- Minimalismo inteligente
-- Tonalidades verde oliva/lime/emerald
-- Mejor jerarquía visual y espaciado
-
-Reglas visuales obligatorias:
-1. Evitar fondos completamente negros planos.
-2. Usar fondos con degradados oscuros:
-   - `bg-[radial-gradient(...)]`
-   - `from-stone-950`
-   - `via-neutral-950`
-   - `to-black`
-3. Las cards deben usar glassmorphism:
-   - `bg-white/5`
-   - `backdrop-blur-xl`
-   - `border border-white/10`
-   - `shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]`
-4. Los botones deben verse modernos:
-   - `rounded-xl`
-   - `bg-lime-500/90`
-   - `text-stone-950`
-   - `hover:bg-lime-400`
-   - `shadow-lg`
-   - `transition-all`
-   - `hover:scale-[1.02]`
-5. El sidebar debe tener:
-   - fondo translúcido `bg-stone-950/80`
-   - `backdrop-blur-xl`
-   - separadores suaves `border-white/10`
-   - items con hover visible
-   - item activo con fondo oliva/lime translúcido
-6. Los textos deben tener buena jerarquía:
-   - títulos `text-2xl font-semibold tracking-tight`
-   - subtítulos `text-sm text-muted-foreground`
-   - labels en mayúscula ligera `uppercase tracking-wide text-xs`
-7. Evitar demasiados bordes duros.
-8. Usar iconos con contenedores suaves.
-9. Usar animaciones sutiles, nunca exageradas.
-10. Mantener siempre buena legibilidad.
-
-Colores recomendados:
-- Fondo principal: `stone-950`, `neutral-950`, `zinc-950`
-- Primario: `lime-400`, `lime-500`, `green-500`, `emerald-400`
-- Superficies: `white/5`, `white/10`, `stone-900/60`
-- Bordes: `white/10`, `lime-400/20`
-- Texto principal: `text-stone-50`
-- Texto secundario: `text-stone-400`
-
-Errores a corregir:
-- Menús muy planos
-- Botones básicos sin jerarquía
-- Cards demasiado oscuras sin contraste
-- Falta de hover/active state
-- Espaciado comprimido
-- Fuentes o tamaños inconsistentes
-- Íconos sin tratamiento visual
-
-Regla de aplicación:
-- Si el componente ya cumple este estilo premium, dejarlo igual.
-- Si el componente se ve básico, plano o inconsistente, aplicar esta política visual.
-- No cambiar lógica de negocio.
-- No cambiar nombres de rutas, hooks, actions, queries o modelos.
