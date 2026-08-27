@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MessageCircle, Mail, Camera } from "lucide-react";
+import { ChevronDown, MessageCircle, Mail, Camera, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CuentaCanalResumen } from "../types";
 
@@ -11,6 +11,7 @@ import type { CuentaCanalResumen } from "../types";
 const iconoCanal = (canal: string): React.ReactNode => {
   if (canal.startsWith("whatsapp")) return <MessageCircle className="h-3.5 w-3.5 text-success" />;
   if (canal === "instagram") return <Camera className="h-3.5 w-3.5 text-pink-600 dark:text-pink-400" />;
+  if (canal === "facebook_messenger") return <Send className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />;
   if (canal === "email") return <Mail className="h-3.5 w-3.5 text-info" />;
   return <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />;
 };

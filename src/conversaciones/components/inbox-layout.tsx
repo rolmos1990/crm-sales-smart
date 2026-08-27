@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useTransition, useMemo, useCallback } from
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare, MessagesSquare, ChevronUp, Loader2, UserCircle2,
-  Check, RotateCcw, XCircle, Clock, Clock3, Search, MessageCircle, Camera, Mail,
+  Check, RotateCcw, XCircle, Clock, Clock3, Search, MessageCircle, Camera, Mail, Send,
   ArrowLeft, MoreVertical, ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -131,6 +131,7 @@ function infoCanal(canal: string | undefined): { Icono: LucideIcon; clase: strin
   // ya tiene variante propia por tema, no es un hardcode que rompa light/dark.
   if (canal?.startsWith("whatsapp")) return { Icono: MessageCircle, clase: "text-success" };
   if (canal === "instagram") return { Icono: Camera, clase: "text-pink-600 dark:text-pink-400" };
+  if (canal === "facebook_messenger") return { Icono: Send, clase: "text-blue-600 dark:text-blue-400" };
   if (canal === "email") return { Icono: Mail, clase: "text-info" };
   return { Icono: MessageCircle, clase: "text-muted-foreground" };
 }

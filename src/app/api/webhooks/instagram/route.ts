@@ -6,6 +6,7 @@ import { publicadorEventos } from "@/shared/rabbitmq";
 import { resolverApiBaseIG } from "@/conversaciones/providers/instagram-estrategia-auth";
 import { verificarFirmaWebhookMeta } from "@/shared/lib/verificar-firma-webhook-meta";
 import { descifrarToken } from "@/shared/lib/cifrado-tokens";
+import { resolverCuentaParaEventoPage, type CuentaCanalWebhook } from "@/conversaciones/providers/resolver-canal-webhook-page";
 import type { TipoMensaje } from "@/generated/prisma/enums";
 
 export const runtime = "nodejs";
@@ -94,6 +95,12 @@ async function descargarYAlmacenarMediaIG(
   url: string,
   tipo: TipoMensaje,
   instanciaId: string,
+  // Etiqueta de canal para el storage (carpeta + canalOrigen) — recibido por
+  // parámetro en vez de hardcodeado, porque esta función ahora también
+  // descarga adjuntos de Facebook Messenger (ver
+  // specs/005-facebook-messenger-integracion). "facebook" ya existe en
+  // CanalOrigen (src/lib/media/types.ts) para ese caso.
+  canal: "instagram" | "facebook",
 ): Promise<{ url: string; mimeType: string; mediaArchivoId: string } | null> {
   try {
     const res = await fetch(url);
@@ -110,7 +117,7 @@ async function descargarYAlmacenarMediaIG(
         buffer,
         mimeTypeProveedor: mimeType,
         instanciaId,
-        canal: "instagram",
+        canal,
         contactoId: null, // se completa en procesarMensajeEntrante cuando el contacto está resuelto
       });
       if (resultado.rechazada || !resultado.urlOptimizada) return null;
@@ -125,7 +132,7 @@ async function descargarYAlmacenarMediaIG(
       nombreArchivo: `${tipo.toLowerCase()}-${Date.now()}`,
       instanciaId,
       modulo: "conversaciones",
-      canalOrigen: "instagram",
+      canalOrigen: canal,
     });
     return { url: resultado.urlOptimizada, mimeType, mediaArchivoId: resultado.id };
   } catch (e) {
@@ -209,31 +216,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const provider = obtenerProvider("instagram");
-  if (!provider) {
-    console.error("[IG Webhook] InstagramProvider no registrado");
-    return NextResponse.json({ error: "Provider no configurado" }, { status: 503 });
-  }
-
   for (const entry of payload.entry ?? []) {
-    // object:"instagram" → entry.id es el Instagram Business Account ID
-    // object:"page"      → entry.id es el Facebook Page ID; buscar por configuracion.pageId
-    const cuentaCanal = await (payload.object === "instagram"
-      ? prisma.cuentaCanal.findFirst({
-          where: { canal: "instagram", identificador: entry.id, activa: true },
-          select: { id: true, instanciaId: true, configuracion: true },
-        })
-      : prisma.cuentaCanal.findFirst({
-          where: {
-            canal: "instagram",
-            activa: true,
-            configuracion: { path: ["pageId"], equals: entry.id },
-          },
-          select: { id: true, instanciaId: true, configuracion: true },
-        })
-    );
+    // object:"instagram" → entry.id es el Instagram Business Account ID, siempre Instagram.
+    // object:"page"      → entry.id es el Facebook Page ID. Esa misma Página puede
+    // tener conectada una cuenta de Instagram (flujo heredado, vía
+    // configuracion.pageId) y/o una cuenta de Facebook Messenger (identificador
+    // = pageId) — Meta manda ambos tipos de mensaje por el mismo evento
+    // object:"page", sin ningún campo que diga cuál es cuál (ver
+    // specs/005-facebook-messenger-integracion/research.md, R1). Se resuelven
+    // ambos candidatos acá y se decide por evento más abajo — en el caso común
+    // (solo un candidato) es exactamente la misma consulta y el mismo
+    // comportamiento que antes de agregar Facebook Messenger.
+    let cuentaInstagram: CuentaCanalWebhook | null;
+    let cuentaMessenger: CuentaCanalWebhook | null = null;
 
-    if (!cuentaCanal) {
+    if (payload.object === "instagram") {
+      cuentaInstagram = await prisma.cuentaCanal.findFirst({
+        where: { canal: "instagram", identificador: entry.id, activa: true },
+        select: { id: true, instanciaId: true, configuracion: true },
+      });
+    } else {
+      [cuentaInstagram, cuentaMessenger] = await Promise.all([
+        prisma.cuentaCanal.findFirst({
+          where: { canal: "instagram", activa: true, configuracion: { path: ["pageId"], equals: entry.id } },
+          select: { id: true, instanciaId: true, configuracion: true },
+        }),
+        prisma.cuentaCanal.findFirst({
+          where: { canal: "facebook_messenger", identificador: entry.id, activa: true },
+          select: { id: true, instanciaId: true, configuracion: true },
+        }),
+      ]);
+    }
+
+    if (!cuentaInstagram && !cuentaMessenger) {
       console.log(`[IG Webhook] CuentaCanal no encontrada para id: ${entry.id} (object: ${payload.object})`);
       continue;
     }
@@ -242,9 +257,39 @@ export async function POST(req: NextRequest) {
       // Ignorar mensajes propios (echo) y eventos de lectura
       if (event.message?.is_echo || event.read) continue;
 
-      // Reacciones entrantes del contacto
+      // Resolver a qué canal pertenece ESTE evento. Caso común: un solo
+      // candidato → se usa directo, sin consulta extra (cero cambio de
+      // comportamiento para Instagram). Solo si la misma Página tiene ambos
+      // canales conectados se consulta si el remitente ya es un contacto
+      // conocido de Instagram — la decisión en sí es pura, ver
+      // resolverCuentaParaEventoPage arriba (research.md R1). Limitación
+      // aceptada: un contacto de Instagram genuinamente nuevo en ese caso
+      // dual podría clasificarse como Messenger en su primer mensaje.
+      const esContactoInstagramConocido =
+        cuentaInstagram && cuentaMessenger
+          ? !!(await prisma.contactoIdentificadorCanal.findFirst({
+              where: { canal: "instagram", identificador: event.sender.id, instanciaId: cuentaInstagram.instanciaId },
+              select: { id: true },
+            }))
+          : false;
+
+      const resolucion = resolverCuentaParaEventoPage(cuentaInstagram, cuentaMessenger, esContactoInstagramConocido);
+      if (!resolucion) continue; // defensivo — ya se filtró al no encontrar ningún candidato para el entry
+      const { cuentaCanal, canal: canalResuelto } = resolucion;
+
+      const provider = obtenerProvider(canalResuelto);
+      if (!provider) {
+        console.error(`[IG Webhook] Provider "${canalResuelto}" no registrado`);
+        continue;
+      }
+
+      // Reacciones entrantes del contacto — solo Instagram las procesa hoy
+      // (Facebook Messenger no está suscrito al campo message_reactions,
+      // fuera de alcance de 005-facebook-messenger-integracion).
       if (event.reaction) {
-        await procesarReaccionIG(event, cuentaCanal.instanciaId);
+        if (canalResuelto === "instagram") {
+          await procesarReaccionIG(event, cuentaCanal.instanciaId);
+        }
         continue;
       }
 
@@ -264,12 +309,13 @@ export async function POST(req: NextRequest) {
 
       // Descargar el adjunto de la URL temporal de Meta y re-subirlo a nuestro
       // storage — la URL que queda guardada en el mensaje debe ser propia de la
-      // app (S3), nunca la de Meta/Instagram (expira y es de un tercero).
+      // app (S3), nunca la de Meta/Instagram/Messenger (expira y es de un tercero).
       if (normalizado.mediaUrl && normalizado.tipo !== "TEXTO") {
         const reubicado = await descargarYAlmacenarMediaIG(
           normalizado.mediaUrl,
           normalizado.tipo,
           cuentaCanal.instanciaId,
+          canalResuelto === "facebook_messenger" ? "facebook" : "instagram",
         );
         if (reubicado) {
           normalizado.mediaUrl = reubicado.url;
@@ -283,21 +329,28 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Si el contacto ya existe y ya tiene nombre + foto, no vale la pena
-      // gastar una llamada a Graph API por cada mensaje suyo.
-      const contactoConocido = await prisma.contactoIdentificadorCanal.findUnique({
-        where: {
-          canal_identificador_instanciaId: {
-            canal: "instagram",
-            identificador: event.sender.id,
-            instanciaId: cuentaCanal.instanciaId,
+      // Prefetch de nombre/foto del remitente — solo verificado para
+      // Instagram hoy. Para Messenger se deja sin nombre/foto inicial en vez
+      // de asumir que el mismo endpoint de perfil aplica igual a un PSID; no
+      // bloquea ningún requisito, el contacto y la conversación se crean
+      // igual (ver tasks.md T016 de 005-facebook-messenger-integracion).
+      let perfil: { pushName?: string; avatarUrl?: string; handleCanal?: string } = {};
+      if (canalResuelto === "instagram") {
+        // Si el contacto ya existe y ya tiene nombre + foto, no vale la pena
+        // gastar una llamada a Graph API por cada mensaje suyo.
+        const contactoConocido = await prisma.contactoIdentificadorCanal.findUnique({
+          where: {
+            canal_identificador_instanciaId: {
+              canal: "instagram",
+              identificador: event.sender.id,
+              instanciaId: cuentaCanal.instanciaId,
+            },
           },
-        },
-        select: { contacto: { select: { nombre: true, avatarUrl: true } } },
-      });
-      const faltaPerfil = !contactoConocido || !contactoConocido.contacto.nombre || !contactoConocido.contacto.avatarUrl;
-
-      const perfil = faltaPerfil ? await obtenerPerfilRemitenteIG(event.sender.id, cuentaCanal) : {};
+          select: { contacto: { select: { nombre: true, avatarUrl: true } } },
+        });
+        const faltaPerfil = !contactoConocido || !contactoConocido.contacto.nombre || !contactoConocido.contacto.avatarUrl;
+        perfil = faltaPerfil ? await obtenerPerfilRemitenteIG(event.sender.id, cuentaCanal) : {};
+      }
 
       await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, cuentaCanal.instanciaId, {
         ...normalizado,
@@ -305,7 +358,7 @@ export async function POST(req: NextRequest) {
         instanciaId: cuentaCanal.instanciaId,
       });
 
-      console.log(`[IG Webhook] Mensaje encolado → mid: ${mid ?? "sin-id"} | from: ${event.sender.id}`);
+      console.log(`[IG Webhook] Mensaje encolado → canal: ${canalResuelto} | mid: ${mid ?? "sin-id"} | from: ${event.sender.id}`);
     }
   }
 

@@ -26,15 +26,17 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
       throw new Error(`[EnviarMensaje] No hay provider para canal "${cuentaCanal.canal}"`);
     }
 
-    // Ventana de mensajería — solo Instagram la exige (Meta rechaza con
-    // code 10 pasadas las 24h sin tag, y pasados los 7 días ni con tag).
-    // Se resuelve ACÁ (no en instagram.ts, que no tiene acceso a Prisma) y
-    // ANTES de llamar al provider. La capability "Human Agent" ya está
-    // aprobada por Meta para esta app, así que entre 24h y 7 días se manda
-    // el tag directo — solo se corta local cuando ya pasaron los 7 días,
-    // caso en el que Meta rechazaría con o sin tag.
+    // Ventana de mensajería — la exigen tanto Instagram como Facebook
+    // Messenger (Meta rechaza con code 10 pasadas las 24h sin tag, y pasados
+    // los 7 días ni con tag; es la misma política del Messenger Platform
+    // para ambos productos — ver specs/005-facebook-messenger-integracion/
+    // research.md, R5). Se resuelve ACÁ (no en el provider, que no tiene
+    // acceso a Prisma) y ANTES de llamar al provider. La capability "Human
+    // Agent" ya está aprobada por Meta para esta app, así que entre 24h y 7
+    // días se manda el tag directo — solo se corta local cuando ya pasaron
+    // los 7 días, caso en el que Meta rechazaría con o sin tag.
     let tag: "HUMAN_AGENT" | undefined;
-    if (cuentaCanal.canal === "instagram") {
+    if (cuentaCanal.canal === "instagram" || cuentaCanal.canal === "facebook_messenger") {
       const ultimoDelContacto = await prisma.mensajeConversacion.findFirst({
         where: { conversacionId, remitente: "CONTACTO" },
         orderBy: { creadoEn: "desc" },

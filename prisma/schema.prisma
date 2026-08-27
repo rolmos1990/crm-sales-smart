@@ -1690,7 +1690,7 @@ model ContactoIdentificadorCanal {
 // Cuenta configurada por canal (número de WhatsApp, email, cuenta Instagram, etc.)
 model CuentaCanal {
   id            String  @id @default(cuid())
-  canal         String // "whatsapp_lite", "whatsapp_business", "email", "instagram"
+  canal         String // "whatsapp_lite", "whatsapp_business", "email", "instagram", "facebook_messenger"
   nombre        String // "WhatsApp Principal", "Email Ventas"
   identificador String // +51955..., info@empresa.com
   configuracion Json // tokens, credenciales
@@ -1717,15 +1717,18 @@ model CuentaCanal {
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
-  // Nota: además de este índice existe un índice único parcial
-  // (instanciaId, identificador) WHERE canal = 'instagram', creado a mano en
-  // la migración 20260817120000_add_instagram_auth_provider porque Prisma no
-  // soporta índices únicos parciales en el schema DSL. Se restringe solo a
-  // "instagram" para no arriesgar canales (whatsapp_lite, email) que hoy no
-  // garantizan esa unicidad en datos existentes. Si se corre
-  // `prisma migrate dev` después de tocar este modelo, revisar el diff
-  // propuesto antes de aceptar — Prisma puede proponer eliminar ese índice
-  // por no estar declarado aquí.
+  // Nota: además de este índice existen dos índices únicos parciales,
+  // creados a mano porque Prisma no soporta índices únicos parciales en el
+  // schema DSL:
+  //   - (instanciaId, identificador) WHERE canal = 'instagram'
+  //     (migración 20260817120000_add_instagram_auth_provider)
+  //   - (instanciaId, identificador) WHERE canal = 'facebook_messenger'
+  //     (migración 20260827000000_add_facebook_messenger_canal)
+  // Ambos se restringen a su canal específico para no arriesgar otros
+  // canales (whatsapp_lite, email) que hoy no garantizan esa unicidad en
+  // datos existentes. Si se corre `prisma migrate dev` después de tocar
+  // este modelo, revisar el diff propuesto antes de aceptar — Prisma puede
+  // proponer eliminar esos índices por no estar declarados aquí.
 
   @@index([instanciaId])
   @@index([canal])

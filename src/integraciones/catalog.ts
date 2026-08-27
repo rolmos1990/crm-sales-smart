@@ -29,6 +29,15 @@ export const CATALOGO_INTEGRACIONES: IntegracionCatalogo[] = [
     disponible:  true,
     badges:      ["Nuevo"],
   },
+  {
+    clave:       "facebook_messenger",
+    nombre:      "Facebook Messenger",
+    descripcion: "Recibe y responde mensajes de Messenger desde el CRM. Conecta la Página de Facebook de tu negocio usando la API de Meta para gestionar conversaciones con tus clientes.",
+    categoria:   "mensajeria",
+    logoEmoji:   "💬",
+    disponible:  true,
+    badges:      ["Nuevo"],
+  },
 
   // ── Marketing ──────────────────────────────────────────────────
   {
