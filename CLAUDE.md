@@ -152,17 +152,6 @@ de patrones compuestos): `.agents/skills/design-systems/`. Este skill reemplaza 
 
 ---
 
-### `seo-audit`
-Uso puntual, no en cada feature. Aplicar solo cuando:
-- Se trabaja en páginas de marketing o públicas (landing page en `src/app/page.tsx`)
-- Se solicita revisar o agregar metadata (`title`, `description`, Open Graph)
-- Se pide optimizar Core Web Vitals o performance de carga
-- Se necesita implementar `generateMetadata` en una ruta
-
-Contexto: El CRM es una app privada (requiere auth), por lo que SEO aplica principalmente a la landing page y páginas de acceso público — no a las pantallas internas del CRM.
-
----
-
 ### `readme`
 Uso puntual, no en el desarrollo del día a día. Aplicar solo cuando:
 - Se pide generar o actualizar el `README.md`
