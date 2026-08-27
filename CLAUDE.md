@@ -1,8 +1,8 @@
-# Vento — Guía para Claude
+# Karia — Guía para Claude
 
 ## Descripción del proyecto
 
-**Vento** es una aplicación web de CRM (Customer Relationship Management) y ventas construida con Next.js 16 App Router, TypeScript, Prisma ORM sobre PostgreSQL y shadcn/ui.
+**Karia** es una aplicación web de CRM (Customer Relationship Management) y ventas construida con Next.js 16 App Router, TypeScript, Prisma ORM sobre PostgreSQL y shadcn/ui.
 
 El sistema gestiona:
 - **CRM**: contactos, empresas, oportunidades, actividades y pipeline Kanban
@@ -215,6 +215,8 @@ Técnicas a aplicar por defecto:
 3. **Sin comentarios obvios**: solo comentar el *por qué*, no el *qué*
 4. **Imports directos**: no usar barrel files (`index.ts`); importar directamente desde el archivo fuente
 5. **No inventar tokens de diseño**: usar exclusivamente los tokens semánticos de Tailwind definidos en el proyecto
+6. **Design tokens**: fuente de verdad en `src/app/globals.css`. Los colores intensos (purple/cyan/amber/orange/green/red) representan significado — etapas, estados, CTA — nunca superficies grandes. No hardcodear hex/rgb en componentes; usar el token semántico equivalente (`var(--card)`, `var(--text-primary)`, etc.)
+7. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
 
 ---
 

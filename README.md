@@ -1,4 +1,4 @@
-# Vento CRM
+# Karia CRM
 
 CRM multitenancy con módulo de ventas, conversaciones omnicanal (WhatsApp, Instagram) y pipeline Kanban.
 
@@ -57,7 +57,7 @@ R2_PUBLIC_URL="https://pub-xxxx.r2.dev"
 
 # ─── Email transaccional ─────────────────────────────────────────────────────
 EMAIL_PROVIDER="resend"                      # resend | sendgrid | smtp | console
-EMAIL_FROM="Vento CRM <noreply@tudominio.com>"
+EMAIL_FROM="Karia CRM <noreply@tudominio.com>"
 RESEND_API_KEY="re_..."
 
 # ─── Webhooks Meta (WhatsApp / Instagram vía Facebook Login — flujo heredado) ─

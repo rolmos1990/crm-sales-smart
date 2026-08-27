@@ -220,7 +220,8 @@
       "Bash(node check-data.tmp.mjs)",
       "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox2.tmp.mjs)",
       "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox4.tmp.mjs)",
-      "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox6.tmp.mjs)"
+      "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox6.tmp.mjs)",
+      "Bash(git rm *)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
