@@ -5,6 +5,7 @@ import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { PanelInstagram } from "@/integraciones/instagram/components/panel-instagram";
+import { obtenerRechazosHumanAgent } from "@/integraciones/instagram/queries";
 
 async function obtenerCuentasIG(instanciaId: string) {
   const cuentas = await prisma.cuentaCanal.findMany({
@@ -13,7 +14,13 @@ async function obtenerCuentasIG(instanciaId: string) {
     select: { id: true, nombre: true, identificador: true, activa: true, configuracion: true, proveedorAuth: true },
   });
 
-  return cuentas.map((c) => {
+  // Estado de Human Agent por cuenta (004-fix-instagram-human-agent) — en
+  // paralelo, no en cascada, una consulta de solo lectura por cuenta.
+  const rechazosPorCuenta = await Promise.all(
+    cuentas.map((c) => obtenerRechazosHumanAgent(c.id, instanciaId))
+  );
+
+  return cuentas.map((c, i) => {
     const cfg = c.configuracion as Record<string, unknown> | null;
     return {
       id: c.id,
@@ -23,6 +30,7 @@ async function obtenerCuentasIG(instanciaId: string) {
       username: cfg?.username as string | null | undefined,
       profilePicUrl: cfg?.profilePicUrl as string | null | undefined,
       proveedorAuth: c.proveedorAuth,
+      rechazosHumanAgent30d: rechazosPorCuenta[i],
     };
   });
 }

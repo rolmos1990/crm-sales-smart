@@ -14,6 +14,10 @@ interface CuentaIG {
   username?: string | null;
   profilePicUrl?: string | null;
   proveedorAuth?: "MetaFacebook" | "Instagram";
+  /** Mensajes rechazados por Meta en los últimos 30 días por no tener
+   *  aprobada la extensión Human Agent (responder pasadas las 24h) — ver
+   *  004-fix-instagram-human-agent. `undefined` si no se pudo calcular. */
+  rechazosHumanAgent30d?: number;
 }
 
 interface PanelInstagramProps {
@@ -95,69 +99,94 @@ function TarjetaCuentaIG({
     });
   };
 
+  const rechazos = cuenta.rechazosHumanAgent30d;
+  const conRechazos = typeof rechazos === "number" && rechazos > 0;
+
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/4 px-4 py-3">
-      {/* Avatar */}
-      {cuenta.profilePicUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={cuenta.profilePicUrl}
-          alt={cuenta.nombre}
-          className="h-10 w-10 rounded-full object-cover border border-white/10 shrink-0"
-        />
-      ) : (
-        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#E1306C]/30 to-[#833AB4]/30 border border-white/10 flex items-center justify-center shrink-0 text-lg">
-          📸
+    <div className="rounded-xl border border-white/10 bg-white/4 px-4 py-3 space-y-2.5">
+      <div className="flex items-center gap-3">
+        {/* Avatar */}
+        {cuenta.profilePicUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={cuenta.profilePicUrl}
+            alt={cuenta.nombre}
+            className="h-10 w-10 rounded-full object-cover border border-white/10 shrink-0"
+          />
+        ) : (
+          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#E1306C]/30 to-[#833AB4]/30 border border-white/10 flex items-center justify-center shrink-0 text-lg">
+            📸
+          </div>
+        )}
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-stone-100 truncate">{cuenta.nombre}</p>
+          <p className="text-[11px] text-stone-500 flex items-center gap-1 mt-0.5">
+            <MessageCircle className="h-3 w-3" />
+            Mensajes directos activos
+            {cuenta.proveedorAuth === "MetaFacebook" && (
+              <span className="ml-1 text-stone-600" title="Conectada con el flujo anterior (Facebook Login). Sigue funcionando; reconecta con el botón de arriba para pasarla a Instagram Login.">
+                · vía Facebook (heredado)
+              </span>
+            )}
+          </p>
+        </div>
+
+        {/* Estado + Eliminar */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border bg-lime-500/10 text-lime-400 border-lime-500/20">
+            Activa
+          </span>
+
+          {confirmando ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setConfirmando(false)}
+                className="text-[11px] text-stone-500 hover:text-stone-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEliminar}
+                disabled={isPending}
+                className="text-[11px] font-semibold text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+              >
+                {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                Confirmar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmando(true)}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-stone-500 hover:text-red-400 hover:bg-red-500/8 transition-colors"
+              title="Desconectar cuenta"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Estado de Human Agent (004-fix-instagram-human-agent) — visibilidad
+          sin depender de que un agente reporte un mensaje fallido. Solo se
+          muestra si se pudo calcular (rechazos !== undefined). */}
+      {typeof rechazos === "number" && (
+        <div
+          className={
+            conRechazos
+              ? "flex items-start gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/8 px-2.5 py-1.5 text-[11px] text-amber-300"
+              : "flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/2 px-2.5 py-1.5 text-[11px] text-stone-500"
+          }
+        >
+          <AlertCircle className={conRechazos ? "h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-400" : "h-3.5 w-3.5 shrink-0 text-stone-600"} />
+          <span>
+            {conRechazos
+              ? `${rechazos} mensaje${rechazos === 1 ? "" : "s"} rechazado${rechazos === 1 ? "" : "s"} por falta de aprobación de Human Agent en los últimos 30 días — gestiona la aprobación en tu Meta App Dashboard.`
+              : "Sin rechazos de Human Agent en los últimos 30 días."}
+          </span>
         </div>
       )}
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-stone-100 truncate">{cuenta.nombre}</p>
-        <p className="text-[11px] text-stone-500 flex items-center gap-1 mt-0.5">
-          <MessageCircle className="h-3 w-3" />
-          Mensajes directos activos
-          {cuenta.proveedorAuth === "MetaFacebook" && (
-            <span className="ml-1 text-stone-600" title="Conectada con el flujo anterior (Facebook Login). Sigue funcionando; reconecta con el botón de arriba para pasarla a Instagram Login.">
-              · vía Facebook (heredado)
-            </span>
-          )}
-        </p>
-      </div>
-
-      {/* Estado + Eliminar */}
-      <div className="flex items-center gap-2.5 shrink-0">
-        <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border bg-lime-500/10 text-lime-400 border-lime-500/20">
-          Activa
-        </span>
-
-        {confirmando ? (
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setConfirmando(false)}
-              className="text-[11px] text-stone-500 hover:text-stone-300 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleEliminar}
-              disabled={isPending}
-              className="text-[11px] font-semibold text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
-            >
-              {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-              Confirmar
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setConfirmando(true)}
-            className="h-7 w-7 flex items-center justify-center rounded-lg text-stone-500 hover:text-red-400 hover:bg-red-500/8 transition-colors"
-            title="Desconectar cuenta"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
     </div>
   );
 }

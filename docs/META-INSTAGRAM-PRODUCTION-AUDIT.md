@@ -145,11 +145,11 @@ webhook `messages`, envío, recepción).
 | Conectar Instagram (Instagram Login) | **IMPLEMENTADO** | [login/route.ts](../src/app/api/integraciones/instagram/login/route.ts) → [login/callback/route.ts](../src/app/api/integraciones/instagram/login/callback/route.ts) |
 | Validación de `state` / CSRF (flujo activo) | **IMPLEMENTADO** | HMAC + TTL 10min + cookie nonce + re-chequeo de sesión — [estado-oauth.ts](../src/integraciones/instagram/estado-oauth.ts), [login/callback/route.ts:59-76](../src/app/api/integraciones/instagram/login/callback/route.ts) |
 | Intercambio a token de larga duración | **IMPLEMENTADO** | [login/callback/route.ts:116-123](../src/app/api/integraciones/instagram/login/callback/route.ts) |
-| Almacenamiento de token | **IMPLEMENTADO, sin cifrado** | `CuentaCanal.configuracion` (Json) — [conectar.ts:43-51](../src/integraciones/instagram/conectar.ts). Ver riesgo en §9 |
-| Renovación automática de token | **FALTANTE** | Sin cron/job; `tokenExpiraEn`/`tokenRenovadoEn` se escriben una vez y nunca se leen |
+| Almacenamiento de token | **IMPLEMENTADO, cifrado en reposo** | `CuentaCanal.configuracion` (Json), `accessToken` cifrado con AES-256-GCM — [cifrado-tokens.ts](../src/shared/lib/cifrado-tokens.ts), [conectar.ts:43-51](../src/integraciones/instagram/conectar.ts). Ver §9 |
+| Renovación automática de token | **IMPLEMENTADO** | Cron diario — [renovar-tokens-instagram/route.ts](../src/app/api/cron/renovar-tokens-instagram/route.ts), registrado en `vercel.json` |
 | Suscripción de Webhook (`messages`) | **IMPLEMENTADO** | [conectar.ts:111-122](../src/integraciones/instagram/conectar.ts) |
 | Verificación de Webhook (GET) | **IMPLEMENTADO** | [webhooks/instagram/route.ts:136-164](../src/app/api/webhooks/instagram/route.ts) (comparación no constant-time, riesgo bajo) |
-| Validación de firma del Webhook (POST, `X-Hub-Signature-256`) | **FALTANTE** — crítico | Sin ninguna verificación HMAC; `validarWebhook()` es un stub que retorna `true` — [instagram.ts:269-272](../src/conversaciones/providers/instagram.ts) |
+| Validación de firma del Webhook (POST, `X-Hub-Signature-256`) | **IMPLEMENTADO** | [verificar-firma-webhook-meta.ts](../src/shared/lib/verificar-firma-webhook-meta.ts), aplicado en [webhooks/instagram/route.ts](../src/app/api/webhooks/instagram/route.ts) *(`validarWebhook()` en instagram.ts sigue siendo un stub — la validación real vive en la ruta, no en el provider)* |
 | Recepción de mensajes de texto | **IMPLEMENTADO** | [webhooks/instagram/route.ts:222-291](../src/app/api/webhooks/instagram/route.ts) → `procesarMensajeEntrante` |
 | Recepción de adjuntos (imagen/video) | **IMPLEMENTADO** | descarga y re-almacenamiento propio antes de persistir |
 | Recepción de reacciones | **IMPLEMENTADO** | [webhooks/instagram/route.ts:298-357](../src/app/api/webhooks/instagram/route.ts) |
@@ -232,32 +232,51 @@ webhook `messages`, envío, recepción).
 ## G. Funcionalidades faltantes
 *(solo las necesarias para el objetivo real de Karia — conectar, recibir, responder — nada de Ads/Catálogo/contenido público)*
 
-1. **Validación de firma del webhook (`X-Hub-Signature-256`)** — sin esto,
-   cualquiera que descubra la URL del webhook y un `identificador`/`pageId`
-   válido puede inyectar mensajes falsos. Ya existe código HMAC +
-   `timingSafeEqual` reutilizable en el propio repo
-   ([eliminacion-datos/route.ts](../src/app/api/webhooks/meta/eliminacion-datos/route.ts)) que nunca se aplicó al webhook de mensajes.
+1. ~~**Validación de firma del webhook (`X-Hub-Signature-256`)**~~ —
+   **RESUELTO**: [verificar-firma-webhook-meta.ts](../src/shared/lib/verificar-firma-webhook-meta.ts)
+   (HMAC + `timingSafeEqual`, generalizado del código que ya existía en
+   [eliminacion-datos/route.ts](../src/app/api/webhooks/meta/eliminacion-datos/route.ts))
+   ahora se aplica en el `POST` de
+   [webhooks/instagram/route.ts](../src/app/api/webhooks/instagram/route.ts),
+   probando contra ambos App Secret posibles (flujo legacy y activo).
 2. **Aislamiento multi-tenant en 4 puntos concretos** (el hallazgo de
    seguridad más importante de esta auditoría, ver detalle en §9):
    `enviarMensaje()`, `/api/conversaciones/[id]/mensajes`,
    `/api/conversaciones/[id]/contexto`, `/api/sse/conversaciones`. Sin
    `instanciaId` en el filtro, un usuario autenticado de un tenant puede
    leer/enviar mensajes de otro tenant si conoce/adivina un `conversacionId`.
-3. **Renovación automática de token de larga duración** — el token de
-   Instagram Login expira en ~60 días y hoy no hay ningún mecanismo (cron,
-   job, chequeo on-demand) que lo renueve; las cuentas dejarán de funcionar
-   silenciosamente.
-4. **Cifrado de tokens en reposo** — `CuentaCanal.configuracion.accessToken`
-   se guarda en texto plano.
+3. ~~**Renovación automática de token de larga duración**~~ — **RESUELTO**:
+   cron diario [renovar-tokens-instagram/route.ts](../src/app/api/cron/renovar-tokens-instagram/route.ts)
+   (registrado en `vercel.json`) renueva las cuentas cuyo token vence en
+   menos de 10 días.
+4. ~~**Cifrado de tokens en reposo**~~ — **RESUELTO**: `accessToken` se cifra
+   con AES-256-GCM antes de persistir ([cifrado-tokens.ts](../src/shared/lib/cifrado-tokens.ts)).
+   Requiere la variable de entorno `TOKENS_CIFRADO_KEY` (32 bytes en base64,
+   `openssl rand -base64 32`). Tokens legacy en texto plano se re-cifran
+   solos en la próxima renovación (cron) o reconexión — no hace falta
+   migración de datos aparte.
 5. **Revocación del lado de Meta al desconectar/eliminar** — hoy solo se
    borra/desactiva la fila local; el permiso sigue vigente en la cuenta de
    Meta del usuario.
 6. **UI para habilitar Human Agent por cuenta** — la lógica de negocio ya
    existe y está bien resuelta; falta el formulario/acción para que un
    admin la active sin tocar la base de datos.
-7. **Retirar o asegurar el flujo legacy de Facebook Login** (`/api/integraciones/instagram/oauth` + `/callback`) y la ruta de webhook genérica duplicada
-   (`/api/webhooks/[canal]`) — ambas están vivas, sin autenticación, y no
-   son necesarias para la modalidad activa.
+7. ~~**Retirar o asegurar el flujo legacy de Facebook Login**~~ — **RESUELTO
+   (asegurado, no retirado — se decidió mantenerlo por depender de él
+   `Human Agent`)**: `oauth/route.ts` ahora exige sesión (`requireSesion` +
+   `verificarAcceso`) y deriva `instanciaId` de la sesión, nunca de un query
+   param; `callback/route.ts` verifica un `state` firmado (HMAC, reutiliza
+   [estado-oauth.ts](../src/integraciones/instagram/estado-oauth.ts) con el
+   secreto de esta app) y que la sesión que completa el flujo coincida con
+   la que lo inició — mismo patrón que el flujo activo
+   ([login/route.ts](../src/app/api/integraciones/instagram/login/route.ts) /
+   [login/callback/route.ts](../src/app/api/integraciones/instagram/login/callback/route.ts)).
+   La ruta de webhook genérica duplicada (`/api/webhooks/[canal]`) no
+   necesitó cambios: Next.js resuelve la ruta estática
+   `/api/webhooks/instagram` (ya con firma `X-Hub-Signature-256` validada)
+   antes que la dinámica `[canal]` para ese mismo path, así que es
+   inalcanzable para `canal=instagram` — sigue viva solo para
+   whatsapp_lite/whatsapp_business/email, fuera del alcance de este fix.
 8. **Constraint único a nivel de base de datos sobre `idExterno`** en
    `MensajeConversacion` — el dedup actual es solo a nivel de aplicación y
    puede fallar bajo reintentos casi simultáneos de Meta.
@@ -273,7 +292,7 @@ opcionales a futuro, no como bloqueantes de producción.)*
 
 - [x] Login de cliente externo (multi-tenant, Instagram Login) — [login/route.ts](../src/app/api/integraciones/instagram/login/route.ts)
 - [x] OAuth callback con validación de `state`/CSRF — [login/callback/route.ts](../src/app/api/integraciones/instagram/login/callback/route.ts)
-- [x] Almacenamiento de token — [conectar.ts](../src/integraciones/instagram/conectar.ts) *(sin cifrar — ver §G.4)*
+- [x] Almacenamiento de token — [conectar.ts](../src/integraciones/instagram/conectar.ts) *(cifrado en reposo — ver §G.4)*
 - [x] Identificación de la cuenta de Instagram — `graph.instagram.com/me`
 - [x] Suscripción de Webhook (`messages`) — [conectar.ts:111-122](../src/integraciones/instagram/conectar.ts)
 - [x] Recepción de mensaje — [webhooks/instagram/route.ts](../src/app/api/webhooks/instagram/route.ts)
@@ -285,28 +304,36 @@ opcionales a futuro, no como bloqueantes de producción.)*
 - [x] Permisos mínimos identificados — Sección D
 - [ ] **Permisos innecesarios removidos** — pendiente de acción en Meta Business Manager (Sección D — REMOVER)
 - [x] Pruebas para Meta identificadas — Sección F
-- [ ] Validación de firma del webhook (`X-Hub-Signature-256`)
-- [ ] Renovación automática de token de larga duración
-- [ ] Cifrado de tokens en reposo
+- [x] Validación de firma del webhook (`X-Hub-Signature-256`) — [verificar-firma-webhook-meta.ts](../src/shared/lib/verificar-firma-webhook-meta.ts)
+- [x] Renovación automática de token de larga duración — [renovar-tokens-instagram/route.ts](../src/app/api/cron/renovar-tokens-instagram/route.ts)
+- [x] Cifrado de tokens en reposo — [cifrado-tokens.ts](../src/shared/lib/cifrado-tokens.ts) *(requiere `TOKENS_CIFRADO_KEY` en el entorno)*
+- [x] `state` firmado + sesión requerida en el flujo legacy de Facebook Login — [oauth/route.ts](../src/app/api/integraciones/instagram/oauth/route.ts), [callback/route.ts](../src/app/api/integraciones/instagram/callback/route.ts)
 - [ ] Revocación en Meta al desconectar
-- [ ] UI de configuración de Human Agent
+- [ ] UI de configuración de Human Agent *(no bloquea el review — el tag se envía igual, ver §9 nota)*
 
 ---
 
 ## §9 — Seguridad (detalle)
 
 ### Almacenamiento de tokens
-`CuentaCanal.configuracion` es una columna `Json` sin cifrar
-([schema.prisma:1691-1732](../prisma/schema.prisma)). El `accessToken` viaja
-y se guarda en texto plano — confirmado en escritura
+**RESUELTO.** `CuentaCanal.configuracion` sigue siendo una columna `Json`
+([schema.prisma:1691-1732](../prisma/schema.prisma)), pero el campo
+`accessToken` ahora se cifra con AES-256-GCM (IV aleatorio de 96 bits, auth
+tag de 128 bits) antes de persistir —
+[cifrado-tokens.ts](../src/shared/lib/cifrado-tokens.ts). Se cifra en ambos
+puntos de escritura
 ([conectar.ts:43-51](../src/integraciones/instagram/conectar.ts),
 [callback/route.ts:256-263](../src/app/api/integraciones/instagram/callback/route.ts))
-y en lectura al enviar
-([instagram.ts:126-132](../src/conversaciones/providers/instagram.ts)). No
-existe ninguna utilidad de cifrado/descifrado aplicada a tokens de Meta en
-todo el repo (la única utilidad de "ocultar" que existe,
-`codigo-sensible.ts`, es para licencias de producto y ni siquiera cifra,
-solo enmascara hacia el cliente).
+y se descifra en cada punto de lectura antes de llamar a Graph API
+([instagram.ts](../src/conversaciones/providers/instagram.ts),
+[webhooks/instagram/route.ts](../src/app/api/webhooks/instagram/route.ts),
+`renovarTokenInstagram` en conectar.ts). La clave vive en la variable de
+entorno `TOKENS_CIFRADO_KEY` (32 bytes en base64) — nunca en el repo.
+Compatibilidad hacia atrás: tokens guardados en texto plano antes de este
+cambio se leen tal cual (`descifrarToken` detecta la ausencia del prefijo
+`enc:v1:`) y quedan re-cifrados solos la próxima vez que el cron de
+renovación (`renovar-tokens-instagram/route.ts`) o una reconexión manual
+reescriban la fila — no requirió migración de datos aparte.
 
 ### Exposición en logs / frontend
 No se encontró ningún `console.*` con el valor crudo del token (solo
@@ -356,12 +383,20 @@ una ausencia sistemática del patrón, y por eso es corregible siguiendo el
 mismo criterio ya usado en esos otros archivos.
 
 ### Expiración/renovación y desconexión
-Sin renovación automática (§G.3). La desconexión/eliminación solo borra la
-fila local; no revoca el permiso del lado de Meta (§G.5). El webhook de
-"Eliminación de datos" de Meta (`/api/webhooks/meta/eliminacion-datos`) solo
-registra un evento para revisión manual — no elimina automáticamente la
-`CuentaCanal` correspondiente (decisión explícita documentada en el propio
-código, por no existir un mapeo 1:1 seguro).
+Renovación automática ya resuelta (§G.3). La desconexión/eliminación manual
+(botón en el panel) solo borra la fila local; no revoca el permiso del lado
+de Meta (§G.5, sigue pendiente). El webhook de
+"Eliminación de datos" de Meta (`/api/webhooks/meta/eliminacion-datos`)
+**ahora sí procesa automáticamente** las solicitudes que llegan del flujo
+activo (`proveedorAuth: "Instagram"`): busca la `CuentaCanal` cuyo
+`identificador` coincide con el `user_id` del `signed_request` (mapeo 1:1
+seguro para ese flujo — es el mismo Instagram professional account ID), la
+desactiva y borra el `accessToken` + los datos de perfil cacheados. No toca
+`Conversacion`/`MensajeConversacion` (son datos propios del negocio, no
+datos obtenidos vía el permiso). Para el flujo legacy de Facebook Login
+(`proveedorAuth: "MetaFacebook"`, sin mapeo confiable) o cualquier `user_id`
+sin match, se mantiene el comportamiento anterior: solo se registra el
+evento para revisión manual.
 
 ---
 
@@ -373,14 +408,22 @@ código, por no existir un mapeo 1:1 seguro).
 > (modalidad Instagram API with Instagram Login). Todo el flujo de
 > conexión, recepción, envío, imágenes y reacciones **ya existe y
 > funciona** — la Sección F da los pasos exactos para grabar evidencia de
-> cada uno para Meta App Review. `instagram_business_manage_comments` y la
-> aprobación de Human Agent son **opcionales**, atados a funcionalidad que
-> hoy no existe (comentarios) o que existe pero sin UI de activación (Human
-> Agent). `ads_management`, `ads_read`, `catalog_management`, `Instagram
+> cada uno para Meta App Review. `instagram_business_manage_comments` es
+> **opcional**, atado a la función de comentarios/menciones que hoy no
+> existe. La aprobación de **Human Agent** SÍ se está persiguiendo (decisión
+> tomada): su `requirements()` en Meta pide como prerequisito
+> `instagram_business_manage_messages` + `instagram_manage_messages` +
+> `pages_messaging` — es decir, exige también el flujo legacy de Facebook
+> Login (no solo Instagram Login), que ya quedó asegurado (ver §G.7). La
+> capability en sí no necesita UI de activación adicional: el código ya
+> manda el tag `HUMAN_AGENT` sin condicionarlo a ningún flag
+> ([enviar-mensaje.suscriptor.ts:36-56](../src/suscriptores/mensajes/enviar-mensaje.suscriptor.ts))
+> — hoy falla con `HUMAN_AGENT_NO_APROBADO` simplemente porque Meta todavía
+> no aprobó la capability para esta app, no por falta de código. `ads_management`, `ads_read`, `catalog_management`, `Instagram
 > Public Content Access` y `Business Asset User Profile Access` **deben
 > removerse** — cero uso en código. Lo que **realmente falta** antes de
 > producción no son permisos ni funcionalidades de negocio nuevas, sino
 > cuatro brechas de aislamiento multi-tenant en el envío/lectura de
-> mensajes, la validación de firma del webhook, la renovación de tokens, y
-> el cifrado de tokens en reposo — todo detallado con archivo:línea en las
+> mensajes y la validación de firma del webhook — todo detallado con
+> archivo:línea en las
 > Secciones E, G y §9.

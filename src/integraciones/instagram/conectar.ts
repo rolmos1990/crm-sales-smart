@@ -1,5 +1,6 @@
 import { prisma } from "@/shared/db/prisma";
 import { INSTAGRAM_LOGIN_GRAPH_VERSION } from "@/conversaciones/providers/instagram-estrategia-auth";
+import { cifrarToken, descifrarToken } from "@/shared/lib/cifrado-tokens";
 
 /**
  * Persistencia de una cuenta de Instagram conectada vía Instagram Login.
@@ -41,7 +42,9 @@ export async function conectarCuentaInstagramLogin(
   const nombre = perfil.username ? `@${perfil.username}` : perfil.name || `IG:${perfil.igUserId}`;
 
   const configuracion = {
-    accessToken: perfil.accessToken,
+    // Cifrado en reposo — ver docs/META-INSTAGRAM-PRODUCTION-AUDIT.md §9 y
+    // src/shared/lib/cifrado-tokens.ts.
+    accessToken: cifrarToken(perfil.accessToken),
     instagramBusinessAccountId: perfil.igUserId,
     username: perfil.username,
     name: perfil.name,
@@ -121,10 +124,11 @@ export async function renovarTokenInstagram(
   if (!cfg.accessToken) {
     return { renovado: false, error: "Cuenta sin token configurado" };
   }
+  const accessTokenActual = descifrarToken(cfg.accessToken);
 
   const res = await fetch(
     `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token` +
-      `&access_token=${encodeURIComponent(cfg.accessToken)}`,
+      `&access_token=${encodeURIComponent(accessTokenActual)}`,
     { cache: "no-store" },
   );
   const json = (await res.json().catch(() => ({}))) as {
@@ -141,7 +145,10 @@ export async function renovarTokenInstagram(
   await prisma.cuentaCanal.update({
     where: { id: cuentaCanalId },
     data: {
-      configuracion: { ...cfg, accessToken: json.access_token },
+      // Esta renovación también re-cifra tokens legacy en texto plano
+      // (guardados antes de introducir cifrado en reposo) — es el punto de
+      // upgrade natural, sin necesidad de una migración de datos aparte.
+      configuracion: { ...cfg, accessToken: cifrarToken(json.access_token) },
       // Meta documenta ~60 días; se usa expires_in si viene, con ese valor
       // como respaldo si la respuesta no lo trae.
       tokenExpiraEn: new Date(Date.now() + (json.expires_in ?? 60 * 24 * 60 * 60) * 1000),

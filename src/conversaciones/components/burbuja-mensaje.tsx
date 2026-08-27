@@ -132,6 +132,41 @@ const iconoEstado: Record<EstadoMensaje, React.ReactNode> = {
   FALLIDO: <AlertCircle className="h-3 w-3 text-danger" />,
 };
 
+// Agrupa los `codigoError` ya definidos en errores.ts/instagram.ts en 3
+// familias visuales (ver data-model.md de 004-fix-instagram-human-agent) —
+// no se redactan textos nuevos, `motivoError` ya trae el mensaje correcto
+// por código; esto solo decide tono/ícono. "META": requiere una gestión
+// externa con Meta (ventana vencida, Human Agent no aprobado, permiso
+// denegado) — no es un bug de Karia. "KARIA": accionable acá mismo
+// (reconectar la cuenta). Cualquier otro código (o transitorio/desconocido)
+// cae en el tono neutro por defecto.
+const CODIGOS_ACCION_KARIA = new Set(["TOKEN_INVALIDO"]);
+
+function BloqueErrorEnvio({
+  codigoError,
+  motivoError,
+}: {
+  codigoError?: string | null;
+  motivoError?: string | null;
+}) {
+  const requiereAccionEnKaria = !!codigoError && CODIGOS_ACCION_KARIA.has(codigoError);
+  const texto = motivoError ?? "No se pudo entregar el mensaje.";
+
+  return (
+    <div
+      className={cn(
+        "mt-1.5 flex items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] leading-snug",
+        requiereAccionEnKaria
+          ? "bg-danger-muted border-danger-border text-danger-text"
+          : "bg-muted border-border text-muted-foreground"
+      )}
+    >
+      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+      <span>{texto}</span>
+    </div>
+  );
+}
+
 interface BurbujaMensajeProps {
   mensaje: MensajeConMeta;
   onMarcarLeido?: (id: string) => void;
@@ -268,6 +303,13 @@ export function BurbujaMensaje({
               })()
           }
 
+          {/* Motivo de fallo — siempre visible, no depende de hover (ver
+              004-fix-instagram-human-agent: antes solo se veía en el
+              `title` del ícono de estado, poco descubrible). */}
+          {esPropioONota && !esNota && estadoEfectivo === "FALLIDO" && (
+            <BloqueErrorEnvio codigoError={mensaje.codigoError} motivoError={mensaje.motivoError} />
+          )}
+
           {/* Footer: botón marcar leído + timestamp + estado */}
           <div className="flex items-center justify-between gap-2 mt-1">
             {esNoLeido && onMarcarLeido ? (
@@ -288,13 +330,7 @@ export function BurbujaMensaje({
                 {format(new Date(mensaje.creadoEn), "HH:mm", { locale: es })}
               </span>
               {esPropioONota && !esNota && (
-                <span
-                  className="text-muted-foreground"
-                  // motivoError es el texto funcional ya pensado para el
-                  // usuario (ver EnvioMensajeError) — nunca el crudo de
-                  // Meta, que además viene en el idioma de la cuenta.
-                  title={estadoEfectivo === "FALLIDO" ? mensaje.motivoError ?? undefined : undefined}
-                >
+                <span className="text-muted-foreground">
                   {iconoEstado[estadoEfectivo]}
                 </span>
               )}

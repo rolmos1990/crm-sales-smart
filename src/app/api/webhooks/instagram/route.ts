@@ -5,6 +5,7 @@ import { TIPOS_EVENTO, TIPOS_COMANDO } from "@/shared/eventos/registro";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { resolverApiBaseIG } from "@/conversaciones/providers/instagram-estrategia-auth";
 import { verificarFirmaWebhookMeta } from "@/shared/lib/verificar-firma-webhook-meta";
+import { descifrarToken } from "@/shared/lib/cifrado-tokens";
 import type { TipoMensaje } from "@/generated/prisma/enums";
 
 export const runtime = "nodejs";
@@ -51,12 +52,13 @@ async function obtenerPerfilRemitenteIG(
 ): Promise<{ pushName?: string; avatarUrl?: string; handleCanal?: string }> {
   const cfg = cuentaCanal.configuracion as { accessToken?: string; proveedorAuth?: string } | null;
   if (!cfg?.accessToken) return {};
+  const accessToken = descifrarToken(cfg.accessToken);
 
   const apiBase = resolverApiBaseIG(cfg.proveedorAuth);
 
   try {
     const res = await fetch(
-      `${apiBase}/${igsid}?fields=name,username,profile_pic&access_token=${encodeURIComponent(cfg.accessToken)}`,
+      `${apiBase}/${igsid}?fields=name,username,profile_pic&access_token=${encodeURIComponent(accessToken)}`,
       { cache: "no-store" },
     );
     const data = (await res.json().catch(() => ({}))) as {

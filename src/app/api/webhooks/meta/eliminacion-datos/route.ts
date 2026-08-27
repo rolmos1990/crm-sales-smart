@@ -16,13 +16,26 @@ export const runtime = "nodejs";
  * - Recibe POST x-www-form-urlencoded con el campo `signed_request`.
  * - Debe responder con { url, confirmation_code } si la firma es válida.
  *
- * No borramos datos automáticamente en este endpoint: el `user_id` que
- * entrega Meta es el ID del usuario de Facebook que hizo login OAuth (el
- * negocio que conectó su cuenta), no el de los contactos que le escriben —
- * no hay un mapeo 1:1 seguro en nuestro modelo de datos para automatizar el
- * borrado sin riesgo de borrar la cuenta equivocada. En su lugar, dejamos
- * constancia auditable de la solicitud (EventoLog) para revisión manual y
- * exponemos el estado en /data-deletion-status, tal como permite Meta.
+ * Borrado automático acotado: para el flujo activo de Instagram Login
+ * (`proveedorAuth: "Instagram"`), el `user_id` que entrega Meta en el
+ * `signed_request` SÍ tiene un mapeo 1:1 seguro — es el mismo Instagram
+ * professional account ID que guardamos como `CuentaCanal.identificador`
+ * (ver conectarCuentaInstagramLogin en integraciones/instagram/conectar.ts).
+ * Para ese caso desactivamos la cuenta y borramos el access token + los
+ * datos de perfil cacheados (username, nombre, foto) obtenidos vía la API —
+ * eso es lo que esta integración "obtuvo" de Meta y lo que la política de
+ * borrado de datos cubre. NO tocamos `Conversacion`/`MensajeConversacion`:
+ * son registros propios del negocio sobre sus contactos, no datos que Karia
+ * obtuvo a través del permiso, y borrarlos es una decisión de negocio que no
+ * debe automatizarse a partir de este webhook.
+ *
+ * El flujo legacy de Facebook Login (`proveedorAuth: "MetaFacebook"`) no
+ * tiene ese mapeo confiable — el `identificador` ahí es el Instagram
+ * Business Account ID vía Página, no el Facebook user ID que autorizó — así
+ * que para esos casos (y cualquier `user_id` sin match) se mantiene el
+ * comportamiento anterior: se deja constancia auditable de la solicitud
+ * (EventoLog) para revisión manual y se expone el estado en
+ * /data-deletion-status, tal como permite Meta.
  */
 
 interface SignedRequestPayload {
@@ -103,6 +116,34 @@ export async function POST(req: NextRequest) {
 
   const confirmationCode = randomUUID();
 
+  // Mapeo 1:1 seguro solo para el flujo activo (Instagram Login) — ver
+  // comentario del archivo. Puede haber más de una coincidencia si la misma
+  // cuenta de Instagram fue conectada en varias instancias/tenants.
+  const cuentasCoincidentes = await prisma.cuentaCanal.findMany({
+    where: { canal: "instagram", proveedorAuth: "Instagram", identificador: payload.user_id },
+    select: { id: true, instanciaId: true },
+  });
+
+  const estado = cuentasCoincidentes.length > 0 ? "PROCESADO_AUTOMATICO" : "PENDIENTE_REVISION_MANUAL";
+
+  if (cuentasCoincidentes.length > 0) {
+    await prisma.cuentaCanal.updateMany({
+      where: { id: { in: cuentasCoincidentes.map((c) => c.id) } },
+      data: {
+        activa: false,
+        // Reemplaza el token y los datos de perfil cacheados — no se
+        // conserva nada obtenido a través del permiso de Meta.
+        configuracion: {
+          eliminadoPorSolicitudMeta: true,
+          eliminadoEn: new Date().toISOString(),
+        },
+      },
+    });
+    console.log(
+      `[Meta Eliminación Datos] ${cuentasCoincidentes.length} cuenta(s) de Instagram desactivada(s) y token borrado automáticamente — user_id: ${payload.user_id}`,
+    );
+  }
+
   await prisma.eventoLog.create({
     data: {
       tipo: "META_SOLICITUD_ELIMINACION_DATOS",
@@ -110,14 +151,15 @@ export async function POST(req: NextRequest) {
         metaUserId: payload.user_id,
         issuedAt: payload.issued_at,
         confirmationCode,
-        estado: "PENDIENTE_REVISION_MANUAL",
+        estado,
+        cuentasAfectadas: cuentasCoincidentes.map((c) => c.id),
       },
       entidadTipo: "meta_user",
       entidadId: payload.user_id,
     },
   });
 
-  console.log(`[Meta Eliminación Datos] Solicitud recibida — user_id: ${payload.user_id} · code: ${confirmationCode}`);
+  console.log(`[Meta Eliminación Datos] Solicitud recibida — user_id: ${payload.user_id} · code: ${confirmationCode} · estado: ${estado}`);
 
   return NextResponse.json({
     url: `${appUrl}/data-deletion-status?id=${confirmationCode}`,

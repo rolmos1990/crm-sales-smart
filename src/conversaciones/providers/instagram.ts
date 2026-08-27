@@ -2,6 +2,7 @@ import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, ReaccionCa
 import type { MensajeEntranteNormalizado, TipoMensaje } from "../types";
 import { resolverApiBaseIG } from "./instagram-estrategia-auth";
 import { EnvioMensajeError } from "../errores";
+import { descifrarToken } from "@/shared/lib/cifrado-tokens";
 
 // Forma del error que devuelve la Graph API de Meta — ver
 // https://developers.facebook.com/docs/graph-api/guides/error-handling.
@@ -129,11 +130,12 @@ export class InstagramProvider implements ICanalProvider {
       instagramBusinessAccountId?: string;
       proveedorAuth?: string;
     };
-    const { accessToken, instagramBusinessAccountId } = cfg;
+    const { instagramBusinessAccountId } = cfg;
 
-    if (!accessToken || !instagramBusinessAccountId) {
+    if (!cfg.accessToken || !instagramBusinessAccountId) {
       throw new Error("[Instagram] accessToken e instagramBusinessAccountId requeridos en configuracion");
     }
+    const accessToken = descifrarToken(cfg.accessToken);
 
     // Host base según el flujo con el que se conectó la cuenta — ver
     // instagram-estrategia-auth.ts. El resto del envío es idéntico entre
@@ -300,11 +302,12 @@ export class InstagramProvider implements ICanalProvider {
       instagramBusinessAccountId?: string;
       proveedorAuth?: string;
     };
-    const { accessToken, instagramBusinessAccountId } = cfg;
+    const { instagramBusinessAccountId } = cfg;
 
-    if (!accessToken || !instagramBusinessAccountId) {
+    if (!cfg.accessToken || !instagramBusinessAccountId) {
       throw new Error("[Instagram] accessToken e instagramBusinessAccountId requeridos en configuracion");
     }
+    const accessToken = descifrarToken(cfg.accessToken);
 
     const IG_API = resolverApiBaseIG(cfg.proveedorAuth);
     const quitar = payload.emoji === "";

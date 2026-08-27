@@ -1,21 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/shared/db/prisma";
+import { cifrarToken } from "@/shared/lib/cifrado-tokens";
+import { obtenerSesionActual } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
+import { verificarEstado } from "@/integraciones/instagram/estado-oauth";
 
 export const runtime = "nodejs";
 
 const IG_GRAPH = "https://graph.facebook.com/v20.0";
 
 /**
- * Callback OAuth de Meta Instagram.
+ * Callback OAuth de Meta Instagram (flujo heredado vía Facebook Login).
  * Meta redirige aquí tras la autorización del usuario.
  * El flujo:
- * 1. Verifica el nonce (CSRF)
- * 2. Intercambia el code por un user access token
- * 3. Eleva a long-lived token
- * 4. Intenta vía Pages → instagram_business_account (flujo clásico)
- * 5. Fallback: vía /me/instagram_accounts (flujo nuevo Meta con selección directa)
- * 6. Guarda cada cuenta en CuentaCanal y suscribe el webhook
- * 7. Redirige a /integraciones/instagram con resultado
+ * 1. Verifica el `state` firmado (integridad + expiración) y el nonce en
+ *    cookie (CSRF) — antes el state era JSON sin firmar, ver
+ *    docs/META-INSTAGRAM-PRODUCTION-AUDIT.md §G.7/§9.
+ * 2. Verifica que la sesión actual sea el mismo usuario/organización que
+ *    inició el flujo — antes este endpoint no requería sesión en absoluto,
+ *    permitiendo conectar una cuenta a cualquier `instanciaId` conocido.
+ * 3. Intercambia el code por un user access token
+ * 4. Eleva a long-lived token
+ * 5. Intenta vía Pages → instagram_business_account (flujo clásico)
+ * 6. Fallback: vía /me/instagram_accounts (flujo nuevo Meta con selección directa)
+ * 7. Guarda cada cuenta en CuentaCanal y suscribe el webhook
+ * 8. Redirige a /integraciones/instagram con resultado
  */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -38,23 +47,40 @@ export async function GET(req: NextRequest) {
     return redirect(returnBase, "parametros");
   }
 
-  // ── Verificar CSRF: nonce ────────────────────────────────────────────────
-  let stateData: { instanciaId: string; nonce: string };
-  try {
-    stateData = JSON.parse(Buffer.from(stateRaw, "base64url").toString("utf8"));
-  } catch {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) {
+    return redirect(returnBase, "no_configurado");
+  }
+
+  // ── Verificar state firmado (integridad + expiración) ─────────────────
+  const estado = verificarEstado(stateRaw, appSecret);
+  if (!estado) {
+    console.warn("[IG OAuth] state inválido, manipulado o expirado");
     return redirect(returnBase, "state");
   }
 
+  // ── Verificar nonce en cookie (CSRF) ───────────────────────────────────
   const storedNonce = req.cookies.get("ig_oauth_nonce")?.value;
-  if (!storedNonce || storedNonce !== stateData.nonce) {
+  if (!storedNonce || storedNonce !== estado.nonce) {
     console.warn("[IG OAuth] Nonce inválido — posible CSRF");
     return redirect(returnBase, "state");
   }
 
-  const { instanciaId } = stateData;
-  const appId = process.env.META_APP_ID!;
-  const appSecret = process.env.META_APP_SECRET!;
+  // ── Verificar que la sesión actual coincide con quien inició el flujo ──
+  const sesion = await obtenerSesionActual();
+  if (!sesion) {
+    return NextResponse.redirect(`${appUrl}/login`);
+  }
+  if (sesion.usuarioId !== estado.usuarioId || sesion.instanciaId !== estado.instanciaId) {
+    console.warn("[IG OAuth] Sesión actual no coincide con la que inició el flujo — se rechaza para evitar conectar la cuenta a otra organización");
+    return redirect(returnBase, "state");
+  }
+  if (!verificarAcceso(sesion, "integraciones", "modificar").permitido) {
+    return NextResponse.redirect(`${appUrl}/acceso-denegado`);
+  }
+
+  const instanciaId = estado.instanciaId;
   const callbackUrl = `${appUrl}/api/integraciones/instagram/callback`;
 
   try {
@@ -254,7 +280,11 @@ async function conectarCuentaIG({
 
   const nombre = username ? `@${username}` : pageName || `IG:${igId}`;
   const configuracion = {
-    accessToken: pageAccessToken,
+    // Cifrado en reposo — ver docs/META-INSTAGRAM-PRODUCTION-AUDIT.md §9 y
+    // src/shared/lib/cifrado-tokens.ts. `pageAccessToken` (parámetro, en
+    // texto plano) se sigue usando tal cual arriba/abajo para las llamadas a
+    // Graph API dentro de esta misma función — solo se cifra al persistir.
+    accessToken: cifrarToken(pageAccessToken),
     instagramBusinessAccountId: igId,
     pageId,
     pageName,

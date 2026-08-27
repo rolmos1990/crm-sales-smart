@@ -59,7 +59,10 @@ export default async function DataDeletionStatusPage({
               {new Intl.DateTimeFormat("es-PE", { dateStyle: "long", timeStyle: "short" }).format(
                 solicitud.ocurridoEn,
               )}
-              . Nuestro equipo revisa y completa cada solicitud en un plazo máximo de 30 días.
+              .{" "}
+              {payload?.estado === "PROCESADO_AUTOMATICO"
+                ? "Tu cuenta de Instagram ya fue desconectada y el token de acceso eliminado automáticamente."
+                : "Nuestro equipo revisa y completa cada solicitud en un plazo máximo de 30 días."}
             </p>
             <div className="mt-6 flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-xs text-muted-foreground">
               <Clock className="h-3.5 w-3.5" />

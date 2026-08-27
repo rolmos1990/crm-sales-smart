@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
+import { firmarEstado } from "@/integraciones/instagram/estado-oauth";
 
 export const runtime = "nodejs";
 
@@ -13,39 +16,46 @@ const SCOPES = [
 ].join(",");
 
 /**
- * Inicia el flujo OAuth de Meta para conectar Instagram.
- * El usuario es redirigido a Facebook Login, concede permisos,
- * y Meta lo devuelve al callback con un código de autorización.
+ * Inicia el flujo OAuth heredado de Meta (Facebook Login + Página vinculada)
+ * para conectar Instagram.
+ *
+ * Antes tomaba `instanciaId` de un query param sin verificar sesión — endpoint
+ * abierto que permitía a cualquiera conectar una cuenta de Instagram a
+ * cualquier `instanciaId` que conociera/adivinara (ver
+ * docs/META-INSTAGRAM-PRODUCTION-AUDIT.md §G.7/§9). Ahora sigue el mismo
+ * patrón que el flujo activo (login/route.ts): `instanciaId` sale de la
+ * sesión autenticada, nunca de la query, y el `state` va firmado (HMAC) con
+ * el App Secret de esta app de Facebook — no con el de Instagram Login, son
+ * apps de Meta distintas.
  *
  * Variables de entorno requeridas (solo en el servidor):
  *   META_APP_ID      — App ID de Meta for Developers
- *   META_APP_SECRET  — App Secret
+ *   META_APP_SECRET  — App Secret (también firma el `state`)
  *   APP_URL          — URL pública del servidor (ej: https://micrm.com)
  */
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const instanciaId = searchParams.get("instanciaId");
+  const appUrl = process.env.APP_URL || req.nextUrl.origin;
+  const returnBase = `${appUrl}/integraciones/instagram`;
+
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "integraciones", "modificar").permitido) {
+    return NextResponse.redirect(`${appUrl}/acceso-denegado`);
+  }
 
   const appId = process.env.META_APP_ID;
-  // Fallback al origin de la request si APP_URL no está configurada — evita
-  // construir una URL relativa (NextResponse.redirect exige URL absoluta).
-  const appUrl = process.env.APP_URL || req.nextUrl.origin;
-
-  if (!appId || !appUrl) {
-    return NextResponse.redirect(
-      `${appUrl}/integraciones/instagram?error=no_configurado`
-    );
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) {
+    return NextResponse.redirect(`${returnBase}?error=no_configurado`);
   }
 
-  if (!instanciaId) {
-    return NextResponse.redirect(`${appUrl}/integraciones/instagram?error=sesion`);
-  }
-
-  // Nonce para protección CSRF
   const nonce = randomUUID();
-
-  // Codificar instanciaId + nonce en el state parameter de OAuth
-  const statePayload = Buffer.from(JSON.stringify({ instanciaId, nonce })).toString("base64url");
+  const state = firmarEstado(
+    { instanciaId: sesion.instanciaId, usuarioId: sesion.usuarioId, nonce, ts: Date.now() },
+    appSecret,
+  );
+  if (!state) {
+    return NextResponse.redirect(`${returnBase}?error=no_configurado`);
+  }
 
   const callbackUrl = `${appUrl}/api/integraciones/instagram/callback`;
 
@@ -53,7 +63,7 @@ export async function GET(req: NextRequest) {
   dialogUrl.searchParams.set("client_id", appId);
   dialogUrl.searchParams.set("redirect_uri", callbackUrl);
   dialogUrl.searchParams.set("scope", SCOPES);
-  dialogUrl.searchParams.set("state", statePayload);
+  dialogUrl.searchParams.set("state", state);
   dialogUrl.searchParams.set("response_type", "code");
 
   const response = NextResponse.redirect(dialogUrl.toString());
