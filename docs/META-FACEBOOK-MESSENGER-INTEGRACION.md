@@ -93,8 +93,15 @@ conectados podría clasificarse como Messenger en su primer mensaje).
   hasta que se apruebe `Business Asset User Profile Access` (ver arriba);
   para cualquier otro remitente, degrada de forma segura: el contacto se
   crea igual, sin nombre/foto.
-- **Sin reacciones** — Messenger no está suscrito al campo
-  `message_reactions`; fuera de alcance del pedido original.
+- **Reacciones — implementado** (`008-fix-facebook-messenger-reacciones`):
+  `FacebookMessengerProvider.enviarReaccion` envía reacciones a Facebook
+  (mismo Send API que Instagram); la Página se suscribe también al campo
+  `message_reactions` para recibirlas (campo aparte de `messages` en
+  Messenger, a diferencia de otros eventos que Meta sí agrupa). **Páginas
+  conectadas antes de este cambio necesitan correr una vez**
+  `npm run script:resuscribir-reacciones-messenger` para empezar a recibir
+  reacciones — no queda automático retroactivamente sin ese paso manual
+  (una sola vez, no por cada Página).
 - **Sin UI de configuración de Pipeline/etapa** — Instagram tampoco la tiene
   hoy; paridad exacta, no un gap nuevo de esta integración.
 - **Índice único parcial nuevo** — migración

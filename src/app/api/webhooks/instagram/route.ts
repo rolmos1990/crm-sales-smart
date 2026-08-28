@@ -334,13 +334,12 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Reacciones entrantes del contacto — solo Instagram las procesa hoy
-      // (Facebook Messenger no está suscrito al campo message_reactions,
-      // fuera de alcance de 005-facebook-messenger-integracion).
+      // Reacciones entrantes del contacto — ya procesadas para ambos
+      // canales (008-fix-facebook-messenger-reacciones). La Página debe
+      // estar suscrita al campo message_reactions para que este evento
+      // llegue (ver suscribirWebhookFacebookMessenger).
       if (event.reaction) {
-        if (canalResuelto === "instagram") {
-          await procesarReaccionIG(event, cuentaCanal.instanciaId);
-        }
+        await procesarReaccionIG(event, cuentaCanal.instanciaId, canalResuelto);
         continue;
       }
 
@@ -417,9 +416,19 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// ── Procesamiento de reacciones entrantes desde Instagram ─────────────────────
+// ── Procesamiento de reacciones entrantes (Instagram y Facebook Messenger) ────
+//
+// Toda la lógica es genérica por canal — resolver el mensaje original,
+// mantener una sola reacción activa por contacto por mensaje — solo cambia
+// qué valor de `canal` queda persistido. No se duplicó en una función
+// hermana (a diferencia del envío, que sí necesita un HTTP request propio
+// por proveedor): ver specs/008-fix-facebook-messenger-reacciones/research.md, R3.
 
-async function procesarReaccionIG(event: IGMessagingEvent, instanciaId: string): Promise<void> {
+async function procesarReaccionIG(
+  event: IGMessagingEvent,
+  instanciaId: string,
+  canal: "instagram" | "facebook_messenger",
+): Promise<void> {
   const reaction = event.reaction!;
   const idExternoMensaje = reaction.mid;
   const emoji = reaction.emoji ?? "";
@@ -439,13 +448,14 @@ async function procesarReaccionIG(event: IGMessagingEvent, instanciaId: string):
   });
 
   if (!mensajeEnBD) {
-    console.log(`[IG Reacción] Mensaje original mid=${idExternoMensaje} no encontrado en BD`);
+    console.log(`[Reacción ${canal}] Mensaje original mid=${idExternoMensaje} no encontrado en BD`);
     return;
   }
 
   const contacto = mensajeEnBD.conversacion.contacto;
 
-  // En Instagram un contacto solo puede tener una reacción activa por mensaje
+  // Un contacto solo puede tener una reacción activa por mensaje, en
+  // cualquiera de los dos canales.
   await prisma.mensajeReaccion.deleteMany({
     where: {
       mensajeId: mensajeEnBD.id,
@@ -464,7 +474,7 @@ async function procesarReaccionIG(event: IGMessagingEvent, instanciaId: string):
         tipo: "CANAL" as any,
         contactoId: contacto.id,
         nombreUsuario: `${contacto.nombre} ${contacto.apellido}`.trim(),
-        canal: "instagram",
+        canal,
       },
     });
   }
@@ -476,6 +486,6 @@ async function procesarReaccionIG(event: IGMessagingEvent, instanciaId: string):
   });
 
   console.log(
-    `[IG Reacción] ${emoji ? `"${emoji}"` : "(eliminada)"} de ${contacto.id} → mensaje ${mensajeEnBD.id}`
+    `[Reacción ${canal}] ${emoji ? `"${emoji}"` : "(eliminada)"} de ${contacto.id} → mensaje ${mensajeEnBD.id}`
   );
 }

@@ -71,6 +71,76 @@ describe("FacebookMessengerProvider.enviarMensaje", () => {
   });
 });
 
+describe("FacebookMessengerProvider.enviarReaccion", () => {
+  const configuracion = { accessToken: "tok", pageId: "page1" };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reaccionar: manda sender_action react + payload.reaction con el emoji", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new FacebookMessengerProvider();
+    await provider.enviarReaccion({
+      jid: "psid1",
+      idExternoMensaje: "mid1",
+      fromMe: true,
+      emoji: "❤️",
+      configuracion,
+    });
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain("/page1/messages");
+    const body = JSON.parse(opts.body);
+    expect(body.sender_action).toBe("react");
+    expect(body.payload).toEqual({ message_id: "mid1", reaction: "❤️" });
+  });
+
+  it("quitar reacción (emoji vacío): manda sender_action unreact, sin campo reaction", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new FacebookMessengerProvider();
+    await provider.enviarReaccion({
+      jid: "psid1",
+      idExternoMensaje: "mid1",
+      fromMe: true,
+      emoji: "",
+      configuracion,
+    });
+
+    const [, opts] = fetchMock.mock.calls[0];
+    const body = JSON.parse(opts.body);
+    expect(body.sender_action).toBe("unreact");
+    expect(body.payload).toEqual({ message_id: "mid1" });
+  });
+
+  it("Meta rechaza el envío → tira error con el detalle de Meta", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: { message: "invalid message id" } }),
+    }));
+
+    const provider = new FacebookMessengerProvider();
+    await expect(
+      provider.enviarReaccion({ jid: "psid1", idExternoMensaje: "mid1", fromMe: true, emoji: "❤️", configuracion })
+    ).rejects.toThrow(/invalid message id/);
+  });
+
+  it("sin accessToken/pageId en configuracion → error claro, sin llegar a llamar a fetch", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new FacebookMessengerProvider();
+    await expect(
+      provider.enviarReaccion({ jid: "psid1", idExternoMensaje: "mid1", fromMe: true, emoji: "❤️", configuracion: {} })
+    ).rejects.toThrow(/accessToken y pageId/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("FacebookMessengerProvider.mapearEntrante", () => {
   const provider = new FacebookMessengerProvider();
 

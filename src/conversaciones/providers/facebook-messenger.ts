@@ -1,4 +1,4 @@
-import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload } from "./types";
+import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, ReaccionCanalPayload } from "./types";
 import type { MensajeEntranteNormalizado, TipoMensaje } from "../types";
 import { clasificarErrorInstagram } from "./instagram";
 import { EnvioMensajeError } from "../errores";
@@ -36,7 +36,7 @@ export class FacebookMessengerProvider implements ICanalProvider {
     plantillas: false,
     botones: false,
     marcarLeidoExterno: false,
-    reacciones: false,
+    reacciones: true,
   };
 
   /**
@@ -188,5 +188,52 @@ export class FacebookMessengerProvider implements ICanalProvider {
     // compartido /api/webhooks/instagram/route.ts — mismo criterio que
     // InstagramProvider.validarWebhook.
     return true;
+  }
+
+  /**
+   * Reacciona (o quita la reacción) a un mensaje del contacto desde la
+   * Página. Mismo Send API que ya usa Instagram —
+   * `POST /<PAGE_ID>/messages` con `sender_action: "react"|"unreact"` y
+   * `payload.reaction` como emoji UTF-8 directo (confirmado contra la
+   * documentación oficial de Meta, "Sender Actions" — ver
+   * specs/008-fix-facebook-messenger-reacciones/research.md, R1).
+   */
+  async enviarReaccion(payload: ReaccionCanalPayload): Promise<void> {
+    const cfg = payload.configuracion as {
+      accessToken?: string;
+      pageId?: string;
+    };
+
+    if (!cfg.accessToken || !cfg.pageId) {
+      throw new Error("[FacebookMessenger] accessToken y pageId requeridos en configuracion");
+    }
+    const accessToken = descifrarToken(cfg.accessToken);
+
+    const quitar = payload.emoji === "";
+
+    const body = {
+      recipient: { id: payload.jid },
+      sender_action: quitar ? "unreact" : "react",
+      payload: {
+        message_id: payload.idExternoMensaje,
+        ...(quitar ? {} : { reaction: payload.emoji }),
+      },
+    };
+
+    const res = await fetch(`${FB_API}/${cfg.pageId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`[FacebookMessenger] Error al ${quitar ? "quitar" : "enviar"} reacción: ${JSON.stringify(err)}`);
+    }
+
+    console.log(`[FacebookMessenger] Reacción ${quitar ? "removida" : `"${payload.emoji}" enviada`} → msg: ${payload.idExternoMensaje}`);
   }
 }

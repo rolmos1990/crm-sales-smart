@@ -29,6 +29,7 @@
     "script:migrar-campos-pipeline": "tsx scripts/migrar-campos-a-pipeline.ts",
     "script:seed-volumen-prueba": "tsx scripts/seed-datos-prueba-volumen.ts",
     "script:limpiar-volumen-prueba": "tsx scripts/limpiar-datos-prueba-volumen.ts",
+    "script:resuscribir-reacciones-messenger": "tsx scripts/resuscribir-reacciones-messenger.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",

@@ -77,11 +77,19 @@ export async function conectarCuentaFacebookMessenger(
 }
 
 /**
- * Suscribe explícitamente la Página al evento de webhook que Karia sabe
- * procesar (`messages`) — completar el OAuth no suscribe nada por sí solo.
- * Mismo endpoint que ya usa el flujo heredado de Instagram vía Página
- * (graph.facebook.com/<PAGE_ID>/subscribed_apps), porque es la misma Página
- * y el mismo mecanismo de suscripción de Meta.
+ * Suscribe explícitamente la Página a los eventos de webhook que Karia sabe
+ * procesar (`messages`, `message_reactions`) — completar el OAuth no
+ * suscribe nada por sí solo. Mismo endpoint que ya usa el flujo heredado de
+ * Instagram vía Página (graph.facebook.com/<PAGE_ID>/subscribed_apps),
+ * porque es la misma Página y el mismo mecanismo de suscripción de Meta.
+ *
+ * `message_reactions` es un campo de webhook aparte para Messenger — a
+ * diferencia de otros eventos que Meta agrupa dentro de `messages`, las
+ * reacciones no llegan si no se piden explícitamente (confirmado contra la
+ * documentación oficial, ver
+ * specs/008-fix-facebook-messenger-reacciones/research.md, R2). Páginas
+ * conectadas antes de este cambio necesitan volver a llamar a esta función
+ * para recibir reacciones — ver scripts/resuscribir-reacciones-messenger.ts.
  */
 export async function suscribirWebhookFacebookMessenger(
   pageId: string,
@@ -89,7 +97,7 @@ export async function suscribirWebhookFacebookMessenger(
 ): Promise<{ success: boolean; error?: unknown }> {
   const url =
     `https://graph.facebook.com/v20.0/${pageId}/subscribed_apps` +
-    `?subscribed_fields=messages&access_token=${encodeURIComponent(accessToken)}`;
+    `?subscribed_fields=messages,message_reactions&access_token=${encodeURIComponent(accessToken)}`;
 
   const res = await fetch(url, { method: "POST", cache: "no-store" });
   const json = (await res.json().catch(() => ({}))) as { success?: boolean; error?: unknown };
