@@ -20,6 +20,15 @@ submission de Human Agent de Instagram (`004-fix-instagram-human-agent`). En
 modo desarrollo/Standard Access, la integración funciona igual con usuarios
 que tengan rol de tester en la app.
 
+**Adicional para el enriquecimiento de contacto** (`007-enriquecer-contacto-messenger`):
+pedirle a Meta el nombre/foto de un contacto que **no** tiene un rol en la app
+(un cliente real, no un tester) requiere que la app tenga aprobada la función
+**`Business Asset User Profile Access`** con Advanced Access — todavía no
+solicitada. Sin esa aprobación, la consulta de perfil solo funciona para
+remitentes que administran/prueban la app; para cualquier otro remitente,
+Meta la rechaza y el contacto se crea igual, sin nombre/foto (degradación
+segura, ver más abajo).
+
 ## Flujo de conexión
 
 1. `GET /api/integraciones/facebook-messenger/oauth` — exige sesión, firma un
@@ -75,10 +84,15 @@ conectados podría clasificarse como Messenger en su primer mensaje).
 - **Sin revocación del lado de Meta al desconectar** — igual que Instagram
   hoy (`docs/META-INSTAGRAM-PRODUCTION-AUDIT.md` §G.5), desconectar solo
   desactiva la fila local.
-- **Sin prefetch de nombre/foto del contacto** — a diferencia de Instagram,
-  no se llama a ningún endpoint de perfil para el remitente de Messenger (no
-  verificado que el mismo endpoint de Instagram aplique igual a un PSID). El
-  contacto se crea igual, sin nombre/foto inicial.
+- **Prefetch de nombre/foto del contacto — implementado** (`007-enriquecer-contacto-messenger`):
+  `obtenerPerfilRemitenteFacebook` en `webhooks/instagram/route.ts` pide
+  `first_name,last_name,profile_pic` a Graph API, mismo patrón que ya usa
+  Instagram. Email y teléfono no se piden — Meta no los entrega para
+  Messenger bajo ninguna circunstancia (tampoco lo hace para Instagram). En
+  producción, solo funciona de entrada para remitentes con un rol en la app
+  hasta que se apruebe `Business Asset User Profile Access` (ver arriba);
+  para cualquier otro remitente, degrada de forma segura: el contacto se
+  crea igual, sin nombre/foto.
 - **Sin reacciones** — Messenger no está suscrito al campo
   `message_reactions`; fuera de alcance del pedido original.
 - **Sin UI de configuración de Pipeline/etapa** — Instagram tampoco la tiene

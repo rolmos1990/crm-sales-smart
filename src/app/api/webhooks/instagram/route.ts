@@ -85,6 +85,57 @@ async function obtenerPerfilRemitenteIG(
   }
 }
 
+// ── Perfil del remitente de Facebook Messenger ─────────────────────────────────
+//
+// Hermana de obtenerPerfilRemitenteIG, misma estrategia (Graph API, mismo
+// token de Página cifrado, mismo criterio de tolerancia a errores) pero con
+// los campos que sí existen para un PSID de Messenger — confirmado contra la
+// documentación oficial de Meta (User Profile API):
+// specs/007-enriquecer-contacto-messenger/research.md, R1.
+//
+// A diferencia de Instagram, Messenger no tiene un "username" público — no
+// hay handleCanal acá. Y a diferencia de Instagram (dos hosts posibles según
+// proveedorAuth), Messenger siempre usa graph.facebook.com.
+//
+// Requiere que Meta apruebe la función "Business Asset User Profile Access"
+// para funcionar con contactos reales en producción (research.md R2) — hasta
+// entonces, Meta puede rechazar la consulta para cualquier remitente que no
+// tenga un rol en la app; el try/catch de abajo lo tolera igual que
+// cualquier otro motivo de rechazo, sin romper la recepción del mensaje.
+async function obtenerPerfilRemitenteFacebook(
+  psid: string,
+  cuentaCanal: { configuracion: unknown },
+): Promise<{ pushName?: string; avatarUrl?: string }> {
+  const cfg = cuentaCanal.configuracion as { accessToken?: string } | null;
+  if (!cfg?.accessToken) return {};
+  const accessToken = descifrarToken(cfg.accessToken);
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v20.0/${psid}?fields=first_name,last_name,profile_pic&access_token=${encodeURIComponent(accessToken)}`,
+      { cache: "no-store" },
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      first_name?: string;
+      last_name?: string;
+      profile_pic?: string;
+      error?: unknown;
+    };
+    if (!res.ok || data.error) {
+      console.warn(`[FB Webhook] No se pudo obtener el perfil de ${psid}:`, data.error ?? `HTTP ${res.status}`);
+      return {};
+    }
+    const nombreCompleto = [data.first_name, data.last_name].filter(Boolean).join(" ") || undefined;
+    return {
+      pushName: nombreCompleto,
+      avatarUrl: data.profile_pic || undefined,
+    };
+  } catch (e) {
+    console.warn(`[FB Webhook] Error de red obteniendo perfil de ${psid}:`, e);
+    return {};
+  }
+}
+
 // ── Descarga del adjunto (URL temporal de Meta) y re-subida a nuestro storage ──
 //
 // `att.payload.url` que manda Meta es una URL firmada de su CDN, sin auth
@@ -329,27 +380,28 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Prefetch de nombre/foto del remitente — solo verificado para
-      // Instagram hoy. Para Messenger se deja sin nombre/foto inicial en vez
-      // de asumir que el mismo endpoint de perfil aplica igual a un PSID; no
-      // bloquea ningún requisito, el contacto y la conversación se crean
-      // igual (ver tasks.md T016 de 005-facebook-messenger-integracion).
+      // Prefetch de nombre/foto del remitente — ya verificado para Instagram
+      // y Facebook Messenger (007-enriquecer-contacto-messenger). Si el
+      // contacto ya existe y ya tiene nombre + foto, no vale la pena gastar
+      // una llamada a Graph API por cada mensaje suyo — mismo criterio para
+      // ambos canales, solo cambia qué función de perfil se llama.
       let perfil: { pushName?: string; avatarUrl?: string; handleCanal?: string } = {};
-      if (canalResuelto === "instagram") {
-        // Si el contacto ya existe y ya tiene nombre + foto, no vale la pena
-        // gastar una llamada a Graph API por cada mensaje suyo.
-        const contactoConocido = await prisma.contactoIdentificadorCanal.findUnique({
-          where: {
-            canal_identificador_instanciaId: {
-              canal: "instagram",
-              identificador: event.sender.id,
-              instanciaId: cuentaCanal.instanciaId,
-            },
+      const contactoConocido = await prisma.contactoIdentificadorCanal.findUnique({
+        where: {
+          canal_identificador_instanciaId: {
+            canal: canalResuelto,
+            identificador: event.sender.id,
+            instanciaId: cuentaCanal.instanciaId,
           },
-          select: { contacto: { select: { nombre: true, avatarUrl: true } } },
-        });
-        const faltaPerfil = !contactoConocido || !contactoConocido.contacto.nombre || !contactoConocido.contacto.avatarUrl;
-        perfil = faltaPerfil ? await obtenerPerfilRemitenteIG(event.sender.id, cuentaCanal) : {};
+        },
+        select: { contacto: { select: { nombre: true, avatarUrl: true } } },
+      });
+      const faltaPerfil = !contactoConocido || !contactoConocido.contacto.nombre || !contactoConocido.contacto.avatarUrl;
+      if (faltaPerfil) {
+        perfil =
+          canalResuelto === "instagram"
+            ? await obtenerPerfilRemitenteIG(event.sender.id, cuentaCanal)
+            : await obtenerPerfilRemitenteFacebook(event.sender.id, cuentaCanal);
       }
 
       await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, cuentaCanal.instanciaId, {
