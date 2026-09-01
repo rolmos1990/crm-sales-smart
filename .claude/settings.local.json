@@ -222,7 +222,9 @@
       "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox4.tmp.mjs)",
       "Bash(node /Users/ramonolmos/Repositories/crm-sales-smart/check-inbox6.tmp.mjs)",
       "Bash(git rm *)",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "Bash(.specify/scripts/bash/setup-plan.sh --json)",
+      "Bash(.specify/scripts/bash/setup-tasks.sh --json)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
