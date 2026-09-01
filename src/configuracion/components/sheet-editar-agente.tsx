@@ -22,6 +22,7 @@ import {
   History,
   Plus,
   X,
+  BookOpen,
 } from "lucide-react";
 import {
   Sheet,
@@ -61,6 +62,8 @@ import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 import { SeccionVersionesAgente } from "./seccion-versiones-agente";
 import { AsignarEstrategiasAgente } from "@/ai/estrategia/components/asignar-estrategias-agente";
 import { SeccionAutomatizacion } from "@/ai/autonomia/components/seccion-automatizacion";
+import { PanelSimulador } from "@/ai/simulador/components/panel-simulador";
+import { ComparadorVersiones } from "@/ai/simulador/components/comparador-versiones";
 
 // 009-perfil-agente-estructurado-versionado — etiquetas de las nuevas
 // dimensiones de comunicación (mismos valores que agente-schema.ts).
@@ -102,6 +105,22 @@ const HERRAMIENTAS_DISPONIBLES = [
   { nombre: "actualizar_info_contacto",  label: "Actualizar Contacto",   descripcion: "Pide y guarda datos",     Icono: UserPen },
   { nombre: "obtener_info_cliente",      label: "Leer Info del Cliente", descripcion: "Accede al perfil",        Icono: User },
   { nombre: "transferir_a_humano",       label: "Transferir a Humano",   descripcion: "Pasa a un agente",        Icono: ArrowRightLeft },
+];
+
+// 018-simulador-agente (Historia 4, "Conocimiento") — herramientas
+// operativas de solo lectura de 015, siempre disponibles (no son
+// togglables como HERRAMIENTAS_DISPONIBLES) — se muestran informativamente.
+const HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES = [
+  "consultar_disponibilidad",
+  "consultar_precio_actual",
+  "consultar_promociones",
+  "validar_combinacion_productos",
+  "obtener_metodos_entrega",
+  "calcular_costo_envio",
+  "estimar_fecha_entrega",
+  "validar_cobertura",
+  "obtener_ubicaciones_retiro",
+  "agregar_productos_oportunidad",
 ];
 
 const TONOS = ["Cálido", "Profesional", "Directo", "Empático", "Entusiasta"] as const;
@@ -441,6 +460,19 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
               className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
             >
               Automatización
+            </TabsTrigger>
+            <TabsTrigger
+              value="simulador"
+              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
+            >
+              Simulador
+            </TabsTrigger>
+            <TabsTrigger
+              value="conocimiento"
+              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              Conocimiento
             </TabsTrigger>
           </TabsList>
 
@@ -1091,6 +1123,88 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
               </p>
             ) : (
               <SeccionAutomatizacion agenteIAConfigId={agente!.agenteIAConfig!.id} />
+            )}
+          </TabsContent>
+
+          {/* Tab: Simulador (018-simulador-agente) */}
+          <TabsContent value="simulador">
+            {!tieneConfigIA ? (
+              <p className="text-stone-500 text-sm text-center py-8">
+                Activá primero el Agente Comercial IA para poder simular conversaciones.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-8">
+                <PanelSimulador agenteIAConfigId={agente!.agenteIAConfig!.id} />
+                <div className="border-t border-white/8 pt-6">
+                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-3">
+                    Comparar publicada vs. borrador
+                  </p>
+                  <ComparadorVersiones agenteIAConfigId={agente!.agenteIAConfig!.id} />
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Tab: Conocimiento (018-simulador-agente, Historia 4) — vista de
+              solo lectura, sin campos editables nuevos (contracts/simulador.md). */}
+          <TabsContent value="conocimiento">
+            {!tieneConfigIA || !configIA ? (
+              <p className="text-stone-500 text-sm text-center py-8">
+                Activá primero el Agente Comercial IA para ver su conocimiento configurado.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-6 text-sm">
+                <div>
+                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">Reglas personalizadas</p>
+                  {((configIA.reglasPersonalizadas as string[] | null) ?? []).length === 0 ? (
+                    <p className="text-stone-500 text-xs">Sin reglas personalizadas configuradas.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1">
+                      {((configIA.reglasPersonalizadas as string[] | null) ?? []).map((r, i) => (
+                        <li key={i} className="text-stone-400 text-xs">- {r}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">Frases preferidas / prohibidas</p>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <p className="text-stone-500 mb-1">Preferidas</p>
+                      {((configIA.frasesPreferidas as string[] | null) ?? []).map((f, i) => <p key={i} className="text-stone-400">- {f}</p>)}
+                    </div>
+                    <div>
+                      <p className="text-stone-500 mb-1">Prohibidas</p>
+                      {((configIA.frasesProhibidas as string[] | null) ?? []).map((f, i) => <p key={i} className="text-stone-400">- {f}</p>)}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">Herramientas habilitadas</p>
+                  {herramientasActivas.length === 0 ? (
+                    <p className="text-stone-500 text-xs">Ninguna herramienta comercial habilitada todavía.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {herramientasActivas.map((h: string) => (
+                        <span key={h} className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-stone-300">{h}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">
+                    Datos operativos siempre disponibles (015)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES.map((h) => (
+                      <span key={h} className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-stone-500">{h}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
           </TabsContent>
         </Tabs>

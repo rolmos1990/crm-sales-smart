@@ -69,20 +69,26 @@ const AgregarProductosOportunidadTool: IProveedorTool = {
       return { ok: false, error: `Producto(s) no encontrado(s) o inactivo(s): ${faltantes.join(", ")}` };
     }
 
-    await prisma.oportunidadProducto.createMany({
-      data: parsed.data.productos.map((p) => {
-        const producto = productosPorId.get(p.productoId)!;
-        const precioUnitario = Number(producto.precio);
-        return {
-          oportunidadId: parsed.data.oportunidadId,
-          productoId: p.productoId,
-          descripcion: producto.nombre,
-          cantidad: p.cantidad,
-          precioUnitario,
-          subtotal: precioUnitario * p.cantidad,
-        };
-      }),
+    const lineasCalculadas = parsed.data.productos.map((p) => {
+      const producto = productosPorId.get(p.productoId)!;
+      const precioUnitario = Number(producto.precio);
+      return {
+        oportunidadId: parsed.data.oportunidadId,
+        productoId: p.productoId,
+        descripcion: producto.nombre,
+        cantidad: p.cantidad,
+        precioUnitario,
+        subtotal: precioUnitario * p.cantidad,
+      };
     });
+
+    // 018-simulador-agente — validación ya hecha arriba (oportunidad y
+    // productos reales), solo se omite la escritura (FR-006/FR-007).
+    if (ctx.modoSimulacion) {
+      return { ok: true, data: { productosAgregados: lineasCalculadas.length, previsualizado: true } };
+    }
+
+    await prisma.oportunidadProducto.createMany({ data: lineasCalculadas });
 
     return { ok: true, data: { productosAgregados: parsed.data.productos.length } };
   },

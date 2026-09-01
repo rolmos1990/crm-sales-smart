@@ -35,6 +35,11 @@ export interface InsumosContexto {
   conversacionId?: string;
   contactoId?: string;
   oportunidadId?: string;
+  // 018-simulador-agente (research.md Decisión 2) — cuando viene definido
+  // (incluso `null`), reemplaza la resolución vía producirCapaPerfilCliente
+  // (que requiere un contactoId real). El simulador arma un PerfilCliente
+  // 100% simulado sin depender de PerfilClienteService.
+  perfilClienteOverride?: PerfilCliente | null;
 }
 
 export interface ContextoCompuesto {
@@ -68,7 +73,9 @@ export async function construirContextoCompuesto(
   // Capa 5 primero (en cómputo, no en precedencia textual): la capa 4
   // necesita las señales del perfil para elegir la estrategia.
   let perfilCliente: PerfilCliente | null = null;
-  if (insumos.contactoId) {
+  if (insumos.perfilClienteOverride !== undefined) {
+    perfilCliente = insumos.perfilClienteOverride;
+  } else if (insumos.contactoId) {
     perfilCliente = await producirCapaPerfilCliente(insumos.contactoId, insumos.instanciaId);
   }
 

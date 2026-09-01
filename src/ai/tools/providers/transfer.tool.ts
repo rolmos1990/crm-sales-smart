@@ -31,6 +31,20 @@ const TransferirAHumanoTool: IProveedorTool = {
     const parsed = ArgsSchema.safeParse(args);
     if (!parsed.success) return { ok: false, error: "Argumentos inválidos para transferir_a_humano" };
 
+    // 018-simulador-agente — no actualiza Conversacion.clasificacion ni
+    // publica el evento de dominio en modo simulación (FR-006/FR-007).
+    if (ctx.modoSimulacion) {
+      return {
+        ok: true,
+        data: {
+          mensaje: "[Simulación] Transferencia habría iniciado — no se modificó ninguna conversación real.",
+          motivo: parsed.data.motivo,
+          prioridad: parsed.data.prioridad ?? "MEDIA",
+          previsualizado: true,
+        },
+      };
+    }
+
     const { prisma } = await import("@/shared/db/prisma");
 
     // Marcar la conversación como soporte para que el equipo humano la tome

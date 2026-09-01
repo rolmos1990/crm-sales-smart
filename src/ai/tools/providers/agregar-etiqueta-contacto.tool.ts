@@ -30,6 +30,20 @@ const AgregarEtiquetaContactoTool: IProveedorTool = {
 
     if (!ctx.contactoId) return { ok: false, error: "Se requiere un contacto activo para agregar la etiqueta" };
 
+    // 018-simulador-agente — evita crear un Tag/ContactoTag real; casi toda
+    // la lógica de esta tool es de escritura, sin cálculo previo que valga
+    // la pena reutilizar (FR-006/FR-007).
+    if (ctx.modoSimulacion) {
+      return {
+        ok: true,
+        data: {
+          nombreEtiqueta: parsed.data.nombreEtiqueta,
+          previsualizado: true,
+          mensaje: `[Simulación] Se habría agregado la etiqueta "${parsed.data.nombreEtiqueta}".`,
+        },
+      };
+    }
+
     const { prisma } = await import("@/shared/db/prisma");
 
     let tag = await prisma.tag.findFirst({

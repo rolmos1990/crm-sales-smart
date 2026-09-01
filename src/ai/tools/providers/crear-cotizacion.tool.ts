@@ -78,6 +78,25 @@ const CrearCotizacionTool: IProveedorTool = {
     const impuestoMonto = subtotal * (impuestoPct / 100);
     const total = subtotal + impuestoMonto;
 
+    // 018-simulador-agente — misma lógica de cálculo de arriba, sin tocar
+    // Prisma (FR-006/FR-007): reutiliza el 100% de la validación/cálculo.
+    if (ctx.modoSimulacion) {
+      return {
+        ok: true,
+        data: {
+          subtotal,
+          impuesto: impuestoMonto,
+          total,
+          moneda,
+          lineas: lineasConCalculo.length,
+          generadoPorIA: true,
+          pendienteConfirmacion: modoBorrador,
+          previsualizado: true,
+          mensaje: `[Simulación] Cotización por ${moneda} ${total.toFixed(2)} — no se creó ningún registro real.`,
+        },
+      };
+    }
+
     const count = await prisma.cotizacion.count({ where: { instanciaId: ctx.instanciaId } });
     const numero = String(count + 1).padStart(5, "0");
 

@@ -53,6 +53,19 @@ const ActualizarInfoContactoTool: IProveedorTool = {
       return { ok: false, error: "No se proporcionaron datos para actualizar" };
     }
 
+    // 018-simulador-agente — validación ya hecha arriba, solo se omite la
+    // escritura (FR-006/FR-007).
+    if (ctx.modoSimulacion) {
+      return {
+        ok: true,
+        data: {
+          camposActualizados: Object.keys(datosActualizar),
+          previsualizado: true,
+          mensaje: `[Simulación] Se habría actualizado: ${Object.keys(datosActualizar).join(", ")}.`,
+        },
+      };
+    }
+
     await prisma.contacto.update({
       where: { id: ctx.contactoId },
       data: datosActualizar,

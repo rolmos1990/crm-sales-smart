@@ -5,6 +5,11 @@ export interface ContextoTool {
   contactoId?: string;
   oportunidadId?: string;
   herramientasPermitidas: string[];
+  // 018-simulador-agente — undefined/false = comportamiento actual exacto
+  // (ninguna tool cambia su lógica). true = las tools que escriben datos
+  // devuelven una previsualización (misma forma de ResultadoTool, con
+  // `previsualizado: true` en `data`) sin tocar Prisma.
+  modoSimulacion?: boolean;
 }
 
 export interface ResultadoTool {
