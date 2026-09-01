@@ -371,6 +371,8 @@ model Instancia {
   usoIA                  UsoIA[]
   agenteIAConfigVersions AgenteIAConfigVersion[]
   perfilesCliente        PerfilClienteSnapshot[]
+  playbooksEstrategia    PlaybookEstrategia[]
+  seleccionesEstrategia  SeleccionEstrategiaLog[]
 
   @@index([slug])
   @@index([estado])
@@ -1788,8 +1790,10 @@ model Conversacion {
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: SetNull)
 
-  mensajes      MensajeConversacion[]
-  oportunidades OportunidadConversacion[]
+  mensajes              MensajeConversacion[]
+  oportunidades         OportunidadConversacion[]
+  // 011-playbook-estrategia-comercial
+  seleccionesEstrategia SeleccionEstrategiaLog[]
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
@@ -2029,10 +2033,13 @@ model AgenteIAConfig {
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  memorias       MemoriaAgenteIA[]
-  usoIA          UsoIA[]
-  pipelineStages PipelineStage[]
-  versiones      AgenteIAConfigVersion[]
+  memorias              MemoriaAgenteIA[]
+  usoIA                 UsoIA[]
+  pipelineStages        PipelineStage[]
+  versiones             AgenteIAConfigVersion[]
+  // 011-playbook-estrategia-comercial
+  playbooksAsignados    AgentePlaybookAsignacion[]
+  seleccionesEstrategia SeleccionEstrategiaLog[]
 }
 
 // --- 009-perfil-agente-estructurado-versionado ---
@@ -2121,4 +2128,75 @@ model UsoIA {
   @@index([instanciaId, tarea])
   @@index([proveedorIAId])
   @@index([agenteIAConfigVersionId])
+}
+
+// --- 011-playbook-estrategia-comercial ---
+
+enum OrigenPlaybook {
+  PLANTILLA
+  PERSONALIZADA
+}
+
+// Estrategia de atención/venta, independiente del agente y del proveedor de
+// IA (FR-012) — contenido es una lista de reglas en lenguaje natural
+// (research.md Decisión 2), condiciones es { tiposRelacion, intenciones }
+// (research.md Decisión 3).
+model PlaybookEstrategia {
+  id            String         @id @default(cuid())
+  nombre        String
+  descripcion   String?
+  origen        OrigenPlaybook
+  activo        Boolean        @default(false)
+  contenido     Json
+  condiciones   Json
+  prioridad     Int            @default(0)
+  creadoEn      DateTime       @default(now())
+  actualizadoEn DateTime       @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  asignaciones AgentePlaybookAsignacion[]
+
+  @@index([instanciaId, activo])
+}
+
+model AgentePlaybookAsignacion {
+  id                  String   @id @default(cuid())
+  prioridadEfectiva   Int?
+  condicionesOverride Json?
+  creadoEn            DateTime @default(now())
+
+  agenteIAConfigId String
+  agenteIAConfig   AgenteIAConfig @relation(fields: [agenteIAConfigId], references: [id], onDelete: Cascade)
+
+  playbookEstrategiaId String
+  playbookEstrategia   PlaybookEstrategia @relation(fields: [playbookEstrategiaId], references: [id], onDelete: Restrict)
+
+  @@unique([agenteIAConfigId, playbookEstrategiaId])
+  @@index([agenteIAConfigId])
+}
+
+// Registro auditable de cada cálculo de selección de estrategia (FR-009 de
+// la spec) — playbookEstrategiaIdSeleccionado null = ninguna coincidió.
+model SeleccionEstrategiaLog {
+  id                String   @id @default(cuid())
+  motivo            String
+  tipoRelacionUsado String?
+  intencionUsada    String?
+  creadoEn          DateTime @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  agenteIAConfigId String
+  agenteIAConfig   AgenteIAConfig @relation(fields: [agenteIAConfigId], references: [id], onDelete: Cascade)
+
+  conversacionId String?
+  conversacion   Conversacion? @relation(fields: [conversacionId], references: [id], onDelete: SetNull)
+
+  playbookEstrategiaIdSeleccionado String?
+
+  @@index([instanciaId, creadoEn])
+  @@index([agenteIAConfigId])
 }

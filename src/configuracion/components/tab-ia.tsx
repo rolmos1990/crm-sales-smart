@@ -8,17 +8,20 @@ import {
 import { FormConfiguracionIA } from "./form-configuracion-ia";
 import { ListaProveedoresIA } from "./lista-proveedores-ia";
 import { SeccionEnrutamiento } from "./seccion-enrutamiento";
+import { ListaEstrategias } from "@/ai/estrategia/components/lista-estrategias";
+import { listarEstrategias } from "@/ai/estrategia/queries";
 
 interface TabIAProps {
   instanciaId: string;
 }
 
 export async function TabIA({ instanciaId }: TabIAProps) {
-  const [config, proveedores, uso, asignacionesObjetivo] = await Promise.all([
+  const [config, proveedores, uso, asignacionesObjetivo, estrategias] = await Promise.all([
     obtenerConfigIA(instanciaId),
     obtenerProveedoresIA(instanciaId),
     obtenerResumenUsoIA(instanciaId),
     obtenerAsignacionesObjetivoIA(instanciaId),
+    listarEstrategias(instanciaId),
   ]);
 
   const proveedoresActivos = proveedores
@@ -100,6 +103,11 @@ export async function TabIA({ instanciaId }: TabIAProps) {
           asignacionesIniciales={asignacionesObjetivo}
           proveedoresActivos={proveedoresActivos}
         />
+      </section>
+
+      {/* Estrategias (011-playbook-estrategia-comercial) */}
+      <section className="flex flex-col gap-4">
+        <ListaEstrategias estrategiasIniciales={estrategias} />
       </section>
     </div>
   );

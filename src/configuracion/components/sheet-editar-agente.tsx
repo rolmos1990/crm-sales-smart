@@ -59,6 +59,7 @@ import {
 } from "@/configuracion/ia/agente-schema";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 import { SeccionVersionesAgente } from "./seccion-versiones-agente";
+import { AsignarEstrategiasAgente } from "@/ai/estrategia/components/asignar-estrategias-agente";
 
 // 009-perfil-agente-estructurado-versionado — etiquetas de las nuevas
 // dimensiones de comunicación (mismos valores que agente-schema.ts).
@@ -427,6 +428,12 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             >
               <History className="h-3.5 w-3.5" />
               Versiones
+            </TabsTrigger>
+            <TabsTrigger
+              value="estrategias"
+              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
+            >
+              Estrategias
             </TabsTrigger>
           </TabsList>
 
@@ -1055,6 +1062,17 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
               </p>
             ) : (
               <SeccionVersionesAgente agenteIAConfigId={agente!.agenteIAConfig!.id} />
+            )}
+          </TabsContent>
+
+          {/* Tab: Estrategias (011-playbook-estrategia-comercial) */}
+          <TabsContent value="estrategias">
+            {!tieneConfigIA ? (
+              <p className="text-stone-500 text-sm text-center py-8">
+                Activá primero el Agente Comercial IA para asignarle estrategias.
+              </p>
+            ) : (
+              <AsignarEstrategiasAgente agenteIAConfigId={agente!.agenteIAConfig!.id} />
             )}
           </TabsContent>
         </Tabs>
