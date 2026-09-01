@@ -224,7 +224,17 @@
       "Bash(git rm *)",
       "Bash(xxd)",
       "Bash(.specify/scripts/bash/setup-plan.sh --json)",
-      "Bash(.specify/scripts/bash/setup-tasks.sh --json)"
+      "Bash(.specify/scripts/bash/setup-tasks.sh --json)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(git checkout *)",
+      "Bash(kill -9 167 154)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(node -e \"console.log\\(new Date\\('2026-05-01T00:00:00.000Z'\\).toLocaleDateString\\('es-PE', { year: 'numeric', month: 'long', day: 'numeric' }\\)\\)\")",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(echo \"started pid $!\")",
+      "Bash(break)",
+      "Bash(echo \"EXIT=$?\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
