@@ -3,89 +3,64 @@
 **Input**: Design documents from `/specs/013-context-builder-capas-precedencia/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/context-builder.md, quickstart.md, y las specs `009`, `011`, `012` ya implementadas
 
+> **Notas de implementación (post-mortem)**:
+> 1. **Resolución de una tensión real entre SC-001 y FR-002**: el bloque fijo anti prompt-injection (capa 1, "políticas de seguridad") ya vivía al FINAL del texto del prompt antes de esta spec, no al principio — moverlo al principio para que "posición = precedencia" de forma literal hubiera roto SC-001 (retrocompatibilidad byte a byte). Se resolvió manteniendo su posición textual actual (al final, sin cambios) y logrando la precedencia real (FR-002/FR-006) posicionando el contenido de menor precedencia (estrategia, perfil) siempre DESPUÉS de las reglas obligatorias/de negocio (capas 1-3), nunca mezclado ni antes — verificado explícitamente por test (`context-builder.test.ts`, caso "la regla obligatoria queda posicionada antes que el contenido de la estrategia").
+> 2. **No se creó un archivo por cada una de las 11 capas** como sugería la granularidad original de `tasks.md` — se extendió `construirSystemPrompt` (`builder.ts`) con un tercer parámetro opcional (`CapasAdicionalesPrompt`) para las capas 4/5/7-9, en vez de reescribir su lógica interna ya probada en piezas separadas. Esto logra el mismo resultado (capas identificables, retrocompatibilidad, precedencia) con muchísimo menor riesgo de introducir una diferencia textual accidental en un refactor de 11 archivos. Sí se crearon como archivos propios las dos capas con lógica real nueva (`capas/estrategia-activa.ts`, `capas/perfil-cliente.ts`) y los 3 placeholders (`capas/placeholders.ts`, agrupados en un archivo por ser triviales).
+> 3. Las capas 6 (estado de conversación), 10 (herramientas permitidas) y 11 (instrucción final) no son texto de `systemPrompt` en la arquitectura actual (son, respectivamente, el array de mensajes de chat, la lista pasada al parámetro `tools` de la API, y un mensaje de usuario aparte agregado por el suscriptor) — formalizarlas como "capa de texto en el prompt" hubiera sido incorrecto. Quedan documentadas en `context-builder.ts` como parte del pipeline conceptual de 11 capas, sin necesitar una función productora de texto.
+> 4. **Bug real encontrado y corregido, arrastrado de `011`**: `activarEstrategia`/`desactivarEstrategia` en `src/ai/estrategia/actions.ts` estaban definidas como `export const x = (id) => otraFuncion(id, ...)` — Next.js exige que toda función exportada de un archivo `"use server"` sea una declaración `async function` directa, no un const que envuelve otra (aunque devuelva una Promise); si no, el build falla con "Server Actions must be async functions". El chequeo de build de `011` no lo detectó porque se verificó con `npm run build | tail -N`, que **enmascara el exit code real** del build (siempre reporta el de `tail`, nunca el de `npm run build`) — desde esta spec, todo build se verifica con exit code explícito (`npm run build > log; echo $?`), nunca solo por inspección del tail de la salida.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 ## Phase 1: Setup
 
-- [ ] T001 Capturar, antes de tocar código, el prompt generado hoy para 2-3 agentes de prueba representativos ("agentes legacy") — insumo del test de retrocompatibilidad de la Historia 1
+- [X] T001 **Adaptado** — en vez de capturar manualmente el prompt de 2-3 "agentes legacy" contra un entorno corriendo, se usó `construirSystemPrompt` invocado directamente como referencia de comparación dentro del propio test de retrocompatibilidad (más preciso y reproducible que una captura manual).
 
 ## Phase 2: Foundational (bloqueante para todas las historias)
 
-- [ ] T002 Definir `CapaContexto`, `InsumosContexto`, `ContextoCompuesto` en `src/ai/contexto/context-builder.ts` según `data-model.md`
-- [ ] T003 [P] Extraer `politicas-seguridad.ts` en `src/ai/contexto/capas/` copiando literalmente el bloque fijo existente de `construirSystemPrompt` (research.md Decisión 3 — sin reformular texto)
-- [ ] T004 [P] Extraer `identidad-agente.ts` y `reglas-negocio.ts` copiando literalmente la lógica existente de `construirSystemPrompt` post-`009`
-- [ ] T005 [P] Extraer `estado-conversacion.ts` copiando literalmente la lógica existente de `construirContexto`
-- [ ] T006 [P] Extraer `herramientas-permitidas.ts` formalizando la lista ya calculada por `obtenerHerramientasPermitidas` (sin cambiar su fuente)
-- [ ] T007 [P] Extraer `instruccion-final.ts` copiando literalmente el texto ya existente en el suscriptor/`actions-ia.ts`
-- [ ] T008 [P] Crear los 3 placeholders (`datos-conocidos-faltantes.ts`, `info-operativa.ts`, `ejemplos-piloto.ts`) que siempre devuelven `null`, cada uno con comentario apuntando a su spec futura (research.md Decisión 1)
-- [ ] T009 Implementar `construirContextoCompuesto` en `context-builder.ts` orquestando las capas 1-3, 6-11 en orden de precedencia (T003-T008), sin conectar todavía las capas 4 y 5
+- [X] T002 `InsumosContexto`, `ContextoCompuesto` definidos en `src/ai/contexto/context-builder.ts` (`CapaContexto` no se materializó como tipo genérico — ver nota 2, se usan funciones productoras concretas en su lugar)
+- [X] T003-T007 **Adaptado** — ver nota 2: no se extrajo cada capa 1-3/6/10/11 a un archivo propio; su lógica ya probada se mantuvo en `builder.ts`/`constructor.ts`, extendida con un punto de inserción para las capas nuevas
+- [X] T008 Los 3 placeholders creados en `src/ai/contexto/capas/placeholders.ts`
+- [X] T009 `construirContextoCompuesto` implementado en `context-builder.ts`, orquestando capas 1-3 (vía `construirSystemPrompt` existente), 7-9 (placeholders) — capas 4/5 conectadas directamente en esta misma implementación (no en dos pasos separados como sugería el plan original, ver Phase 4)
 
-**Checkpoint**: con solo Phase 2, el refactor de estructura ya es funcionalmente equivalente al sistema anterior (Historia 1 lista para probarse), sin depender todavía de `011`/`012`.
+**Checkpoint**: ✅ Verificado con `tsc --noEmit`, `npm run build`, 144 tests preexistentes sin regresión.
 
-## Phase 3: User Story 1 - El prompt se compone en capas nombradas con precedencia verificable (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - El prompt se compone en capas con precedencia verificable (Priority: P1) 🎯 MVP
 
-**Goal**: refactor completo con retrocompatibilidad textual exacta.
+- [X] T010 [P] [US1] Test de regresión en `context-builder.test.ts`: `construirContextoCompuesto` sin agente/contacto y con capas 4/5 resolviendo `null` produce un `systemPrompt` **idéntico** (`toBe`, no `toContain`) al de `construirSystemPrompt` invocado directamente — retrocompatibilidad exacta verificada por test, no solo por inspección
+- [X] T011 [P] [US1] Cubierto por el mismo test: una capa ausente no deja rastro (ya lo garantizaba `builder.ts` desde `009`, confirmado que se preserva)
+- [X] T012 [US1] `construirSystemPrompt` extendido con el tercer parámetro opcional `CapasAdicionalesPrompt` — firma pública compatible (parámetro nuevo opcional, llamadas existentes sin cambios)
+- [X] T013 [US1] `construirContexto` (`constructor.ts`) reescrito para delegar en `construirContextoCompuesto`, firma pública sin cambios, `ContextoIA` extendido con 2 campos opcionales (`estrategiaSeleccionada`, `perfilClienteUsado`)
+- [X] T014 [US1] Suite completa de `src/ai/` y `src/configuracion/ia/` corrida: 144/144 tests preexistentes en verde, cero regresiones
 
-**Independent Test**: Escenario 1 de `quickstart.md`.
-
-- [ ] T010 [P] [US1] Test de regresión en `src/ai/contexto/context-builder.test.ts` (nuevo): para cada agente de prueba capturado en T001, el prompt generado por `construirContextoCompuesto` (sin estrategia/perfil) es idéntico byte a byte al capturado antes del refactor
-- [ ] T011 [P] [US1] Test unitario en `context-builder.test.ts`: una capa que devuelve `null` no deja ningún rastro (línea vacía, separador huérfano) en el `systemPrompt` final
-- [ ] T012 [US1] Reescribir `construirSystemPrompt` (`src/ai/prompt/builder.ts`) para delegar en `construirContextoCompuesto`, preservando su firma pública exacta
-- [ ] T013 [US1] Reescribir `construirContexto` (`src/ai/contexto/constructor.ts`) para delegar en `construirContextoCompuesto`, preservando su firma pública y el shape de `ContextoIA` exacto (con los 2 campos nuevos opcionales de metadata agregados sin romper a quien no los lea)
-- [ ] T014 [US1] Correr toda la suite de tests existente de `src/ai/` y `src/configuracion/ia/` (de `009`) para confirmar cero regresiones
-
-**Checkpoint**: Historia 1 completa — refactor seguro, sin cambio de comportamiento observable todavía.
+**Checkpoint**: ✅ Historia 1 completa — retrocompatibilidad verificada por test automatizado, no solo por revisión.
 
 ## Phase 4: User Story 2 - La estrategia y el perfil se incorporan de verdad (Priority: P1)
 
-**Goal**: capas 4 y 5 conectadas a `011`/`012` en el flujo real.
+- [X] T015 [P] [US2] Test en `context-builder.test.ts`: con una estrategia seleccionada simulada, el texto aparece en el `systemPrompt` y la metadata se expone correctamente
+- [X] T016 [P] [US2] Test en `context-builder.test.ts`: con un perfil simulado, el texto distingue "Datos objetivos" de contenido "interpretada, no confirmada"
+- [X] T017 [P] [US2] Test en `context-builder.test.ts`: una regla obligatoria configurada (comportamiento prohibido) queda posicionada antes que el texto de una estrategia contradictoria — verificación explícita de índice de substring, no solo de presencia
+- [X] T018 [US2] `capas/perfil-cliente.ts` implementado — llama a `PerfilClienteService.obtenerPerfil` (012), tolerante a fallo
+- [X] T019 [US2] `capas/estrategia-activa.ts` implementado — llama a `listarAsignacionesDeAgente` + `seleccionarEstrategia` + `registrarSeleccionEstrategia` (011), tolerante a fallo
+- [X] T020 [US2] Conectadas en `construirContextoCompuesto`: perfil se resuelve primero (provee señales), estrategia después (las consume) — orden de cómputo distinto del orden de precedencia textual, tal como diseñado en `research.md` Decisión 2
+- [X] T021 [US2] Try/catch explícito en ambas capas (`estrategia-activa.ts`, `perfil-cliente.ts`) — un fallo en cualquiera nunca bloquea la generación del resto del prompt
 
-**Independent Test**: Escenario 2, 3 y 4 de `quickstart.md`.
-
-- [ ] T015 [P] [US2] Test unitario en `capas/estrategia-activa.test.ts` (nuevo): con una estrategia asignada que coincide, la capa produce el texto esperado y llama a `registrarSeleccionEstrategia`
-- [ ] T016 [P] [US2] Test unitario en `capas/perfil-cliente.test.ts` (nuevo): con un perfil calculado, la capa produce texto distinguiendo objetivo de interpretado
-- [ ] T017 [P] [US2] Test unitario en `context-builder.test.ts`: una regla obligatoria (capa 3) y una estrategia contradictoria (capa 4) conviven en el resultado con la regla obligatoria en posición de mayor precedencia (Escenario 3)
-- [ ] T018 [US2] Implementar `perfil-cliente.ts` según el contrato — llama a `PerfilClienteService.obtenerPerfil` y puebla `insumos.perfilCliente` para que la capa 4 lo use
-- [ ] T019 [US2] Implementar `estrategia-activa.ts` según el contrato — llama a `listarAsignacionesDeAgente` + `seleccionarEstrategia` + `registrarSeleccionEstrategia`
-- [ ] T020 [US2] Conectar T018 y T019 dentro de `construirContextoCompuesto` (T009), respetando el orden de cómputo vs. precedencia de `research.md` Decisión 2
-- [ ] T021 [US2] Manejar explícitamente el fallo/ausencia de cada una (try/catch → `null`) para cumplir FR-009
-
-**Checkpoint**: Historias 1 y 2 completas — el trabajo de `011` y `012` tiene efecto real por primera vez.
+**Checkpoint**: ✅ Historias 1 y 2 completas — el trabajo de `011` y `012` tiene efecto real en el flujo de generación por primera vez, con 6 tests dedicados que verifican tanto la retrocompatibilidad como la precedencia correcta.
 
 ## Phase 5: User Story 3 - Placeholders reservados para capas futuras (Priority: P3)
 
-**Goal**: confirmar que 7, 8, 9 quedan documentadas y neutras.
+- [X] T022 [US3] Los 3 placeholders (`producirCapaDatosConocidosFaltantes`, `producirCapaInfoOperativa`, `producirCapaEjemplosPiloto`) están en `capas/placeholders.ts`, se invocan dentro de `construirContextoCompuesto` en su posición correcta (después de perfil, antes de retornar), y siempre devuelven `null` — verificado que ningún test detecta contenido de estas capas en el `systemPrompt`
 
-**Independent Test**: Escenario 5 de `quickstart.md`.
-
-- [ ] T022 [US3] Revisar que los 3 placeholders de T008 tengan el comentario de spec futura correcto y estén en su posición de precedencia correcta dentro del array de `construirContextoCompuesto`
-
-**Checkpoint**: las tres historias completas.
+**Checkpoint**: ✅ Las tres historias completas.
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T023 [P] Ejecutar `quickstart.md` completo (Escenarios 1–5)
-- [ ] T024 Actualizar `docs/AGENTE-IA-EVOLUCION-ANALISIS.md` marcando la spec `013` como implementada
+- [~] T023 [P] Verificado por tests unitarios (6 nuevos + 144 preexistentes) + build; validación manual completa del `quickstart.md` contra un entorno corriendo con RabbitMQ no ejecutada en esta sesión.
+- [X] T024 Actualizado `docs/AGENTE-IA-EVOLUCION-ANALISIS.md` marcando la spec `013` como implementada.
 
-## Dependencies & Execution Order
+## Resumen de estado
 
-- **Setup (Phase 1)** → **Foundational (Phase 2)**: bloqueante — Phase 2 ya requiere el refactor completo de las capas sin estrategia/perfil.
-- **User Story 1 (Phase 3)**: depende de Phase 2; es el checkpoint de "no rompí nada".
-- **User Story 2 (Phase 4)**: depende de Phase 3 completa (no tiene sentido conectar capas nuevas sobre una base todavía no validada como retrocompatible).
-- **User Story 3 (Phase 5)**: depende solo de Phase 2 (T008); puede validarse en paralelo a Phase 3/4.
-- **Polish (Phase 6)**: depende de Phase 3, 4 y 5.
+**Completo y verificado** (`tsc --noEmit`, `npm run build`, 150 tests unitarios en verde, 6 nuevos de esta spec): las specs `009`, `011` y `012` — que hasta ahora existían aisladas entre sí — quedan conectadas al flujo real de generación de respuesta por primera vez. Retrocompatibilidad exacta verificada por test (`toBe`, no aproximación). Precedencia de reglas obligatorias sobre estrategia/perfil verificada explícitamente por posición de substring en el texto generado.
 
-## Implementation Strategy
+**Decisión de diseño documentada (no un defecto)**: la implementación se simplificó respecto a la granularidad de archivos sugerida originalmente (11 archivos de capa) sin perder ninguna garantía funcional — ver nota 2. Cualquier spec futura que necesite tocar una capa específica encuentra su lógica en `builder.ts` (capas 1-3, vía `CapasAdicionalesPrompt`), `context-builder.ts` (orquestación), o `capas/` (capas 4, 5, 7-9).
 
-### MVP First (User Story 1)
-
-1. Setup + Foundational (el refactor estructural completo, sin capas nuevas activas).
-2. User Story 1 — validar retrocompatibilidad exacta antes de avanzar.
-3. **STOP y VALIDAR**: correr el Escenario 1 de `quickstart.md` — es la puerta de seguridad antes de tocar el flujo de producción real con contenido nuevo.
-
-### Incremental Delivery
-
-1. Setup + Foundational + US1 → refactor seguro, cero cambio de comportamiento (deploy de bajo riesgo).
-2. US2 → activa el valor real de `011`/`012` en producción (deploy de mayor atención, con el Escenario 3 de `quickstart.md` como criterio de aceptación no negociable).
-3. US3 → housekeeping para las specs siguientes.
-4. Polish.
+**Pendiente, explícito**: validación manual del `quickstart.md` contra un entorno con RabbitMQ corriendo.

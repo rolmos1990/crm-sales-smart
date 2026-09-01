@@ -76,8 +76,15 @@ async function cambiarActivo(id: string, activo: boolean): Promise<Resultado> {
   return { exito: true };
 }
 
-export const activarEstrategia = (id: string) => cambiarActivo(id, true);
-export const desactivarEstrategia = (id: string) => cambiarActivo(id, false);
+// Next.js exige que toda función exportada de un archivo "use server" sea
+// una función async declarada directamente — un const que envuelve otra
+// función (aunque devuelva una Promise) falla la validación de build.
+export async function activarEstrategia(id: string): Promise<Resultado> {
+  return cambiarActivo(id, true);
+}
+export async function desactivarEstrategia(id: string): Promise<Resultado> {
+  return cambiarActivo(id, false);
+}
 
 export async function duplicarEstrategia(id: string): Promise<Resultado<{ nuevoId: string }>> {
   const sesion = await requireSesion();

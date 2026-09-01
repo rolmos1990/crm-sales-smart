@@ -34,9 +34,22 @@ export interface ContextoDinamicoPrompt {
   etapaOportunidad?: string;
 }
 
+// 013-context-builder-capas-precedencia — capas 4/5/7-9, opcionales.
+// Se insertan siempre DESPUÉS de las reglas obligatorias y de negocio (capas
+// 1-3) y ANTES de instrucciones adicionales/contexto dinámico/override
+// libre — nunca pueden pesar más que una regla obligatoria (FR-006).
+// Ausentes/null (default): el prompt es byte-idéntico al de antes de esta
+// spec (SC-001).
+export interface CapasAdicionalesPrompt {
+  contenidoEstrategia?: string | null;
+  contenidoPerfilCliente?: string | null;
+  contenidoReservado?: string | null;
+}
+
 export function construirSystemPrompt(
   config: ConfigAgenteParaPrompt,
   ctx?: ContextoDinamicoPrompt,
+  capasAdicionales?: CapasAdicionalesPrompt,
 ): string {
   const partes: string[] = [];
 
@@ -85,6 +98,12 @@ export function construirSystemPrompt(
 
   const bloqueReglas = construirBloqueReglasDeNegocio(config);
   if (bloqueReglas) partes.push(bloqueReglas);
+
+  // Capas 4, 5, 7-9 (013-context-builder-capas-precedencia) — siempre
+  // después de las reglas obligatorias/de negocio de arriba, nunca antes.
+  if (capasAdicionales?.contenidoEstrategia) partes.push(capasAdicionales.contenidoEstrategia);
+  if (capasAdicionales?.contenidoPerfilCliente) partes.push(capasAdicionales.contenidoPerfilCliente);
+  if (capasAdicionales?.contenidoReservado) partes.push(capasAdicionales.contenidoReservado);
 
   const instrucciones = parsearLista(config.instrucciones);
   if (instrucciones.length > 0) {

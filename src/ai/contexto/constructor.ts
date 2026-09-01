@@ -1,6 +1,6 @@
 import { prisma } from "@/shared/db/prisma";
 import { resolverDecisionContexto } from "./router";
-import { construirSystemPrompt } from "@/ai/prompt/builder";
+import { construirContextoCompuesto } from "./context-builder";
 import type { ContextoIA, MensajeContexto } from "./tipos";
 
 interface OpcionesContexto {
@@ -132,35 +132,45 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
   }
 
   if (agenteConfig) {
-    contexto.sistemaPrompt = construirSystemPrompt(
+    // 013-context-builder-capas-precedencia — construirContexto delega en
+    // construirContextoCompuesto, que resuelve además las capas 4 (estrategia,
+    // 011) y 5 (perfil de cliente, 012) antes de armar el systemPrompt final.
+    const compuesto = await construirContextoCompuesto(
+      { instanciaId, conversacionId, contactoId, oportunidadId, agenteIAConfigId },
       {
-        objetivo: agenteConfig.objetivo,
-        personalidad: agenteConfig.personalidad,
-        especialidad: agenteConfig.especialidad,
-        instrucciones: agenteConfig.instrucciones,
-        sistemaPrompt: agenteConfig.sistemaPrompt,
-        configuracionTono: agenteConfig.configuracionTono,
-        nombreAgente: agenteConfig.nombreAgente,
-        rol: agenteConfig.rol,
-        idiomaPrincipal: agenteConfig.idiomaPrincipal,
-        idiomasPermitidos: agenteConfig.idiomasPermitidos,
-        longitudRespuesta: agenteConfig.longitudRespuesta,
-        proactividad: agenteConfig.proactividad,
-        intensidadComercial: agenteConfig.intensidadComercial,
-        estiloRecomendacion: agenteConfig.estiloRecomendacion,
-        frasesPreferidas: agenteConfig.frasesPreferidas,
-        frasesProhibidas: agenteConfig.frasesProhibidas,
-        comportamientosProhibidos: agenteConfig.comportamientosProhibidos,
-        reglasPersonalizadas: agenteConfig.reglasPersonalizadas,
-        condicionesTransferenciaHumano: agenteConfig.condicionesTransferenciaHumano,
-      },
-      {
-        nombreContacto: contacto?.nombre,
-        empresaContacto: contacto?.empresa?.nombre ?? undefined,
-        tituloOportunidad: oportunidad?.titulo,
-        etapaOportunidad: oportunidad?.etapa,
+        configAgente: {
+          objetivo: agenteConfig.objetivo,
+          personalidad: agenteConfig.personalidad,
+          especialidad: agenteConfig.especialidad,
+          instrucciones: agenteConfig.instrucciones,
+          sistemaPrompt: agenteConfig.sistemaPrompt,
+          configuracionTono: agenteConfig.configuracionTono,
+          nombreAgente: agenteConfig.nombreAgente,
+          rol: agenteConfig.rol,
+          idiomaPrincipal: agenteConfig.idiomaPrincipal,
+          idiomasPermitidos: agenteConfig.idiomasPermitidos,
+          longitudRespuesta: agenteConfig.longitudRespuesta,
+          proactividad: agenteConfig.proactividad,
+          intensidadComercial: agenteConfig.intensidadComercial,
+          estiloRecomendacion: agenteConfig.estiloRecomendacion,
+          frasesPreferidas: agenteConfig.frasesPreferidas,
+          frasesProhibidas: agenteConfig.frasesProhibidas,
+          comportamientosProhibidos: agenteConfig.comportamientosProhibidos,
+          reglasPersonalizadas: agenteConfig.reglasPersonalizadas,
+          condicionesTransferenciaHumano: agenteConfig.condicionesTransferenciaHumano,
+        },
+        contextoDinamico: {
+          nombreContacto: contacto?.nombre,
+          empresaContacto: contacto?.empresa?.nombre ?? undefined,
+          tituloOportunidad: oportunidad?.titulo,
+          etapaOportunidad: oportunidad?.etapa,
+        },
       },
     );
+
+    contexto.sistemaPrompt = compuesto.systemPrompt;
+    contexto.estrategiaSeleccionada = compuesto.estrategiaSeleccionada;
+    contexto.perfilClienteUsado = compuesto.perfilClienteUsado;
   }
 
   return contexto;

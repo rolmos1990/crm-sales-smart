@@ -32,4 +32,9 @@ export interface ContextoIA {
   contacto?: ContextoContacto;
   oportunidad?: ContextoOportunidad;
   sistemaPrompt?: string;
+
+  // 013-context-builder-capas-precedencia — metadata opcional (debug/UI),
+  // no cambia el shape para quien ya consume ContextoIA sin leerlos.
+  estrategiaSeleccionada?: { id: string; nombre: string } | null;
+  perfilClienteUsado?: boolean;
 }
