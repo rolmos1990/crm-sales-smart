@@ -40,6 +40,9 @@ const OPCION_DEFECTO = "__DEFECTO__";
 interface ProveedorActivoOpcion {
   id: string;
   proveedor: string;
+  // 021-alias-proveedores-ia — identificador legible que distingue agentes
+  // del mismo proveedor; es lo que se muestra en el selector (FR-008).
+  alias: string;
 }
 
 interface SeccionEnrutamientoProps {
@@ -53,7 +56,7 @@ export function SeccionEnrutamiento({ asignacionesIniciales, proveedoresActivos 
 
   const itemsProveedores: Record<string, string> = {
     [OPCION_DEFECTO]: "Usar criterio por defecto",
-    ...Object.fromEntries(proveedoresActivos.map((p) => [p.id, p.proveedor])),
+    ...Object.fromEntries(proveedoresActivos.map((p) => [p.id, p.alias])),
   };
 
   function actualizarLocal(objetivo: ObjetivoEnrutamiento, proveedorIAId: string | null) {
@@ -114,7 +117,7 @@ export function SeccionEnrutamiento({ asignacionesIniciales, proveedoresActivos 
                 <SelectItem value={OPCION_DEFECTO}>Usar criterio por defecto</SelectItem>
                 {proveedoresActivos.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.proveedor}
+                    {p.alias}
                   </SelectItem>
                 ))}
               </SelectContent>

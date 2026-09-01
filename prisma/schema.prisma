@@ -2044,6 +2044,11 @@ model ConfiguracionIA {
 // Credenciales y configuración de cada proveedor IA por instancia
 model ProveedorIA {
   id                     String          @id @default(cuid())
+  // 021-alias-proveedores-ia — identificador legible y único por instancia;
+  // permite tener varias configuraciones del mismo proveedor (ver alias vs.
+  // aliasNormalizado en data-model.md).
+  alias                  String
+  aliasNormalizado       String
   proveedor              ProveedorIAEnum
   apiKeyEncriptada       String?
   baseUrl                String?
@@ -2066,7 +2071,7 @@ model ProveedorIA {
 
   usoIA UsoIA[]
 
-  @@unique([instanciaId, proveedor, tipoAgenteIA])
+  @@unique([instanciaId, aliasNormalizado])
   @@index([instanciaId])
   @@index([instanciaId, activo, prioridad])
 }

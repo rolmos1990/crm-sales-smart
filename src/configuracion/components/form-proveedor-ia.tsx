@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -35,7 +35,7 @@ import {
   InputGroupInput,
   InputGroupButton,
 } from "@/components/ui/input-group";
-import { crearProveedorIA } from "@/configuracion/ia/actions";
+import { crearProveedorIA, actualizarProveedorIA } from "@/configuracion/ia/actions";
 import { ProveedorIASchema, type ProveedorIAInput } from "@/configuracion/ia/schema";
 
 const MODELOS_POR_PROVEEDOR: Record<string, string> = {
@@ -47,31 +47,76 @@ const MODELOS_POR_PROVEEDOR: Record<string, string> = {
   LOCAL: "llama3, mistral",
 };
 
+// 021-alias-proveedores-ia — datos de un agente ya creado para precargar el
+// formulario en modo edición (nunca incluye la API key: la Server Action no
+// la devuelve al cliente — un apiKey vacío al editar significa "no cambiarla").
+export interface ProveedorIAExistente {
+  id: string;
+  alias: string;
+  proveedor: ProveedorIAInput["proveedor"];
+  tipoAgenteIA: ProveedorIAInput["tipoAgenteIA"];
+  baseUrl: string | null;
+  modelosDisponibles: string;
+  prioridad: number;
+  limitePorMinuto: number | null;
+  limitePorDia: number | null;
+  timeoutMs: number;
+  reintentosMax: number;
+}
+
 interface FormProveedorIAProps {
   abierto: boolean;
   onCerrar: () => void;
   onExito: () => void;
+  proveedorExistente?: ProveedorIAExistente | null;
 }
 
-export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAProps) {
+const VALORES_DEFECTO: ProveedorIAInput = {
+  alias: "",
+  proveedor: "ANTHROPIC",
+  tipoAgenteIA: "COMERCIAL",
+  apiKey: "",
+  baseUrl: "",
+  modelosDisponibles: MODELOS_POR_PROVEEDOR["ANTHROPIC"],
+  prioridad: 1,
+  timeoutMs: 30000,
+  reintentosMax: 2,
+  limitePorMinuto: null,
+  limitePorDia: null,
+};
+
+function valoresDesdeExistente(p: ProveedorIAExistente): ProveedorIAInput {
+  return {
+    alias: p.alias,
+    proveedor: p.proveedor,
+    tipoAgenteIA: p.tipoAgenteIA,
+    apiKey: "",
+    baseUrl: p.baseUrl ?? "",
+    modelosDisponibles: p.modelosDisponibles,
+    prioridad: p.prioridad,
+    timeoutMs: p.timeoutMs,
+    reintentosMax: p.reintentosMax,
+    limitePorMinuto: p.limitePorMinuto,
+    limitePorDia: p.limitePorDia,
+  };
+}
+
+export function FormProveedorIA({ abierto, onCerrar, onExito, proveedorExistente }: FormProveedorIAProps) {
   const [isPending, startTransition] = useTransition();
   const [mostrarApiKey, setMostrarApiKey] = useState(false);
+  const modoEdicion = Boolean(proveedorExistente);
 
   const form = useForm<ProveedorIAInput>({
     resolver: zodResolver(ProveedorIASchema),
-    defaultValues: {
-      proveedor: "ANTHROPIC",
-      tipoAgenteIA: "COMERCIAL",
-      apiKey: "",
-      baseUrl: "",
-      modelosDisponibles: MODELOS_POR_PROVEEDOR["ANTHROPIC"],
-      prioridad: 1,
-      timeoutMs: 30000,
-      reintentosMax: 2,
-      limitePorMinuto: null,
-      limitePorDia: null,
-    },
+    defaultValues: proveedorExistente ? valoresDesdeExistente(proveedorExistente) : VALORES_DEFECTO,
   });
+
+  // Recarga el formulario cada vez que se abre con un agente distinto (o en
+  // modo creación), para no arrastrar valores de una edición anterior.
+  useEffect(() => {
+    if (!abierto) return;
+    form.reset(proveedorExistente ? valoresDesdeExistente(proveedorExistente) : VALORES_DEFECTO);
+  }, [abierto, proveedorExistente, form]);
 
   const proveedorSeleccionado = form.watch("proveedor");
 
@@ -82,19 +127,21 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
   }
 
   function handleCerrar() {
-    form.reset();
+    form.reset(VALORES_DEFECTO);
     onCerrar();
   }
 
   function onSubmit(datos: ProveedorIAInput) {
     startTransition(async () => {
-      const resultado = await crearProveedorIA(datos);
+      const resultado = modoEdicion
+        ? await actualizarProveedorIA(proveedorExistente!.id, datos)
+        : await crearProveedorIA(datos);
       if (!resultado.exito) {
-        toast.error(resultado.error ?? "Error al crear proveedor");
+        toast.error(resultado.error ?? (modoEdicion ? "Error al guardar los cambios" : "Error al crear proveedor"));
         return;
       }
-      toast.success("Proveedor IA agregado");
-      form.reset();
+      toast.success(modoEdicion ? "Agente actualizado" : "Proveedor IA agregado");
+      form.reset(VALORES_DEFECTO);
       onExito();
     });
   }
@@ -105,12 +152,33 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-stone-50">
             <Zap className="h-5 w-5 text-lime-400" />
-            Agregar proveedor IA
+            {modoEdicion ? "Editar agente IA" : "Agregar proveedor IA"}
           </DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 py-2">
+            <FormField
+              control={form.control}
+              name="alias"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Alias</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      placeholder="Ej: DeepSeek Ventas"
+                      className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500"
+                    />
+                  </FormControl>
+                  <FormDescription className="text-stone-500 text-xs">
+                    Único — así vas a identificar este agente en el enrutamiento por objetivo
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-3 gap-4">
               <FormField
                 control={form.control}
@@ -118,7 +186,7 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Proveedor</FormLabel>
-                    <Select value={field.value} onValueChange={handleProveedorChange}>
+                    <Select value={field.value} onValueChange={handleProveedorChange} disabled={modoEdicion}>
                       <FormControl>
                         <SelectTrigger className="bg-white/5 border-white/10 text-stone-50">
                           <SelectValue />
@@ -132,6 +200,11 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
                         ))}
                       </SelectContent>
                     </Select>
+                    {modoEdicion && (
+                      <FormDescription className="text-stone-500 text-xs">
+                        No se puede cambiar después de creado
+                      </FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -203,7 +276,11 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
                       <InputGroupInput
                         {...field}
                         type={mostrarApiKey ? "text" : "password"}
-                        placeholder={proveedorSeleccionado === "ANTHROPIC" ? "sk-ant-..." : proveedorSeleccionado === "OPENAI" ? "sk-..." : ""}
+                        placeholder={
+                          modoEdicion
+                            ? "Dejar vacío para no cambiarla"
+                            : proveedorSeleccionado === "ANTHROPIC" ? "sk-ant-..." : proveedorSeleccionado === "OPENAI" ? "sk-..." : ""
+                        }
                         className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 font-mono"
                       />
                       <InputGroupAddon align="inline-end">
@@ -219,7 +296,9 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
                     </InputGroup>
                   </FormControl>
                   <FormDescription className="text-stone-500 text-xs">
-                    Se almacena de forma segura y nunca se muestra después de guardar
+                    {modoEdicion
+                      ? "Se almacena de forma segura — dejar en blanco conserva la que ya está guardada"
+                      : "Se almacena de forma segura y nunca se muestra después de guardar"}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -323,7 +402,7 @@ export function FormProveedorIA({ abierto, onCerrar, onExito }: FormProveedorIAP
                 disabled={isPending}
                 className="flex-1 rounded-xl bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02] font-semibold"
               >
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Agregar proveedor"}
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : modoEdicion ? "Guardar cambios" : "Agregar proveedor"}
               </Button>
             </div>
           </form>

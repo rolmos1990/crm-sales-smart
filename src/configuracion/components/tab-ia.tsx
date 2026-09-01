@@ -38,7 +38,7 @@ export async function TabIA({ instanciaId }: TabIAProps) {
 
   const proveedoresActivos = proveedores
     .filter((p) => p.activo)
-    .map((p) => ({ id: p.id, proveedor: p.proveedor }));
+    .map((p) => ({ id: p.id, proveedor: p.proveedor, alias: p.alias }));
 
   const configParaForm = config
     ? {

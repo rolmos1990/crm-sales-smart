@@ -233,6 +233,116 @@ test.describe('Integraciones y Webhooks', () => {
   });
 });
 
+// ─── Inteligencia Artificial — Alias de agentes (021-alias-proveedores-ia) ────
+
+test.describe('Inteligencia Artificial — Alias de agentes', () => {
+  async function abrirTabIA(page: import('@playwright/test').Page) {
+    await page.goto('/configuracion');
+    await page.getByRole('tab', { name: /inteligencia artificial/i }).click();
+  }
+
+  async function crearAgenteDeepSeek(page: import('@playwright/test').Page, alias: string) {
+    await page.getByRole('button', { name: /^agregar$/i }).click();
+    await expect(page.getByRole('dialog', { name: /agregar proveedor/i })).toBeVisible({ timeout: 5000 });
+
+    await page.getByLabel(/^alias$/i).fill(alias);
+    const selectorProveedor = page.getByLabel(/^proveedor$/i).or(page.getByRole('combobox', { name: /proveedor/i }));
+    if (await selectorProveedor.isVisible()) {
+      await selectorProveedor.click();
+      await page.getByRole('option', { name: /deepseek/i }).click();
+    }
+    await page.getByLabel(/api key/i).fill(`sk-e2e-${Date.now()}`);
+
+    return page.getByRole('button', { name: /agregar proveedor/i }).click();
+  }
+
+  test('CF-18 Crear dos agentes DeepSeek con alias distintos (Historia 1)', async ({ page }) => {
+    const sufijo = Date.now();
+    const alias1 = `DeepSeek Ventas ${sufijo}`;
+    const alias2 = `DeepSeek Soporte ${sufijo}`;
+
+    await abrirTabIA(page);
+    await crearAgenteDeepSeek(page, alias1);
+    // handleExito hace window.location.reload() tras el guardado exitoso — el
+    // dialog cerrándose es la señal de que el servidor aceptó la creación.
+    await expect(page.getByRole('dialog', { name: /agregar proveedor/i })).not.toBeVisible({ timeout: 8000 });
+
+    await abrirTabIA(page);
+    await crearAgenteDeepSeek(page, alias2);
+    await expect(page.getByRole('dialog', { name: /agregar proveedor/i })).not.toBeVisible({ timeout: 8000 });
+
+    await abrirTabIA(page);
+    await expect(page.locator(`text=${alias1}`).first()).toBeVisible({ timeout: 8000 });
+    await expect(page.locator(`text=${alias2}`).first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('CF-19 Alias duplicado es rechazado al crear (FR-005)', async ({ page }) => {
+    const alias = `DeepSeek Duplicado ${Date.now()}`;
+
+    await abrirTabIA(page);
+    await crearAgenteDeepSeek(page, alias);
+    await expect(page.getByRole('dialog', { name: /agregar proveedor/i })).not.toBeVisible({ timeout: 8000 });
+
+    await abrirTabIA(page);
+    await crearAgenteDeepSeek(page, alias);
+    // El guardado se rechaza: el dialog permanece abierto con un toast de error.
+    await expect(page.locator('text=/ya existe un agente con el alias/i').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('dialog', { name: /agregar proveedor/i })).toBeVisible();
+  });
+
+  test('CF-20 Editar el alias de un agente existente (Historia 2)', async ({ page }) => {
+    const sufijo = Date.now();
+    const aliasOriginal = `DeepSeek Editable ${sufijo}`;
+    const aliasNuevo = `DeepSeek Editado ${sufijo}`;
+
+    await abrirTabIA(page);
+    await crearAgenteDeepSeek(page, aliasOriginal);
+    await expect(page.getByRole('dialog', { name: /agregar proveedor/i })).not.toBeVisible({ timeout: 8000 });
+
+    await abrirTabIA(page);
+    const fila = page.locator('text=' + aliasOriginal).first();
+    await expect(fila).toBeVisible({ timeout: 8000 });
+    await page.getByRole('button', { name: /editar agente/i }).first().click();
+    await expect(page.getByRole('dialog', { name: /editar agente/i })).toBeVisible({ timeout: 5000 });
+
+    const campoAlias = page.getByLabel(/^alias$/i);
+    await campoAlias.clear();
+    await campoAlias.fill(aliasNuevo);
+    await page.getByRole('button', { name: /guardar cambios/i }).click();
+    await expect(page.getByRole('dialog', { name: /editar agente/i })).not.toBeVisible({ timeout: 8000 });
+
+    await abrirTabIA(page);
+    await expect(page.locator(`text=${aliasNuevo}`).first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('CF-21 El selector de enrutamiento por objetivo muestra los alias, no el proveedor repetido (Historia 3)', async ({ page }) => {
+    const sufijo = Date.now();
+    const alias1 = `DeepSeek Norte ${sufijo}`;
+    const alias2 = `DeepSeek Sur ${sufijo}`;
+
+    await abrirTabIA(page);
+    await crearAgenteDeepSeek(page, alias1);
+    await expect(page.getByRole('dialog', { name: /agregar proveedor/i })).not.toBeVisible({ timeout: 8000 });
+
+    await abrirTabIA(page);
+    await crearAgenteDeepSeek(page, alias2);
+    await expect(page.getByRole('dialog', { name: /agregar proveedor/i })).not.toBeVisible({ timeout: 8000 });
+
+    await abrirTabIA(page);
+    await expect(page.locator('text=/enrutamiento por objetivo/i').first()).toBeVisible({ timeout: 8000 });
+
+    // Abre el primer selector de objetivo dentro de la sección de enrutamiento
+    // y confirma que ambos alias aparecen como opciones distinguibles.
+    const seccionEnrutamiento = page.locator('text=/enrutamiento por objetivo/i').locator('..').locator('..');
+    const primerSelector = seccionEnrutamiento.getByRole('combobox').first();
+    if (await primerSelector.isVisible()) {
+      await primerSelector.click();
+      await expect(page.getByRole('option', { name: alias1 })).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole('option', { name: alias2 })).toBeVisible();
+    }
+  });
+});
+
 // ─── Permisos por rol ─────────────────────────────────────────────────────────
 
 test.describe('Permisos por rol', () => {
