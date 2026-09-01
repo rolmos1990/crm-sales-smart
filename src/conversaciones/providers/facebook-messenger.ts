@@ -172,9 +172,14 @@ export class FacebookMessengerProvider implements ICanalProvider {
       }
     }
 
+    // Mismo ajuste que InstagramProvider.mapearEntrante: en un evento de eco
+    // (is_echo), sender es la propia Página y recipient es el contacto real
+    // — ver specs/020-fix-mensajes-app-nativa/research.md, R4.
+    const identificadorContacto = message?.is_echo ? event.recipient.id : event.sender.id;
+
     return {
       canal: "facebook_messenger",
-      identificadorContacto: event.sender.id,
+      identificadorContacto,
       cuentaCanalId: event.cuentaCanalId,
       contenido,
       tipo,

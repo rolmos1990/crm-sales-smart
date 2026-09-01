@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "RemitenteMsg" ADD VALUE 'AGENTE_CANAL_NATIVO';

@@ -269,9 +269,17 @@ export class InstagramProvider implements ICanalProvider {
       }
     }
 
+    // En un evento de eco (is_echo), Meta invierte el sentido operativo:
+    // sender pasa a ser la propia cuenta del negocio (quien "envió" el
+    // mensaje que se está haciendo eco) y recipient es el contacto que lo
+    // recibió. Sin este ajuste, un mensaje enviado desde la app nativa de
+    // Instagram se asociaría al ID de la propia cuenta, no al contacto real
+    // — ver specs/020-fix-mensajes-app-nativa/research.md, R4.
+    const identificadorContacto = message?.is_echo ? event.recipient.id : event.sender.id;
+
     return {
       canal: "instagram",
-      identificadorContacto: event.sender.id,
+      identificadorContacto,
       cuentaCanalId: event.cuentaCanalId,
       contenido,
       tipo,

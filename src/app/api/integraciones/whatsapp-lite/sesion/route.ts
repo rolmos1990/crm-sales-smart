@@ -177,7 +177,20 @@ async function iniciarSesionBaileys(
           continue;
         }
 
-        if (msg.key.fromMe) continue;
+        // Mensaje propio (fromMe): puede ser el eco de un mensaje que Karia
+        // ya envió (encolarMensajeAppNativaWA lo detecta por idExterno y no
+        // hace nada) o un mensaje enviado desde la app/WhatsApp Web nativa —
+        // en ese caso se registra igual, sin pasar por procesarMensajeEntrante
+        // (ver specs/020-fix-mensajes-app-nativa).
+        if (msg.key.fromMe) {
+          try {
+            const { encolarMensajeAppNativaWA } = await import("@/integraciones/whatsapp-lite/encolar-mensaje");
+            await encolarMensajeAppNativaWA(msg, cuentaCanalId, instanciaId);
+          } catch (e) {
+            console.error("[WA Sesión] Error encolando mensaje de app nativa:", e);
+          }
+          continue;
+        }
         try {
           const { encolarMensajeEntrante } = await import("@/integraciones/whatsapp-lite/encolar-mensaje");
           await encolarMensajeEntrante(msg, cuentaCanalId, instanciaId);

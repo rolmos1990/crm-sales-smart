@@ -62,6 +62,7 @@ export type NombreEvento = (typeof EventosSistema)[keyof typeof EventosSistema];
 export const ComandosSistema = {
   EnviarMensaje:          "ENVIAR_MENSAJE",
   ProcesarEntrante:       "PROCESAR_ENTRANTE",
+  ProcesarMensajeAppNativa: "PROCESAR_MENSAJE_APP_NATIVA",
   MarcarLeido:            "MARCAR_LEIDO",
   EnviarEmail:            "ENVIAR_EMAIL",
   InicializarInstancia:   "INICIALIZAR_INSTANCIA",

@@ -308,6 +308,7 @@ enum RemitenteMsg {
   AGENTE
   SISTEMA
   BOT
+  AGENTE_CANAL_NATIVO // mensaje saliente detectado por eco, enviado desde la app/web nativa del canal (no desde Karia)
 }
 
 enum EstadoMensaje {

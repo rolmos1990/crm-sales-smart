@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff, Loader2, ShieldX, X } from "lucide-react";
+import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff, Loader2, ShieldX, X, Smartphone } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -184,7 +184,8 @@ export function BurbujaMensaje({
   usuarioActualId = null,
   onToggleReaccion,
 }: BurbujaMensajeProps) {
-  const esPropioONota = (mensaje.remitente as RemitenteMsg) === "AGENTE" || (mensaje.remitente as RemitenteMsg) === "SISTEMA";
+  const esAppNativa = (mensaje.remitente as RemitenteMsg) === "AGENTE_CANAL_NATIVO";
+  const esPropioONota = (mensaje.remitente as RemitenteMsg) === "AGENTE" || (mensaje.remitente as RemitenteMsg) === "SISTEMA" || esAppNativa;
   const esNota = mensaje.esNotaInterna;
   const esContacto = (mensaje.remitente as RemitenteMsg) === "CONTACTO";
   const estadoEfectivo: EstadoMensaje = leidoLocal ? "LEIDO" : (mensaje.estado as EstadoMensaje);
@@ -244,6 +245,12 @@ export function BurbujaMensaje({
             <div className="flex items-center gap-1 text-[10px] text-stage-amber-text mb-1 font-medium uppercase tracking-wide">
               <Lock className="h-2.5 w-2.5" />
               Nota interna
+            </div>
+          )}
+          {esAppNativa && (
+            <div className="flex items-center gap-1 text-[10px] text-inbox-sent-text/70 mb-1 font-medium uppercase tracking-wide">
+              <Smartphone className="h-2.5 w-2.5" />
+              Enviado desde la app nativa
             </div>
           )}
           {mensaje.contenido

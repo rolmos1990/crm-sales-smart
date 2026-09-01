@@ -305,8 +305,17 @@ export async function POST(req: NextRequest) {
     }
 
     for (const event of entry.messaging ?? []) {
-      // Ignorar mensajes propios (echo) y eventos de lectura
-      if (event.message?.is_echo || event.read) continue;
+      // Ignorar eventos de solo lectura (recibos) — sin cambios respecto a hoy.
+      if (event.read) continue;
+
+      // En un evento de eco (is_echo), Meta invierte sender/recipient:
+      // sender pasa a ser la propia cuenta del negocio y recipient es el
+      // contacto real que recibió el mensaje — ver
+      // specs/020-fix-mensajes-app-nativa/research.md, R4. Todo uso de "el
+      // ID del contacto de este evento" de acá en adelante pasa por esta
+      // variable en vez de leer event.sender.id directo.
+      const esEcho = !!event.message?.is_echo;
+      const idContactoDelEvento = esEcho ? event.recipient.id : event.sender.id;
 
       // Resolver a qué canal pertenece ESTE evento. Caso común: un solo
       // candidato → se usa directo, sin consulta extra (cero cambio de
@@ -319,7 +328,7 @@ export async function POST(req: NextRequest) {
       const esContactoInstagramConocido =
         cuentaInstagram && cuentaMessenger
           ? !!(await prisma.contactoIdentificadorCanal.findFirst({
-              where: { canal: "instagram", identificador: event.sender.id, instanciaId: cuentaInstagram.instanciaId },
+              where: { canal: "instagram", identificador: idContactoDelEvento, instanciaId: cuentaInstagram.instanciaId },
               select: { id: true },
             }))
           : false;
@@ -348,7 +357,12 @@ export async function POST(req: NextRequest) {
 
       const mid = event.message.mid;
 
-      // Idempotencia: evitar duplicados si Meta reenvía el mismo webhook
+      // Idempotencia: si el mid ya está registrado, no hay nada que hacer.
+      // Para un evento normal es un reenvío del mismo webhook; para un eco
+      // es un mensaje que Karia ya envió (enviar-mensaje.suscriptor.ts ya
+      // guardó su idExterno) — en ambos casos se ignora sin cambios respecto
+      // a hoy. Si es un eco que NO está registrado, es un mensaje enviado
+      // desde la app nativa del canal (ver specs/020-fix-mensajes-app-nativa).
       if (mid) {
         const yaExiste = await prisma.mensajeConversacion.findFirst({ where: { idExterno: mid }, select: { id: true } });
         if (yaExiste) continue;
@@ -383,13 +397,15 @@ export async function POST(req: NextRequest) {
       // y Facebook Messenger (007-enriquecer-contacto-messenger). Si el
       // contacto ya existe y ya tiene nombre + foto, no vale la pena gastar
       // una llamada a Graph API por cada mensaje suyo — mismo criterio para
-      // ambos canales, solo cambia qué función de perfil se llama.
+      // ambos canales, solo cambia qué función de perfil se llama. Se
+      // resuelve con idContactoDelEvento (no event.sender.id): en un eco es
+      // recipient.id, el contacto real (ver research.md R4).
       let perfil: { pushName?: string; avatarUrl?: string; handleCanal?: string } = {};
       const contactoConocido = await prisma.contactoIdentificadorCanal.findUnique({
         where: {
           canal_identificador_instanciaId: {
             canal: canalResuelto,
-            identificador: event.sender.id,
+            identificador: idContactoDelEvento,
             instanciaId: cuentaCanal.instanciaId,
           },
         },
@@ -399,8 +415,22 @@ export async function POST(req: NextRequest) {
       if (faltaPerfil) {
         perfil =
           canalResuelto === "instagram"
-            ? await obtenerPerfilRemitenteIG(event.sender.id, cuentaCanal)
-            : await obtenerPerfilRemitenteFacebook(event.sender.id, cuentaCanal);
+            ? await obtenerPerfilRemitenteIG(idContactoDelEvento, cuentaCanal)
+            : await obtenerPerfilRemitenteFacebook(idContactoDelEvento, cuentaCanal);
+      }
+
+      if (esEcho) {
+        // Mensaje enviado desde la app nativa del canal (no desde Karia) —
+        // se registra vía un comando hermano de PROCESAR_ENTRANTE que no
+        // dispara IA ni crea oportunidades (ver
+        // specs/020-fix-mensajes-app-nativa/research.md, R3).
+        await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_MENSAJE_APP_NATIVA, cuentaCanal.instanciaId, {
+          ...normalizado,
+          ...perfil,
+          instanciaId: cuentaCanal.instanciaId,
+        });
+        console.log(`[IG Webhook] Mensaje de app nativa encolado → canal: ${canalResuelto} | mid: ${mid ?? "sin-id"} | contacto: ${idContactoDelEvento}`);
+        continue;
       }
 
       await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, cuentaCanal.instanciaId, {
@@ -409,7 +439,7 @@ export async function POST(req: NextRequest) {
         instanciaId: cuentaCanal.instanciaId,
       });
 
-      console.log(`[IG Webhook] Mensaje encolado → canal: ${canalResuelto} | mid: ${mid ?? "sin-id"} | from: ${event.sender.id}`);
+      console.log(`[IG Webhook] Mensaje encolado → canal: ${canalResuelto} | mid: ${mid ?? "sin-id"} | from: ${idContactoDelEvento}`);
     }
   }
 

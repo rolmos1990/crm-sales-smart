@@ -184,4 +184,26 @@ describe("FacebookMessengerProvider.mapearEntrante", () => {
     });
     expect(normalizado.tipo).toBe("VIDEO");
   });
+
+  it("evento de eco (is_echo): usa recipient.id como identificadorContacto, no sender.id (research.md R4)", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "page1" }, // en un eco, sender es la propia Página
+      recipient: { id: "psid1" }, // recipient es el contacto real
+      timestamp: 123,
+      message: { mid: "mid4", text: "hola desde la app nativa", is_echo: true },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado.identificadorContacto).toBe("psid1");
+  });
+
+  it("mensaje normal (sin is_echo): sigue usando sender.id, sin regresión", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "psid1" },
+      recipient: { id: "page1" },
+      timestamp: 123,
+      message: { mid: "mid5", text: "hola" },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado.identificadorContacto).toBe("psid1");
+  });
 });

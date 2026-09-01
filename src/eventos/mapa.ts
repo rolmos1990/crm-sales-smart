@@ -40,6 +40,7 @@ import type { ReaccionActualizadaPayload } from "./contratos/reaccion-actualizad
 import type { InstanciaCreadaPayload }    from "./contratos/instancia-creada.event";
 import type { ComandoEnviarMensajePayload }        from "./contratos/enviar-mensaje.comando";
 import type { ComandoProcesarEntrantePayload }     from "./contratos/procesar-entrante.comando";
+import type { ComandoProcesarMensajeAppNativaPayload } from "./contratos/procesar-mensaje-app-nativa.comando";
 import type { ComandoMarcarLeidoPayload }          from "./contratos/marcar-leido.comando";
 import type { ComandoEnviarEmailPayload }          from "./contratos/enviar-email.comando";
 import type { ComandoInicializarInstanciaPayload } from "./contratos/inicializar-instancia.comando";
@@ -87,6 +88,7 @@ export interface MapaPayloads {
   // Comandos
   ENVIAR_MENSAJE:          ComandoEnviarMensajePayload;
   PROCESAR_ENTRANTE:       ComandoProcesarEntrantePayload;
+  PROCESAR_MENSAJE_APP_NATIVA: ComandoProcesarMensajeAppNativaPayload;
   MARCAR_LEIDO:            ComandoMarcarLeidoPayload;
   ENVIAR_EMAIL:            ComandoEnviarEmailPayload;
   INICIALIZAR_INSTANCIA:   ComandoInicializarInstanciaPayload;

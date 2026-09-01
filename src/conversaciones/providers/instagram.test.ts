@@ -109,3 +109,36 @@ describe("InstagramProvider.enviarMensaje", () => {
     ).rejects.toMatchObject({ codigo: "ERROR_RED", reintentable: true });
   });
 });
+
+describe("InstagramProvider.mapearEntrante", () => {
+  const provider = new InstagramProvider();
+
+  it("mensaje de texto normal: usa sender.id como identificadorContacto", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: { mid: "mid1", text: "hola" },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado).toMatchObject({
+      canal: "instagram",
+      identificadorContacto: "igsid1",
+      cuentaCanalId: "cc1",
+      contenido: "hola",
+      tipo: "TEXTO",
+      idExterno: "mid1",
+    });
+  });
+
+  it("evento de eco (is_echo): usa recipient.id como identificadorContacto, no sender.id (research.md R4)", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igbizid" }, // en un eco, sender es la propia cuenta de Instagram
+      recipient: { id: "igsid1" }, // recipient es el contacto real
+      timestamp: 123,
+      message: { mid: "mid2", text: "hola desde la app nativa", is_echo: true },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado.identificadorContacto).toBe("igsid1");
+  });
+});

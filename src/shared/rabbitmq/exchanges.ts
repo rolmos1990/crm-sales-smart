@@ -9,6 +9,7 @@ export const QUEUES = {
   // Comandos
   MENSAJE_ENVIAR: "crm.comando.mensaje.enviar",
   MENSAJE_ENTRANTE: "crm.comando.mensaje.entrante",
+  MENSAJE_APP_NATIVA: "crm.comando.mensaje.app-nativa",
   MENSAJE_LEIDO: "crm.comando.mensaje.leido",
   EMAIL_ENVIAR: "crm.comando.email",
   SISTEMA_INICIALIZAR: "crm.comando.sistema",
@@ -65,6 +66,7 @@ export const RK = {
   // Comandos
   COMANDO_MENSAJE_ENVIAR: "comando.mensaje.enviar",
   COMANDO_MENSAJE_ENTRANTE: "comando.mensaje.entrante",
+  COMANDO_MENSAJE_APP_NATIVA: "comando.mensaje.app-nativa",
   COMANDO_MENSAJE_LEIDO: "comando.mensaje.leido",
   COMANDO_EMAIL_ENVIAR: "comando.email.enviar",
   COMANDO_SISTEMA_INICIALIZAR: "comando.sistema.inicializar",
@@ -83,6 +85,7 @@ export const TIPO_EVENTO_A_RK: Record<string, RoutingKey> = {
   // Comandos
   ENVIAR_MENSAJE: RK.COMANDO_MENSAJE_ENVIAR,
   PROCESAR_ENTRANTE: RK.COMANDO_MENSAJE_ENTRANTE,
+  PROCESAR_MENSAJE_APP_NATIVA: RK.COMANDO_MENSAJE_APP_NATIVA,
   MARCAR_LEIDO: RK.COMANDO_MENSAJE_LEIDO,
   ENVIAR_EMAIL: RK.COMANDO_EMAIL_ENVIAR,
   INICIALIZAR_INSTANCIA: RK.COMANDO_SISTEMA_INICIALIZAR,

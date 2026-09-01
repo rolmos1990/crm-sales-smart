@@ -1,5 +1,6 @@
 import { EnviarMensajeSuscriptor } from "./mensajes/enviar-mensaje.suscriptor";
 import { ProcesarEntranteSuscriptor } from "./mensajes/procesar-entrante.suscriptor";
+import { ProcesarMensajeAppNativaSuscriptor } from "./mensajes/procesar-mensaje-app-nativa.suscriptor";
 import { MarcarLeidoSuscriptor } from "./mensajes/marcar-leido.suscriptor";
 import { EnviarEmailSuscriptor } from "./email/enviar-email.suscriptor";
 import { InicializarInstanciaSuscriptor } from "./sistema/inicializar-instancia.suscriptor";
@@ -13,6 +14,7 @@ export async function registrarTodosSuscriptores(): Promise<void> {
   const suscriptores = [
     new EnviarMensajeSuscriptor(),
     new ProcesarEntranteSuscriptor(),
+    new ProcesarMensajeAppNativaSuscriptor(),
     new MarcarLeidoSuscriptor(),
     new EnviarEmailSuscriptor(),
     new InicializarInstanciaSuscriptor(),

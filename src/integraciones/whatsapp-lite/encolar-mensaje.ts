@@ -3,19 +3,18 @@ import { sesionManagerWA } from "./sesion-manager";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { TIPOS_COMANDO } from "@/shared/eventos/registro";
 
-export async function encolarMensajeEntrante(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  msg: any,
-  cuentaCanalId: string,
-  instanciaId: string
-): Promise<void> {
+// ── Extracción compartida de contenido/media/perfil desde un mensaje Baileys ─
+//
+// Usada tanto por encolarMensajeEntrante (mensaje real del contacto) como
+// por encolarMensajeAppNativaWA (mensaje fromMe detectado como enviado desde
+// la app nativa, ver specs/020-fix-mensajes-app-nativa). identificadorContacto
+// se deriva de msg.key.remoteJid en ambos casos, sin swap — a diferencia de
+// Instagram/Messenger, en Baileys remoteJid es siempre el JID del contacto
+// del chat, sin importar quién de los dos escribió (research.md R4/R5).
+//
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function extraerContenidoYMediaWA(msg: any, cuentaCanalId: string, instanciaId: string) {
   const idExterno = msg.key.id as string | undefined;
-
-  // Idempotencia: no encolar si ya existe el mensaje en BD
-  if (idExterno) {
-    const yaExiste = await prisma.mensajeConversacion.findFirst({ where: { idExterno }, select: { id: true } });
-    if (yaExiste) return;
-  }
 
   const jid = msg.key.remoteJid ?? "";
   let identificadorContacto: string;
@@ -56,6 +55,9 @@ export async function encolarMensajeEntrante(
     : esDocumento ? "DOCUMENTO"
     : "TEXTO";
 
+  // pushName se extrae siempre acá — es solo lectura del campo crudo. La
+  // decisión de incluirlo o no en el payload publicado es de cada función
+  // que llama a este helper (ver encolarMensajeAppNativaWA más abajo).
   const pushName = (msg.pushName && msg.pushName !== "") ? msg.pushName : undefined;
 
   // Intentar obtener foto de perfil de WhatsApp solo si el contacto no tiene avatar aún (best-effort)
@@ -153,19 +155,89 @@ export async function encolarMensajeEntrante(
     }
   }
 
+  return {
+    idExterno,
+    identificadorContacto,
+    contenido,
+    tipo,
+    pushName,
+    avatarUrl,
+    mediaUrl,
+    mediaMimeType,
+    mediaDuracion,
+    mediaArchivoId,
+  };
+}
+
+export async function encolarMensajeEntrante(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  msg: any,
+  cuentaCanalId: string,
+  instanciaId: string
+): Promise<void> {
+  const idExternoTemprano = msg.key.id as string | undefined;
+
+  // Idempotencia: no encolar si ya existe el mensaje en BD
+  if (idExternoTemprano) {
+    const yaExiste = await prisma.mensajeConversacion.findFirst({ where: { idExterno: idExternoTemprano }, select: { id: true } });
+    if (yaExiste) return;
+  }
+
+  const datos = await extraerContenidoYMediaWA(msg, cuentaCanalId, instanciaId);
+
   await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, instanciaId, {
     instanciaId,
     canal: "whatsapp_lite",
-    identificadorContacto,
+    identificadorContacto: datos.identificadorContacto,
     cuentaCanalId,
-    contenido,
-    tipo,
-    idExterno,
-    pushName,
-    ...(avatarUrl ? { avatarUrl } : {}),
-    ...(mediaUrl ? { mediaUrl } : {}),
-    ...(mediaMimeType ? { mediaMimeType } : {}),
-    ...(mediaDuracion !== undefined ? { mediaDuracion } : {}),
-    ...(mediaArchivoId ? { mediaArchivoId } : {}),
+    contenido: datos.contenido,
+    tipo: datos.tipo,
+    idExterno: datos.idExterno,
+    pushName: datos.pushName,
+    ...(datos.avatarUrl ? { avatarUrl: datos.avatarUrl } : {}),
+    ...(datos.mediaUrl ? { mediaUrl: datos.mediaUrl } : {}),
+    ...(datos.mediaMimeType ? { mediaMimeType: datos.mediaMimeType } : {}),
+    ...(datos.mediaDuracion !== undefined ? { mediaDuracion: datos.mediaDuracion } : {}),
+    ...(datos.mediaArchivoId ? { mediaArchivoId: datos.mediaArchivoId } : {}),
+  });
+}
+
+// ── Registrar mensaje detectado por eco (msg.key.fromMe) desde la app nativa ─
+//
+// Se llama cuando el listener de mensajes (reconectar.ts, sesion/route.ts)
+// detecta un evento fromMe cuyo idExterno NO corresponde a un mensaje que
+// Karia ya envió — ver specs/020-fix-mensajes-app-nativa.
+export async function encolarMensajeAppNativaWA(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  msg: any,
+  cuentaCanalId: string,
+  instanciaId: string
+): Promise<void> {
+  const idExternoTemprano = msg.key.id as string | undefined;
+
+  if (idExternoTemprano) {
+    const yaExiste = await prisma.mensajeConversacion.findFirst({ where: { idExterno: idExternoTemprano }, select: { id: true } });
+    if (yaExiste) return;
+  }
+
+  const datos = await extraerContenidoYMediaWA(msg, cuentaCanalId, instanciaId);
+
+  await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_MENSAJE_APP_NATIVA, instanciaId, {
+    instanciaId,
+    canal: "whatsapp_lite",
+    identificadorContacto: datos.identificadorContacto,
+    cuentaCanalId,
+    contenido: datos.contenido,
+    tipo: datos.tipo,
+    idExterno: datos.idExterno,
+    // pushName deliberadamente OMITIDO — en un evento fromMe, Baileys reporta
+    // el pushName de la propia cuenta del negocio, no el del contacto.
+    // Pasarlo pisaría el nombre del contacto la primera vez que alguien
+    // responde desde la app nativa a un contacto nuevo (research.md R5).
+    ...(datos.avatarUrl ? { avatarUrl: datos.avatarUrl } : {}),
+    ...(datos.mediaUrl ? { mediaUrl: datos.mediaUrl } : {}),
+    ...(datos.mediaMimeType ? { mediaMimeType: datos.mediaMimeType } : {}),
+    ...(datos.mediaDuracion !== undefined ? { mediaDuracion: datos.mediaDuracion } : {}),
+    ...(datos.mediaArchivoId ? { mediaArchivoId: datos.mediaArchivoId } : {}),
   });
 }

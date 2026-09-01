@@ -12,12 +12,24 @@ import { obtenerConversacionPorId, obtenerConversacionesInbox } from "./queries"
 import { requireSesion } from "@/shared/auth/sesion";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 
-// ── Procesar mensaje entrante desde webhook ─────────────────────────────────
-
-export async function procesarMensajeEntrante(
-  payload: MensajeEntranteNormalizado & { instanciaId: string }
-) {
-  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl, handleCanal, mediaUrl, mediaMimeType, mediaDuracion } = payload;
+// ── Resolución compartida de contacto + conversación ────────────────────────
+//
+// Extraído de procesarMensajeEntrante (pasos 1-4 originales) para que
+// registrarMensajeAppNativa (mensaje detectado por eco desde la app nativa
+// del canal, ver specs/020-fix-mensajes-app-nativa) pueda reutilizar la
+// misma resolución de contacto/conversación sin duplicar el manejo de
+// condición de carrera ni el criterio de qué cuenta como "conversación
+// previa" — ambos flujos deben comportarse igual en ese punto.
+async function resolverContactoYConversacion(payload: {
+  canal: string;
+  identificadorContacto: string;
+  cuentaCanalId: string;
+  instanciaId: string;
+  pushName?: string;
+  avatarUrl?: string;
+  handleCanal?: string;
+}) {
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal } = payload;
 
   // 1. Buscar contacto por identificador de canal
   let identificador = await prisma.contactoIdentificadorCanal.findUnique({
@@ -144,6 +156,20 @@ export async function procesarMensajeEntrante(
       contactoId,
     });
   }
+
+  return { contactoId, conversacion };
+}
+
+// ── Procesar mensaje entrante desde webhook ─────────────────────────────────
+
+export async function procesarMensajeEntrante(
+  payload: MensajeEntranteNormalizado & { instanciaId: string }
+) {
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl, handleCanal, mediaUrl, mediaMimeType, mediaDuracion } = payload;
+
+  const { contactoId, conversacion } = await resolverContactoYConversacion({
+    canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal,
+  });
 
   // 4.5 Deduplicar por idExterno ANTES de crear oportunidades (evita duplicados en procesamiento concurrente)
   if (idExterno) {
@@ -347,6 +373,100 @@ export async function procesarMensajeEntrante(
       revalidatePath(`/crm/oportunidades/${oportunidadActiva.id}`);
     }
   } catch { /* fuera de request context */ }
+
+  return { mensaje, conversacion };
+}
+
+// ── Registrar mensaje enviado desde la app nativa del canal (no desde Karia) ─
+//
+// Se llama cuando el webhook/listener de un canal detecta un evento de "eco"
+// (is_echo/fromMe) cuyo idExterno NO corresponde a un mensaje que Karia ya
+// envió — es decir, alguien respondió desde la app nativa de Instagram,
+// Messenger o WhatsApp por fuera de Karia. Ver specs/020-fix-mensajes-app-nativa.
+//
+// Deliberadamente NO reutiliza procesarMensajeEntrante completo: reusa solo
+// la resolución de contacto/conversación (resolverContactoYConversacion),
+// pero evita sus otros dos efectos secundarios, que acá serían incorrectos:
+//   1. remitente="CONTACTO" haría ver el mensaje como si lo hubiera escrito
+//      el cliente.
+//   2. Publicar MensajeRecibido dispararía OrquestarIASuscriptor, que le
+//      "contestaría" automáticamente a un mensaje que el propio negocio ya
+//      envió por fuera de Karia.
+// Tampoco crea/actualiza Oportunidad — ese efecto es una señal de interés
+// entrante del contacto, no de un mensaje saliente del negocio (ver
+// research.md R3, R8 de la spec).
+export async function registrarMensajeAppNativa(
+  payload: MensajeEntranteNormalizado & { instanciaId: string }
+) {
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl, handleCanal, mediaUrl, mediaMimeType, mediaDuracion } = payload;
+
+  // Primera barrera dedup: si el idExterno ya está registrado (Karia lo envió,
+  // o ya se procesó este mismo evento en un intento anterior), no hay nada
+  // que hacer — resolverContactoYConversacion ni siquiera hace falta.
+  if (idExterno) {
+    const yaExiste = await prisma.mensajeConversacion.findFirst({ where: { idExterno } });
+    if (yaExiste) return { mensaje: yaExiste, conversacion: null };
+  }
+
+  // pushName se reenvía tal cual venga en el payload — la responsabilidad de
+  // NO incluirlo cuando no es confiable es de quien publica el comando, no
+  // de acá. Para WhatsApp/Baileys, el productor (encolarMensajeAppNativaWA)
+  // deliberadamente no lo incluye: en un evento fromMe, Baileys reporta el
+  // pushName de la propia cuenta del negocio, no el del contacto (research.md
+  // R5). Para Instagram/Messenger sí es seguro: se resuelve con una consulta
+  // a Graph API por el ID del contacto real (recipient.id en el evento de
+  // eco, ver research.md R4), no con un campo autoreportado por el emisor.
+  const { contactoId, conversacion } = await resolverContactoYConversacion({
+    canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal,
+  });
+
+  // Segunda barrera dedup, misma ventana de carrera que procesarMensajeEntrante
+  if (idExterno) {
+    const existente = await prisma.mensajeConversacion.findFirst({
+      where: { conversacionId: conversacion.id, idExterno },
+    });
+    if (existente) return { mensaje: existente, conversacion };
+  }
+
+  const mediaArchivoIdPayload = payload.mediaArchivoId as string | undefined;
+  if (mediaArchivoIdPayload) {
+    await prisma.mediaArchivo.update({
+      where: { id: mediaArchivoIdPayload },
+      data: { contactoId },
+    }).catch(() => { /* ignorar si el registro no existe */ });
+  }
+
+  const mensaje = await prisma.mensajeConversacion.create({
+    data: {
+      conversacionId: conversacion.id,
+      contenido: contenido ?? null,
+      tipo,
+      remitente: "AGENTE_CANAL_NATIVO",
+      estado: "ENTREGADO",
+      idExterno: idExterno ?? null,
+      mediaUrl: (mediaUrl as string | undefined) ?? null,
+      mediaMimeType: (mediaMimeType as string | undefined) ?? null,
+      mediaDuracion: (mediaDuracion as number | undefined) ?? null,
+      mediaArchivoId: mediaArchivoIdPayload ?? null,
+      enviadoEn: new Date(),
+      creadoEn: new Date(),
+    },
+  });
+
+  await prisma.conversacion.update({
+    where: { id: conversacion.id },
+    data: { actualizadoEn: new Date() },
+  });
+
+  // Reusa el contrato MensajeEnviado (sin cambios) — el frontend ya lo
+  // escucha por SSE solo como señal de "volvé a pedir los mensajes"
+  // (inbox-layout.tsx, panel-conversacion.tsx). No dispara IA: eso solo
+  // escucha MensajeRecibido.
+  void publicadorEventos.publicar(EventosSistema.MensajeEnviado, instanciaId, {
+    mensajeId: mensaje.id,
+    conversacionId: conversacion.id,
+    instanciaId,
+  });
 
   return { mensaje, conversacion };
 }

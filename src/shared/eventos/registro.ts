@@ -39,6 +39,7 @@ export type { InstanciaCreadaPayload } from "@/eventos/contratos/instancia-cread
 
 export type { ComandoEnviarMensajePayload }        from "@/eventos/contratos/enviar-mensaje.comando";
 export type { ComandoProcesarEntrantePayload }     from "@/eventos/contratos/procesar-entrante.comando";
+export type { ComandoProcesarMensajeAppNativaPayload } from "@/eventos/contratos/procesar-mensaje-app-nativa.comando";
 export type { ComandoMarcarLeidoPayload }          from "@/eventos/contratos/marcar-leido.comando";
 export type { ComandoEnviarEmailPayload }          from "@/eventos/contratos/enviar-email.comando";
 export type { ComandoInicializarInstanciaPayload } from "@/eventos/contratos/inicializar-instancia.comando";
@@ -78,6 +79,7 @@ export const TIPOS_EVENTO = {
 export const TIPOS_COMANDO = {
   ENVIAR_MENSAJE:        "ENVIAR_MENSAJE",
   PROCESAR_ENTRANTE:     "PROCESAR_ENTRANTE",
+  PROCESAR_MENSAJE_APP_NATIVA: "PROCESAR_MENSAJE_APP_NATIVA",
   MARCAR_LEIDO:          "MARCAR_LEIDO",
   ENVIAR_EMAIL:          "ENVIAR_EMAIL",
   INICIALIZAR_INSTANCIA: "INICIALIZAR_INSTANCIA",
