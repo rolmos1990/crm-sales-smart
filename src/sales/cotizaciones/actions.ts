@@ -705,3 +705,28 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
     contactos,
   };
 }
+
+// 015-herramientas-operativas-inventario-envios-acciones — confirma un
+// documento generado por IA en modo borrador (accionesComercialesModoBorrador).
+// Idempotente: confirmar dos veces no es un error.
+export async function confirmarCotizacionGeneradaPorIA(id: string): Promise<ResultadoAccion> {
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  const cotizacion = await prisma.cotizacion.findFirst({
+    where: { id, instanciaId: auth.sesion.instanciaId },
+    select: { id: true, confirmadoPorHumano: true },
+  });
+  if (!cotizacion) return { exito: false, error: "Cotización no encontrada" };
+
+  if (!cotizacion.confirmadoPorHumano) {
+    await prisma.cotizacion.update({
+      where: { id },
+      data: { confirmadoPorHumano: true, confirmadoPorUsuarioId: auth.sesion.usuarioId },
+    });
+  }
+
+  revalidatePath("/sales/cotizaciones");
+  revalidatePath(`/sales/cotizaciones/${id}`);
+  return { exito: true, datos: undefined };
+}

@@ -58,6 +58,16 @@ const CrearCotizacionTool: IProveedorTool = {
     const moneda = await obtenerMonedaPrincipal(ctx.instanciaId);
     const impuestoPct = parsed.data.impuesto ?? 18;
 
+    // 015-herramientas-operativas-inventario-envios-acciones — default false
+    // preserva la creación directa actual (FR-016/SC-003).
+    const agente = ctx.agenteId
+      ? await prisma.agenteIAConfig.findUnique({
+          where: { id: ctx.agenteId },
+          select: { accionesComercialesModoBorrador: true },
+        })
+      : null;
+    const modoBorrador = agente?.accionesComercialesModoBorrador ?? false;
+
     const lineasConCalculo = parsed.data.lineas.map((l, i) => {
       const descuentoFactor = 1 - (l.descuento ?? 0) / 100;
       const subtotal = l.cantidad * l.precioUnitario * descuentoFactor;
@@ -82,6 +92,8 @@ const CrearCotizacionTool: IProveedorTool = {
         total,
         moneda,
         notas: parsed.data.notas ?? null,
+        generadoPorIA: true,
+        confirmadoPorHumano: !modoBorrador,
         lineas: {
           create: lineasConCalculo.map((l) => ({
             descripcion: l.descripcion,
@@ -107,7 +119,11 @@ const CrearCotizacionTool: IProveedorTool = {
         total,
         moneda,
         lineas: lineasConCalculo.length,
-        mensaje: `Cotización #${numero} creada exitosamente por S/ ${total.toFixed(2)}.`,
+        generadoPorIA: true,
+        pendienteConfirmacion: modoBorrador,
+        mensaje: modoBorrador
+          ? `Cotización #${numero} preparada por S/ ${total.toFixed(2)} — queda sujeta a confirmación antes de enviarse.`
+          : `Cotización #${numero} creada exitosamente por S/ ${total.toFixed(2)}.`,
       },
     };
   },

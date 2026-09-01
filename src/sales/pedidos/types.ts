@@ -42,6 +42,8 @@ export interface Pedido {
   empresa: { id: string; nombre: string } | null;
   cotizacionId: string | null;
   entrega?: { metodoEntrega: string } | null;
+  generadoPorIA: boolean;
+  confirmadoPorHumano: boolean;
   lineas?: PedidoLinea[];
 }
 

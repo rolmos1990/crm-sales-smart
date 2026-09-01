@@ -32,6 +32,8 @@ export interface Cotizacion {
   contacto: { id: string; nombre: string; apellido: string } | null;
   empresaId: string | null;
   empresa: { id: string; nombre: string } | null;
+  generadoPorIA: boolean;
+  confirmadoPorHumano: boolean;
   lineas?: CotizacionLinea[];
   entrega?: {
     metodoEntrega: string;

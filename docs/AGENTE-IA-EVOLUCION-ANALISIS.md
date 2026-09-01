@@ -6,6 +6,7 @@
 > - ✅ `012-perfil-dinamico-cliente` — implementada (2026-09-01), fuera de orden numérico (antes que `011`, que no tenía dependencias bloqueantes reales). Creó `src/ai/estrategia/tipos.ts` por adelantado para que `011` lo reutilice. Pendiente: validación manual con RabbitMQ corriendo (ver `specs/012-.../tasks.md`).
 > - ✅ `011-playbook-estrategia-comercial` — implementada (2026-09-01).
 > - ✅ `013-context-builder-capas-precedencia` — implementada (2026-09-01). Conecta `009`+`011`+`012` al prompt real por primera vez, con retrocompatibilidad verificada por test (no solo inspección) y precedencia de reglas obligatorias sobre estrategia/perfil verificada explícitamente. Corrigió un bug de build real arrastrado de `011` (ver `specs/013-.../tasks.md`).
+> - ✅ `015-herramientas-operativas-inventario-envios-acciones` — implementada (2026-09-01). 10 tools nuevas (inventario/precio/promociones/combinación de productos; métodos de entrega/costo/fecha/cobertura/retiro) más modo borrador configurable en `crear_cotizacion`/`crear_pedido` (`AgenteIAConfig.accionesComercialesModoBorrador`, retrocompatible por default) y marca visual "generado por IA · pendiente" en listas de Cotizaciones/Pedidos. No existía caso de uso de Sales para `OportunidadProducto` — se implementó validación propia en `agregar_productos_oportunidad.tool.ts` (ver `specs/015-.../tasks.md`, "Notas de implementación").
 > - ⏳ `014` a `018` — especificadas, sin implementar todavía.
 
 ## 1. Resumen ejecutivo

@@ -10,18 +10,27 @@ import { ListaProveedoresIA } from "./lista-proveedores-ia";
 import { SeccionEnrutamiento } from "./seccion-enrutamiento";
 import { ListaEstrategias } from "@/ai/estrategia/components/lista-estrategias";
 import { listarEstrategias } from "@/ai/estrategia/queries";
+import { SeccionMetodosEntrega } from "@/configuracion/entregas/components/seccion-metodos-entrega";
+import {
+  listarMetodosEntregaConfig,
+  listarZonasCobertura,
+  listarUbicacionesRetiro,
+} from "@/configuracion/entregas/queries";
 
 interface TabIAProps {
   instanciaId: string;
 }
 
 export async function TabIA({ instanciaId }: TabIAProps) {
-  const [config, proveedores, uso, asignacionesObjetivo, estrategias] = await Promise.all([
+  const [config, proveedores, uso, asignacionesObjetivo, estrategias, metodosEntrega, zonasCobertura, ubicacionesRetiro] = await Promise.all([
     obtenerConfigIA(instanciaId),
     obtenerProveedoresIA(instanciaId),
     obtenerResumenUsoIA(instanciaId),
     obtenerAsignacionesObjetivoIA(instanciaId),
     listarEstrategias(instanciaId),
+    listarMetodosEntregaConfig(instanciaId),
+    listarZonasCobertura(instanciaId),
+    listarUbicacionesRetiro(instanciaId),
   ]);
 
   const proveedoresActivos = proveedores
@@ -108,6 +117,24 @@ export async function TabIA({ instanciaId }: TabIAProps) {
       {/* Estrategias (011-playbook-estrategia-comercial) */}
       <section className="flex flex-col gap-4">
         <ListaEstrategias estrategiasIniciales={estrategias} />
+      </section>
+
+      {/* Métodos de entrega, zonas y retiro (015-herramientas-operativas-inventario-envios-acciones) */}
+      <section className="flex flex-col gap-4">
+        <div className="rounded-xl border border-white/8 bg-white/3 p-5">
+          <SeccionMetodosEntrega
+            metodosIniciales={metodosEntrega.map((m) => ({
+              id: m.id,
+              metodoEntrega: m.metodoEntrega,
+              activo: m.activo,
+              costoBase: Number(m.costoBase),
+              diasEstimadosMin: m.diasEstimadosMin,
+              diasEstimadosMax: m.diasEstimadosMax,
+            }))}
+            zonasIniciales={zonasCobertura}
+            ubicacionesIniciales={ubicacionesRetiro}
+          />
+        </div>
       </section>
     </div>
   );

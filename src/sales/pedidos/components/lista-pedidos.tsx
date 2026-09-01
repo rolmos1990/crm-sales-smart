@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Trash2, ArrowUpDown } from "lucide-react";
+import { MoreHorizontal, Trash2, ArrowUpDown, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -9,12 +9,13 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { DataTable } from "@/shared/ui/data-table";
 import { useSesion } from "@/shared/auth/sesion-context";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
-import { eliminarPedido } from "../actions";
+import { eliminarPedido, confirmarPedidoGeneradoPorIA } from "../actions";
 import { moverPedidoAction } from "@/sales/flujo-venta/actions";
 import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
 import type { Pedido, EstadoPedido } from "../types";
@@ -121,6 +122,15 @@ function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: 
     else toast.error(resultado.error);
   };
 
+  const handleConfirmarGeneradoPorIA = async () => {
+    const resultado = await confirmarPedidoGeneradoPorIA(pedido.id);
+    if (resultado.exito) toast.success("Pedido confirmado");
+    else toast.error(resultado.error);
+  };
+
+  // 015-herramientas-operativas-inventario-envios-acciones: modo borrador del agente IA
+  const pendienteConfirmacion = pedido.generadoPorIA && !pedido.confirmadoPorHumano;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
@@ -128,6 +138,11 @@ function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: 
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => router.push(`/sales/pedidos/${pedido.id}`)}>Ver detalle</DropdownMenuItem>
+        {pendienteConfirmacion && (
+          <DropdownMenuItem onClick={handleConfirmarGeneradoPorIA} className="text-lime-600 dark:text-lime-400 focus:text-lime-700 dark:focus:text-lime-300">
+            <Sparkles className="mr-2 h-4 w-4" />Confirmar (generado por IA)
+          </DropdownMenuItem>
+        )}
         {siguientesEtapas.length > 0 && <DropdownMenuSeparator />}
         {siguientesEtapas.map((etapa) => (
           <DropdownMenuItem
@@ -168,9 +183,16 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
       </Button>
     ),
     cell: ({ row }) => (
-      <Link href={`/sales/pedidos/${row.original.id}`} className="font-mono font-medium hover:underline">
-        {row.original.numero}
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link href={`/sales/pedidos/${row.original.id}`} className="font-mono font-medium hover:underline">
+          {row.original.numero}
+        </Link>
+        {row.original.generadoPorIA && !row.original.confirmadoPorHumano && (
+          <Badge variant="outline" className="gap-1 text-lime-600 dark:text-lime-400 border-lime-500/30">
+            <Sparkles className="h-3 w-3" />generado por IA · pendiente
+          </Badge>
+        )}
+      </div>
     ),
   },
   {

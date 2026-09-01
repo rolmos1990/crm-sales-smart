@@ -373,6 +373,9 @@ model Instancia {
   perfilesCliente        PerfilClienteSnapshot[]
   playbooksEstrategia    PlaybookEstrategia[]
   seleccionesEstrategia  SeleccionEstrategiaLog[]
+  metodosEntregaConfig   MetodoEntregaConfig[]
+  zonasCobertura         ZonaCobertura[]
+  ubicacionesRetiro      UbicacionRetiro[]
 
   @@index([slug])
   @@index([estado])
@@ -416,6 +419,10 @@ model Usuario {
 
   // 009-perfil-agente-estructurado-versionado — quién guardó/publicó cada versión
   versionesAgenteIACreadas AgenteIAConfigVersion[] @relation("VersionesAgenteIACreadas")
+
+  // 015-herramientas-operativas-inventario-envios-acciones — quién confirmó un documento generado por IA
+  cotizacionesConfirmadas Cotizacion[] @relation("CotizacionesConfirmadasPorUsuario")
+  pedidosConfirmados      Pedido[]     @relation("PedidosConfirmadosPorUsuario")
 }
 
 model UsuarioInstancia {
@@ -960,6 +967,12 @@ model Cotizacion {
   creadoEn         DateTime         @default(now())
   actualizadoEn    DateTime         @updatedAt
 
+  // --- 015-herramientas-operativas-inventario-envios-acciones ---
+  // Defaults preservan el comportamiento actual: un documento creado por un
+  // humano queda indistinguible de uno anterior a esta spec.
+  generadoPorIA       Boolean @default(false)
+  confirmadoPorHumano Boolean @default(true)
+
   contactoId String?
   contacto   Contacto? @relation(fields: [contactoId], references: [id])
 
@@ -968,6 +981,9 @@ model Cotizacion {
 
   usuarioId String?
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  confirmadoPorUsuarioId String?
+  confirmadoPorUsuario   Usuario? @relation("CotizacionesConfirmadasPorUsuario", fields: [confirmadoPorUsuarioId], references: [id], onDelete: SetNull)
 
   oportunidadId String?
   oportunidad   Oportunidad? @relation(fields: [oportunidadId], references: [id])
@@ -1130,6 +1146,10 @@ model Pedido {
   creadoEn         DateTime     @default(now())
   actualizadoEn    DateTime     @updatedAt
 
+  // --- 015-herramientas-operativas-inventario-envios-acciones ---
+  generadoPorIA       Boolean @default(false)
+  confirmadoPorHumano Boolean @default(true)
+
   contactoId String?
   contacto   Contacto? @relation(fields: [contactoId], references: [id])
 
@@ -1138,6 +1158,9 @@ model Pedido {
 
   usuarioId String?
   usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  confirmadoPorUsuarioId String?
+  confirmadoPorUsuario   Usuario? @relation("PedidosConfirmadosPorUsuario", fields: [confirmadoPorUsuarioId], references: [id], onDelete: SetNull)
 
   cotizacionId String?
   cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
@@ -2024,6 +2047,10 @@ model AgenteIAConfig {
   reglasPersonalizadas           Json? // string[]
   condicionesTransferenciaHumano Json? // string[]
 
+  // 015-herramientas-operativas-inventario-envios-acciones — default false
+  // preserva la creación directa actual de cotizaciones/pedidos por IA.
+  accionesComercialesModoBorrador Boolean @default(false)
+
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
@@ -2199,4 +2226,66 @@ model SeleccionEstrategiaLog {
 
   @@index([instanciaId, creadoEn])
   @@index([agenteIAConfigId])
+}
+
+// --- 015-herramientas-operativas-inventario-envios-acciones ---
+// No existía ninguna configuración de métodos de envío/zonas/ubicaciones de
+// retiro antes de esta spec — research.md Decisión 1 documenta por qué el
+// modelo es deliberadamente simple (zona como texto libre, no un catálogo
+// geográfico completo).
+
+model MetodoEntregaConfig {
+  id               String        @id @default(cuid())
+  metodoEntrega    MetodoEntrega
+  activo           Boolean       @default(true)
+  costoBase        Decimal       @default(0)
+  diasEstimadosMin Int?
+  diasEstimadosMax Int?
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  zonas ZonaCoberturaMetodo[]
+
+  @@unique([instanciaId, metodoEntrega])
+  @@index([instanciaId])
+}
+
+model ZonaCobertura {
+  id     String @id @default(cuid())
+  nombre String
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  metodos ZonaCoberturaMetodo[]
+
+  @@unique([instanciaId, nombre])
+}
+
+model ZonaCoberturaMetodo {
+  id              String  @id @default(cuid())
+  cubierta        Boolean @default(true)
+  costoAdicional  Decimal @default(0)
+  diasAdicionales Int     @default(0)
+
+  zonaCoberturaId String
+  zonaCobertura   ZonaCobertura @relation(fields: [zonaCoberturaId], references: [id], onDelete: Cascade)
+
+  metodoEntregaConfigId String
+  metodoEntregaConfig   MetodoEntregaConfig @relation(fields: [metodoEntregaConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([zonaCoberturaId, metodoEntregaConfigId])
+}
+
+model UbicacionRetiro {
+  id        String  @id @default(cuid())
+  nombre    String
+  direccion String
+  activo    Boolean @default(true)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId, activo])
 }

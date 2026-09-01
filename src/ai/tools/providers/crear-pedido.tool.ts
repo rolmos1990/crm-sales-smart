@@ -58,6 +58,17 @@ const CrearPedidoTool: IProveedorTool = {
     const moneda = await obtenerMonedaPrincipal(ctx.instanciaId);
     const impuestoPct = parsed.data.impuesto ?? 18;
 
+    // 015-herramientas-operativas-inventario-envios-acciones — default false
+    // preserva la creación directa actual (FR-016/SC-003: sin cambio de
+    // comportamiento salvo que el negocio active el modo borrador).
+    const agente = ctx.agenteId
+      ? await prisma.agenteIAConfig.findUnique({
+          where: { id: ctx.agenteId },
+          select: { accionesComercialesModoBorrador: true },
+        })
+      : null;
+    const modoBorrador = agente?.accionesComercialesModoBorrador ?? false;
+
     const lineasConCalculo = parsed.data.lineas.map((l, i) => {
       const descuentoFactor = 1 - (l.descuento ?? 0) / 100;
       const subtotal = l.cantidad * l.precioUnitario * descuentoFactor;
@@ -82,6 +93,8 @@ const CrearPedidoTool: IProveedorTool = {
         total,
         moneda,
         notas: parsed.data.notas ?? null,
+        generadoPorIA: true,
+        confirmadoPorHumano: !modoBorrador,
         lineas: {
           create: lineasConCalculo.map((l) => ({
             descripcion: l.descripcion,
@@ -107,7 +120,11 @@ const CrearPedidoTool: IProveedorTool = {
         total,
         moneda,
         lineas: lineasConCalculo.length,
-        mensaje: `Pedido #${numero} registrado exitosamente por S/ ${total.toFixed(2)}.`,
+        generadoPorIA: true,
+        pendienteConfirmacion: modoBorrador,
+        mensaje: modoBorrador
+          ? `Pedido #${numero} preparado por S/ ${total.toFixed(2)} — queda sujeto a confirmación antes de procesarse.`
+          : `Pedido #${numero} registrado exitosamente por S/ ${total.toFixed(2)}.`,
       },
     };
   },

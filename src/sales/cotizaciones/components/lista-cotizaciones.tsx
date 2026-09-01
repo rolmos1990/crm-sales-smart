@@ -1,7 +1,7 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, Send, CheckCircle2, ExternalLink } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, Send, CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,7 +15,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
-import { eliminarCotizacion, cambiarEstadoCotizacion, aprobarCotizacion } from "../actions";
+import { eliminarCotizacion, cambiarEstadoCotizacion, aprobarCotizacion, confirmarCotizacionGeneradaPorIA } from "../actions";
 import type { Cotizacion, EstadoCotizacion } from "../types";
 import { ESTADO_COTIZACION_CONFIG } from "../types";
 
@@ -51,9 +51,17 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
     else toast.error(resultado.error);
   };
 
+  const handleConfirmarGeneradaPorIA = async () => {
+    const resultado = await confirmarCotizacionGeneradaPorIA(cotizacion.id);
+    if (resultado.exito) toast.success("Cotización confirmada");
+    else toast.error(resultado.error);
+  };
+
   const puedeAprobar = cotizacion.estado === "REVISADA" || cotizacion.estado === "BORRADOR";
   // Solo se puede modificar/descartar mientras no haya sido enviada
   const esModificable = cotizacion.estado === "BORRADOR";
+  // 015-herramientas-operativas-inventario-envios-acciones: modo borrador del agente IA
+  const pendienteConfirmacion = cotizacion.generadoPorIA && !cotizacion.confirmadoPorHumano;
 
   return (
     <DropdownMenu>
@@ -67,6 +75,11 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
         {esModificable && (
           <DropdownMenuItem onClick={() => router.push(`/sales/cotizaciones/${cotizacion.id}/editar`)}>
             <Pencil className="mr-2 h-4 w-4" />Editar
+          </DropdownMenuItem>
+        )}
+        {pendienteConfirmacion && (
+          <DropdownMenuItem onClick={handleConfirmarGeneradaPorIA} className="text-lime-600 dark:text-lime-400 focus:text-lime-700 dark:focus:text-lime-300">
+            <Sparkles className="mr-2 h-4 w-4" />Confirmar (generada por IA)
           </DropdownMenuItem>
         )}
         {cotizacion.estado === "BORRADOR" && (
@@ -118,9 +131,16 @@ const columnasFijas: ColumnDef<Cotizacion>[] = [
       </Button>
     ),
     cell: ({ row }) => (
-      <Link href={`/sales/cotizaciones/${row.original.id}`} className="font-mono font-medium hover:underline">
-        {row.original.numero}
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link href={`/sales/cotizaciones/${row.original.id}`} className="font-mono font-medium hover:underline">
+          {row.original.numero}
+        </Link>
+        {row.original.generadoPorIA && !row.original.confirmadoPorHumano && (
+          <Badge variant="outline" className="gap-1 text-lime-600 dark:text-lime-400 border-lime-500/30">
+            <Sparkles className="h-3 w-3" />generado por IA · pendiente
+          </Badge>
+        )}
+      </div>
     ),
   },
   {

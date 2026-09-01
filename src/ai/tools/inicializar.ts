@@ -6,3 +6,14 @@ import "@/ai/tools/providers/crear-cotizacion.tool";
 import "@/ai/tools/providers/crear-pedido.tool";
 import "@/ai/tools/providers/agregar-etiqueta-contacto.tool";
 import "@/ai/tools/providers/actualizar-info-contacto.tool";
+// 015-herramientas-operativas-inventario-envios-acciones
+import "@/ai/tools/providers/consultar-disponibilidad.tool";
+import "@/ai/tools/providers/consultar-precio-actual.tool";
+import "@/ai/tools/providers/consultar-promociones.tool";
+import "@/ai/tools/providers/validar-combinacion-productos.tool";
+import "@/ai/tools/providers/obtener-metodos-entrega.tool";
+import "@/ai/tools/providers/calcular-costo-envio.tool";
+import "@/ai/tools/providers/estimar-fecha-entrega.tool";
+import "@/ai/tools/providers/validar-cobertura.tool";
+import "@/ai/tools/providers/obtener-ubicaciones-retiro.tool";
+import "@/ai/tools/providers/agregar-productos-oportunidad.tool";

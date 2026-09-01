@@ -734,3 +734,27 @@ export async function actualizarEntregaDigitalPedido(datos: unknown): Promise<Re
   revalidatePath(`/sales/pedidos/${linea.pedidoId}`);
   return { exito: true, datos: undefined };
 }
+
+// 015-herramientas-operativas-inventario-envios-acciones — confirma un
+// documento generado por IA en modo borrador. Idempotente.
+export async function confirmarPedidoGeneradoPorIA(id: string): Promise<ResultadoAccion> {
+  const auth = await requirePermisoAction("pedidos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  const pedido = await prisma.pedido.findFirst({
+    where: { id, instanciaId: auth.sesion.instanciaId },
+    select: { id: true, confirmadoPorHumano: true },
+  });
+  if (!pedido) return { exito: false, error: "Pedido no encontrado" };
+
+  if (!pedido.confirmadoPorHumano) {
+    await prisma.pedido.update({
+      where: { id },
+      data: { confirmadoPorHumano: true, confirmadoPorUsuarioId: auth.sesion.usuarioId },
+    });
+  }
+
+  revalidatePath("/sales/pedidos");
+  revalidatePath(`/sales/pedidos/${id}`);
+  return { exito: true, datos: undefined };
+}
