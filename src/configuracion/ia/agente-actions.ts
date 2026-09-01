@@ -30,7 +30,12 @@ export async function guardarAgenteIA(usuarioId: string, datos: unknown) {
 
   const payload = construirPayloadAgenteIA(validado.data);
 
-  await prisma.agenteIAConfig.upsert({
+  // 016-niveles-autonomia-automatizacion — solo se siembra la clasificación
+  // inicial cuando el AgenteIAConfig se crea por primera vez, nunca en un
+  // update de uno ya existente (ver siembra.ts).
+  const existente = await prisma.agenteIAConfig.findUnique({ where: { usuarioId }, select: { id: true } });
+
+  const agente = await prisma.agenteIAConfig.upsert({
     where: { usuarioId },
     create: {
       usuarioId,
@@ -39,7 +44,13 @@ export async function guardarAgenteIA(usuarioId: string, datos: unknown) {
       ...payload,
     },
     update: payload,
+    select: { id: true },
   });
+
+  if (!existente) {
+    const { sembrarAutonomiaDefault } = await import("@/ai/autonomia/siembra");
+    await sembrarAutonomiaDefault(sesion.instanciaId, agente.id);
+  }
 
   revalidatePath("/configuracion");
   return { exito: true };

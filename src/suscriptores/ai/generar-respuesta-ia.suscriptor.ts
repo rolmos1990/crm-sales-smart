@@ -100,6 +100,65 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
       contenidoFinal = respuesta.contenido;
     }
 
+    // 016-niveles-autonomia-automatizacion — gate de autonomía antes de
+    // enviar. Sin ninguna fila de AutonomiaIntencionConfig para el agente,
+    // decidirAutonomia devuelve ENVIAR sin necesidad de clasificar
+    // (research.md Decisión 3) — cero cambio de comportamiento ni de costo
+    // para agentes que no configuraron nada.
+    const { obtenerAutonomiaPorAgente } = await import("@/ai/autonomia/queries");
+    const { clasificarCategoriaIntencion } = await import("@/ai/autonomia/clasificador");
+    const { decidirAutonomia } = await import("@/ai/autonomia/gate");
+    const { crearRespuestaPendiente } = await import("@/ai/autonomia/actions");
+
+    const configsAutonomia = agenteId ? await obtenerAutonomiaPorAgente(agenteId) : null;
+
+    let decision: import("@/ai/autonomia/tipos").DecisionAutonomia = {
+      accion: "ENVIAR",
+      motivo: "Sin configuración de autonomía — comportamiento por defecto",
+    };
+
+    if (configsAutonomia !== null) {
+      const ultimoMensajeCliente = await obtenerUltimoMensajeCliente(conversacionId);
+      const clasificacion = ultimoMensajeCliente
+        ? await clasificarCategoriaIntencion(ultimoMensajeCliente, instanciaId)
+        : null;
+
+      let perfilCliente = null;
+      if (conversacion.contactoId) {
+        try {
+          const { obtenerPerfil } = await import("@/ai/perfil-cliente/servicio");
+          perfilCliente = await obtenerPerfil(conversacion.contactoId, instanciaId);
+        } catch (err) {
+          console.error("[GenerarRespuestaIA] Error al obtener perfil de cliente para el gate:", err);
+        }
+      }
+
+      decision = decidirAutonomia(configsAutonomia, clasificacion, perfilCliente);
+    }
+
+    if (decision.accion === "NO_GENERAR") {
+      console.log(
+        `[GenerarRespuestaIA] Categoría ${decision.categoriaAplicada ?? "?"} es HumanOnly — no se genera respuesta automática`,
+      );
+      return;
+    }
+
+    if (decision.accion === "PENDIENTE") {
+      if (agenteId) {
+        await crearRespuestaPendiente({
+          instanciaId,
+          agenteIAConfigId: agenteId,
+          conversacionId,
+          categoriaDetectada: decision.categoriaAplicada,
+          mensajeCliente: (await obtenerUltimoMensajeCliente(conversacionId)) ?? "",
+          respuestaPropuesta: contenidoFinal,
+          motivoPendiente: decision.motivo,
+        });
+      }
+      console.log(`[GenerarRespuestaIA] Respuesta pendiente de revisión — motivo: ${decision.motivo}`);
+      return;
+    }
+
     const resultado = await enviarMensaje({
       conversacionId,
       contenido: contenidoFinal,
@@ -118,6 +177,18 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
       console.log(`[GenerarRespuestaIA] Respuesta enviada → mensajeId: ${resultado.mensaje.id}`);
     }
   }
+}
+
+// Texto del último mensaje del cliente en la conversación — insumo para el
+// clasificador del gate de autonomía (016).
+async function obtenerUltimoMensajeCliente(conversacionId: string): Promise<string | null> {
+  const { prisma } = await import("@/shared/db/prisma");
+  const mensaje = await prisma.mensajeConversacion.findFirst({
+    where: { conversacionId, remitente: "CONTACTO" },
+    orderBy: { creadoEn: "desc" },
+    select: { contenido: true },
+  });
+  return mensaje?.contenido?.trim() || null;
 }
 
 // Extrae la lista de nombres de herramientas habilitadas para el agente

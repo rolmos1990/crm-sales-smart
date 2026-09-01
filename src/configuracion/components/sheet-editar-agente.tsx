@@ -60,6 +60,7 @@ import {
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 import { SeccionVersionesAgente } from "./seccion-versiones-agente";
 import { AsignarEstrategiasAgente } from "@/ai/estrategia/components/asignar-estrategias-agente";
+import { SeccionAutomatizacion } from "@/ai/autonomia/components/seccion-automatizacion";
 
 // 009-perfil-agente-estructurado-versionado — etiquetas de las nuevas
 // dimensiones de comunicación (mismos valores que agente-schema.ts).
@@ -434,6 +435,12 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
               className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
             >
               Estrategias
+            </TabsTrigger>
+            <TabsTrigger
+              value="automatizacion"
+              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
+            >
+              Automatización
             </TabsTrigger>
           </TabsList>
 
@@ -1073,6 +1080,17 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
               </p>
             ) : (
               <AsignarEstrategiasAgente agenteIAConfigId={agente!.agenteIAConfig!.id} />
+            )}
+          </TabsContent>
+
+          {/* Tab: Automatización (016-niveles-autonomia-automatizacion) */}
+          <TabsContent value="automatizacion">
+            {!tieneConfigIA ? (
+              <p className="text-stone-500 text-sm text-center py-8">
+                Activá primero el Agente Comercial IA para configurar su autonomía.
+              </p>
+            ) : (
+              <SeccionAutomatizacion agenteIAConfigId={agente!.agenteIAConfig!.id} />
             )}
           </TabsContent>
         </Tabs>

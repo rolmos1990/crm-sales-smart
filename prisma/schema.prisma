@@ -365,17 +365,20 @@ model Instancia {
   transportistas Transportista[]
 
   // IA
-  configuracionIA        ConfiguracionIA?
-  proveedoresIA          ProveedorIA[]
-  agentesIAConfig        AgenteIAConfig[]
-  usoIA                  UsoIA[]
-  agenteIAConfigVersions AgenteIAConfigVersion[]
-  perfilesCliente        PerfilClienteSnapshot[]
-  playbooksEstrategia    PlaybookEstrategia[]
-  seleccionesEstrategia  SeleccionEstrategiaLog[]
-  metodosEntregaConfig   MetodoEntregaConfig[]
-  zonasCobertura         ZonaCobertura[]
-  ubicacionesRetiro      UbicacionRetiro[]
+  configuracionIA              ConfiguracionIA?
+  proveedoresIA                ProveedorIA[]
+  agentesIAConfig              AgenteIAConfig[]
+  usoIA                        UsoIA[]
+  agenteIAConfigVersions       AgenteIAConfigVersion[]
+  perfilesCliente              PerfilClienteSnapshot[]
+  playbooksEstrategia          PlaybookEstrategia[]
+  seleccionesEstrategia        SeleccionEstrategiaLog[]
+  metodosEntregaConfig         MetodoEntregaConfig[]
+  zonasCobertura               ZonaCobertura[]
+  ubicacionesRetiro            UbicacionRetiro[]
+  // 016-niveles-autonomia-automatizacion
+  autonomiaIntencionConfigs    AutonomiaIntencionConfig[]
+  respuestasPendientesRevision RespuestaPendienteRevision[]
 
   @@index([slug])
   @@index([estado])
@@ -1813,10 +1816,12 @@ model Conversacion {
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: SetNull)
 
-  mensajes              MensajeConversacion[]
-  oportunidades         OportunidadConversacion[]
+  mensajes                     MensajeConversacion[]
+  oportunidades                OportunidadConversacion[]
   // 011-playbook-estrategia-comercial
-  seleccionesEstrategia SeleccionEstrategiaLog[]
+  seleccionesEstrategia        SeleccionEstrategiaLog[]
+  // 016-niveles-autonomia-automatizacion
+  respuestasPendientesRevision RespuestaPendienteRevision[]
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
@@ -2060,13 +2065,16 @@ model AgenteIAConfig {
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  memorias              MemoriaAgenteIA[]
-  usoIA                 UsoIA[]
-  pipelineStages        PipelineStage[]
-  versiones             AgenteIAConfigVersion[]
+  memorias                  MemoriaAgenteIA[]
+  usoIA                     UsoIA[]
+  pipelineStages            PipelineStage[]
+  versiones                 AgenteIAConfigVersion[]
   // 011-playbook-estrategia-comercial
-  playbooksAsignados    AgentePlaybookAsignacion[]
-  seleccionesEstrategia SeleccionEstrategiaLog[]
+  playbooksAsignados        AgentePlaybookAsignacion[]
+  seleccionesEstrategia     SeleccionEstrategiaLog[]
+  // 016-niveles-autonomia-automatizacion
+  autonomiaIntencionConfigs AutonomiaIntencionConfig[]
+  respuestasPendientes      RespuestaPendienteRevision[]
 }
 
 // --- 009-perfil-agente-estructurado-versionado ---
@@ -2288,4 +2296,83 @@ model UbicacionRetiro {
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
   @@index([instanciaId, activo])
+}
+
+// --- 016-niveles-autonomia-automatizacion ---
+
+enum CategoriaIntencionAutonomia {
+  SALUDO
+  CONSULTA_HORARIO
+  PREGUNTA_FRECUENTE
+  INFORMACION_GENERAL
+  RECOMENDACION
+  CONSULTA_PRECIO
+  CONSULTA_DISPONIBILIDAD
+  COSTO_ENVIO
+  SOLICITUD_COTIZACION
+  RECLAMO
+  SOLICITUD_REEMBOLSO
+  DESCUENTO_ESPECIAL
+  PROBLEMA_PAGO
+  EXCEPCION_ENTREGA
+  CLIENTE_MOLESTO
+  COMPROMISO_NO_DEFINIDO
+}
+
+enum NivelAutonomia {
+  SUGGESTION_ONLY
+  AUTO_REPLY_SAFE_INTENTS
+  CONDITIONAL_AUTOMATION
+  HUMAN_ONLY
+}
+
+// La AUSENCIA total de filas para un agente equivale al comportamiento
+// anterior a esta spec (envío automático sin clasificar) — no es lo mismo
+// que "todas las categorías en AUTO_REPLY_SAFE_INTENTS", aunque el efecto
+// observable sea el mismo (ver research.md Decisión 3).
+model AutonomiaIntencionConfig {
+  id                   String                      @id @default(cuid())
+  categoria            CategoriaIntencionAutonomia
+  nivel                NivelAutonomia
+  // { confianzaMinimaClasificacion?: number; requiereAusenciaSenalClienteMolestoEnPerfil?: boolean }
+  // — solo relevante cuando nivel = CONDITIONAL_AUTOMATION.
+  condicionesConfianza Json?
+  actualizadoEn        DateTime                    @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  agenteIAConfigId String
+  agenteIAConfig   AgenteIAConfig @relation(fields: [agenteIAConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([agenteIAConfigId, categoria])
+  @@index([instanciaId])
+}
+
+model RespuestaPendienteRevision {
+  id                 String                       @id @default(cuid())
+  categoriaDetectada CategoriaIntencionAutonomia?
+  mensajeCliente     String
+  respuestaPropuesta String
+  motivoPendiente    String
+  // PENDIENTE | ENVIADA_TAL_CUAL | EDITADA_Y_ENVIADA | DESCARTADA
+  estado             String                       @default("PENDIENTE")
+  respuestaEditada   String?
+
+  resueltaPorUsuarioId String?
+  resueltaEn           DateTime?
+
+  creadoEn DateTime @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  agenteIAConfigId String
+  agenteIAConfig   AgenteIAConfig @relation(fields: [agenteIAConfigId], references: [id], onDelete: Cascade)
+
+  conversacionId String
+  conversacion   Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId, estado])
+  @@index([conversacionId])
 }
