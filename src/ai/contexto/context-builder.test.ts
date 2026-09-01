@@ -3,12 +3,19 @@ import { construirSystemPrompt, type ConfigAgenteParaPrompt } from "@/ai/prompt/
 
 const producirCapaEstrategiaMock = vi.fn();
 const producirCapaPerfilClienteMock = vi.fn();
+const producirCapaEjemplosPilotoMock = vi.fn().mockResolvedValue(null);
 
 vi.mock("./capas/estrategia-activa", () => ({
   producirCapaEstrategia: (...a: unknown[]) => producirCapaEstrategiaMock(...a),
 }));
 vi.mock("./capas/perfil-cliente", () => ({
   producirCapaPerfilCliente: (...a: unknown[]) => producirCapaPerfilClienteMock(...a),
+}));
+// 014-conversaciones-piloto-ejemplos-relevantes — capa 9 ya no es un
+// placeholder; se mockea acá para mantener este test como unitario puro de
+// composición (sin tocar Prisma vía recuperador-ejemplos.ts).
+vi.mock("./capas/ejemplos-piloto", () => ({
+  producirCapaEjemplosPiloto: (...a: unknown[]) => producirCapaEjemplosPilotoMock(...a),
 }));
 
 const { construirContextoCompuesto } = await import("./context-builder");
@@ -22,6 +29,7 @@ describe("construirContextoCompuesto (013, Historia 1 — retrocompatibilidad)",
   beforeEach(() => {
     producirCapaEstrategiaMock.mockReset();
     producirCapaPerfilClienteMock.mockReset();
+    producirCapaEjemplosPilotoMock.mockReset().mockResolvedValue(null);
   });
 
   it("sin agenteIAConfigId ni contactoId, el systemPrompt es idéntico al de construirSystemPrompt directo (SC-001)", async () => {
@@ -52,6 +60,7 @@ describe("construirContextoCompuesto (013, Historia 2 — estrategia y perfil re
   beforeEach(() => {
     producirCapaEstrategiaMock.mockReset();
     producirCapaPerfilClienteMock.mockReset();
+    producirCapaEjemplosPilotoMock.mockReset().mockResolvedValue(null);
   });
 
   it("incluye el texto de la estrategia seleccionada y expone su metadata", async () => {
@@ -115,5 +124,18 @@ describe("construirContextoCompuesto (013, Historia 2 — estrategia y perfil re
     const resultado = await construirContextoCompuesto({ instanciaId: "instancia-1" }, { configAgente: null, contextoDinamico: {} });
     expect(resultado.systemPrompt).toBe("");
     expect(producirCapaEstrategiaMock).not.toHaveBeenCalled();
+  });
+
+  it("014 — incluye el contenido de la capa de ejemplos piloto cuando la capa produce texto", async () => {
+    producirCapaEstrategiaMock.mockResolvedValue({ texto: null, estrategiaSeleccionada: null });
+    producirCapaPerfilClienteMock.mockResolvedValue(null);
+    producirCapaEjemplosPilotoMock.mockResolvedValue("Ejemplos de referencia de conversaciones anteriores:\nEjemplo 1:\nuser: hola\nassistant: hola, ¿en qué te ayudo?");
+
+    const resultado = await construirContextoCompuesto(
+      { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
+      { configAgente: CONFIG_BASE, contextoDinamico: {} },
+    );
+
+    expect(resultado.systemPrompt).toContain("Ejemplos de referencia de conversaciones anteriores");
   });
 });

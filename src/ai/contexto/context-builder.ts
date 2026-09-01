@@ -9,7 +9,7 @@
 //   6. Estado actual de la conversación
 //   7. Datos conocidos y faltantes                         ← placeholder (spec futura)
 //   8. Información operativa verificada                    ← placeholder (015)
-//   9. Ejemplos piloto relevantes                           ← placeholder (014)
+//   9. Ejemplos piloto relevantes                           ← 014, conectado acá
 //  10. Herramientas permitidas                              ← metadata, no texto de prompt
 //  11. Instrucción final                                    ← responsabilidad del llamador (ver instruccion-final.ts)
 //
@@ -25,11 +25,8 @@
 import { construirSystemPrompt, type ConfigAgenteParaPrompt, type ContextoDinamicoPrompt } from "@/ai/prompt/builder";
 import { producirCapaEstrategia } from "./capas/estrategia-activa";
 import { producirCapaPerfilCliente } from "./capas/perfil-cliente";
-import {
-  producirCapaDatosConocidosFaltantes,
-  producirCapaInfoOperativa,
-  producirCapaEjemplosPiloto,
-} from "./capas/placeholders";
+import { producirCapaDatosConocidosFaltantes, producirCapaInfoOperativa } from "./capas/placeholders";
+import { producirCapaEjemplosPiloto } from "./capas/ejemplos-piloto";
 import type { PerfilCliente } from "@/ai/perfil-cliente/tipos";
 
 export interface InsumosContexto {
@@ -87,12 +84,17 @@ export async function construirContextoCompuesto(
 
   const contenidoPerfilCliente = perfilCliente ? formatearPerfilComoTexto(perfilCliente) : null;
 
-  // Capas 7-9 — reservadas (FR-008), siempre null en esta spec. Se invocan
-  // igual para que su posición en el pipeline quede fijada desde ahora.
+  // Capas 7-8 siguen reservadas (FR-008 de 013), siempre null. Capa 9
+  // (014-conversaciones-piloto-ejemplos-relevantes) ya tiene fuente real.
   const [capaDatosFaltantes, capaInfoOperativa, capaEjemplosPiloto] = await Promise.all([
     producirCapaDatosConocidosFaltantes(),
     producirCapaInfoOperativa(),
-    producirCapaEjemplosPiloto(),
+    producirCapaEjemplosPiloto({
+      instanciaId: insumos.instanciaId,
+      agenteIAConfigId: insumos.agenteIAConfigId,
+      perfilCliente,
+      playbookEstrategiaId: estrategiaSeleccionada?.id,
+    }),
   ]);
   const contenidoReservado = [capaDatosFaltantes, capaInfoOperativa, capaEjemplosPiloto]
     .filter((c): c is string => Boolean(c))

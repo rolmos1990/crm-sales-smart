@@ -365,20 +365,24 @@ model Instancia {
   transportistas Transportista[]
 
   // IA
-  configuracionIA              ConfiguracionIA?
-  proveedoresIA                ProveedorIA[]
-  agentesIAConfig              AgenteIAConfig[]
-  usoIA                        UsoIA[]
-  agenteIAConfigVersions       AgenteIAConfigVersion[]
-  perfilesCliente              PerfilClienteSnapshot[]
-  playbooksEstrategia          PlaybookEstrategia[]
-  seleccionesEstrategia        SeleccionEstrategiaLog[]
-  metodosEntregaConfig         MetodoEntregaConfig[]
-  zonasCobertura               ZonaCobertura[]
-  ubicacionesRetiro            UbicacionRetiro[]
+  configuracionIA               ConfiguracionIA?
+  proveedoresIA                 ProveedorIA[]
+  agentesIAConfig               AgenteIAConfig[]
+  usoIA                         UsoIA[]
+  agenteIAConfigVersions        AgenteIAConfigVersion[]
+  perfilesCliente               PerfilClienteSnapshot[]
+  playbooksEstrategia           PlaybookEstrategia[]
+  seleccionesEstrategia         SeleccionEstrategiaLog[]
+  metodosEntregaConfig          MetodoEntregaConfig[]
+  zonasCobertura                ZonaCobertura[]
+  ubicacionesRetiro             UbicacionRetiro[]
   // 016-niveles-autonomia-automatizacion
-  autonomiaIntencionConfigs    AutonomiaIntencionConfig[]
-  respuestasPendientesRevision RespuestaPendienteRevision[]
+  autonomiaIntencionConfigs     AutonomiaIntencionConfig[]
+  respuestasPendientesRevision  RespuestaPendienteRevision[]
+  // 014-conversaciones-piloto-ejemplos-relevantes
+  conversacionesPiloto          ConversacionPiloto[]
+  recomendacionesComportamiento RecomendacionComportamiento[]
+  ejemplosPrompt                EjemploPrompt[]
 
   @@index([slug])
   @@index([estado])
@@ -426,6 +430,10 @@ model Usuario {
   // 015-herramientas-operativas-inventario-envios-acciones — quién confirmó un documento generado por IA
   cotizacionesConfirmadas Cotizacion[] @relation("CotizacionesConfirmadasPorUsuario")
   pedidosConfirmados      Pedido[]     @relation("PedidosConfirmadosPorUsuario")
+
+  // 014-conversaciones-piloto-ejemplos-relevantes
+  conversacionesPilotoCreadas            ConversacionPiloto[]          @relation("ConversacionesPilotoCreadas")
+  recomendacionesComportamientoResueltas RecomendacionComportamiento[] @relation("RecomendacionesResueltas")
 }
 
 model UsuarioInstancia {
@@ -862,6 +870,10 @@ model Producto {
   // (ver EntregaDigitalCotizacion/Pedido); editar esto después NUNCA
   // cambia una Cotización/Pedido ya creada.
   entregaDigital    ProductoEntregaDigital?
+
+  // 014-conversaciones-piloto-ejemplos-relevantes
+  conversacionesPiloto ConversacionPiloto[]
+  ejemplosPrompt       EjemploPrompt[]
 
   @@index([instanciaId])
   @@index([sku])
@@ -1822,6 +1834,8 @@ model Conversacion {
   seleccionesEstrategia        SeleccionEstrategiaLog[]
   // 016-niveles-autonomia-automatizacion
   respuestasPendientesRevision RespuestaPendienteRevision[]
+  // 014-conversaciones-piloto-ejemplos-relevantes — auditoría de origen
+  conversacionesPilotoOrigen   ConversacionPiloto[]
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
@@ -2065,16 +2079,19 @@ model AgenteIAConfig {
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  memorias                  MemoriaAgenteIA[]
-  usoIA                     UsoIA[]
-  pipelineStages            PipelineStage[]
-  versiones                 AgenteIAConfigVersion[]
+  memorias                      MemoriaAgenteIA[]
+  usoIA                         UsoIA[]
+  pipelineStages                PipelineStage[]
+  versiones                     AgenteIAConfigVersion[]
   // 011-playbook-estrategia-comercial
-  playbooksAsignados        AgentePlaybookAsignacion[]
-  seleccionesEstrategia     SeleccionEstrategiaLog[]
+  playbooksAsignados            AgentePlaybookAsignacion[]
+  seleccionesEstrategia         SeleccionEstrategiaLog[]
   // 016-niveles-autonomia-automatizacion
-  autonomiaIntencionConfigs AutonomiaIntencionConfig[]
-  respuestasPendientes      RespuestaPendienteRevision[]
+  autonomiaIntencionConfigs     AutonomiaIntencionConfig[]
+  respuestasPendientes          RespuestaPendienteRevision[]
+  // 014-conversaciones-piloto-ejemplos-relevantes
+  recomendacionesComportamiento RecomendacionComportamiento[]
+  ejemplosPrompt                EjemploPrompt[]
 }
 
 // --- 009-perfil-agente-estructurado-versionado ---
@@ -2192,6 +2209,11 @@ model PlaybookEstrategia {
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
   asignaciones AgentePlaybookAsignacion[]
+
+  // 014-conversaciones-piloto-ejemplos-relevantes
+  conversacionesPiloto     ConversacionPiloto[]          @relation("ConversacionesPilotoPorEstrategia")
+  recomendacionesAsociadas RecomendacionComportamiento[] @relation("RecomendacionesAsociadas")
+  ejemplosPrompt           EjemploPrompt[]               @relation("EjemplosPromptPorEstrategia")
 
   @@index([instanciaId, activo])
 }
@@ -2375,4 +2397,123 @@ model RespuestaPendienteRevision {
 
   @@index([instanciaId, estado])
   @@index([conversacionId])
+}
+
+// --- 014-conversaciones-piloto-ejemplos-relevantes ---
+
+enum ClasificacionPiloto {
+  POSITIVO
+  NEGATIVO
+}
+
+enum EstadoRecomendacion {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+  CONVERTIDA_REGLA
+  CONVERTIDA_EJEMPLO
+}
+
+model ConversacionPiloto {
+  id                   String              @id @default(cuid())
+  clasificacion        ClasificacionPiloto
+  explicacion          String
+  // Copia transformada de los mensajes relevantes — { mensajes: Array<{ rol: "user"|"assistant"; texto: string }> }.
+  // La Conversacion/Mensaje originales nunca se modifican (research.md Decisión 1).
+  contenidoAnonimizado Json?
+  intencion            String?
+  tipoCliente          String?
+
+  // FR-005 — falso hasta confirmar anonimización explícitamente.
+  incluidaEnPerfil Boolean   @default(false)
+  // null hasta ejecutar la anonimización — bloquea incluidaEnPerfil = true (Edge Case).
+  anonimizadaEn    DateTime?
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  // Se conserva la referencia para auditoría humana (FR-006) — no se
+  // expone al modelo de IA (solo contenidoAnonimizado se usa para eso).
+  conversacionOrigenId String
+  conversacionOrigen   Conversacion @relation(fields: [conversacionOrigenId], references: [id], onDelete: Restrict)
+
+  productoId String?
+  producto   Producto? @relation(fields: [productoId], references: [id], onDelete: SetNull)
+
+  playbookEstrategiaId String?
+  playbookEstrategia   PlaybookEstrategia? @relation("ConversacionesPilotoPorEstrategia", fields: [playbookEstrategiaId], references: [id], onDelete: SetNull)
+
+  creadaPorUsuarioId String?
+  creadaPorUsuario   Usuario? @relation("ConversacionesPilotoCreadas", fields: [creadaPorUsuarioId], references: [id], onDelete: SetNull)
+
+  ejemplos EjemploPrompt[]
+
+  @@index([instanciaId, incluidaEnPerfil])
+}
+
+model RecomendacionComportamiento {
+  id                              String              @id @default(cuid())
+  titulo                          String
+  descripcion                     String
+  reglaSugerida                   String
+  confianza                       Float
+  estado                          EstadoRecomendacion @default(PENDIENTE)
+  // string[] de ids de ConversacionPiloto — trazabilidad, no relación Prisma
+  // formal por ser N:M ligera (data-model.md).
+  basadaEnConversacionesPilotoIds Json
+
+  resueltaPorUsuarioId String?
+  resueltaEn           DateTime?
+
+  creadoEn DateTime @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  // Puede ser general (instancia) o específica de un agente.
+  agenteIAConfigId String?
+  agenteIAConfig   AgenteIAConfig? @relation(fields: [agenteIAConfigId], references: [id], onDelete: SetNull)
+
+  playbookEstrategiaAsociadoId String?
+  playbookEstrategiaAsociado   PlaybookEstrategia? @relation("RecomendacionesAsociadas", fields: [playbookEstrategiaAsociadoId], references: [id], onDelete: SetNull)
+
+  resueltaPorUsuario Usuario? @relation("RecomendacionesResueltas", fields: [resueltaPorUsuarioId], references: [id], onDelete: SetNull)
+
+  @@index([instanciaId, estado])
+}
+
+model EjemploPrompt {
+  id          String  @id @default(cuid())
+  // Copia de ConversacionPiloto.contenidoAnonimizado al momento de crear el
+  // ejemplo — independiente si la piloto de origen cambia después.
+  contenido   Json
+  intencion   String?
+  tipoCliente String?
+  // Derivada al crear (1.0 si POSITIVO y confianza alta de su recomendación
+  // de origen; menor en otro caso) — usada para desempate (research.md Decisión 2).
+  calidad     Float   @default(0.5)
+  activo      Boolean @default(true)
+
+  creadoEn DateTime @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  // null = disponible para cualquier agente de la instancia.
+  agenteIAConfigId String?
+  agenteIAConfig   AgenteIAConfig? @relation(fields: [agenteIAConfigId], references: [id], onDelete: SetNull)
+
+  conversacionPilotoOrigenId String
+  conversacionPilotoOrigen   ConversacionPiloto @relation(fields: [conversacionPilotoOrigenId], references: [id], onDelete: Cascade)
+
+  productoId String?
+  producto   Producto? @relation(fields: [productoId], references: [id], onDelete: SetNull)
+
+  playbookEstrategiaId String?
+  playbookEstrategia   PlaybookEstrategia? @relation("EjemplosPromptPorEstrategia", fields: [playbookEstrategiaId], references: [id], onDelete: SetNull)
+
+  @@index([instanciaId, activo])
 }

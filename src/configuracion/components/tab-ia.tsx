@@ -16,6 +16,8 @@ import {
   listarZonasCobertura,
   listarUbicacionesRetiro,
 } from "@/configuracion/entregas/queries";
+import { ListaConversacionesPiloto } from "@/ai/piloto/components/lista-conversaciones-piloto";
+import { BandejaRecomendaciones } from "@/ai/piloto/components/bandeja-recomendaciones";
 
 interface TabIAProps {
   instanciaId: string;
@@ -135,6 +137,15 @@ export async function TabIA({ instanciaId }: TabIAProps) {
             ubicacionesIniciales={ubicacionesRetiro}
           />
         </div>
+      </section>
+
+      {/* Conversaciones piloto y aprendizaje (014-conversaciones-piloto-ejemplos-relevantes) */}
+      <section className="flex flex-col gap-4">
+        <h3 className="text-sm font-semibold text-stone-200 uppercase tracking-wide">
+          Conversaciones piloto y aprendizaje
+        </h3>
+        <ListaConversacionesPiloto />
+        <BandejaRecomendaciones />
       </section>
     </div>
   );

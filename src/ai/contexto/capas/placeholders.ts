@@ -14,7 +14,5 @@ export async function producirCapaInfoOperativa(): Promise<string | null> {
   return null;
 }
 
-/** Capa 9 — ejemplos piloto relevantes. Fuente real: 014-conversaciones-piloto-ejemplos-relevantes. */
-export async function producirCapaEjemplosPiloto(): Promise<string | null> {
-  return null;
-}
+// Capa 9 (ejemplos piloto relevantes) ya no es un placeholder — ver
+// ./ejemplos-piloto.ts (014-conversaciones-piloto-ejemplos-relevantes).
