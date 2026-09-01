@@ -26,6 +26,21 @@ export async function obtenerAgenteIAConfigPorUsuario(usuarioId: string) {
   return prisma.agenteIAConfig.findUnique({ where: { usuarioId } });
 }
 
+// 009-perfil-agente-estructurado-versionado (FR-012) — versión PUBLICADA
+// vigente de un agente (mayor `numero`), para trazabilidad en UsoIA.
+// `null` si el agente todavía no tiene ninguna versión publicada (agente
+// legacy o recién creado) — comportamiento esperado, no un error.
+export async function obtenerVersionPublicadaVigenteId(
+  agenteIAConfigId: string,
+): Promise<string | null> {
+  const version = await prisma.agenteIAConfigVersion.findFirst({
+    where: { agenteIAConfigId, estado: "PUBLICADA" },
+    orderBy: { numero: "desc" },
+    select: { id: true },
+  });
+  return version?.id ?? null;
+}
+
 export async function obtenerUsoIA(instanciaId: string, limite = 100) {
   return prisma.usoIA.findMany({
     where: { instanciaId },

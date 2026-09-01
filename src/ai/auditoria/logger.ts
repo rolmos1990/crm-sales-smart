@@ -6,6 +6,9 @@ interface RegistrarUsoParams {
   instanciaId: string;
   proveedorIAId: string;
   agenteIAConfigId?: string;
+  // 009-perfil-agente-estructurado-versionado (FR-012) — versión exacta de
+  // AgenteIAConfig que generó esta respuesta, para trazabilidad.
+  agenteIAConfigVersionId?: string;
   tarea: TareaIA;
   resultado: ChatResult;
   exito: boolean;
@@ -21,6 +24,7 @@ export async function registrarUsoIA(params: RegistrarUsoParams): Promise<string
       instanciaId: params.instanciaId,
       proveedorIAId: params.proveedorIAId,
       agenteIAConfigId: params.agenteIAConfigId,
+      agenteIAConfigVersionId: params.agenteIAConfigVersionId,
       tarea: params.tarea,
       modelo: params.resultado.modelo,
       tokensInput: params.resultado.tokensInput,

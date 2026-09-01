@@ -365,10 +365,11 @@ model Instancia {
   transportistas Transportista[]
 
   // IA
-  configuracionIA ConfiguracionIA?
-  proveedoresIA   ProveedorIA[]
-  agentesIAConfig AgenteIAConfig[]
-  usoIA           UsoIA[]
+  configuracionIA        ConfiguracionIA?
+  proveedoresIA          ProveedorIA[]
+  agentesIAConfig        AgenteIAConfig[]
+  usoIA                  UsoIA[]
+  agenteIAConfigVersions AgenteIAConfigVersion[]
 
   @@index([slug])
   @@index([estado])
@@ -409,6 +410,9 @@ model Usuario {
 
   // IA — presente solo en usuarios tipo AGENTE con capacidades IA
   agenteIAConfig AgenteIAConfig?
+
+  // 009-perfil-agente-estructurado-versionado — quién guardó/publicó cada versión
+  versionesAgenteIACreadas AgenteIAConfigVersion[] @relation("VersionesAgenteIACreadas")
 }
 
 model UsuarioInstancia {
@@ -1966,8 +1970,27 @@ model AgenteIAConfig {
   limiteTokensCtx     Int          @default(4000)
   instrucciones       Json?
   configuracionTono   Json?
-  creadoEn            DateTime     @default(now())
-  actualizadoEn       DateTime     @updatedAt
+
+  // --- 009-perfil-agente-estructurado-versionado ---
+  // Todos opcionales: un agente sin ninguno configurado mantiene el
+  // comportamiento exacto que tenía antes de esta extensión (ver
+  // construirSystemPrompt en src/ai/prompt/builder.ts).
+  nombreAgente                   String?
+  rol                            String?
+  idiomaPrincipal                String?
+  idiomasPermitidos              Json? // string[]
+  longitudRespuesta              String? // "CORTA" | "MEDIA" | "LARGA"
+  proactividad                   String? // "BAJA" | "MEDIA" | "ALTA"
+  intensidadComercial            String? // "SUAVE" | "MODERADA" | "DIRECTA"
+  estiloRecomendacion            String? // "CONSULTIVO" | "DIRECTO" | "COMPARATIVO"
+  frasesPreferidas               Json? // string[]
+  frasesProhibidas               Json? // string[]
+  comportamientosProhibidos      Json? // string[]
+  reglasPersonalizadas           Json? // string[]
+  condicionesTransferenciaHumano Json? // string[]
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
 
   usuarioId String  @unique
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -1978,6 +2001,45 @@ model AgenteIAConfig {
   memorias       MemoriaAgenteIA[]
   usoIA          UsoIA[]
   pipelineStages PipelineStage[]
+  versiones      AgenteIAConfigVersion[]
+}
+
+// --- 009-perfil-agente-estructurado-versionado ---
+
+enum EstadoVersionAgenteIA {
+  BORRADOR
+  PUBLICADA
+}
+
+// Historial append-only de la configuración de un AgenteIAConfig. La fila
+// "viva" de AgenteIAConfig siempre representa la versión PUBLICADA vigente
+// (se actualiza atómicamente al publicar) — ver research.md de la spec para
+// el porqué de este modelado (evita reescribir a los consumidores actuales
+// de AgenteIAConfig).
+model AgenteIAConfigVersion {
+  id        String                @id @default(cuid())
+  numero    Int? // null mientras es BORRADOR — se asigna al publicar
+  estado    EstadoVersionAgenteIA
+  contenido Json // fotografía completa de los campos configurables de AgenteIAConfig
+
+  publicadaEn   DateTime?
+  creadoEn      DateTime  @default(now())
+  actualizadoEn DateTime  @updatedAt
+
+  agenteIAConfigId String
+  agenteIAConfig   AgenteIAConfig @relation(fields: [agenteIAConfigId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  creadaPorUsuarioId String?
+  creadaPorUsuario   Usuario? @relation("VersionesAgenteIACreadas", fields: [creadaPorUsuarioId], references: [id], onDelete: SetNull)
+
+  usoIA UsoIA[]
+
+  @@unique([agenteIAConfigId, numero])
+  @@index([agenteIAConfigId, estado])
+  @@index([instanciaId])
 }
 
 // Memoria persistente del agente IA
@@ -2020,7 +2082,12 @@ model UsoIA {
   agenteIAConfigId String?
   agenteIAConfig   AgenteIAConfig? @relation(fields: [agenteIAConfigId], references: [id], onDelete: SetNull)
 
+  // 009-perfil-agente-estructurado-versionado — qué versión exacta generó esta respuesta
+  agenteIAConfigVersionId String?
+  agenteIAConfigVersion   AgenteIAConfigVersion? @relation(fields: [agenteIAConfigVersionId], references: [id], onDelete: SetNull)
+
   @@index([instanciaId, creadoEn])
   @@index([instanciaId, tarea])
   @@index([proveedorIAId])
+  @@index([agenteIAConfigVersionId])
 }

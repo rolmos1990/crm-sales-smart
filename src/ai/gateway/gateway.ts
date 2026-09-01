@@ -1,6 +1,6 @@
 import { seleccionarProveedor, registrarFalla, registrarExito } from "@/ai/orquestador/orquestador";
 import { registrarUsoIA, calcularCosto } from "@/ai/auditoria/logger";
-import { obtenerConfiguracionIA, obtenerAgenteIAConfig } from "@/ai/queries";
+import { obtenerConfiguracionIA, obtenerAgenteIAConfig, obtenerVersionPublicadaVigenteId } from "@/ai/queries";
 import { SolicitudIASchema } from "./schema";
 import type { SolicitudIA, RespuestaIA } from "./types";
 import type {
@@ -37,6 +37,12 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
     ? await obtenerAgenteIAConfig(validado.agenteIAConfigId)
     : null;
 
+  // 009-perfil-agente-estructurado-versionado (FR-012) — null para agentes
+  // sin ninguna versión publicada todavía (comportamiento esperado, no error).
+  const agenteIAConfigVersionId = agente
+    ? await obtenerVersionPublicadaVigenteId(agente.id)
+    : null;
+
   const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil, modeloDefault: proveedorModelo } =
     await seleccionarProveedor(
       validado.instanciaId,
@@ -68,6 +74,7 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
       instanciaId: validado.instanciaId,
       proveedorIAId: proveedorId,
       agenteIAConfigId: validado.agenteIAConfigId,
+      agenteIAConfigVersionId: agenteIAConfigVersionId ?? undefined,
       tarea: validado.tarea,
       resultado: { contenido: "", tokensInput: 0, tokensOutput: 0, modelo, proveedor: proveedor.nombre, tiempoMs: 0 },
       exito: false,
@@ -90,6 +97,7 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
     instanciaId: validado.instanciaId,
     proveedorIAId: proveedorId,
     agenteIAConfigId: validado.agenteIAConfigId,
+    agenteIAConfigVersionId: agenteIAConfigVersionId ?? undefined,
     tarea: validado.tarea,
     resultado,
     exito: true,
@@ -121,6 +129,11 @@ export async function generarConHerramientas(
     ? await obtenerAgenteIAConfig(solicitud.agenteIAConfigId)
     : null;
 
+  // 009-perfil-agente-estructurado-versionado (FR-012)
+  const agenteIAConfigVersionId = agente
+    ? await obtenerVersionPublicadaVigenteId(agente.id)
+    : null;
+
   const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil, modeloDefault: proveedorModelo } =
     await seleccionarProveedor(solicitud.instanciaId, agente?.tipo ?? undefined);
 
@@ -148,6 +161,7 @@ export async function generarConHerramientas(
       instanciaId: solicitud.instanciaId,
       proveedorIAId: proveedorId,
       agenteIAConfigId: solicitud.agenteIAConfigId,
+      agenteIAConfigVersionId: agenteIAConfigVersionId ?? undefined,
       tarea: solicitud.tarea,
       resultado: { contenido: "", tokensInput: 0, tokensOutput: 0, modelo, proveedor: proveedor.nombre, tiempoMs: 0 },
       exito: false,
@@ -164,6 +178,7 @@ export async function generarConHerramientas(
     instanciaId: solicitud.instanciaId,
     proveedorIAId: proveedorId,
     agenteIAConfigId: solicitud.agenteIAConfigId,
+    agenteIAConfigVersionId: agenteIAConfigVersionId ?? undefined,
     tarea: solicitud.tarea,
     resultado: {
       contenido: resultado.contenido ?? "",

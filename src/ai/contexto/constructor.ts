@@ -61,6 +61,24 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
             instrucciones: true,
             configuracionTono: true,
             limiteTokensCtx: true,
+
+            // 009-perfil-agente-estructurado-versionado — AgenteIAConfig es
+            // siempre la versión PUBLICADA vigente (ver research.md de esa
+            // spec), así que leer estos campos acá ya cumple FR-008/FR-012
+            // sin necesitar resolver nada adicional.
+            nombreAgente: true,
+            rol: true,
+            idiomaPrincipal: true,
+            idiomasPermitidos: true,
+            longitudRespuesta: true,
+            proactividad: true,
+            intensidadComercial: true,
+            estiloRecomendacion: true,
+            frasesPreferidas: true,
+            frasesProhibidas: true,
+            comportamientosProhibidos: true,
+            reglasPersonalizadas: true,
+            condicionesTransferenciaHumano: true,
           },
         })
       : null,
@@ -122,6 +140,19 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
         instrucciones: agenteConfig.instrucciones,
         sistemaPrompt: agenteConfig.sistemaPrompt,
         configuracionTono: agenteConfig.configuracionTono,
+        nombreAgente: agenteConfig.nombreAgente,
+        rol: agenteConfig.rol,
+        idiomaPrincipal: agenteConfig.idiomaPrincipal,
+        idiomasPermitidos: agenteConfig.idiomasPermitidos,
+        longitudRespuesta: agenteConfig.longitudRespuesta,
+        proactividad: agenteConfig.proactividad,
+        intensidadComercial: agenteConfig.intensidadComercial,
+        estiloRecomendacion: agenteConfig.estiloRecomendacion,
+        frasesPreferidas: agenteConfig.frasesPreferidas,
+        frasesProhibidas: agenteConfig.frasesProhibidas,
+        comportamientosProhibidos: agenteConfig.comportamientosProhibidos,
+        reglasPersonalizadas: agenteConfig.reglasPersonalizadas,
+        condicionesTransferenciaHumano: agenteConfig.condicionesTransferenciaHumano,
       },
       {
         nombreContacto: contacto?.nombre,

@@ -19,6 +19,9 @@ import {
   User,
   ArrowRightLeft,
   ChevronDown,
+  History,
+  Plus,
+  X,
 } from "lucide-react";
 import {
   Sheet,
@@ -43,7 +46,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { editarUsuario } from "@/configuracion/usuarios/actions";
-import { guardarAgenteIA, cargarConfigAgenteIA } from "@/configuracion/ia/agente-actions";
+import {
+  guardarAgenteIA,
+  cargarConfigAgenteIA,
+  guardarBorradorAgenteIA,
+} from "@/configuracion/ia/agente-actions";
 import { EditarUsuarioSchema, type EditarUsuarioInput } from "@/configuracion/usuarios/schema";
 import {
   AgenteIAConfigSchema,
@@ -51,6 +58,30 @@ import {
   type ConfiguracionTonoInput,
 } from "@/configuracion/ia/agente-schema";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
+import { SeccionVersionesAgente } from "./seccion-versiones-agente";
+
+// 009-perfil-agente-estructurado-versionado — etiquetas de las nuevas
+// dimensiones de comunicación (mismos valores que agente-schema.ts).
+const LONGITUDES = [
+  { valor: "CORTA", etiqueta: "Corta" },
+  { valor: "MEDIA", etiqueta: "Media" },
+  { valor: "LARGA", etiqueta: "Larga" },
+] as const;
+const PROACTIVIDADES = [
+  { valor: "BAJA", etiqueta: "Baja" },
+  { valor: "MEDIA", etiqueta: "Media" },
+  { valor: "ALTA", etiqueta: "Alta" },
+] as const;
+const INTENSIDADES_COMERCIALES = [
+  { valor: "SUAVE", etiqueta: "Suave" },
+  { valor: "MODERADA", etiqueta: "Moderada" },
+  { valor: "DIRECTA", etiqueta: "Directa" },
+] as const;
+const ESTILOS_RECOMENDACION = [
+  { valor: "CONSULTIVO", etiqueta: "Consultivo" },
+  { valor: "DIRECTO", etiqueta: "Directo" },
+  { valor: "COMPARATIVO", etiqueta: "Comparativo" },
+] as const;
 
 const CANALES_DISPONIBLES = [
   { valor: "whatsapp_lite", etiqueta: "WhatsApp Lite" },
@@ -74,6 +105,75 @@ const HERRAMIENTAS_DISPONIBLES = [
 const TONOS = ["Cálido", "Profesional", "Directo", "Empático", "Entusiasta"] as const;
 const FORMALIDADES = ["Formal", "Semi Formal", "Informal"] as const;
 
+// 009-perfil-agente-estructurado-versionado — editor simple de listas de
+// texto (frases preferidas/prohibidas, comportamientos prohibidos, reglas
+// personalizadas, condiciones de transferencia a humano). Reutilizable entre
+// los 5 campos de la sección Reglas.
+function EditorListaTexto({
+  valores,
+  onChange,
+  placeholder,
+}: {
+  valores: string[];
+  onChange: (nuevos: string[]) => void;
+  placeholder: string;
+}) {
+  const [nuevoValor, setNuevoValor] = useState("");
+
+  function agregar() {
+    const texto = nuevoValor.trim();
+    if (!texto) return;
+    onChange([...valores, texto]);
+    setNuevoValor("");
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={nuevoValor}
+          onChange={(e) => setNuevoValor(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              agregar();
+            }
+          }}
+          placeholder={placeholder}
+          className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
+        />
+        <Button
+          type="button"
+          onClick={agregar}
+          variant="outline"
+          className="border-white/10 text-stone-300 hover:bg-white/10 flex-shrink-0"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+      {valores.length > 0 && (
+        <ul className="flex flex-col gap-1.5">
+          {valores.map((valor, indice) => (
+            <li
+              key={`${valor}-${indice}`}
+              className="flex items-center justify-between gap-2 rounded-lg border border-white/8 bg-white/3 px-3 py-1.5"
+            >
+              <span className="text-stone-300 text-sm">{valor}</span>
+              <button
+                type="button"
+                onClick={() => onChange(valores.filter((_, i) => i !== indice))}
+                className="text-stone-500 hover:text-stone-300"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 interface SheetEditarAgenteProps {
   agente: UsuarioInstanciaDetalle | null;
   onCerrar: () => void;
@@ -85,6 +185,7 @@ type ConfigCargada = Awaited<ReturnType<typeof cargarConfigAgenteIA>>;
 export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgenteProps) {
   const [isPendingBasico, startBasico] = useTransition();
   const [isPendingIA, startIA] = useTransition();
+  const [isPendingBorrador, startBorrador] = useTransition();
   const [configIA, setConfigIA] = useState<ConfigCargada>(null);
   const [cargandoConfig, setCargandoConfig] = useState(false);
   const [activandoIA, startActivar] = useTransition();
@@ -114,6 +215,19 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
       canalesPermitidos: null,
       herramientas: null,
       configuracionTono: null,
+      nombreAgente: "",
+      rol: "",
+      idiomaPrincipal: "",
+      idiomasPermitidos: null,
+      longitudRespuesta: null,
+      proactividad: null,
+      intensidadComercial: null,
+      estiloRecomendacion: null,
+      frasesPreferidas: null,
+      frasesProhibidas: null,
+      comportamientosProhibidos: null,
+      reglasPersonalizadas: null,
+      condicionesTransferenciaHumano: null,
     },
   });
 
@@ -141,6 +255,19 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             canalesPermitidos: (config.canalesPermitidos as string[] | null) ?? null,
             herramientas: (config.herramientas as string[] | null) ?? null,
             configuracionTono: (config.configuracionTono as ConfiguracionTonoInput | null) ?? null,
+            nombreAgente: config.nombreAgente ?? "",
+            rol: config.rol ?? "",
+            idiomaPrincipal: config.idiomaPrincipal ?? "",
+            idiomasPermitidos: (config.idiomasPermitidos as string[] | null) ?? null,
+            longitudRespuesta: (config.longitudRespuesta as AgenteIAConfigInput["longitudRespuesta"]) ?? null,
+            proactividad: (config.proactividad as AgenteIAConfigInput["proactividad"]) ?? null,
+            intensidadComercial: (config.intensidadComercial as AgenteIAConfigInput["intensidadComercial"]) ?? null,
+            estiloRecomendacion: (config.estiloRecomendacion as AgenteIAConfigInput["estiloRecomendacion"]) ?? null,
+            frasesPreferidas: (config.frasesPreferidas as string[] | null) ?? null,
+            frasesProhibidas: (config.frasesProhibidas as string[] | null) ?? null,
+            comportamientosProhibidos: (config.comportamientosProhibidos as string[] | null) ?? null,
+            reglasPersonalizadas: (config.reglasPersonalizadas as string[] | null) ?? null,
+            condicionesTransferenciaHumano: (config.condicionesTransferenciaHumano as string[] | null) ?? null,
           });
         }
       })
@@ -221,6 +348,29 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
     });
   }
 
+  // 009-perfil-agente-estructurado-versionado (Historia 2) — guarda como
+  // borrador en vez de sobrescribir la versión publicada vigente. El agente
+  // en producción sigue usando la última versión publicada hasta que alguien
+  // la publique explícitamente desde la sección Versiones.
+  function onSubmitBorrador(datos: AgenteIAConfigInput) {
+    if (!agente?.agenteIAConfig) return;
+    startBorrador(async () => {
+      const resultado = await guardarBorradorAgenteIA(agente.agenteIAConfig!.id, {
+        ...datos,
+        sistemaPrompt: datos.sistemaPrompt || undefined,
+        personalidad: datos.personalidad || undefined,
+        objetivo: datos.objetivo || undefined,
+        especialidad: datos.especialidad || undefined,
+        modeloPreferido: datos.modeloPreferido || undefined,
+      });
+      if (!resultado.exito) {
+        toast.error(resultado.error ?? "Error al guardar el borrador");
+        return;
+      }
+      toast.success("Borrador guardado — publicalo desde la pestaña Versiones para que aplique");
+    });
+  }
+
   function handleActivarIA() {
     if (!agente) return;
     startActivar(async () => {
@@ -270,6 +420,13 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
               {tieneConfigIA && (
                 <span className="h-1.5 w-1.5 rounded-full bg-lime-400 ml-1" />
               )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="versiones"
+              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
+            >
+              <History className="h-3.5 w-3.5" />
+              Versiones
             </TabsTrigger>
           </TabsList>
 
@@ -552,6 +709,173 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     )}
                   />
 
+                  {/* ── Sección: Identidad (009-perfil-agente-estructurado-versionado) ── */}
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Identidad</p>
+                      <p className="text-stone-500 text-xs mt-0.5">Nombre, rol e idioma del agente</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField
+                        control={formIA.control}
+                        name="nombreAgente"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Nombre del agente</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                value={field.value ?? ""}
+                                placeholder="Sofía"
+                                className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={formIA.control}
+                        name="rol"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Rol</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                value={field.value ?? ""}
+                                placeholder="Asesora comercial"
+                                className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={formIA.control}
+                      name="idiomaPrincipal"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Idioma principal</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              placeholder="es"
+                              className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm w-24"
+                            />
+                          </FormControl>
+                          <FormDescription className="text-stone-500 text-xs">
+                            Vacío = el agente responde en el idioma del cliente (comportamiento actual)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* ── Sección: Comunicación extendida ── */}
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Comunicación</p>
+                      <p className="text-stone-500 text-xs mt-0.5">Longitud, proactividad, intensidad comercial y estilo de recomendación</p>
+                    </div>
+                    {(
+                      [
+                        { campo: "longitudRespuesta" as const, etiqueta: "Longitud de respuesta", opciones: LONGITUDES },
+                        { campo: "proactividad" as const, etiqueta: "Proactividad", opciones: PROACTIVIDADES },
+                        { campo: "intensidadComercial" as const, etiqueta: "Intensidad comercial", opciones: INTENSIDADES_COMERCIALES },
+                        { campo: "estiloRecomendacion" as const, etiqueta: "Estilo de recomendación", opciones: ESTILOS_RECOMENDACION },
+                      ]
+                    ).map(({ campo, etiqueta, opciones }) => {
+                      const valorActual = formIA.watch(campo);
+                      return (
+                        <div key={campo} className="space-y-1.5">
+                          <p className="text-stone-400 text-xs">{etiqueta}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {opciones.map((opcion) => {
+                              const activo = valorActual === opcion.valor;
+                              return (
+                                <button
+                                  key={opcion.valor}
+                                  type="button"
+                                  onClick={() =>
+                                    formIA.setValue(campo, activo ? null : (opcion.valor as never))
+                                  }
+                                  className={cn(
+                                    "text-xs px-3 py-1.5 rounded-lg border transition-all",
+                                    activo
+                                      ? "bg-lime-500/15 border-lime-500/30 text-lime-300"
+                                      : "bg-white/5 border-white/10 text-stone-500 hover:border-white/20 hover:text-stone-300",
+                                  )}
+                                >
+                                  {opcion.etiqueta}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── Sección: Reglas ── */}
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Reglas</p>
+                      <p className="text-stone-500 text-xs mt-0.5">
+                        Frases, comportamientos prohibidos y condiciones de transferencia a humano
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="text-stone-400 text-xs">Frases preferidas</p>
+                      <EditorListaTexto
+                        valores={formIA.watch("frasesPreferidas") ?? []}
+                        onChange={(v) => formIA.setValue("frasesPreferidas", v)}
+                        placeholder="Con gusto te ayudo"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="text-stone-400 text-xs">Frases prohibidas</p>
+                      <EditorListaTexto
+                        valores={formIA.watch("frasesProhibidas") ?? []}
+                        onChange={(v) => formIA.setValue("frasesProhibidas", v)}
+                        placeholder="no te vas a arrepentir"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="text-stone-400 text-xs">Comportamientos prohibidos</p>
+                      <EditorListaTexto
+                        valores={formIA.watch("comportamientosProhibidos") ?? []}
+                        onChange={(v) => formIA.setValue("comportamientosProhibidos", v)}
+                        placeholder="Presionar para comprar"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="text-stone-400 text-xs">Reglas personalizadas</p>
+                      <EditorListaTexto
+                        valores={formIA.watch("reglasPersonalizadas") ?? []}
+                        onChange={(v) => formIA.setValue("reglasPersonalizadas", v)}
+                        placeholder="Confirmar siempre el correo antes de enviar una cotización"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="text-stone-400 text-xs">Transferir a humano cuando…</p>
+                      <EditorListaTexto
+                        valores={formIA.watch("condicionesTransferenciaHumano") ?? []}
+                        onChange={(v) => formIA.setValue("condicionesTransferenciaHumano", v)}
+                        placeholder="el cliente menciona un reclamo o reembolso"
+                      />
+                    </div>
+                  </div>
+
                   {/* ── Sección: Avanzado (colapsable) ── */}
                   <div className="border border-white/10 rounded-xl overflow-hidden">
                     <button
@@ -700,15 +1024,37 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     )}
                   </div>
 
-                  <Button
-                    type="submit"
-                    disabled={isPendingIA}
-                    className="self-end rounded-xl bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02] font-semibold"
-                  >
-                    {isPendingIA ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar configuración IA"}
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={isPendingBorrador}
+                      onClick={formIA.handleSubmit(onSubmitBorrador)}
+                      className="rounded-xl border-white/10 text-stone-300 hover:bg-white/10"
+                    >
+                      {isPendingBorrador ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar como borrador"}
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isPendingIA}
+                      className="rounded-xl bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02] font-semibold"
+                    >
+                      {isPendingIA ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar configuración IA"}
+                    </Button>
+                  </div>
                 </form>
               </Form>
+            )}
+          </TabsContent>
+
+          {/* Tab: Versiones (009-perfil-agente-estructurado-versionado) */}
+          <TabsContent value="versiones">
+            {!tieneConfigIA ? (
+              <p className="text-stone-500 text-sm text-center py-8">
+                Activá primero el Agente Comercial IA para ver su historial de versiones.
+              </p>
+            ) : (
+              <SeccionVersionesAgente agenteIAConfigId={agente!.agenteIAConfig!.id} />
             )}
           </TabsContent>
         </Tabs>

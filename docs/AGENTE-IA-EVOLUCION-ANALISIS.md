@@ -1,6 +1,8 @@
-# Evolución del agente de IA — Análisis y plan (pre-implementación)
+# Evolución del agente de IA — Análisis y plan
 
-> Estado: **análisis, sin implementar**. Requiere aprobación antes de correr `/speckit-specify` sobre cualquiera de las specs propuestas al final de este documento.
+> Estado: las 10 specs (`009`-`018`) están especificadas y planificadas (`specs/009-*` a `specs/018-*`). Progreso de implementación:
+> - ✅ `009-perfil-agente-estructurado-versionado` — implementada (2026-09-01). Pendiente: test Playwright del flujo de versionado, visualización de versión en estadísticas de uso, advertencia de cambios sin guardar (ver `specs/009-.../tasks.md`, sección "Resumen de estado").
+> - ⏳ `010` a `018` — especificadas, sin implementar todavía.
 
 ## 1. Resumen ejecutivo
 
