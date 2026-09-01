@@ -8,12 +8,24 @@ const MensajeIASchema = z.object({
 export const SolicitudIASchema = z.object({
   instanciaId: z.string().cuid(),
   agenteIAConfigId: z.string().cuid().optional(),
-  tarea: z.enum(["CHAT", "RESUMEN", "CLASIFICACION", "SENTIMIENTO", "EXTRACCION_ENTIDADES", "REPORTE", "EMBEDDINGS"]),
+  tarea: z.enum([
+    "CHAT",
+    "RESUMEN",
+    "CLASIFICACION",
+    "SENTIMIENTO",
+    "EXTRACCION_ENTIDADES",
+    "REPORTE",
+    "EMBEDDINGS",
+    // 010-enrutamiento-modelos-ia-por-objetivo
+    "IDENTIFICACION_PRODUCTO",
+  ]),
   mensajes: z.array(MensajeIASchema).min(1),
   temperatura: z.number().min(0).max(2).optional(),
   maxTokens: z.number().int().positive().max(8096).optional(),
   entidadTipo: z.string().optional(),
   entidadId: z.string().optional(),
+  // 010-enrutamiento-modelos-ia-por-objetivo — solo aplica cuando tarea === "CHAT"
+  requiereRazonamientoSuperior: z.boolean().optional(),
 });
 
 export type SolicitudIAInput = z.infer<typeof SolicitudIASchema>;

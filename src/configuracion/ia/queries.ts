@@ -1,4 +1,6 @@
 import { prisma } from "@/shared/db/prisma";
+import { OBJETIVOS_ENRUTAMIENTO, type ObjetivoEnrutamiento } from "./schema";
+import type { CasosDeUsoProveedor } from "@/ai/proveedores/types";
 
 export async function obtenerConfigIA(instanciaId: string) {
   return prisma.configuracionIA.findUnique({
@@ -44,6 +46,46 @@ export async function obtenerProveedorIA(id: string, instanciaId: string) {
       reintentosMax: true,
       baseUrl: true,
     },
+  });
+}
+
+// --- 010-enrutamiento-modelos-ia-por-objetivo ---
+
+function parsearObjetivos(valor: unknown): ObjetivoEnrutamiento[] {
+  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return [];
+  const objetivos = (valor as CasosDeUsoProveedor)["objetivos"];
+  return Array.isArray(objetivos) ? (objetivos as ObjetivoEnrutamiento[]) : [];
+}
+
+export interface AsignacionObjetivoIA {
+  objetivo: ObjetivoEnrutamiento;
+  proveedorIAId: string | null;
+  proveedorNombre: string | null;
+  proveedorInvalido: boolean;
+}
+
+/** Mapa inverso objetivo → proveedor, para los 7 objetivos de enrutamiento. */
+export async function obtenerAsignacionesObjetivoIA(instanciaId: string): Promise<AsignacionObjetivoIA[]> {
+  const proveedores = await prisma.proveedorIA.findMany({
+    where: { instanciaId },
+    select: { id: true, proveedor: true, activo: true, casosDeUso: true },
+  });
+
+  const mapa = new Map<ObjetivoEnrutamiento, { id: string; proveedor: string; activo: boolean }>();
+  for (const p of proveedores) {
+    for (const objetivo of parsearObjetivos(p.casosDeUso)) {
+      mapa.set(objetivo, { id: p.id, proveedor: p.proveedor, activo: p.activo });
+    }
+  }
+
+  return OBJETIVOS_ENRUTAMIENTO.map((objetivo) => {
+    const asignado = mapa.get(objetivo);
+    return {
+      objetivo,
+      proveedorIAId: asignado?.id ?? null,
+      proveedorNombre: asignado?.proveedor ?? null,
+      proveedorInvalido: asignado ? !asignado.activo : false,
+    };
   });
 }
 

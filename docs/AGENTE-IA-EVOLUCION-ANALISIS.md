@@ -2,7 +2,8 @@
 
 > Estado: las 10 specs (`009`-`018`) están especificadas y planificadas (`specs/009-*` a `specs/018-*`). Progreso de implementación:
 > - ✅ `009-perfil-agente-estructurado-versionado` — implementada (2026-09-01). Pendiente: test Playwright del flujo de versionado, visualización de versión en estadísticas de uso, advertencia de cambios sin guardar (ver `specs/009-.../tasks.md`, sección "Resumen de estado").
-> - ⏳ `010` a `018` — especificadas, sin implementar todavía.
+> - ✅ `010-enrutamiento-modelos-ia-por-objetivo` — implementada (2026-09-01). Pendiente: panel de detalle de uso de IA por objetivo/proveedor (ver `specs/010-.../tasks.md`, sección "Resumen de estado").
+> - ⏳ `011` a `018` — especificadas, sin implementar todavía.
 
 ## 1. Resumen ejecutivo
 

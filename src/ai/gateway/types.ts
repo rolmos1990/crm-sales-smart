@@ -10,6 +10,9 @@ export interface SolicitudIA {
   maxTokens?: number;
   entidadTipo?: string;
   entidadId?: string;
+  // 010-enrutamiento-modelos-ia-por-objetivo — solo tiene efecto cuando
+  // tarea === "CHAT"; ausente/false preserva el criterio de selección actual.
+  requiereRazonamientoSuperior?: boolean;
 }
 
 export interface RespuestaIA {

@@ -26,3 +26,25 @@ export const ProveedorIASchema = z.object({
 });
 
 export type ProveedorIAInput = z.infer<typeof ProveedorIASchema>;
+
+// 010-enrutamiento-modelos-ia-por-objetivo
+export const OBJETIVOS_ENRUTAMIENTO = [
+  "CLASIFICACION",
+  "EXTRACCION_ENTIDADES",
+  "RESUMEN",
+  "IDENTIFICACION_PRODUCTO",
+  "SENTIMIENTO",
+  "CHAT",
+  "CHAT_RAZONAMIENTO_SUPERIOR",
+] as const;
+
+export const ObjetivoEnrutamientoSchema = z.enum(OBJETIVOS_ENRUTAMIENTO);
+export type ObjetivoEnrutamiento = z.infer<typeof ObjetivoEnrutamientoSchema>;
+
+export const AsignacionObjetivoIASchema = z.object({
+  objetivo: ObjetivoEnrutamientoSchema,
+  proveedorIAId: z.string().nullable(),
+});
+export type AsignacionObjetivoIAInput = z.infer<typeof AsignacionObjetivoIASchema>;
+
+export const AsignacionesObjetivoIASchema = z.array(AsignacionObjetivoIASchema);

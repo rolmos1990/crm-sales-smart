@@ -21,6 +21,8 @@ export interface SolicitudConHerramientas {
   maxTokens?: number;
   entidadTipo?: string;
   entidadId?: string;
+  // 010-enrutamiento-modelos-ia-por-objetivo
+  requiereRazonamientoSuperior?: boolean;
 }
 
 export type RespuestaConHerramientas = ChatConHerramientasResult & { usoIAId: string };
@@ -47,6 +49,8 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
     await seleccionarProveedor(
       validado.instanciaId,
       agente?.tipo ?? undefined,
+      validado.tarea,
+      validado.requiereRazonamientoSuperior,
     );
 
   const modelo =
@@ -135,7 +139,12 @@ export async function generarConHerramientas(
     : null;
 
   const { proveedor, proveedorId, costoInputPorMil, costoOutputPorMil, modeloDefault: proveedorModelo } =
-    await seleccionarProveedor(solicitud.instanciaId, agente?.tipo ?? undefined);
+    await seleccionarProveedor(
+      solicitud.instanciaId,
+      agente?.tipo ?? undefined,
+      solicitud.tarea,
+      solicitud.requiereRazonamientoSuperior,
+    );
 
   if (!proveedor.chatConHerramientas) {
     throw new Error(`Proveedor ${proveedor.nombre} no soporta tool calling`);

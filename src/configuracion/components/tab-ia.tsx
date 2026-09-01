@@ -1,18 +1,29 @@
 import { Brain, TrendingUp, Zap } from "lucide-react";
-import { obtenerConfigIA, obtenerProveedoresIA, obtenerResumenUsoIA } from "@/configuracion/ia/queries";
+import {
+  obtenerConfigIA,
+  obtenerProveedoresIA,
+  obtenerResumenUsoIA,
+  obtenerAsignacionesObjetivoIA,
+} from "@/configuracion/ia/queries";
 import { FormConfiguracionIA } from "./form-configuracion-ia";
 import { ListaProveedoresIA } from "./lista-proveedores-ia";
+import { SeccionEnrutamiento } from "./seccion-enrutamiento";
 
 interface TabIAProps {
   instanciaId: string;
 }
 
 export async function TabIA({ instanciaId }: TabIAProps) {
-  const [config, proveedores, uso] = await Promise.all([
+  const [config, proveedores, uso, asignacionesObjetivo] = await Promise.all([
     obtenerConfigIA(instanciaId),
     obtenerProveedoresIA(instanciaId),
     obtenerResumenUsoIA(instanciaId),
+    obtenerAsignacionesObjetivoIA(instanciaId),
   ]);
+
+  const proveedoresActivos = proveedores
+    .filter((p) => p.activo)
+    .map((p) => ({ id: p.id, proveedor: p.proveedor }));
 
   const configParaForm = config
     ? {
@@ -81,6 +92,14 @@ export async function TabIA({ instanciaId }: TabIAProps) {
           </h3>
         </div>
         <ListaProveedoresIA proveedores={proveedores} />
+      </section>
+
+      {/* Enrutamiento por objetivo (010-enrutamiento-modelos-ia-por-objetivo) */}
+      <section className="flex flex-col gap-4">
+        <SeccionEnrutamiento
+          asignacionesIniciales={asignacionesObjetivo}
+          proveedoresActivos={proveedoresActivos}
+        />
       </section>
     </div>
   );

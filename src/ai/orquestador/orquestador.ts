@@ -1,8 +1,44 @@
 import "@/ai/proveedores/inicializar";
 import { crearProveedor } from "@/ai/proveedores/registro";
-import type { IProveedorIA } from "@/ai/proveedores/types";
-import type { TipoAgenteIA } from "@/generated/prisma/enums";
+import type { IProveedorIA, CasosDeUsoProveedor, ObjetivoEnrutamientoIA } from "@/ai/proveedores/types";
+import type { TipoAgenteIA, TareaIA } from "@/generated/prisma/enums";
 import { obtenerProveedoresActivos } from "@/ai/queries";
+
+export type ProveedorActivo = Awaited<ReturnType<typeof obtenerProveedoresActivos>>[number];
+
+// 010-enrutamiento-modelos-ia-por-objetivo
+function parsearCasosDeUso(valor: unknown): CasosDeUsoProveedor | null {
+  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return null;
+  const objetivos = (valor as Record<string, unknown>)["objetivos"];
+  if (!Array.isArray(objetivos)) return null;
+  return { objetivos: objetivos as ObjetivoEnrutamientoIA[] };
+}
+
+/**
+ * Busca, entre los proveedores activos ya cargados, el asignado explícitamente
+ * al objetivo de esta llamada (research.md Decisión 1). Devuelve `null` si
+ * ninguno tiene una asignación para ese objetivo — el llamador cae entonces al
+ * criterio de selección actual (prioridad + tipoAgenteIA), sin cambio de
+ * comportamiento para instancias que no configuraron ningún enrutamiento.
+ */
+export function resolverProveedorPorObjetivo(
+  proveedores: ProveedorActivo[],
+  tarea: TareaIA,
+  requiereRazonamientoSuperior?: boolean,
+): ProveedorActivo | null {
+  const objetivoBuscado: ObjetivoEnrutamientoIA =
+    tarea === "CHAT" && requiereRazonamientoSuperior ? "CHAT_RAZONAMIENTO_SUPERIOR" : tarea;
+
+  const candidatos = proveedores.filter((p) =>
+    parsearCasosDeUso(p.casosDeUso)?.objetivos.includes(objetivoBuscado),
+  );
+
+  if (candidatos.length === 0) return null;
+
+  // Invariante de aplicación (no de BD, ver data-model.md): si más de un
+  // proveedor activo declara el mismo objetivo, gana el de mayor prioridad.
+  return [...candidatos].sort((a, b) => b.prioridad - a.prioridad)[0];
+}
 
 // Estado del circuit breaker en memoria (en producción: Redis)
 const estadoCircuitBreaker = new Map<string, { fallas: number; bloqueadoHasta?: Date }>();
@@ -44,6 +80,8 @@ export interface SeleccionProveedor {
 export async function seleccionarProveedor(
   instanciaId: string,
   tipoAgente?: TipoAgenteIA,
+  tarea?: TareaIA,
+  requiereRazonamientoSuperior?: boolean,
 ): Promise<SeleccionProveedor> {
   const proveedores = await obtenerProveedoresActivos(instanciaId);
 
@@ -52,13 +90,23 @@ export async function seleccionarProveedor(
   }
 
   // Prioridad: proveedor con scope exacto al tipo de agente → proveedor general (null) → cualquier otro activo
-  const ordenados = tipoAgente
+  const ordenadosPorTipoAgente = tipoAgente
     ? [
         ...proveedores.filter((p) => p.tipoAgenteIA === tipoAgente),
         ...proveedores.filter((p) => p.tipoAgenteIA === null),
         ...proveedores.filter((p) => p.tipoAgenteIA !== tipoAgente && p.tipoAgenteIA !== null),
       ]
     : proveedores;
+
+  // 010-enrutamiento-modelos-ia-por-objetivo — el objetivo puntual de la
+  // llamada tiene prioridad sobre el tipo de agente cuando ambos aplican
+  // (research.md Decisión 2). Sin `tarea` o sin ninguna asignación explícita
+  // para ella, `porObjetivo` es `null` y el orden queda exactamente igual
+  // que antes de esta spec.
+  const porObjetivo = tarea ? resolverProveedorPorObjetivo(proveedores, tarea, requiereRazonamientoSuperior) : null;
+  const ordenados = porObjetivo
+    ? [porObjetivo, ...ordenadosPorTipoAgente.filter((p) => p.id !== porObjetivo.id)]
+    : ordenadosPorTipoAgente;
 
   for (const config of ordenados) {
     if (estaCircuitBreakerAbierto(config.id)) {

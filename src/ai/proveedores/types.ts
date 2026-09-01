@@ -1,5 +1,15 @@
 import type { ProveedorIAEnum, TareaIA } from "@/generated/prisma/enums";
 
+// 010-enrutamiento-modelos-ia-por-objetivo — shape de ProveedorIA.casosDeUso
+// (Json en Prisma). "CHAT_RAZONAMIENTO_SUPERIOR" es un pseudo-objetivo, no
+// forma parte del enum TareaIA — representa "conversación que requiere
+// mayor razonamiento", distinto de CHAT estándar (research.md Decisión 1).
+export type ObjetivoEnrutamientoIA = TareaIA | "CHAT_RAZONAMIENTO_SUPERIOR";
+
+export interface CasosDeUsoProveedor {
+  objetivos: ObjetivoEnrutamientoIA[];
+}
+
 export interface MensajeIA {
   rol: "system" | "user" | "assistant";
   contenido: string;

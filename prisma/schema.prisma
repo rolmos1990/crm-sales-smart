@@ -1890,6 +1890,9 @@ enum TareaIA {
   EXTRACCION_ENTIDADES
   REPORTE
   EMBEDDINGS
+  // 010-enrutamiento-modelos-ia-por-objetivo — distinto de EXTRACCION_ENTIDADES
+  // genérica: identificar qué producto del catálogo menciona el cliente.
+  IDENTIFICACION_PRODUCTO
 }
 
 enum TipoMemoriaIA {
