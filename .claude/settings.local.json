@@ -246,7 +246,8 @@
       "Bash(sh .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
       "Bash(test -f .eslintrc.json -o -f .eslintrc.js -o -f eslint.config.js -o -f eslint.config.mjs -o -f eslint.config.ts)",
       "Bash(npx tsx -e ' *)",
-      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\(!!process.env.DATABASE_URL\\)\")"
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\(!!process.env.DATABASE_URL\\)\")",
+      "Bash(sh .specify/scripts/bash/check-prerequisites.sh --json --paths-only)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
