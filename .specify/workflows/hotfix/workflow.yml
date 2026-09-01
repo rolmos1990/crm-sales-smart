@@ -1,0 +1,58 @@
+schema_version: "1.0"
+workflow:
+  id: "hotfix"
+  name: "Karia Hotfix Cycle"
+  version: "1.0.0"
+  author: "Karia"
+  description: "Ciclo abreviado para corregir una incidencia sobre algo que Karia ya hace: specify (con diagnóstico de causa raíz) → plan liviano → tasks (mínimo) → implement. speckit.implement exige tasks.md, así que ese paso no se puede omitir — la diferencia con el ciclo Feature es su tamaño, no su ausencia. Ver docs/SPEC-KIT-WORKFLOWS.md."
+
+requires:
+  speckit_version: ">=0.8.5"
+  integrations:
+    any:
+      - "alquimia"
+      - "claude"
+      - "copilot"
+      - "gemini"
+      - "opencode"
+
+inputs:
+  spec:
+    type: string
+    required: true
+    prompt: "Describí el síntoma/incidencia a corregir (qué hace Karia hoy que no debería, o qué dejó de funcionar)"
+  integration:
+    type: string
+    default: "auto"
+    prompt: "Integration to use (e.g. claude, copilot, gemini; 'auto' uses the project's initialized integration)"
+
+steps:
+  - id: specify
+    command: speckit.specify
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: review-diagnostico
+    type: gate
+    message: "Revisá la sección 'Diagnóstico previo' del spec antes de seguir — ¿la causa raíz quedó confirmada con evidencia de código, no solo una suposición?"
+    options: [approve, reject]
+    on_reject: abort
+
+  - id: plan
+    command: speckit.plan
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: tasks
+    command: speckit.tasks
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"
+
+  - id: implement
+    command: speckit.implement
+    integration: "{{ inputs.integration }}"
+    input:
+      args: "{{ inputs.spec }}"

@@ -8,6 +8,14 @@
       "source": "bundled",
       "installed_at": "2026-08-27T15:38:49.057569+00:00",
       "updated_at": "2026-08-27T15:38:49.057575+00:00"
+    },
+    "hotfix": {
+      "name": "Karia Hotfix Cycle",
+      "version": "1.0.0",
+      "description": "Runs specify (root-cause diagnosis) \u2192 review gate \u2192 plan \u2192 tasks \u2192 implement, sized for incident fixes",
+      "source": "project",
+      "installed_at": "2026-08-28T00:00:00.000000+00:00",
+      "updated_at": "2026-08-28T00:00:00.000000+00:00"
     }
   }
 }

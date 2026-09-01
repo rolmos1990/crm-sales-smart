@@ -8,6 +8,21 @@
 
 **Input**: User description: "$ARGUMENTS"
 
+<!--
+  HOTFIX ONLY (skip entirely for a Feature — a capability Karia never had):
+  if the request describes a symptom of something Karia already does that
+  isn't working right, add this section here, before User Scenarios. See
+  docs/SPEC-KIT-WORKFLOWS.md for the full Feature vs Hotfix decision guide
+  and real examples (specs 004, 006, 008).
+
+## Diagnóstico previo (investigación de código [+ documentación externa si aplica])
+
+- Qué se investigó y dónde (archivo:línea o endpoint externo consultado)
+- Qué se confirmó que SÍ funciona (para no tocarlo)
+- La causa raíz exacta — con evidencia, no una suposición
+- Por qué el síntoma reportado se explica por esa causa y no por otra
+-->
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--

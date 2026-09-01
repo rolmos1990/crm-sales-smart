@@ -177,6 +177,15 @@ Reglas clave para este proyecto:
 
 ---
 
+## Spec Kit — Feature vs Hotfix
+
+Todo trabajo no trivial pasa por Spec Kit (`.specify/`, comandos `/speckit-*`). Hay dos flujos, documentados con el detalle completo (plantillas, tabla comparativa, árbol de decisión, ejemplos reales) en **`docs/SPEC-KIT-WORKFLOWS.md`** — leerlo antes de correr `/speckit-specify` si hay dudas de cuál aplica:
+
+- **Feature** (funcionalidad nueva, ej. `005-facebook-messenger-integracion`): ciclo completo obligatorio — specify → plan → tasks → implement, con `research.md`/`data-model.md`/`quickstart.md`/`tasks.md` por historia de usuario (P1/P2/P3).
+- **Hotfix** (algo que Karia ya hace y no funciona bien, ej. `004`, `006`, `008` — nombre corto con prefijo `fix-`): mismo ciclo pero acotado — el spec MUST empezar con una sección **"Diagnóstico previo"** (causa raíz confirmada en código antes de definir alcance), el plan es liviano, y `tasks.md` puede ser mínimo (1-2 tareas) si el fix es chico. Todo Hotfix MUST incluir un requisito explícito de "no alterar el comportamiento existente" de lo que ya funcionaba.
+
+Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/mostraba funcionando, es Hotfix; si es una capacidad que Karia nunca tuvo, es Feature — aunque "parezca" una corrección (ver el caso `007` en el documento).
+
 ## Reglas generales de desarrollo
 
 1. **Español en el dominio**: nombres de variables, funciones y comentarios del dominio de negocio van en español (ej: `obtenerContactos`, `crearOportunidad`, `etapa`, `valorPipeline`)
