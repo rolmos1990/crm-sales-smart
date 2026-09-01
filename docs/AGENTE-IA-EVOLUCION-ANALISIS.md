@@ -3,7 +3,8 @@
 > Estado: las 10 specs (`009`-`018`) están especificadas y planificadas (`specs/009-*` a `specs/018-*`). Progreso de implementación:
 > - ✅ `009-perfil-agente-estructurado-versionado` — implementada (2026-09-01). Pendiente: test Playwright del flujo de versionado, visualización de versión en estadísticas de uso, advertencia de cambios sin guardar (ver `specs/009-.../tasks.md`, sección "Resumen de estado").
 > - ✅ `010-enrutamiento-modelos-ia-por-objetivo` — implementada (2026-09-01). Pendiente: panel de detalle de uso de IA por objetivo/proveedor (ver `specs/010-.../tasks.md`, sección "Resumen de estado").
-> - ⏳ `011` a `018` — especificadas, sin implementar todavía.
+> - ✅ `012-perfil-dinamico-cliente` — implementada (2026-09-01), fuera de orden numérico (antes que `011`, que no tenía dependencias bloqueantes reales). Creó `src/ai/estrategia/tipos.ts` por adelantado para que `011` lo reutilice. Pendiente: validación manual con RabbitMQ corriendo (ver `specs/012-.../tasks.md`).
+> - ⏳ `011`, `013` a `018` — especificadas, sin implementar todavía.
 
 ## 1. Resumen ejecutivo
 

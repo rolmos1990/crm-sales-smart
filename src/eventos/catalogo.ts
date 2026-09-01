@@ -43,6 +43,7 @@ export const EventosSistema = {
   MensajeRecibido:        "MENSAJE_RECIBIDO",
   MensajeEnviado:         "MENSAJE_ENVIADO",
   ConversacionCreada:     "CONVERSACION_CREADA",
+  ConversacionClasificada: "CONVERSACION_CLASIFICADA",
   ReaccionActualizada:    "REACCION_ACTUALIZADA",
 
   // Sistema

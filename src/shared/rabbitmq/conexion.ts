@@ -84,6 +84,25 @@ async function configurarTopologia(ch: amqplib.Channel): Promise<void> {
   // IA: orquestación — escucha MensajeRecibido con su propia cola para no bloquear SSE
   await ch.assertQueue(QUEUES.AI_ORQUESTAR, queueOpts);
   await ch.bindQueue(QUEUES.AI_ORQUESTAR, EXCHANGE, RK.EVENTO_MENSAJE_RECIBIDO);
+
+  // 012-perfil-dinamico-cliente — invalidación incremental del perfil del
+  // cliente. Lista cerrada de eventos (research.md Decisión 1) — a
+  // propósito NO se usa "evento.cotizacion.*" (incluiría CotizacionEnviada,
+  // fuera de la lista) ni "evento.pedido.*"/"evento.oportunidad.*"
+  // (coinciden con el cierre exacto pero se listan explícitos por claridad).
+  await ch.assertQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, queueOpts);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_PEDIDO_CREADO);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_PEDIDO_ACTUALIZADO);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_PEDIDO_ENTREGADO);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_COTIZACION_CREADA);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_COTIZACION_ACTUALIZADA);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_COTIZACION_APROBADA);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_OPORTUNIDAD_CREADA);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_OPORTUNIDAD_ACTUALIZADA);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_OPORTUNIDAD_GANADA);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_OPORTUNIDAD_PERDIDA);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_ETAPA_CAMBIADA);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_CONVERSACION_CLASIFICADA);
 }
 
 async function conectar(): Promise<amqplib.Channel> {

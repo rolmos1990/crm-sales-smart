@@ -370,6 +370,7 @@ model Instancia {
   agentesIAConfig        AgenteIAConfig[]
   usoIA                  UsoIA[]
   agenteIAConfigVersions AgenteIAConfigVersion[]
+  perfilesCliente        PerfilClienteSnapshot[]
 
   @@index([slug])
   @@index([estado])
@@ -517,11 +518,38 @@ model Contacto {
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
   mediaArchivos        MediaArchivo[]
+  // 012-perfil-dinamico-cliente
+  perfilCliente        PerfilClienteSnapshot?
 
   @@index([instanciaId])
   @@index([nombre])
   @@index([apellido])
   @@index([email])
+}
+
+// --- 012-perfil-dinamico-cliente ---
+
+// Cache persistente del perfil calculado de un contacto — se recalcula de
+// forma incremental por evento (ver invalidar-perfil.suscriptor.ts), nunca
+// en cada mensaje. datosObjetivos y datosInterpretados quedan en columnas
+// separadas a propósito (no se mezclan hechos verificables con
+// interpretaciones de IA — ver spec 012, Historia 2).
+model PerfilClienteSnapshot {
+  id                 String   @id @default(cuid())
+  tipoRelacion       String
+  datosObjetivos     Json
+  datosInterpretados Json?
+  senalesObjetivas   Json
+  calculadoEn        DateTime @default(now())
+  disparadoPor       String?
+
+  contactoId String   @unique
+  contacto   Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId])
 }
 
 // =====================

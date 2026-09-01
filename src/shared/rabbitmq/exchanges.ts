@@ -18,12 +18,15 @@ export const QUEUES = {
   AI_RESPUESTA: "crm.ai.comando.respuesta",
   AI_RESUMEN: "crm.ai.comando.resumen",
   AI_ORQUESTAR: "crm.ai.orquestar",
+  // 012-perfil-dinamico-cliente
+  PERFIL_CLIENTE_INVALIDAR: "crm.perfil-cliente.invalidar",
 } as const;
 
 // Routing keys — prefijo "evento." para domain events, "comando." para async commands
 export const RK = {
   // Dominio: conversaciones (van a SSE)
   EVENTO_CONVERSACION_CREADA: "evento.conversacion.creada",
+  EVENTO_CONVERSACION_CLASIFICADA: "evento.conversacion.clasificada",
   EVENTO_MENSAJE_RECIBIDO: "evento.mensaje.recibido",
   EVENTO_MENSAJE_ENVIADO: "evento.mensaje.enviado",
   EVENTO_REACCION_ACTUALIZADA: "evento.reaccion.actualizada",
@@ -109,6 +112,7 @@ export const TIPO_EVENTO_A_RK: Record<string, RoutingKey> = {
   MENSAJE_RECIBIDO: RK.EVENTO_MENSAJE_RECIBIDO,
   MENSAJE_ENVIADO: RK.EVENTO_MENSAJE_ENVIADO,
   CONVERSACION_CREADA: RK.EVENTO_CONVERSACION_CREADA,
+  CONVERSACION_CLASIFICADA: RK.EVENTO_CONVERSACION_CLASIFICADA,
   REACCION_ACTUALIZADA: RK.EVENTO_REACCION_ACTUALIZADA,
   INSTANCIA_CREADA: RK.EVENTO_INSTANCIA_CREADA,
   RESPUESTA_IA_GENERADA: RK.EVENTO_IA_RESPUESTA_GENERADA,

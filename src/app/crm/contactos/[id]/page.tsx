@@ -19,6 +19,9 @@ import { obtenerConversacionesResumenPorContacto, obtenerCuentasCanal } from "@/
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
+import { PanelPerfilCliente } from "@/crm/contactos/components/panel-perfil-cliente";
+import { obtenerPerfil } from "@/ai/perfil-cliente/servicio";
+import type { PerfilCliente } from "@/ai/perfil-cliente/tipos";
 import type { Actividad } from "@/crm/actividades/types";
 import type { Tag as TagType } from "@/crm/tags/types";
 import { cn } from "@/lib/utils";
@@ -91,6 +94,15 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
     ]);
   } catch {
     // Conversaciones no disponibles
+  }
+
+  // 012-perfil-dinamico-cliente — no bloquea el render de la página si el
+  // perfil todavía no se puede calcular (FR-004, tolerante a fallo).
+  let perfilCliente: PerfilCliente | null = null;
+  try {
+    perfilCliente = await obtenerPerfil(id, sesion.instanciaId);
+  } catch {
+    // Perfil no disponible
   }
 
   const estadoConf = ESTADO_CONFIG[contacto.estado] ?? ESTADO_CONFIG.ACTIVO;
@@ -243,6 +255,12 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
                     {actividades.length}
                   </span>
                 )}
+              </TabsTrigger>
+              <TabsTrigger
+                value="perfil"
+                className="rounded-lg text-sm font-medium px-4 transition-all text-stone-500 dark:text-stone-400 data-[state=active]:bg-white dark:data-[state=active]:bg-white/10 data-[state=active]:text-stone-900 dark:data-[state=active]:text-stone-100 data-[state=active]:shadow-sm"
+              >
+                Perfil
               </TabsTrigger>
             </TabsList>
 
@@ -430,6 +448,11 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
               ) : (
                 <TimelineActividades actividades={actividades} puedeMod={puedeMod} />
               )}
+            </TabsContent>
+
+            {/* ── Tab: Perfil (012-perfil-dinamico-cliente) ──────────── */}
+            <TabsContent value="perfil" className="mt-5">
+              <PanelPerfilCliente perfil={perfilCliente} />
             </TabsContent>
           </Tabs>
         </div>

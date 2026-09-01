@@ -39,6 +39,23 @@ const TransferirAHumanoTool: IProveedorTool = {
       data: { clasificacion: "SOPORTE", clasificadoEn: new Date() },
     });
 
+    // 012-perfil-dinamico-cliente — permite invalidar el perfil del cliente
+    // (incidencia activa) sin sondeo. Agregado, no reemplaza la escritura de
+    // arriba; un fallo al publicar no debe impedir la transferencia misma.
+    try {
+      const { publicadorEventos } = await import("@/shared/rabbitmq");
+      const { EventosSistema } = await import("@/eventos/catalogo");
+      await publicadorEventos.publicar(EventosSistema.ConversacionClasificada, ctx.instanciaId, {
+        instanciaId: ctx.instanciaId,
+        conversacionId: ctx.conversacionId,
+        contactoId: ctx.contactoId ?? null,
+        clasificacion: "SOPORTE",
+        clasificadoEn: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("[TransferirAHumanoTool] Error al publicar ConversacionClasificada:", err);
+    }
+
     return {
       ok: true,
       data: {

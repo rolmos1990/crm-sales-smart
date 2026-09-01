@@ -35,6 +35,7 @@ import type { PedidoEntregadoPayload }   from "./contratos/pedido-entregado.even
 import type { MensajeRecibidoPayload }    from "./contratos/mensaje-recibido.event";
 import type { MensajeEnviadoPayload }     from "./contratos/mensaje-enviado.event";
 import type { ConversacionCreadaPayload } from "./contratos/conversacion-creada.event";
+import type { ConversacionClasificadaPayload } from "./contratos/conversacion-clasificada.event";
 import type { ReaccionActualizadaPayload } from "./contratos/reaccion-actualizada.event";
 import type { InstanciaCreadaPayload }    from "./contratos/instancia-creada.event";
 import type { ComandoEnviarMensajePayload }        from "./contratos/enviar-mensaje.comando";
@@ -79,6 +80,7 @@ export interface MapaPayloads {
   MENSAJE_RECIBIDO:        MensajeRecibidoPayload;
   MENSAJE_ENVIADO:         MensajeEnviadoPayload;
   CONVERSACION_CREADA:     ConversacionCreadaPayload;
+  CONVERSACION_CLASIFICADA: ConversacionClasificadaPayload;
   REACCION_ACTUALIZADA:    ReaccionActualizadaPayload;
   // Sistema
   INSTANCIA_CREADA:        InstanciaCreadaPayload;
