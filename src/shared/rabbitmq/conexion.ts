@@ -62,6 +62,11 @@ async function configurarTopologia(ch: amqplib.Channel): Promise<void> {
   await ch.assertQueue(QUEUES.MENSAJE_ENTRANTE, queueOpts);
   await ch.bindQueue(QUEUES.MENSAJE_ENTRANTE, EXCHANGE, RK.COMANDO_MENSAJE_ENTRANTE);
 
+  // Mensaje enviado desde la app nativa del canal (eco no reconocido) —
+  // ver specs/020-fix-mensajes-app-nativa
+  await ch.assertQueue(QUEUES.MENSAJE_APP_NATIVA, queueOpts);
+  await ch.bindQueue(QUEUES.MENSAJE_APP_NATIVA, EXCHANGE, RK.COMANDO_MENSAJE_APP_NATIVA);
+
   await ch.assertQueue(QUEUES.MENSAJE_LEIDO, queueOpts);
   await ch.bindQueue(QUEUES.MENSAJE_LEIDO, EXCHANGE, RK.COMANDO_MENSAJE_LEIDO);
 
