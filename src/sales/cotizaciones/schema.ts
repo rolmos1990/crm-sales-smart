@@ -53,6 +53,11 @@ export const EntregaCotizacionSchema = z.object({
   // Cotizacion.costoEnvio, no en EntregaCotizacion — así los KPIs de
   // Pedidos pueden restarlo con un simple _sum, sin join (ver actions.ts).
   costoEnvio: z.number().min(0).optional(),
+  // 019-cobertura-geografica-envios — paisId solo se pide si el negocio
+  // opera en modo MULTIPAIS (FR-011/FR-012); ciudad es texto libre opcional.
+  paisId: z.string().nullable().optional(),
+  estadoProvinciaId: z.string().nullable().optional(),
+  ciudad: z.string().max(150).optional().or(z.literal("")),
 });
 
 // Sin campos obligatorios a propósito — el Flujo de Venta resuelve después

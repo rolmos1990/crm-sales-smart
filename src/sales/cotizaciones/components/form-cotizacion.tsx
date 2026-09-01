@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,10 @@ import {
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
+import { SelectorPais } from "@/shared/entregas/components/selector-pais";
+import { SelectorEstadoProvincia } from "@/shared/entregas/components/selector-estado-provincia";
+import { obtenerModoGeograficoAction } from "@/configuracion/empresa/actions";
+import { obtenerCostoSugerido } from "@/shared/entregas/actions";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { CampoCodigoLicencia } from "@/shared/ui/campo-codigo-licencia";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
@@ -178,7 +182,7 @@ export function FormCotizacion({
       empresaId: "",
       oportunidadId: oportunidadId ?? "",
       destinatario: { nombre: "", apellido: "", telefono: "", email: "" },
-      entrega: { metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE", costoEnvio: 0 },
+      entrega: { metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE", costoEnvio: 0, paisId: null, estadoProvinciaId: null, ciudad: "" },
       servicio: { hora: "", duracion: "", ubicacion: "", direccion: "", responsable: "", instrucciones: "", observaciones: "" },
       // entregaDigital ya no va acá — es por línea (ver lineas[].entregaDigital,
       // precargado en onSeleccionar cuando el producto elegido es Digital).
@@ -197,6 +201,43 @@ export function FormCotizacion({
   const conRastreo = !METODOS_SIN_RASTREO.has(metodoEntrega);
 
   const costoEnvio = form.watch("entrega.costoEnvio") ?? 0;
+
+  // 019-cobertura-geografica-envios — FR-011/FR-012: en modo UN_SOLO_PAIS no
+  // se pide país, se asume el de la instancia.
+  const [modoGeografico, setModoGeografico] = useState<{ modoGeografico: "UN_SOLO_PAIS" | "MULTIPAIS"; paisOperacionId: string | null } | null>(null);
+  useEffect(() => {
+    obtenerModoGeograficoAction().then(setModoGeografico);
+  }, []);
+  const [sugiriendoCosto, setSugiriendoCosto] = useState(false);
+  const paisEntregaId = form.watch("entrega.paisId");
+  const estadoProvinciaEntregaId = form.watch("entrega.estadoProvinciaId");
+  const transportistaIdEntrega = form.watch("entrega.transportistaId");
+
+  async function sugerirCostoEnvio() {
+    if (!estadoProvinciaEntregaId) {
+      toast.error("Elige un estado/provincia primero");
+      return;
+    }
+    setSugiriendoCosto(true);
+    try {
+      const resultado = await obtenerCostoSugerido({
+        estadoProvinciaId: estadoProvinciaEntregaId,
+        paisId: paisEntregaId,
+        metodoEntrega,
+        transportistaId: transportistaIdEntrega,
+      });
+      if (resultado.ambiguo) {
+        toast.error("Hay más de un costo configurado para esa ubicación — ingrésalo manualmente");
+      } else if (!resultado.cubierto || resultado.costo === null) {
+        toast.error("Sin costo configurado para esa ubicación");
+      } else {
+        form.setValue("entrega.costoEnvio", resultado.costo);
+        toast.success(`Costo sugerido: ${resultado.costo.toFixed(2)}`);
+      }
+    } finally {
+      setSugiriendoCosto(false);
+    }
+  }
 
   // Igual que en el servidor (ver resolverTipoCumplimiento en actions.ts):
   // primera línea con producto vinculado decide el bloque; sin producto en
@@ -751,6 +792,41 @@ export function FormCotizacion({
                   )} />
                 )}
 
+                {/* 019-cobertura-geografica-envios — ubicación de destino;
+                    país solo se pide en modo MULTIPAIS (FR-011/FR-012). */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {modoGeografico?.modoGeografico === "MULTIPAIS" && (
+                    <FormField control={form.control} name="entrega.paisId" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>País</FormLabel>
+                        <FormControl>
+                          <SelectorPais value={field.value ?? null} onChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )} />
+                  )}
+                  <FormField control={form.control} name="entrega.estadoProvinciaId" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Provincia / Estado</FormLabel>
+                      <FormControl>
+                        <SelectorEstadoProvincia
+                          paisId={modoGeografico?.modoGeografico === "UN_SOLO_PAIS" ? modoGeografico.paisOperacionId : paisEntregaId ?? null}
+                          value={field.value ?? null}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="entrega.ciudad" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ciudad <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ciudad" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                    </FormItem>
+                  )} />
+                </div>
+
                 {/* numeroGuia y urlSeguimiento no se capturan en la cotización —
                     todavía no existen a esa altura; se completan recién en el
                     Pedido al aprobar (ver aprobarCotizacion). */}
@@ -772,13 +848,18 @@ export function FormCotizacion({
                   <FormField control={form.control} name="entrega.costoEnvio" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Costo de envío <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <DecimalInput
-                          value={field.value ?? 0}
-                          onChange={field.onChange}
-                        />
-                      </FormControl>
-                      <p className="text-[11px] text-muted-foreground">Se suma al total, no cuenta como ganancia en reportes</p>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <DecimalInput
+                            value={field.value ?? 0}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <Button type="button" variant="outline" size="sm" disabled={sugiriendoCosto} onClick={sugerirCostoEnvio}>
+                          Sugerir
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Se suma al total, no cuenta como ganancia en reportes. "Sugerir" usa la cobertura configurada — el valor final siempre se puede ajustar a mano</p>
                     </FormItem>
                   )} />
                 </div>

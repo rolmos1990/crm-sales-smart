@@ -1,21 +1,37 @@
 import { z } from "zod";
 import { registroHerramientas } from "@/ai/tools/registry";
+import { resolverCostoEnvio } from "@/shared/entregas/resolver-costo-envio";
+import { transferirAHumanoInterno } from "@/ai/tools/shared/transferir-a-humano-interno";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
 
-const ArgsSchema = z.object({ metodoEntrega: z.string().min(1), zona: z.string().min(1) });
+// 019-cobertura-geografica-envios — reemplaza el match por nombre de zona
+// en texto libre por la resolución real (transportista país/estado +
+// delivery zona aproximada) y fuerza la escalación a humano ante cualquier
+// resultado ambiguo (contracts/ai-tools.md, research.md Decisión 4/5).
+const ArgsSchema = z.object({
+  estadoProvincia: z.string().min(1),
+  pais: z.string().optional(),
+  ciudad: z.string().optional(),
+  metodoEntrega: z.string().optional(),
+  transportistaId: z.string().optional(),
+});
 
 const CalcularCostoEnvioTool: IProveedorTool = {
   name: "calcular_costo_envio",
   definition: {
     name: "calcular_costo_envio",
-    description: "Calcula el costo de envío real para una zona y método de entrega, según la configuración del negocio.",
+    description:
+      "Calcula el costo de envío real para una ubicación (país/estado/ciudad) y método/transportista opcionales, según la configuración real del negocio. Si no hay una coincidencia clara, transfiere la conversación a un humano automáticamente.",
     input_schema: {
       type: "object",
       properties: {
-        metodoEntrega: { type: "string", description: "Método de entrega (ej. COURIER_EXTERNO)" },
-        zona: { type: "string", description: "Nombre de la zona (ej. 'Lima Metropolitana')" },
+        estadoProvincia: { type: "string", description: "Nombre del estado/provincia de destino (ej. 'Lima')" },
+        pais: { type: "string", description: "Nombre del país — opcional si el negocio opera en un solo país" },
+        ciudad: { type: "string", description: "Opcional — refina la coincidencia" },
+        metodoEntrega: { type: "string", description: "Opcional — restringe el cálculo a un método puntual" },
+        transportistaId: { type: "string", description: "Opcional — restringe el cálculo a un transportista puntual" },
       },
-      required: ["metodoEntrega", "zona"],
+      required: ["estadoProvincia"],
     },
   },
 
@@ -23,27 +39,25 @@ const CalcularCostoEnvioTool: IProveedorTool = {
     const parsed = ArgsSchema.safeParse(args);
     if (!parsed.success) return { ok: false, error: "Argumentos inválidos para calcular_costo_envio" };
 
-    const { prisma } = await import("@/shared/db/prisma");
-    const metodo = await prisma.metodoEntregaConfig.findFirst({
-      where: { instanciaId: ctx.instanciaId, metodoEntrega: parsed.data.metodoEntrega as never, activo: true },
-    });
-    if (!metodo) {
-      return { ok: true, data: { cubierto: false, mensaje: "Método de entrega no configurado" } };
+    const resolucion = await resolverCostoEnvio({ instanciaId: ctx.instanciaId, ...parsed.data });
+
+    if (resolucion.estado === "SIN_COINCIDENCIA_CLARA") {
+      await transferirAHumanoInterno(ctx, `Sin coincidencia clara de costo de envío: ${resolucion.motivo}`);
+      return {
+        ok: true,
+        data: {
+          transferidoAHumano: true,
+          mensaje:
+            "No fue posible determinar un costo de envío exacto para esa ubicación. La conversación fue transferida a un asesor — no informes ningún costo estimado al cliente.",
+        },
+      };
     }
 
-    const zonaMetodo = await prisma.zonaCoberturaMetodo.findFirst({
-      where: {
-        metodoEntregaConfigId: metodo.id,
-        zonaCobertura: { instanciaId: ctx.instanciaId, nombre: parsed.data.zona },
-      },
-    });
-
-    if (!zonaMetodo || !zonaMetodo.cubierta) {
-      return { ok: true, data: { cubierto: false, mensaje: "Sin cobertura configurada para esa zona y método" } };
+    if (!resolucion.cubierto) {
+      return { ok: true, data: { cubierto: false, mensaje: resolucion.motivo } };
     }
 
-    const costo = Number(metodo.costoBase) + Number(zonaMetodo.costoAdicional);
-    return { ok: true, data: { costo, cubierto: true } };
+    return { ok: true, data: { cubierto: true, costo: resolucion.costo } };
   },
 };
 

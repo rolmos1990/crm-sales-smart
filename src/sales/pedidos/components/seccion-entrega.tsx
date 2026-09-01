@@ -25,6 +25,10 @@ interface EntregaConTransportista {
   urlSeguimiento?: string | null;
   fechaEstimada?: Date | null;
   observaciones?: string | null;
+  // 019-cobertura-geografica-envios
+  paisId?: string | null;
+  estadoProvinciaId?: string | null;
+  ciudad?: string | null;
 }
 
 interface SeccionEntregaProps {

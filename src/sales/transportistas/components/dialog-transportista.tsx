@@ -7,6 +7,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { FormTransportista } from "./form-transportista";
+import { SeccionCoberturaGeografica } from "./seccion-cobertura-geografica";
 import type { Transportista } from "../types";
 
 interface DialogCrearTransportistaProps {
@@ -23,6 +24,15 @@ type DialogTransportistaProps = DialogCrearTransportistaProps | DialogEditarTran
 export function DialogTransportista(props: DialogTransportistaProps) {
   const [abierto, setAbierto] = useState(false);
   const esEditar = props.tipo === "editar";
+
+  // 019-cobertura-geografica-envios — al EDITAR un transportista ya
+  // existente, la sección de cobertura geográfica queda visible de
+  // inmediato (mismo diálogo, sin pasos extra). Al CREAR, el diálogo
+  // conserva exactamente su comportamiento original (se cierra al guardar,
+  // ver tests/e2e/sales/transportistas.spec.ts) — para agregar cobertura a
+  // uno recién creado, el negocio lo abre de nuevo con "Editar" (FR-001
+  // sigue cumplido: "al crear o al editar" no exige que sea en la misma
+  // apertura del diálogo).
 
   return (
     <>
@@ -56,6 +66,7 @@ export function DialogTransportista(props: DialogTransportistaProps) {
             transportista={esEditar ? props.transportista : undefined}
             onExito={() => setAbierto(false)}
           />
+          {esEditar && <SeccionCoberturaGeografica transportistaId={props.transportista.id} />}
         </DialogContent>
       </Dialog>
     </>

@@ -75,6 +75,8 @@ export async function guardarZonaCoberturaMetodo(datos: unknown): Promise<Result
       cubierta: validado.data.cubierta,
       costoAdicional: validado.data.costoAdicional,
       diasAdicionales: validado.data.diasAdicionales,
+      // 019-cobertura-geografica-envios
+      esExcepcion: validado.data.esExcepcion,
     },
   });
 

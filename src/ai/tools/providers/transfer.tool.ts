@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { registroHerramientas } from "@/ai/tools/registry";
+import { transferirAHumanoInterno } from "@/ai/tools/shared/transferir-a-humano-interno";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
 
 const ArgsSchema = z.object({
@@ -45,30 +46,11 @@ const TransferirAHumanoTool: IProveedorTool = {
       };
     }
 
-    const { prisma } = await import("@/shared/db/prisma");
-
-    // Marcar la conversación como soporte para que el equipo humano la tome
-    await prisma.conversacion.updateMany({
-      where: { id: ctx.conversacionId, instanciaId: ctx.instanciaId },
-      data: { clasificacion: "SOPORTE", clasificadoEn: new Date() },
-    });
-
-    // 012-perfil-dinamico-cliente — permite invalidar el perfil del cliente
-    // (incidencia activa) sin sondeo. Agregado, no reemplaza la escritura de
-    // arriba; un fallo al publicar no debe impedir la transferencia misma.
-    try {
-      const { publicadorEventos } = await import("@/shared/rabbitmq");
-      const { EventosSistema } = await import("@/eventos/catalogo");
-      await publicadorEventos.publicar(EventosSistema.ConversacionClasificada, ctx.instanciaId, {
-        instanciaId: ctx.instanciaId,
-        conversacionId: ctx.conversacionId,
-        contactoId: ctx.contactoId ?? null,
-        clasificacion: "SOPORTE",
-        clasificadoEn: new Date().toISOString(),
-      });
-    } catch (err) {
-      console.error("[TransferirAHumanoTool] Error al publicar ConversacionClasificada:", err);
-    }
+    // 019-cobertura-geografica-envios — el efecto secundario (marcar
+    // SOPORTE + publicar ConversacionClasificada) vive en un helper
+    // compartido, reutilizado por las tools de envío para forzar la
+    // escalación de forma determinista (research.md Decisión 4).
+    await transferirAHumanoInterno(ctx, parsed.data.motivo);
 
     return {
       ok: true,

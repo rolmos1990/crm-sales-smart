@@ -1051,7 +1051,20 @@ model EntregaCotizacion {
   transportistaId String?
   transportista   Transportista? @relation(fields: [transportistaId], references: [id])
 
+  // 019-cobertura-geografica-envios — ubicación de destino, capturada al
+  // crear la cotización. paisId es opcional: en modo UN_SOLO_PAIS no se pide
+  // (se asume ConfiguracionEmpresa.paisOperacionId). Ciudad es texto libre,
+  // refinamiento opcional (nunca requerido para encontrar costo).
+  paisId String?
+  pais   Pais?   @relation(fields: [paisId], references: [id])
+
+  estadoProvinciaId String?
+  estadoProvincia   EstadoProvincia? @relation(fields: [estadoProvinciaId], references: [id])
+
+  ciudad String?
+
   @@index([cotizacionId])
+  @@index([estadoProvinciaId])
 }
 
 // Cumplimiento cuando Cotizacion.tipoCumplimiento = SERVICIO — espejo de
@@ -1255,8 +1268,9 @@ model Transportista {
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  entregas           EntregaPedido[]
-  entregasCotizacion EntregaCotizacion[]
+  entregas            EntregaPedido[]
+  entregasCotizacion  EntregaCotizacion[]
+  coberturaGeografica TransportistaCoberturaGeografica[]
 
   @@index([instanciaId])
 }
@@ -1279,7 +1293,19 @@ model EntregaPedido {
   transportistaId String?
   transportista   Transportista? @relation(fields: [transportistaId], references: [id])
 
+  // 019-cobertura-geografica-envios — mismo criterio que EntregaCotizacion;
+  // generar-pedido-desde-cotizacion.service.ts copia estos 3 campos igual
+  // que ya copia transportistaId/metodoEntrega.
+  paisId String?
+  pais   Pais?   @relation(fields: [paisId], references: [id])
+
+  estadoProvinciaId String?
+  estadoProvincia   EstadoProvincia? @relation(fields: [estadoProvinciaId], references: [id])
+
+  ciudad String?
+
   @@index([pedidoId])
+  @@index([estadoProvinciaId])
 }
 
 // Cumplimiento cuando Pedido.tipoCumplimiento = SERVICIO — espejo de
@@ -1641,6 +1667,15 @@ model ConfiguracionEmpresa {
   activo            Boolean  @default(true)
   creadoEn          DateTime @default(now())
   actualizadoEn     DateTime @updatedAt
+
+  // 019-cobertura-geografica-envios — determina si cotización/pedido piden
+  // país o no (FR-011/FR-012). Default MULTIPAIS solo aplica a instancias
+  // nuevas sin `pais` (texto libre, arriba) cargado — la migración de datos
+  // de esta feature resuelve `pais` contra el catálogo para instancias
+  // existentes (data-model.md "Nota de migración").
+  modoGeografico  ModoGeografico @default(MULTIPAIS)
+  paisOperacionId String?
+  paisOperacion   Pais?          @relation(fields: [paisOperacionId], references: [id])
 
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -2272,12 +2307,16 @@ model SeleccionEstrategiaLog {
 // geográfico completo).
 
 model MetodoEntregaConfig {
-  id               String        @id @default(cuid())
+  id               String                @id @default(cuid())
   metodoEntrega    MetodoEntrega
-  activo           Boolean       @default(true)
-  costoBase        Decimal       @default(0)
+  activo           Boolean               @default(true)
+  costoBase        Decimal               @default(0)
   diasEstimadosMin Int?
   diasEstimadosMax Int?
+  // 019-cobertura-geografica-envios — solo tiene efecto observable para
+  // métodos de delivery propio (no COURIER_EXTERNO); default conservador
+  // (favorece revisión humana) igual criterio que gate.ts (spec 016).
+  modoCobertura    ModoCoberturaDelivery @default(SOLO_ZONAS_EVALUADAS)
 
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -2305,6 +2344,11 @@ model ZonaCoberturaMetodo {
   cubierta        Boolean @default(true)
   costoAdicional  Decimal @default(0)
   diasAdicionales Int     @default(0)
+  // 019-cobertura-geografica-envios — excepción explícita cuando el método
+  // está en modo TODOS_LADOS_CON_EXCEPCIONES. Mutuamente excluyente con
+  // `cubierta = true` (regla de negocio validada en el action, no aquí —
+  // ver data-model.md).
+  esExcepcion     Boolean @default(false)
 
   zonaCoberturaId String
   zonaCobertura   ZonaCobertura @relation(fields: [zonaCoberturaId], references: [id], onDelete: Cascade)
@@ -2325,6 +2369,80 @@ model UbicacionRetiro {
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
   @@index([instanciaId, activo])
+}
+
+// --- 019-cobertura-geografica-envios ---
+// Catálogo global de referencia (no pertenece a ninguna instancia) — sembrado
+// vía scripts/seed-geografia.ts, nunca editado a mano por un negocio.
+
+enum ModoCoberturaDelivery {
+  TODOS_LADOS_CON_EXCEPCIONES
+  SOLO_ZONAS_EVALUADAS
+}
+
+enum ModoGeografico {
+  UN_SOLO_PAIS
+  MULTIPAIS
+}
+
+model Pais {
+  id String @id @default(cuid())
+
+  // ISO 3166-1 alpha-2 — usado para match/FK (único)
+  codigo               String  @unique
+  codigoAlpha3         String?
+  nombre               String
+  indicativoTelefonico String?
+  banderaEmoji         String?
+
+  estados                EstadoProvincia[]
+  coberturas             TransportistaCoberturaGeografica[]
+  configuracionesEmpresa ConfiguracionEmpresa[]
+  cotizacionesEntrega    EntregaCotizacion[]
+  pedidosEntrega         EntregaPedido[]
+
+  @@index([nombre])
+}
+
+model EstadoProvincia {
+  id String @id @default(cuid())
+
+  // ISO 3166-2 si existe — presentacional, no usado para match
+  codigo String?
+  nombre String
+
+  paisId String
+  pais   Pais   @relation(fields: [paisId], references: [id], onDelete: Cascade)
+
+  coberturas          TransportistaCoberturaGeografica[]
+  cotizacionesEntrega EntregaCotizacion[]
+  pedidosEntrega      EntregaPedido[]
+
+  @@unique([paisId, nombre])
+  @@index([paisId])
+}
+
+// Zona de cobertura de un transportista concreto, por país + estado/provincia
+// — el costo es el costo final para esa zona con ese transportista, no un
+// adicional (research.md Decisión 1).
+model TransportistaCoberturaGeografica {
+  id            String   @id @default(cuid())
+  costoEnvio    Decimal
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  transportistaId String
+  transportista   Transportista @relation(fields: [transportistaId], references: [id], onDelete: Cascade)
+
+  paisId String
+  pais   Pais   @relation(fields: [paisId], references: [id])
+
+  estadoProvinciaId String
+  estadoProvincia   EstadoProvincia @relation(fields: [estadoProvinciaId], references: [id])
+
+  @@unique([transportistaId, estadoProvinciaId])
+  @@index([transportistaId])
 }
 
 // --- 016-niveles-autonomia-automatizacion ---

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -15,6 +15,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { SelectorPais } from "@/shared/entregas/components/selector-pais";
+import { SelectorEstadoProvincia } from "@/shared/entregas/components/selector-estado-provincia";
+import { obtenerModoGeograficoAction } from "@/configuracion/empresa/actions";
+import { obtenerCostoSugerido } from "@/shared/entregas/actions";
 import { actualizarEntregaPedido } from "../actions";
 import { ActualizarEntregaPedidoSchema, type ActualizarEntregaPedidoInput } from "../schema";
 import type { Transportista } from "@/sales/transportistas/types";
@@ -45,6 +49,10 @@ interface EntregaActual {
   urlSeguimiento?: string | null;
   fechaEstimada?: Date | string | null;
   observaciones?: string | null;
+  // 019-cobertura-geografica-envios
+  paisId?: string | null;
+  estadoProvinciaId?: string | null;
+  ciudad?: string | null;
 }
 
 interface FormEntregaProps {
@@ -72,6 +80,9 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
         : null,
       observaciones:   entrega?.observaciones ?? "",
       costoEnvio,
+      paisId:            entrega?.paisId ?? null,
+      estadoProvinciaId: entrega?.estadoProvinciaId ?? null,
+      ciudad:            entrega?.ciudad ?? "",
     },
   });
 
@@ -90,6 +101,42 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
   const transportistasFiltrados = transportistas.filter(
     (t) => t.activo && t.tipo === metodoSeleccionado
   );
+
+  // 019-cobertura-geografica-envios — FR-011/FR-012
+  const [modoGeografico, setModoGeografico] = useState<{ modoGeografico: "UN_SOLO_PAIS" | "MULTIPAIS"; paisOperacionId: string | null } | null>(null);
+  useEffect(() => {
+    obtenerModoGeograficoAction().then(setModoGeografico);
+  }, []);
+  const [sugiriendoCosto, setSugiriendoCosto] = useState(false);
+  const paisEntregaId = form.watch("paisId");
+  const estadoProvinciaEntregaId = form.watch("estadoProvinciaId");
+  const transportistaIdSeleccionado = form.watch("transportistaId");
+
+  async function sugerirCostoEnvio() {
+    if (!estadoProvinciaEntregaId) {
+      toast.error("Elige un estado/provincia primero");
+      return;
+    }
+    setSugiriendoCosto(true);
+    try {
+      const resultado = await obtenerCostoSugerido({
+        estadoProvinciaId: estadoProvinciaEntregaId,
+        paisId: paisEntregaId,
+        metodoEntrega: metodoSeleccionado,
+        transportistaId: transportistaIdSeleccionado,
+      });
+      if (resultado.ambiguo) {
+        toast.error("Hay más de un costo configurado para esa ubicación — ingrésalo manualmente");
+      } else if (!resultado.cubierto || resultado.costo === null) {
+        toast.error("Sin costo configurado para esa ubicación");
+      } else {
+        form.setValue("costoEnvio", resultado.costo);
+        toast.success(`Costo sugerido: ${resultado.costo.toFixed(2)}`);
+      }
+    } finally {
+      setSugiriendoCosto(false);
+    }
+  }
 
   return (
     <Form {...form}>
@@ -190,6 +237,53 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
           </p>
         )}
 
+        {/* 019-cobertura-geografica-envios — ubicación de destino; país solo
+            se pide en modo MULTIPAIS (FR-011/FR-012). */}
+        <div className="grid grid-cols-3 gap-4">
+          {modoGeografico?.modoGeografico === "MULTIPAIS" && (
+            <FormField
+              control={form.control}
+              name="paisId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>País</FormLabel>
+                  <FormControl>
+                    <SelectorPais value={field.value ?? null} onChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          )}
+          <FormField
+            control={form.control}
+            name="estadoProvinciaId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Provincia / Estado</FormLabel>
+                <FormControl>
+                  <SelectorEstadoProvincia
+                    paisId={modoGeografico?.modoGeografico === "UN_SOLO_PAIS" ? modoGeografico.paisOperacionId : paisEntregaId ?? null}
+                    value={field.value ?? null}
+                    onChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="ciudad"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Ciudad <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                <FormControl>
+                  <Input placeholder="Ciudad" {...field} value={field.value ?? ""} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -230,9 +324,14 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
           render={({ field }) => (
             <FormItem>
               <FormLabel>Costo de envío</FormLabel>
-              <FormControl>
-                <DecimalInput value={field.value ?? 0} onChange={field.onChange} />
-              </FormControl>
+              <div className="flex gap-2">
+                <FormControl>
+                  <DecimalInput value={field.value ?? 0} onChange={field.onChange} />
+                </FormControl>
+                <Button type="button" variant="outline" size="sm" disabled={sugiriendoCosto} onClick={sugerirCostoEnvio}>
+                  Sugerir
+                </Button>
+              </div>
               <p className="text-[11px] text-muted-foreground">Se suma al total del pedido, no cuenta como ganancia en reportes</p>
               <FormMessage />
             </FormItem>

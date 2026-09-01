@@ -122,7 +122,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     // Solo se registra el bloque de cumplimiento si el usuario realmente
     // tocó algo de esa sección Y coincide con el tipo resuelto — evita crear
     // una fila vacía por defecto, o de un bloque que no corresponde.
-    const hayEntrega = tipoCumplimiento === "FISICO" && entrega && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId);
+    const hayEntrega = tipoCumplimiento === "FISICO" && entrega && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId || entrega.estadoProvinciaId);
     const hayServicio = tipoCumplimiento === "SERVICIO" && servicio && (servicio.modalidad || servicio.fecha || servicio.hora || servicio.duracion || servicio.ubicacion || servicio.direccion || servicio.responsable || servicio.instrucciones || servicio.observaciones);
 
     // Plantillas de entrega digital por producto — solo si esta cotización
@@ -171,6 +171,10 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
             transportistaId: entrega!.transportistaId || null,
             fechaEstimada: entrega!.fechaEstimada || null,
             observaciones: entrega!.observaciones || null,
+            // 019-cobertura-geografica-envios
+            paisId: entrega!.paisId || null,
+            estadoProvinciaId: entrega!.estadoProvinciaId || null,
+            ciudad: entrega!.ciudad || null,
           },
         } : undefined,
         servicio: hayServicio ? {
@@ -242,13 +246,17 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
     }
 
     if (entrega !== undefined) {
-      const hayEntrega = tipoCumplimiento === "FISICO" && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId);
+      const hayEntrega = tipoCumplimiento === "FISICO" && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId || entrega.estadoProvinciaId);
       const datosEntrega = {
         metodoEntrega: entrega.metodoEntrega || "COURIER_EXTERNO",
         estadoEntrega: entrega.estadoEntrega || "PENDIENTE",
         transportistaId: entrega.transportistaId || null,
         fechaEstimada: entrega.fechaEstimada || null,
         observaciones: entrega.observaciones || null,
+        // 019-cobertura-geografica-envios
+        paisId: entrega.paisId || null,
+        estadoProvinciaId: entrega.estadoProvinciaId || null,
+        ciudad: entrega.ciudad || null,
       };
       updateData.entrega = hayEntrega ? {
         upsert: { create: datosEntrega, update: datosEntrega },
@@ -660,6 +668,7 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
   const entregaGuardada = (cotizacion as any).entrega as {
     metodoEntrega: string; estadoEntrega: string; transportistaId: string | null;
     fechaEstimada: Date | string | null; observaciones: string | null;
+    paisId: string | null; estadoProvinciaId: string | null; ciudad: string | null;
   } | null;
 
   const defaultValues: Partial<CrearCotizacionInput> = {
@@ -682,6 +691,9 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
       transportistaId: entregaGuardada?.transportistaId ?? null,
       fechaEstimada: entregaGuardada?.fechaEstimada ? new Date(entregaGuardada.fechaEstimada) : undefined,
       observaciones: entregaGuardada?.observaciones ?? "",
+      paisId: entregaGuardada?.paisId ?? null,
+      estadoProvinciaId: entregaGuardada?.estadoProvinciaId ?? null,
+      ciudad: entregaGuardada?.ciudad ?? "",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       costoEnvio: Number((cotizacion as any).costoEnvio ?? 0),
     } as CrearCotizacionInput["entrega"],

@@ -20,6 +20,9 @@ export interface ConfigEmpresa {
   formatoFecha: string;
   formatoHora: string;
   activo: boolean;
+  // 019-cobertura-geografica-envios
+  modoGeografico: "UN_SOLO_PAIS" | "MULTIPAIS";
+  paisOperacionId: string | null;
   instanciaId: string;
   creadoEn: Date;
   actualizadoEn: Date;

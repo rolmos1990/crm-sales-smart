@@ -22,3 +22,15 @@ export const ConfiguracionEmpresaSchema = z.object({
 });
 
 export type ConfiguracionEmpresaInput = z.infer<typeof ConfiguracionEmpresaSchema>;
+
+// 019-cobertura-geografica-envios — FR-010/FR-011/FR-012
+export const ConfiguracionGeograficaSchema = z
+  .object({
+    modoGeografico: z.enum(["UN_SOLO_PAIS", "MULTIPAIS"]),
+    paisOperacionId: z.string().optional().nullable(),
+  })
+  .refine((datos) => datos.modoGeografico !== "UN_SOLO_PAIS" || !!datos.paisOperacionId, {
+    message: "Debes elegir el país de operación en modo 'un solo país'",
+    path: ["paisOperacionId"],
+  });
+export type ConfiguracionGeograficaInput = z.infer<typeof ConfiguracionGeograficaSchema>;

@@ -133,6 +133,15 @@ export async function TabIA({ instanciaId }: TabIAProps) {
               costoBase: Number(m.costoBase),
               diasEstimadosMin: m.diasEstimadosMin,
               diasEstimadosMax: m.diasEstimadosMax,
+              // 019-cobertura-geografica-envios
+              modoCobertura: m.modoCobertura,
+              zonas: m.zonas.map((z) => ({
+                id: z.id,
+                zonaCoberturaId: z.zonaCoberturaId,
+                zonaNombre: z.zonaCobertura.nombre,
+                cubierta: z.cubierta,
+                esExcepcion: z.esExcepcion,
+              })),
             }))}
             zonasIniciales={zonasCobertura}
             ubicacionesIniciales={ubicacionesRetiro}

@@ -23,6 +23,7 @@ import {
 import { PhoneInput, PHONE_COUNTRIES } from "@/components/ui/phone-input";
 import { ConfiguracionEmpresaSchema, type ConfiguracionEmpresaInput } from "@/configuracion/empresa/schema";
 import { guardarConfiguracionEmpresa } from "@/configuracion/empresa/actions";
+import { SeccionModoGeografico } from "@/configuracion/empresa/components/seccion-modo-geografico";
 import type { ConfigEmpresa } from "@/configuracion/empresa/types";
 import { MONEDAS } from "@/shared/moneda/constants";
 
@@ -416,6 +417,15 @@ export function TabEmpresa({ instanciaId, inicial }: TabEmpresaProps) {
           </Button>
         </div>
       </form>
+
+      {/* 019-cobertura-geografica-envios — formulario independiente, no
+          forma parte de ConfiguracionEmpresaSchema/guardarConfiguracionEmpresa. */}
+      <div className="max-w-3xl">
+        <SeccionModoGeografico
+          modoGeograficoInicial={inicial?.modoGeografico ?? "MULTIPAIS"}
+          paisOperacionIdInicial={inicial?.paisOperacionId ?? null}
+        />
+      </div>
     </Form>
   );
 }

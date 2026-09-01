@@ -140,6 +140,10 @@ export async function generarPedidoDesdeCotizacion(
             transportistaId: cotizacion.entrega.transportistaId,
             fechaEstimada:   cotizacion.entrega.fechaEstimada,
             observaciones:   cotizacion.entrega.observaciones,
+            // 019-cobertura-geografica-envios
+            paisId:            cotizacion.entrega.paisId,
+            estadoProvinciaId: cotizacion.entrega.estadoProvinciaId,
+            ciudad:            cotizacion.entrega.ciudad,
             // La cotización no captura número de guía ni URL de seguimiento
             // (todavía no existen a esa altura) — quedan vacíos en el
             // pedido, listos para completarse ahí.

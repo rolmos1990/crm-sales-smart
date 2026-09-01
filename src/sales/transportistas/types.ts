@@ -1,6 +1,10 @@
 import type { TransportistaModel } from "@/generated/prisma/models/Transportista";
+import type { TransportistaCoberturaGeograficaModel } from "@/generated/prisma/models/TransportistaCoberturaGeografica";
 
 export type Transportista = TransportistaModel;
+
+// 019-cobertura-geografica-envios
+export type TransportistaCoberturaGeografica = TransportistaCoberturaGeograficaModel;
 
 export type ResultadoAccion<T = void> =
   | { exito: true; data?: T }

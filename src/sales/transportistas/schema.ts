@@ -19,3 +19,13 @@ export const EditarTransportistaSchema = CrearTransportistaSchema.extend({
 
 export type CrearTransportistaInput = z.infer<typeof CrearTransportistaSchema>;
 export type EditarTransportistaInput = z.infer<typeof EditarTransportistaSchema>;
+
+// 019-cobertura-geografica-envios
+export const CoberturaGeograficaSchema = z.object({
+  transportistaId: z.string().min(1),
+  paisId: z.string().min(1),
+  estadoProvinciaId: z.string().min(1),
+  costoEnvio: z.number().min(0, "El costo de envío debe ser mayor o igual a 0"),
+  activo: z.boolean().default(true),
+});
+export type CoberturaGeograficaInput = z.infer<typeof CoberturaGeograficaSchema>;

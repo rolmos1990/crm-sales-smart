@@ -22,4 +22,9 @@ export const queryKeys = {
   tags: {
     all: () => ["tags"] as const,
   },
+  geografia: {
+    paises: () => ["geografia", "paises"] as const,
+    estados: (paisId: string) => ["geografia", "estados", paisId] as const,
+    modo: () => ["geografia", "modo"] as const,
+  },
 } as const;
