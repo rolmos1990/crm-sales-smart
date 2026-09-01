@@ -17,6 +17,7 @@ const autonomiaUpsertMock = vi.fn();
 const transactionMock = vi.fn((ops: unknown[]) => Promise.all(ops));
 const pendienteFindFirstMock = vi.fn();
 const pendienteUpdateMock = vi.fn();
+const evaluacionCreateMock = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
@@ -25,6 +26,9 @@ vi.mock("@/shared/db/prisma", () => ({
     respuestaPendienteRevision: {
       findFirst: (...a: unknown[]) => pendienteFindFirstMock(...a),
       update: (...a: unknown[]) => pendienteUpdateMock(...a),
+    },
+    evaluacionRespuestaIA: {
+      create: (...a: unknown[]) => evaluacionCreateMock(...a),
     },
     $transaction: (ops: unknown[]) => transactionMock(ops),
   },
@@ -37,6 +41,7 @@ const {
   enviarRespuestaPendiente,
   editarYEnviarRespuestaPendiente,
   descartarRespuestaPendiente,
+  agregarEvaluacion,
 } = await import("./actions");
 
 describe("autonomia/actions (016)", () => {
@@ -48,6 +53,7 @@ describe("autonomia/actions (016)", () => {
     transactionMock.mockClear();
     pendienteFindFirstMock.mockReset();
     pendienteUpdateMock.mockReset();
+    evaluacionCreateMock.mockReset();
   });
 
   describe("guardarAutonomiaIntencionConfig", () => {
@@ -106,6 +112,37 @@ describe("autonomia/actions (016)", () => {
     it("respuesta pendiente ya resuelta (no PENDIENTE): rechazada", async () => {
       pendienteFindFirstMock.mockResolvedValue(null);
       const resultado = await enviarRespuestaPendiente("p1");
+      expect(resultado.exito).toBe(false);
+    });
+  });
+
+  describe("agregarEvaluacion (017, Historia 2)", () => {
+    it("permite más de una evaluación para el mismo registro, ninguna se pierde (research.md Decisión 4)", async () => {
+      pendienteFindFirstMock.mockResolvedValue({ id: "reg-1" });
+      evaluacionCreateMock.mockReset()
+        .mockResolvedValueOnce({ id: "eval-1" })
+        .mockResolvedValueOnce({ id: "eval-2" });
+
+      const primera = await agregarEvaluacion({ respuestaId: "reg-1", calificacion: "BUENA" });
+      const segunda = await agregarEvaluacion({ respuestaId: "reg-1", calificacion: "NECESITA_MEJORA", comentario: "Faltó calidez" });
+
+      expect(primera.exito).toBe(true);
+      expect(segunda.exito).toBe(true);
+      expect(evaluacionCreateMock).toHaveBeenCalledTimes(2);
+      // Ninguna llamada usa `update` sobre una evaluación existente — cada una es un `create` independiente.
+      expect(evaluacionCreateMock.mock.calls[0][0].data.calificacion).toBe("BUENA");
+      expect(evaluacionCreateMock.mock.calls[1][0].data.calificacion).toBe("NECESITA_MEJORA");
+    });
+
+    it("rechaza un respuestaId de otra instancia", async () => {
+      pendienteFindFirstMock.mockResolvedValue(null);
+      const resultado = await agregarEvaluacion({ respuestaId: "reg-otro", calificacion: "BUENA" });
+      expect(resultado.exito).toBe(false);
+      expect(evaluacionCreateMock).not.toHaveBeenCalled();
+    });
+
+    it("rechaza datos inválidos", async () => {
+      const resultado = await agregarEvaluacion({ respuestaId: "reg-1", calificacion: "EXCELENTE" });
       expect(resultado.exito).toBe(false);
     });
   });

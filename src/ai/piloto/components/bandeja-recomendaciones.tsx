@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Loader2, Check, X, FileText, BookOpen, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   obtenerRecomendacionesAction,
   ejecutarAnalisisPilotoAction,
@@ -36,6 +37,8 @@ interface BandejaRecomendacionesProps {
 
 export function BandejaRecomendaciones({ agenteIAConfigId }: BandejaRecomendacionesProps) {
   const [recomendaciones, setRecomendaciones] = useState<Recomendacion[] | null>(null);
+  // 017-aprendizaje-supervisado-auditoria (Historia 3)
+  const [incluirCorrecciones, setIncluirCorrecciones] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   async function recargar() {
@@ -49,7 +52,7 @@ export function BandejaRecomendaciones({ agenteIAConfigId }: BandejaRecomendacio
 
   function handleAnalizar() {
     startTransition(async () => {
-      const resultado = await ejecutarAnalisisPilotoAction(agenteIAConfigId);
+      const resultado = await ejecutarAnalisisPilotoAction(agenteIAConfigId, { incluirCorreccionesRecientes: incluirCorrecciones });
       if (!resultado.exito) {
         toast.error(resultado.error);
         return;
@@ -80,12 +83,18 @@ export function BandejaRecomendaciones({ agenteIAConfigId }: BandejaRecomendacio
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Recomendaciones de comportamiento</p>
-        <Button type="button" size="sm" onClick={handleAnalizar} disabled={isPending} className="bg-lime-500/90 text-stone-950 hover:bg-lime-400 font-semibold">
-          {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Ejecutar análisis
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-stone-400 cursor-pointer">
+            <Checkbox checked={incluirCorrecciones} onCheckedChange={(v) => setIncluirCorrecciones(v === true)} />
+            Incluir correcciones recientes
+          </label>
+          <Button type="button" size="sm" onClick={handleAnalizar} disabled={isPending} className="bg-lime-500/90 text-stone-950 hover:bg-lime-400 font-semibold">
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Ejecutar análisis
+          </Button>
+        </div>
       </div>
 
       {recomendaciones === null ? (

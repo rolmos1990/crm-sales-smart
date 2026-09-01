@@ -18,6 +18,7 @@ import {
 } from "@/configuracion/entregas/queries";
 import { ListaConversacionesPiloto } from "@/ai/piloto/components/lista-conversaciones-piloto";
 import { BandejaRecomendaciones } from "@/ai/piloto/components/bandeja-recomendaciones";
+import { VistaAuditoria } from "@/ai/autonomia/components/vista-auditoria";
 
 interface TabIAProps {
   instanciaId: string;
@@ -146,6 +147,14 @@ export async function TabIA({ instanciaId }: TabIAProps) {
         </h3>
         <ListaConversacionesPiloto />
         <BandejaRecomendaciones />
+      </section>
+
+      {/* Auditoría de respuestas (017-aprendizaje-supervisado-auditoria) */}
+      <section className="flex flex-col gap-4">
+        <h3 className="text-sm font-semibold text-stone-200 uppercase tracking-wide">
+          Auditoría de respuestas IA
+        </h3>
+        <VistaAuditoria />
       </section>
     </div>
   );

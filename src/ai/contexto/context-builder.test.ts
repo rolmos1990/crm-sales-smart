@@ -3,7 +3,7 @@ import { construirSystemPrompt, type ConfigAgenteParaPrompt } from "@/ai/prompt/
 
 const producirCapaEstrategiaMock = vi.fn();
 const producirCapaPerfilClienteMock = vi.fn();
-const producirCapaEjemplosPilotoMock = vi.fn().mockResolvedValue(null);
+const producirCapaEjemplosPilotoMock = vi.fn().mockResolvedValue({ texto: null, ejemplosIds: [] });
 
 vi.mock("./capas/estrategia-activa", () => ({
   producirCapaEstrategia: (...a: unknown[]) => producirCapaEstrategiaMock(...a),
@@ -29,7 +29,7 @@ describe("construirContextoCompuesto (013, Historia 1 — retrocompatibilidad)",
   beforeEach(() => {
     producirCapaEstrategiaMock.mockReset();
     producirCapaPerfilClienteMock.mockReset();
-    producirCapaEjemplosPilotoMock.mockReset().mockResolvedValue(null);
+    producirCapaEjemplosPilotoMock.mockReset().mockResolvedValue({ texto: null, ejemplosIds: [] });
   });
 
   it("sin agenteIAConfigId ni contactoId, el systemPrompt es idéntico al de construirSystemPrompt directo (SC-001)", async () => {
@@ -60,7 +60,7 @@ describe("construirContextoCompuesto (013, Historia 2 — estrategia y perfil re
   beforeEach(() => {
     producirCapaEstrategiaMock.mockReset();
     producirCapaPerfilClienteMock.mockReset();
-    producirCapaEjemplosPilotoMock.mockReset().mockResolvedValue(null);
+    producirCapaEjemplosPilotoMock.mockReset().mockResolvedValue({ texto: null, ejemplosIds: [] });
   });
 
   it("incluye el texto de la estrategia seleccionada y expone su metadata", async () => {
@@ -129,7 +129,7 @@ describe("construirContextoCompuesto (013, Historia 2 — estrategia y perfil re
   it("014 — incluye el contenido de la capa de ejemplos piloto cuando la capa produce texto", async () => {
     producirCapaEstrategiaMock.mockResolvedValue({ texto: null, estrategiaSeleccionada: null });
     producirCapaPerfilClienteMock.mockResolvedValue(null);
-    producirCapaEjemplosPilotoMock.mockResolvedValue("Ejemplos de referencia de conversaciones anteriores:\nEjemplo 1:\nuser: hola\nassistant: hola, ¿en qué te ayudo?");
+    producirCapaEjemplosPilotoMock.mockResolvedValue({ texto: "Ejemplos de referencia de conversaciones anteriores:\nEjemplo 1:\nuser: hola\nassistant: hola, ¿en qué te ayudo?", ejemplosIds: ["ej-1"] });
 
     const resultado = await construirContextoCompuesto(
       { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
@@ -137,5 +137,6 @@ describe("construirContextoCompuesto (013, Historia 2 — estrategia y perfil re
     );
 
     expect(resultado.systemPrompt).toContain("Ejemplos de referencia de conversaciones anteriores");
+    expect(resultado.ejemplosUtilizadosIds).toEqual(["ej-1"]);
   });
 });

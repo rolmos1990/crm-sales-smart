@@ -37,6 +37,10 @@ function normalizarTexto(texto: string): string {
 export async function ejecutarAnalisisPiloto(
   instanciaId: string,
   agenteIAConfigId?: string,
+  // 017-aprendizaje-supervisado-auditoria (Historia 3) — research.md
+  // Decisión 5: reutiliza este mismo mecanismo para correcciones, sin
+  // ninguna ruta nueva de escritura hacia AgenteIAConfig.
+  opciones?: { incluirCorreccionesRecientes?: boolean },
 ): Promise<{ exito: true; recomendacionesGeneradas: number } | { exito: false; error: string }> {
   try {
     const conversacionesPiloto = await prisma.conversacionPiloto.findMany({
@@ -44,7 +48,11 @@ export async function ejecutarAnalisisPiloto(
       select: { id: true, clasificacion: true, explicacion: true, contenidoAnonimizado: true },
     });
 
-    if (conversacionesPiloto.length === 0) {
+    const correcciones = opciones?.incluirCorreccionesRecientes
+      ? await (await import("@/ai/autonomia/queries")).listarCorreccionesRecientes(instanciaId, agenteIAConfigId)
+      : [];
+
+    if (conversacionesPiloto.length === 0 && correcciones.length === 0) {
       return { exito: true, recomendacionesGeneradas: 0 };
     }
 
@@ -63,13 +71,23 @@ export async function ejecutarAnalisisPiloto(
       ? `\n\nRecomendaciones ya rechazadas (no las repitas de forma equivalente):\n${rechazadas.map((r) => `- ${r.reglaSugerida}`).join("\n")}`
       : "";
 
+    // 017-aprendizaje-supervisado-auditoria (Historia 3) — correcciones
+    // humanas recientes (respuestas propuestas por la IA que un humano
+    // editó antes de enviar) como contexto adicional del análisis.
+    const bloqueCorrecciones = correcciones.length > 0
+      ? "\n\nCorrecciones humanas recientes (la IA propuso, un humano editó antes de enviar):\n" +
+        correcciones
+          .map((c, i) => `Corrección ${i + 1}:\nCliente: ${c.mensajeCliente}\nPropuesta por la IA: ${c.respuestaPropuesta}\nEnviada finalmente: ${c.respuestaEditada}`)
+          .join("\n\n")
+      : "";
+
     const respuesta = await generarRespuesta({
       instanciaId,
       agenteIAConfigId,
       tarea: "REPORTE",
       mensajes: [
         { rol: "system", contenido: INSTRUCCION_ANALISIS },
-        { rol: "user", contenido: bloqueEjemplos + bloqueRechazadas },
+        { rol: "user", contenido: bloqueEjemplos + bloqueRechazadas + bloqueCorrecciones },
       ],
       entidadTipo: "instancia",
       entidadId: instanciaId,

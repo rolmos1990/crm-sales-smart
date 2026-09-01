@@ -139,12 +139,15 @@ export async function excluirDePerfil(id: string): Promise<Resultado> {
 
 // Historia 2 — recomendaciones.
 
-export async function ejecutarAnalisisPilotoAction(agenteIAConfigId?: string): Promise<Resultado<{ recomendacionesGeneradas: number }>> {
+export async function ejecutarAnalisisPilotoAction(
+  agenteIAConfigId?: string,
+  opciones?: { incluirCorreccionesRecientes?: boolean },
+): Promise<Resultado<{ recomendacionesGeneradas: number }>> {
   const auth = await requirePermisoAction("ia", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
 
   const { ejecutarAnalisisPiloto } = await import("./analizador");
-  const resultado = await ejecutarAnalisisPiloto(auth.sesion.instanciaId, agenteIAConfigId);
+  const resultado = await ejecutarAnalisisPiloto(auth.sesion.instanciaId, agenteIAConfigId, opciones);
   if (!resultado.exito) return { exito: false, error: resultado.error };
 
   revalidatePath("/configuracion");

@@ -68,9 +68,15 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
       : [];
 
     let contenidoFinal: string;
+    // 017-aprendizaje-supervisado-auditoria — metadata de trazabilidad
+    // acumulada durante la generación, para el registro de la respuesta.
+    let usoIAId: string | undefined;
+    let herramientasEjecutadas: string[] = [];
+    let motivoTransferencia: string | undefined;
+    let productoIdentificadoId: string | undefined;
 
     if (herramientasPermitidas.length > 0) {
-      contenidoFinal = await ejecutarConTools({
+      const resultadoTools = await ejecutarConTools({
         instanciaId,
         agenteId,
         conversacionId,
@@ -80,6 +86,11 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
         mensajesBase,
         generarConHerramientas,
       });
+      contenidoFinal = resultadoTools.contenido;
+      usoIAId = resultadoTools.usoIAId;
+      herramientasEjecutadas = resultadoTools.herramientasEjecutadas;
+      motivoTransferencia = resultadoTools.motivoTransferencia;
+      productoIdentificadoId = resultadoTools.productoIdentificadoId;
     } else {
       // Sin herramientas: flujo original
       const respuesta = await generarRespuesta({
@@ -98,6 +109,7 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
         entidadId: conversacionId,
       });
       contenidoFinal = respuesta.contenido;
+      usoIAId = respuesta.usoIAId;
     }
 
     // 016-niveles-autonomia-automatizacion — gate de autonomía antes de
@@ -108,17 +120,18 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
     const { obtenerAutonomiaPorAgente } = await import("@/ai/autonomia/queries");
     const { clasificarCategoriaIntencion } = await import("@/ai/autonomia/clasificador");
     const { decidirAutonomia } = await import("@/ai/autonomia/gate");
-    const { crearRespuestaPendiente } = await import("@/ai/autonomia/actions");
+    const { ensamblarYPersistirRegistro } = await import("@/ai/autonomia/registro");
 
     const configsAutonomia = agenteId ? await obtenerAutonomiaPorAgente(agenteId) : null;
+    const ultimoMensajeCliente = (await obtenerUltimoMensajeCliente(conversacionId)) ?? "";
 
     let decision: import("@/ai/autonomia/tipos").DecisionAutonomia = {
       accion: "ENVIAR",
       motivo: "Sin configuración de autonomía — comportamiento por defecto",
     };
+    let confianzaDetectada: number | undefined;
 
     if (configsAutonomia !== null) {
-      const ultimoMensajeCliente = await obtenerUltimoMensajeCliente(conversacionId);
       const clasificacion = ultimoMensajeCliente
         ? await clasificarCategoriaIntencion(ultimoMensajeCliente, instanciaId)
         : null;
@@ -134,7 +147,26 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
       }
 
       decision = decidirAutonomia(configsAutonomia, clasificacion, perfilCliente);
+      confianzaDetectada = clasificacion?.categorias.find((c) => c.categoria === decision.categoriaAplicada)?.confianza;
     }
+
+    // 017-aprendizaje-supervisado-auditoria — metadata común a ambos
+    // caminos del registro (ENVIADA_AUTOMATICAMENTE y PENDIENTE); FR-010:
+    // ensamblarYPersistirRegistro nunca propaga un error.
+    const datosRegistroComunes = {
+      instanciaId,
+      agenteIAConfigId: agenteId ?? "",
+      conversacionId,
+      mensajeCliente: ultimoMensajeCliente,
+      categoriaDetectada: decision.categoriaAplicada,
+      usoIAId,
+      estrategiaUtilizadaId: contexto.estrategiaSeleccionada?.id,
+      ejemplosUtilizadosIds: contexto.ejemplosUtilizadosIds,
+      herramientasEjecutadas,
+      confianza: confianzaDetectada,
+      motivoTransferencia,
+      productoIdentificadoId,
+    };
 
     if (decision.accion === "NO_GENERAR") {
       console.log(
@@ -145,14 +177,12 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
 
     if (decision.accion === "PENDIENTE") {
       if (agenteId) {
-        await crearRespuestaPendiente({
-          instanciaId,
+        await ensamblarYPersistirRegistro({
+          ...datosRegistroComunes,
           agenteIAConfigId: agenteId,
-          conversacionId,
-          categoriaDetectada: decision.categoriaAplicada,
-          mensajeCliente: (await obtenerUltimoMensajeCliente(conversacionId)) ?? "",
           respuestaPropuesta: contenidoFinal,
-          motivoPendiente: decision.motivo,
+          estadoInicial: "PENDIENTE",
+          motivo: decision.motivo,
         });
       }
       console.log(`[GenerarRespuestaIA] Respuesta pendiente de revisión — motivo: ${decision.motivo}`);
@@ -175,6 +205,19 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
       console.error(`[GenerarRespuestaIA] Error enviando respuesta: ${resultado.error}`);
     } else {
       console.log(`[GenerarRespuestaIA] Respuesta enviada → mensajeId: ${resultado.mensaje.id}`);
+    }
+
+    // Registro de trazabilidad — solo si la respuesta efectivamente se
+    // generó desde un agente conocido (agenteId); nunca bloquea el envío
+    // ya realizado arriba, sea cual sea el resultado de enviarMensaje.
+    if (agenteId) {
+      await ensamblarYPersistirRegistro({
+        ...datosRegistroComunes,
+        agenteIAConfigId: agenteId,
+        respuestaPropuesta: contenidoFinal,
+        estadoInicial: "ENVIADA_AUTOMATICAMENTE",
+        motivo: decision.motivo,
+      });
     }
   }
 }
@@ -223,7 +266,16 @@ interface EjecutarConToolsParams {
   generarConHerramientas: typeof import("@/ai/gateway/gateway")["generarConHerramientas"];
 }
 
-async function ejecutarConTools(params: EjecutarConToolsParams): Promise<string> {
+interface ResultadoEjecutarConTools {
+  contenido: string;
+  usoIAId: string | undefined;
+  // 017-aprendizaje-supervisado-auditoria
+  herramientasEjecutadas: string[];
+  motivoTransferencia: string | undefined;
+  productoIdentificadoId: string | undefined;
+}
+
+async function ejecutarConTools(params: EjecutarConToolsParams): Promise<ResultadoEjecutarConTools> {
   const { registroHerramientas } = await import("@/ai/tools/registry");
   const { ejecutarHerramienta } = await import("@/ai/tools/executor");
 
@@ -244,6 +296,11 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<string>
     herramientasPermitidas: params.herramientasPermitidas,
   };
 
+  const herramientasEjecutadas: string[] = [];
+  let motivoTransferencia: string | undefined;
+  let productoIdentificadoId: string | undefined;
+  let usoIAId: string | undefined;
+
   for (let i = 0; i < MAX_ITERACIONES_TOOL; i++) {
     const resultado = await params.generarConHerramientas({
       instanciaId: params.instanciaId,
@@ -254,9 +311,10 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<string>
       entidadTipo: "conversacion",
       entidadId: params.conversacionId,
     });
+    usoIAId = resultado.usoIAId;
 
     if (resultado.tipo === "texto") {
-      return resultado.contenido ?? "";
+      return { contenido: resultado.contenido ?? "", usoIAId, herramientasEjecutadas, motivoTransferencia, productoIdentificadoId };
     }
 
     // Hay tool calls — ejecutarlos y agregar al historial
@@ -272,6 +330,23 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<string>
     const toolResults: ContenidoToolResult[] = await Promise.all(
       llamadas.map(async (llamada) => {
         const res = await ejecutarHerramienta(llamada.name, llamada.input, toolCtx);
+        herramientasEjecutadas.push(llamada.name);
+
+        // research.md Decisión 3 — motivo de transferencia de ESTA respuesta.
+        if (llamada.name === "transferir_a_humano" && res.ok) {
+          const motivo = (res.data as Record<string, unknown> | undefined)?.motivo;
+          if (typeof motivo === "string") motivoTransferencia = motivo;
+        }
+        // research.md Decisión 2 — mejor esfuerzo: primer producto que
+        // buscar_productos devolvió, sin inferir cuál es "el" relevante.
+        if (llamada.name === "buscar_productos" && res.ok && !productoIdentificadoId) {
+          const productos = (res.data as Record<string, unknown> | undefined)?.productos;
+          if (Array.isArray(productos) && productos.length > 0) {
+            const primero = productos[0] as Record<string, unknown>;
+            if (typeof primero.id === "string") productoIdentificadoId = primero.id;
+          }
+        }
+
         return {
           type: "tool_result" as const,
           tool_use_id: llamada.id,
@@ -289,5 +364,11 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<string>
 
   // Si se agotaron las iteraciones, devolver fallback
   console.warn(`[GenerarRespuestaIA] Máximo de iteraciones de tool calling alcanzado (${MAX_ITERACIONES_TOOL})`);
-  return "Lo siento, no pude completar tu solicitud en este momento. ¿Puedo ayudarte con algo más?";
+  return {
+    contenido: "Lo siento, no pude completar tu solicitud en este momento. ¿Puedo ayudarte con algo más?",
+    usoIAId,
+    herramientasEjecutadas,
+    motivoTransferencia,
+    productoIdentificadoId,
+  };
 }

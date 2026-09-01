@@ -41,6 +41,9 @@ export interface ContextoCompuesto {
   systemPrompt: string;
   estrategiaSeleccionada: { id: string; nombre: string } | null;
   perfilClienteUsado: boolean;
+  // 017-aprendizaje-supervisado-auditoria — ids de EjemploPrompt usados en
+  // esta generación, para el registro de trazabilidad.
+  ejemplosUtilizadosIds: string[];
 }
 
 interface DatosParaComponer {
@@ -59,7 +62,7 @@ export async function construirContextoCompuesto(
   datos: DatosParaComponer,
 ): Promise<ContextoCompuesto> {
   if (!datos.configAgente) {
-    return { systemPrompt: "", estrategiaSeleccionada: null, perfilClienteUsado: false };
+    return { systemPrompt: "", estrategiaSeleccionada: null, perfilClienteUsado: false, ejemplosUtilizadosIds: [] };
   }
 
   // Capa 5 primero (en cómputo, no en precedencia textual): la capa 4
@@ -86,7 +89,7 @@ export async function construirContextoCompuesto(
 
   // Capas 7-8 siguen reservadas (FR-008 de 013), siempre null. Capa 9
   // (014-conversaciones-piloto-ejemplos-relevantes) ya tiene fuente real.
-  const [capaDatosFaltantes, capaInfoOperativa, capaEjemplosPiloto] = await Promise.all([
+  const [capaDatosFaltantes, capaInfoOperativa, resultadoCapaEjemplosPiloto] = await Promise.all([
     producirCapaDatosConocidosFaltantes(),
     producirCapaInfoOperativa(),
     producirCapaEjemplosPiloto({
@@ -96,7 +99,7 @@ export async function construirContextoCompuesto(
       playbookEstrategiaId: estrategiaSeleccionada?.id,
     }),
   ]);
-  const contenidoReservado = [capaDatosFaltantes, capaInfoOperativa, capaEjemplosPiloto]
+  const contenidoReservado = [capaDatosFaltantes, capaInfoOperativa, resultadoCapaEjemplosPiloto.texto]
     .filter((c): c is string => Boolean(c))
     .join("\n\n");
 
@@ -106,7 +109,12 @@ export async function construirContextoCompuesto(
     contenidoReservado: contenidoReservado || null,
   });
 
-  return { systemPrompt, estrategiaSeleccionada, perfilClienteUsado: perfilCliente !== null };
+  return {
+    systemPrompt,
+    estrategiaSeleccionada,
+    perfilClienteUsado: perfilCliente !== null,
+    ejemplosUtilizadosIds: resultadoCapaEjemplosPiloto.ejemplosIds,
+  };
 }
 
 // Capa 5 (texto) — separa objetivo de interpretado, nunca los mezcla

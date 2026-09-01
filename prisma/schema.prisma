@@ -383,6 +383,8 @@ model Instancia {
   conversacionesPiloto          ConversacionPiloto[]
   recomendacionesComportamiento RecomendacionComportamiento[]
   ejemplosPrompt                EjemploPrompt[]
+  // 017-aprendizaje-supervisado-auditoria
+  evaluacionesRespuestaIA       EvaluacionRespuestaIA[]
 
   @@index([slug])
   @@index([estado])
@@ -872,8 +874,10 @@ model Producto {
   entregaDigital    ProductoEntregaDigital?
 
   // 014-conversaciones-piloto-ejemplos-relevantes
-  conversacionesPiloto ConversacionPiloto[]
-  ejemplosPrompt       EjemploPrompt[]
+  conversacionesPiloto     ConversacionPiloto[]
+  ejemplosPrompt           EjemploPrompt[]
+  // 017-aprendizaje-supervisado-auditoria
+  respuestasIdentificadoEn RespuestaPendienteRevision[] @relation("RespuestasProductoIdentificado")
 
   @@index([instanciaId])
   @@index([sku])
@@ -2176,6 +2180,9 @@ model UsoIA {
   agenteIAConfigVersionId String?
   agenteIAConfigVersion   AgenteIAConfigVersion? @relation(fields: [agenteIAConfigVersionId], references: [id], onDelete: SetNull)
 
+  // 017-aprendizaje-supervisado-auditoria
+  registrosRespuesta RespuestaPendienteRevision[]
+
   @@index([instanciaId, creadoEn])
   @@index([instanciaId, tarea])
   @@index([proveedorIAId])
@@ -2371,15 +2378,27 @@ model AutonomiaIntencionConfig {
   @@index([instanciaId])
 }
 
+// 017-aprendizaje-supervisado-auditoria — tras esta spec, esta tabla
+// representa "todo registro de respuesta generada por el agente" (enviada
+// automáticamente o pendiente de revisión), no solo las pendientes; el
+// nombre de la tabla y de sus columnas de 016 se conserva sin cambios
+// (data-model.md — solo aditivo).
 model RespuestaPendienteRevision {
   id                 String                       @id @default(cuid())
   categoriaDetectada CategoriaIntencionAutonomia?
   mensajeCliente     String
   respuestaPropuesta String
   motivoPendiente    String
-  // PENDIENTE | ENVIADA_TAL_CUAL | EDITADA_Y_ENVIADA | DESCARTADA
+  // PENDIENTE | ENVIADA_TAL_CUAL | EDITADA_Y_ENVIADA | DESCARTADA | ENVIADA_AUTOMATICAMENTE (017)
   estado             String                       @default("PENDIENTE")
   respuestaEditada   String?
+
+  // --- 017-aprendizaje-supervisado-auditoria (todas aditivas) ---
+  estrategiaUtilizadaId  String? // denormalizado desde SeleccionEstrategiaLog más cercano en tiempo
+  ejemplosUtilizadosIds  Json? // string[] de EjemploPrompt.id
+  herramientasEjecutadas Json? // string[] de nombres de tool ejecutadas
+  confianza              Float?
+  motivoTransferencia    String? // completado si transferir_a_humano se ejecutó en esta generación
 
   resueltaPorUsuarioId String?
   resueltaEn           DateTime?
@@ -2395,8 +2414,35 @@ model RespuestaPendienteRevision {
   conversacionId String
   conversacion   Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
 
+  productoIdentificadoId String?
+  productoIdentificado   Producto? @relation("RespuestasProductoIdentificado", fields: [productoIdentificadoId], references: [id], onDelete: SetNull)
+
+  usoIAId String?
+  usoIA   UsoIA?  @relation(fields: [usoIAId], references: [id], onDelete: SetNull)
+
+  evaluaciones EvaluacionRespuestaIA[]
+
   @@index([instanciaId, estado])
   @@index([conversacionId])
+}
+
+model EvaluacionRespuestaIA {
+  id           String  @id @default(cuid())
+  // BUENA | NECESITA_MEJORA
+  calificacion String
+  comentario   String?
+
+  evaluadoPorUsuarioId String?
+  evaluadoEn           DateTime @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  respuestaId String
+  respuesta   RespuestaPendienteRevision @relation(fields: [respuestaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId])
+  @@index([respuestaId])
 }
 
 // --- 014-conversaciones-piloto-ejemplos-relevantes ---

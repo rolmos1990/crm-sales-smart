@@ -37,4 +37,7 @@ export interface ContextoIA {
   // no cambia el shape para quien ya consume ContextoIA sin leerlos.
   estrategiaSeleccionada?: { id: string; nombre: string } | null;
   perfilClienteUsado?: boolean;
+  // 017-aprendizaje-supervisado-auditoria — ids de EjemploPrompt (014)
+  // usados en esta generación, para el registro de trazabilidad.
+  ejemplosUtilizadosIds?: string[];
 }

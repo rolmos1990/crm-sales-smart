@@ -171,6 +171,7 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
     contexto.sistemaPrompt = compuesto.systemPrompt;
     contexto.estrategiaSeleccionada = compuesto.estrategiaSeleccionada;
     contexto.perfilClienteUsado = compuesto.perfilClienteUsado;
+    contexto.ejemplosUtilizadosIds = compuesto.ejemplosUtilizadosIds;
   }
 
   return contexto;

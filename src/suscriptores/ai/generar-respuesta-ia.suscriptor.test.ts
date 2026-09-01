@@ -40,9 +40,13 @@ vi.mock("@/ai/autonomia/clasificador", () => ({
   clasificarCategoriaIntencion: (...a: unknown[]) => clasificarCategoriaIntencionMock(...a),
 }));
 
-const crearRespuestaPendienteMock = vi.fn();
-vi.mock("@/ai/autonomia/actions", () => ({
-  crearRespuestaPendiente: (...a: unknown[]) => crearRespuestaPendienteMock(...a),
+// 017-aprendizaje-supervisado-auditoria — el suscriptor llama a
+// ensamblarYPersistirRegistro directamente (registro.ts), no ya a
+// crearRespuestaPendiente (actions.ts, que ahora delega en el mismo
+// ensamblador — T010, unificación sin duplicación).
+const ensamblarYPersistirRegistroMock = vi.fn();
+vi.mock("@/ai/autonomia/registro", () => ({
+  ensamblarYPersistirRegistro: (...a: unknown[]) => ensamblarYPersistirRegistroMock(...a),
 }));
 
 vi.mock("@/ai/perfil-cliente/servicio", () => ({
@@ -57,7 +61,7 @@ function envelope(agenteIAConfigId?: string) {
   } as never;
 }
 
-describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2)", () => {
+describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2) y registro (017, Historia 1)", () => {
   beforeEach(() => {
     conversacionFindUniqueMock.mockReset().mockResolvedValue({
       contactoId: "contacto-1",
@@ -66,14 +70,14 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2)"
     });
     agenteIAConfigFindUniqueMock.mockReset().mockResolvedValue({ herramientas: null });
     mensajeFindFirstMock.mockReset().mockResolvedValue({ contenido: "Hola, ¿tienen el producto X?" });
-    generarRespuestaMock.mockReset().mockResolvedValue({ contenido: "Sí, tenemos disponibilidad." });
+    generarRespuestaMock.mockReset().mockResolvedValue({ contenido: "Sí, tenemos disponibilidad.", usoIAId: "uso-1" });
     enviarMensajeMock.mockReset().mockResolvedValue({ ok: true, mensaje: { id: "m1" } });
     obtenerAutonomiaPorAgenteMock.mockReset();
     clasificarCategoriaIntencionMock.mockReset();
-    crearRespuestaPendienteMock.mockReset();
+    ensamblarYPersistirRegistroMock.mockReset().mockResolvedValue("registro-1");
   });
 
-  it("agente sin ninguna fila de AutonomiaIntencionConfig: nunca invoca clasificarCategoriaIntencion y envía normalmente (FR-004)", async () => {
+  it("agente sin ninguna fila de AutonomiaIntencionConfig: nunca invoca clasificarCategoriaIntencion, envía normalmente y registra ENVIADA_AUTOMATICAMENTE (FR-004, 017 Historia 1)", async () => {
     obtenerAutonomiaPorAgenteMock.mockResolvedValue(null);
 
     const suscriptor = new GenerarRespuestaIASuscriptor();
@@ -81,11 +85,13 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2)"
 
     expect(obtenerAutonomiaPorAgenteMock).toHaveBeenCalledWith("agente-1");
     expect(clasificarCategoriaIntencionMock).not.toHaveBeenCalled();
-    expect(crearRespuestaPendienteMock).not.toHaveBeenCalled();
     expect(enviarMensajeMock).toHaveBeenCalledWith(expect.objectContaining({ contenido: "Sí, tenemos disponibilidad." }));
+    expect(ensamblarYPersistirRegistroMock).toHaveBeenCalledWith(
+      expect.objectContaining({ estadoInicial: "ENVIADA_AUTOMATICAMENTE", agenteIAConfigId: "agente-1", usoIAId: "uso-1" }),
+    );
   });
 
-  it("agente con HUMAN_ONLY para la categoría detectada: no genera ni envía nada", async () => {
+  it("agente con HUMAN_ONLY para la categoría detectada: no genera, no envía y no registra nada", async () => {
     obtenerAutonomiaPorAgenteMock.mockResolvedValue(
       new Map([["RECLAMO", { categoria: "RECLAMO", nivel: "HUMAN_ONLY", condicionesConfianza: null }]]),
     );
@@ -95,10 +101,10 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2)"
     await suscriptor.manejar(envelope("agente-1"));
 
     expect(enviarMensajeMock).not.toHaveBeenCalled();
-    expect(crearRespuestaPendienteMock).not.toHaveBeenCalled();
+    expect(ensamblarYPersistirRegistroMock).not.toHaveBeenCalled();
   });
 
-  it("agente con SUGGESTION_ONLY para la categoría detectada: crea RespuestaPendienteRevision y no envía", async () => {
+  it("agente con SUGGESTION_ONLY para la categoría detectada: registra PENDIENTE y no envía", async () => {
     obtenerAutonomiaPorAgenteMock.mockResolvedValue(
       new Map([["CONSULTA_PRECIO", { categoria: "CONSULTA_PRECIO", nivel: "SUGGESTION_ONLY", condicionesConfianza: null }]]),
     );
@@ -108,12 +114,18 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2)"
     await suscriptor.manejar(envelope("agente-1"));
 
     expect(enviarMensajeMock).not.toHaveBeenCalled();
-    expect(crearRespuestaPendienteMock).toHaveBeenCalledWith(
-      expect.objectContaining({ agenteIAConfigId: "agente-1", conversacionId: "conv-1", categoriaDetectada: "CONSULTA_PRECIO" }),
+    expect(ensamblarYPersistirRegistroMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        estadoInicial: "PENDIENTE",
+        agenteIAConfigId: "agente-1",
+        conversacionId: "conv-1",
+        categoriaDetectada: "CONSULTA_PRECIO",
+        confianza: 0.9,
+      }),
     );
   });
 
-  it("fallo del clasificador (devuelve null): se envía igual que el comportamiento por defecto (FR-010)", async () => {
+  it("fallo del clasificador (devuelve null): se envía igual que el comportamiento por defecto (FR-010) y registra ENVIADA_AUTOMATICAMENTE", async () => {
     obtenerAutonomiaPorAgenteMock.mockResolvedValue(
       new Map([["RECLAMO", { categoria: "RECLAMO", nivel: "HUMAN_ONLY", condicionesConfianza: null }]]),
     );
@@ -123,6 +135,17 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2)"
     await suscriptor.manejar(envelope("agente-1"));
 
     expect(enviarMensajeMock).toHaveBeenCalled();
-    expect(crearRespuestaPendienteMock).not.toHaveBeenCalled();
+    expect(ensamblarYPersistirRegistroMock).toHaveBeenCalledWith(expect.objectContaining({ estadoInicial: "ENVIADA_AUTOMATICAMENTE" }));
+  });
+
+  it("sin agenteId resuelto: no registra nada (el registro requiere un agente conocido)", async () => {
+    agenteIAConfigFindUniqueMock.mockReset();
+    obtenerAutonomiaPorAgenteMock.mockResolvedValue(null);
+
+    const suscriptor = new GenerarRespuestaIASuscriptor();
+    await suscriptor.manejar(envelope(undefined));
+
+    expect(enviarMensajeMock).toHaveBeenCalled();
+    expect(ensamblarYPersistirRegistroMock).not.toHaveBeenCalled();
   });
 });

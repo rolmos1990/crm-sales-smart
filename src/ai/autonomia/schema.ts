@@ -25,3 +25,10 @@ export const EditarYEnviarRespuestaPendienteSchema = z.object({
   id: z.string().min(1),
   textoEditado: z.string().min(1),
 });
+
+// 017-aprendizaje-supervisado-auditoria
+export const AgregarEvaluacionSchema = z.object({
+  respuestaId: z.string().min(1),
+  calificacion: z.enum(["BUENA", "NECESITA_MEJORA"]),
+  comentario: z.string().optional(),
+});

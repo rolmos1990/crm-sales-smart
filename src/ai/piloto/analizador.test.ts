@@ -19,6 +19,11 @@ vi.mock("@/ai/gateway/gateway", () => ({
   generarRespuesta: (...a: unknown[]) => generarRespuestaMock(...a),
 }));
 
+const listarCorreccionesRecientesMock = vi.fn();
+vi.mock("@/ai/autonomia/queries", () => ({
+  listarCorreccionesRecientes: (...a: unknown[]) => listarCorreccionesRecientesMock(...a),
+}));
+
 const { ejecutarAnalisisPiloto } = await import("./analizador");
 
 describe("ejecutarAnalisisPiloto (014, Historia 2)", () => {
@@ -27,6 +32,7 @@ describe("ejecutarAnalisisPiloto (014, Historia 2)", () => {
     recomendacionCreateMock.mockReset();
     recomendacionFindManyMock.mockReset().mockResolvedValue([]);
     generarRespuestaMock.mockReset();
+    listarCorreccionesRecientesMock.mockReset().mockResolvedValue([]);
   });
 
   it("sin conversaciones piloto incluidas: recomendacionesGeneradas 0, sin error (Edge Case)", async () => {
@@ -94,5 +100,40 @@ describe("ejecutarAnalisisPiloto (014, Historia 2)", () => {
     generarRespuestaMock.mockRejectedValue(new Error("IA no habilitada"));
     const resultado = await ejecutarAnalisisPiloto("instancia-1");
     expect(resultado.exito).toBe(false);
+  });
+
+  it("017 (Historia 3) — con incluirCorreccionesRecientes: true, sigue produciendo RecomendacionComportamiento en PENDIENTE; AgenteIAConfig no cambia", async () => {
+    pilotoFindManyMock.mockResolvedValue([
+      { id: "p1", clasificacion: "NEGATIVO", explicacion: "Mala atención", contenidoAnonimizado: { mensajes: [] } },
+    ]);
+    listarCorreccionesRecientesMock.mockResolvedValue([
+      { mensajeCliente: "¿Tienen envío gratis?", respuestaPropuesta: "No tenemos envío gratis.", respuestaEditada: "Sí, en compras mayores a $50 el envío es gratis." },
+    ]);
+    generarRespuestaMock.mockResolvedValue({
+      contenido: JSON.stringify({
+        recomendaciones: [{ titulo: "Mencionar envío gratis", descripcion: "El agente no conocía la política", reglaSugerida: "Ofrecer envío gratis en compras mayores a $50", confianza: 0.7 }],
+      }),
+    });
+
+    const resultado = await ejecutarAnalisisPiloto("instancia-1", "agente-1", { incluirCorreccionesRecientes: true });
+
+    expect(listarCorreccionesRecientesMock).toHaveBeenCalledWith("instancia-1", "agente-1");
+    expect(resultado).toEqual({ exito: true, recomendacionesGeneradas: 1 });
+    expect(recomendacionCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ estado: "PENDIENTE" }) }),
+    );
+    // El contenido enviado al modelo incluye la corrección — verificación de que se usó como insumo.
+    const mensajeUsuario = generarRespuestaMock.mock.calls[0][0].mensajes[1].contenido;
+    expect(mensajeUsuario).toContain("Correcciones humanas recientes");
+    expect(mensajeUsuario).toContain("envío gratis");
+  });
+
+  it("017 — sin incluirCorreccionesRecientes, no consulta correcciones (comportamiento de 014 sin cambios)", async () => {
+    pilotoFindManyMock.mockResolvedValue([
+      { id: "p1", clasificacion: "POSITIVO", explicacion: "Buena atención", contenidoAnonimizado: { mensajes: [] } },
+    ]);
+    generarRespuestaMock.mockResolvedValue({ contenido: JSON.stringify({ recomendaciones: [] }) });
+    await ejecutarAnalisisPiloto("instancia-1");
+    expect(listarCorreccionesRecientesMock).not.toHaveBeenCalled();
   });
 });
