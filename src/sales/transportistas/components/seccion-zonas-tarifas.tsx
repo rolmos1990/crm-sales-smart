@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Copy, Pencil, Plus, Power, Search, Trash2 } from "lucide-react";
+import { Copy, MapPinPlus, Pencil, Plus, Power, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { duplicarTarifa, eliminarTarifa, toggleTarifa } from "../tarifas/actions";
+import { eliminarZonaEntrega } from "../zonas/actions";
 import { DialogTarifa, type TarifaExistente } from "./dialog-tarifa";
 import { DialogZonaEntrega } from "./dialog-zona-entrega";
 
@@ -56,6 +57,7 @@ export function SeccionZonasTarifas({
   const [busqueda, setBusqueda] = useState("");
   const [dialogTarifaAbierto, setDialogTarifaAbierto] = useState(false);
   const [tarifaEnEdicion, setTarifaEnEdicion] = useState<TarifaExistente | undefined>(undefined);
+  const [zonaPreseleccionadaId, setZonaPreseleccionadaId] = useState<string | undefined>(undefined);
   const [isPending, startTransition] = useTransition();
 
   const zonasFiltradas = useMemo(
@@ -68,12 +70,40 @@ export function SeccionZonasTarifas({
     [tarifas, zonasFiltradas, busqueda],
   );
 
+  // 023-transportistas-por-pais — una zona recién creada no tiene fila
+  // propia (la tabla lista tarifas, no zonas): sin esto, "Agregar zona" deja
+  // la zona invisible hasta que se le agregue una tarifa. Se muestran acá
+  // aparte, con un atajo directo para agregarle la primera tarifa.
+  const zonasSinTarifa = useMemo(() => {
+    const idsConTarifa = new Set(tarifas.map((t) => t.zonaEntrega.id));
+    return zonasFiltradas.filter((z) => !idsConTarifa.has(z.id));
+  }, [zonasFiltradas, tarifas]);
+
   function abrirNuevaTarifa() {
     setTarifaEnEdicion(undefined);
+    setZonaPreseleccionadaId(undefined);
     setDialogTarifaAbierto(true);
   }
 
+  function abrirNuevaTarifaParaZona(zonaId: string) {
+    setTarifaEnEdicion(undefined);
+    setZonaPreseleccionadaId(zonaId);
+    setDialogTarifaAbierto(true);
+  }
+
+  function handleEliminarZona(id: string) {
+    startTransition(async () => {
+      const resultado = await eliminarZonaEntrega(id);
+      if (!resultado.exito) toast.error(resultado.error);
+      else {
+        toast.success("Zona eliminada");
+        setZonas((prev) => prev.filter((z) => z.id !== id));
+      }
+    });
+  }
+
   function abrirEdicion(tarifa: TarifaFila) {
+    setZonaPreseleccionadaId(undefined);
     setTarifaEnEdicion({
       id: tarifa.id,
       zonaEntregaId: tarifa.zonaEntrega.id,
@@ -167,6 +197,45 @@ export function SeccionZonasTarifas({
         )}
       </div>
 
+      {zonasSinTarifa.length > 0 && (
+        <div className="rounded-xl border border-dashed border-border p-3 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <MapPinPlus className="h-3.5 w-3.5" />
+            {zonasSinTarifa.length === 1 ? "Zona sin tarifa" : "Zonas sin tarifa"} — agrégales una tarifa para que aparezcan en la tabla
+          </p>
+          {zonasSinTarifa.map((z) => (
+            <div key={z.id} className="flex items-center justify-between gap-2 rounded-lg bg-card px-3 py-2">
+              <span className="text-sm font-medium text-foreground">{z.nombre}</span>
+              {puedeModificar && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => abrirNuevaTarifaParaZona(z.id)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Agregar tarifa
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={isPending}
+                    onClick={() => handleEliminarZona(z.id)}
+                    aria-label="Eliminar zona"
+                    title="Eliminar zona"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="rounded-xl border border-border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -248,6 +317,7 @@ export function SeccionZonasTarifas({
         zonas={zonas}
         servicios={servicios}
         tarifaExistente={tarifaEnEdicion}
+        zonaPreseleccionadaId={zonaPreseleccionadaId}
         abierto={dialogTarifaAbierto}
         onOpenChange={setDialogTarifaAbierto}
         onGuardada={() => {}}

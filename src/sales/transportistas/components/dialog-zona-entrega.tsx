@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Lock, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { SelectorEstadoProvincia } from "@/shared/entregas/components/selector-estado-provincia";
+import { listarEstadosProvincia } from "@/shared/entregas/queries-geografia";
+import { queryKeys } from "@/shared/query-keys";
 import { crearZonaEntrega } from "../zonas/actions";
 import { CrearZonaEntregaSchema, type CrearZonaEntregaInput } from "../zonas/schema";
 
@@ -37,6 +40,17 @@ export function DialogZonaEntrega({ paisId, paisLabel, onCreada }: DialogZonaEnt
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "ubicaciones" });
+
+  // `ubicaciones.provinciaEstado` es texto libre (no una FK — ver
+  // ZonaEntregaUbicacion.provinciaEstado), así que el Combobox (que trabaja
+  // con el id de EstadoProvincia) se traduce a ida y vuelta acá: al elegir
+  // se guarda el nombre real; para resaltar la selección se busca el id que
+  // corresponde a ese nombre en el catálogo ya cacheado por el Selector.
+  const { data: estados } = useQuery({
+    queryKey: queryKeys.geografia.estados(paisId),
+    queryFn: () => listarEstadosProvincia(paisId),
+    staleTime: 24 * 60 * 60 * 1000,
+  });
 
   const onSubmit = (valores: CrearZonaEntregaInput) => {
     startTransition(async () => {
@@ -95,16 +109,22 @@ export function DialogZonaEntrega({ paisId, paisLabel, onCreada }: DialogZonaEnt
                       <FormField
                         control={form.control}
                         name={`ubicaciones.${idx}.provinciaEstado`}
-                        render={({ field }) => (
-                          <FormItem className="col-span-2">
-                            <FormLabel className="text-xs">Provincia/Estado</FormLabel>
-                            <SelectorEstadoProvincia
-                              paisId={paisId}
-                              value={field.value || null}
-                              onChange={(v) => field.onChange(v ?? "")}
-                            />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const estadoActual = estados?.find((e) => e.nombre === field.value);
+                          return (
+                            <FormItem className="col-span-2">
+                              <FormLabel className="text-xs">Provincia/Estado</FormLabel>
+                              <SelectorEstadoProvincia
+                                paisId={paisId}
+                                value={estadoActual?.id ?? null}
+                                onChange={(estadoId) => {
+                                  const estado = estados?.find((e) => e.id === estadoId);
+                                  field.onChange(estado?.nombre ?? "");
+                                }}
+                              />
+                            </FormItem>
+                          );
+                        }}
                       />
                       <FormField
                         control={form.control}

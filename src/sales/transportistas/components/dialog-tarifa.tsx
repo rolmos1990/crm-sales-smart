@@ -40,6 +40,10 @@ interface DialogTarifaProps {
   zonas: OpcionZonaOServicio[];
   servicios: OpcionZonaOServicio[];
   tarifaExistente?: TarifaExistente;
+  // 023-transportistas-por-pais — permite abrir "Agregar tarifa" con la zona
+  // ya elegida, desde el botón de una zona que todavía no tiene ninguna
+  // tarifa (ver SeccionZonasTarifas). Ignorado si tarifaExistente viene.
+  zonaPreseleccionadaId?: string;
   abierto: boolean;
   onOpenChange: (abierto: boolean) => void;
   onGuardada: () => void;
@@ -48,7 +52,7 @@ interface DialogTarifaProps {
 // 022-transportistas-zonas-tarifas — crear o editar una TarifaTransportistaZona
 // (FR-015 a FR-025). Abierto desde SeccionZonasTarifas, tanto para "Agregar
 // tarifa" como para la acción "Editar" de cada fila.
-export function DialogTarifa({ transportistaId, zonas, servicios, tarifaExistente, abierto, onOpenChange, onGuardada }: DialogTarifaProps) {
+export function DialogTarifa({ transportistaId, zonas, servicios, tarifaExistente, zonaPreseleccionadaId, abierto, onOpenChange, onGuardada }: DialogTarifaProps) {
   const [isPending, startTransition] = useTransition();
   const esEdicion = !!tarifaExistente;
 
@@ -56,7 +60,7 @@ export function DialogTarifa({ transportistaId, zonas, servicios, tarifaExistent
     resolver: zodResolver(CrearTarifaSchema),
     defaultValues: {
       transportistaId,
-      zonaEntregaId: tarifaExistente?.zonaEntregaId ?? "",
+      zonaEntregaId: tarifaExistente?.zonaEntregaId ?? zonaPreseleccionadaId ?? "",
       servicioTransportistaId: tarifaExistente?.servicioTransportistaId ?? "",
       costoInterno: tarifaExistente?.costoInterno ?? 0,
       precioCliente: tarifaExistente?.precioCliente ?? 0,
@@ -69,7 +73,7 @@ export function DialogTarifa({ transportistaId, zonas, servicios, tarifaExistent
     if (abierto) {
       form.reset({
         transportistaId,
-        zonaEntregaId: tarifaExistente?.zonaEntregaId ?? "",
+        zonaEntregaId: tarifaExistente?.zonaEntregaId ?? zonaPreseleccionadaId ?? "",
         servicioTransportistaId: tarifaExistente?.servicioTransportistaId ?? "",
         costoInterno: tarifaExistente?.costoInterno ?? 0,
         precioCliente: tarifaExistente?.precioCliente ?? 0,
