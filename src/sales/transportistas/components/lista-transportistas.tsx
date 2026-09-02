@@ -9,9 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toggleTransportista } from "../actions";
 import { TIPO_TRANSPORTISTA_LABELS } from "../types";
-import type { Transportista } from "../types";
+import type { TransportistaConPais } from "../types";
 
-interface TransportistaConZonas extends Transportista {
+interface TransportistaConZonas extends TransportistaConPais {
   zonasActivas: number;
 }
 
@@ -47,12 +47,24 @@ function FilaTransportista({ transportista }: { transportista: TransportistaConZ
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className={cn(
-          "text-sm font-medium truncate",
-          transportista.activo ? "text-stone-900 dark:text-stone-50" : "text-stone-400 dark:text-stone-600 line-through"
-        )}>
-          {transportista.nombre}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className={cn(
+            "text-sm font-medium truncate",
+            transportista.activo ? "text-stone-900 dark:text-stone-50" : "text-stone-400 dark:text-stone-600 line-through"
+          )}>
+            {transportista.nombre}
+          </p>
+          {transportista.pais ? (
+            <span className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-1 flex-shrink-0">
+              {transportista.pais.banderaEmoji && <span>{transportista.pais.banderaEmoji}</span>}
+              {transportista.pais.nombre}
+            </span>
+          ) : (
+            <Badge variant="outline" className="text-[10px] rounded-full border-warning/30 text-warning bg-warning/5 flex-shrink-0">
+              País pendiente
+            </Badge>
+          )}
+        </div>
         <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
           {TIPO_TRANSPORTISTA_LABELS[transportista.tipo] ?? transportista.tipo}
           {transportista.zonasActivas > 0 && ` · ${transportista.zonasActivas} zona${transportista.zonasActivas !== 1 ? "s" : ""}`}

@@ -124,5 +124,20 @@ describe("zonas/actions (022, Historia 1)", () => {
       const resultado = await listarZonasEntregaAction();
       expect(resultado).toEqual([]);
     });
+
+    it("filtra por país cuando se pasa paisId (023)", async () => {
+      await listarZonasEntregaAction(undefined, "pais-pa");
+      expect(zonaFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ ubicaciones: { some: { paisId: "pais-pa" } } }),
+        })
+      );
+    });
+
+    it("no filtra por país cuando no se pasa paisId (comportamiento existente sin cambios)", async () => {
+      await listarZonasEntregaAction("norte");
+      const llamada = zonaFindManyMock.mock.calls[0][0];
+      expect(llamada.where.ubicaciones).toBeUndefined();
+    });
   });
 });

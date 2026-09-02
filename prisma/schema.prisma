@@ -1304,6 +1304,15 @@ model Transportista {
   correoElectronico String?
   notasInternas     String?
 
+  // 023-transportistas-por-pais — nullable a nivel de BD (research.md
+  // Decisión 2): obligatorio por regla de negocio para transportistas
+  // nuevos (ver schema.ts); un transportista existente puede quedar sin
+  // país ("país pendiente") hasta completarse. Se bloquea (solo lectura)
+  // en cuanto el transportista tiene alguna TarifaTransportistaZona
+  // (research.md Decisión 3, aplicado en actions.ts).
+  paisId String?
+  pais   Pais?   @relation(fields: [paisId], references: [id], onDelete: Restrict)
+
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
@@ -1316,6 +1325,7 @@ model Transportista {
   condiciones CondicionesTransportista?
 
   @@index([instanciaId])
+  @@index([paisId])
 }
 
 // --- 022-transportistas-zonas-tarifas ---
@@ -2625,6 +2635,8 @@ model Pais {
   pedidosEntrega         EntregaPedido[]
   // 022-transportistas-zonas-tarifas — reemplaza `coberturas` (TransportistaCoberturaGeografica, retirado)
   zonaEntregaUbicaciones ZonaEntregaUbicacion[]
+  // 023-transportistas-por-pais
+  transportistas         Transportista[]
 
   @@index([nombre])
 }

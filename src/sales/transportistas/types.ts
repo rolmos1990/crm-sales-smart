@@ -1,10 +1,20 @@
 import type { TransportistaModel } from "@/generated/prisma/models/Transportista";
 import type { ServicioTransportistaModel } from "@/generated/prisma/models/ServicioTransportista";
 import type { CondicionesTransportistaModel } from "@/generated/prisma/models/CondicionesTransportista";
+import type { PaisModel } from "@/generated/prisma/models/Pais";
 
 export type Transportista = TransportistaModel;
 export type ServicioTransportista = ServicioTransportistaModel;
 export type CondicionesTransportista = CondicionesTransportistaModel;
+export type PaisTransportista = PaisModel;
+
+// 023-transportistas-por-pais — forma devuelta por queries.ts (Transportista
+// + país incluido + flag de bloqueo), usada por los componentes de lista y
+// del panel de detalle.
+export type TransportistaConPais = Transportista & {
+  pais: PaisTransportista | null;
+  tienePaisBloqueado: boolean;
+};
 
 export type ResultadoAccion<T = void> =
   | { exito: true; data?: T; advertencia?: string }

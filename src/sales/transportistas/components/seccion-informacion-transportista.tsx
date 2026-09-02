@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2, Power } from "lucide-react";
+import { Lock, Loader2, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -14,16 +14,17 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { SelectorPais } from "@/shared/entregas/components/selector-pais";
 import { editarTransportista, toggleTransportista } from "../actions";
 import { EditarTransportistaSchema, type EditarTransportistaInput } from "../schema";
 import { TIPO_TRANSPORTISTA_LABELS } from "../types";
-import type { Transportista } from "../types";
+import type { TransportistaConPais } from "../types";
 
 const TIPOS = Object.entries(TIPO_TRANSPORTISTA_LABELS) as [string, string][];
 const TIPOS_ITEMS = Object.fromEntries(TIPOS);
 
 interface SeccionInformacionTransportistaProps {
-  transportista: Transportista;
+  transportista: TransportistaConPais;
   puedeModificar: boolean;
 }
 
@@ -39,6 +40,7 @@ export function SeccionInformacionTransportista({ transportista, puedeModificar 
       id: transportista.id,
       nombre: transportista.nombre,
       tipo: transportista.tipo as EditarTransportistaInput["tipo"],
+      paisId: transportista.paisId ?? "",
       personaContacto: transportista.personaContacto ?? "",
       telefono: transportista.telefono ?? "",
       correoElectronico: transportista.correoElectronico ?? "",
@@ -98,6 +100,36 @@ export function SeccionInformacionTransportista({ transportista, puedeModificar 
             )}
           />
         </div>
+
+        {transportista.paisId == null && (
+          <p className="text-xs text-warning bg-warning/10 border border-warning/30 rounded-md px-3 py-2">
+            País pendiente — complétalo para poder agregar zonas y tarifas.
+          </p>
+        )}
+
+        <FormField
+          control={form.control}
+          name="paisId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>País</FormLabel>
+              {transportista.tienePaisBloqueado ? (
+                <div className="flex items-center gap-2 rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span>{transportista.pais ? `${transportista.pais.banderaEmoji ?? ""} ${transportista.pais.nombre}`.trim() : "—"}</span>
+                </div>
+              ) : (
+                <SelectorPais value={field.value || null} onChange={(v) => field.onChange(v ?? "")} disabled={!puedeModificar} />
+              )}
+              {transportista.tienePaisBloqueado && (
+                <p className="text-xs text-muted-foreground">
+                  No se puede cambiar el país de un transportista con tarifas configuradas.
+                </p>
+              )}
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="grid grid-cols-2 gap-4">
           <FormField

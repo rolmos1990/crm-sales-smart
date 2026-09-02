@@ -13,6 +13,7 @@
     "start": "next start",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:geografia": "tsx scripts/seed-geografia.ts",
+    "db:backfill:pais-transportista": "tsx scripts/backfill-pais-transportista.ts",
     "db:seed:test": "tsx prisma/seed-usuarios-prueba.ts",
     "db:seed:test:limpiar": "tsx prisma/limpiar-datos-prueba.ts",
     "db:migrate": "prisma migrate dev",

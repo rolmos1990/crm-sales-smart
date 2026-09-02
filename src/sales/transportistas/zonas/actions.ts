@@ -117,8 +117,9 @@ export async function eliminarZonaEntrega(id: string): Promise<ResultadoAccion> 
 
 // Entrypoint client-callable de la query de solo lectura (mismo criterio que
 // listarCoberturaGeograficaAction en 019 — la lectura vive en queries.ts).
-export async function listarZonasEntregaAction(busqueda?: string) {
+// 023-transportistas-por-pais — `paisId` opcional, reenviado tal cual.
+export async function listarZonasEntregaAction(busqueda?: string, paisId?: string) {
   const auth = await requirePermisoAction("transportistas", "ver");
   if (!auth.ok) return [];
-  return listarZonasEntrega(auth.sesion.instanciaId, busqueda);
+  return listarZonasEntrega(auth.sesion.instanciaId, busqueda, paisId);
 }

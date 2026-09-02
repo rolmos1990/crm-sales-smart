@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { duplicarTarifa, eliminarTarifa, toggleTarifa } from "../tarifas/actions";
 import { DialogTarifa, type TarifaExistente } from "./dialog-tarifa";
 import { DialogZonaEntrega } from "./dialog-zona-entrega";
@@ -16,6 +17,8 @@ import { DialogZonaEntrega } from "./dialog-zona-entrega";
 interface TarifaFila {
   id: string;
   zonaEntrega: { id: string; nombre: string };
+  // 023-transportistas-por-pais — provincia/estado real de catálogo (FR-007)
+  ubicacion: string;
   servicioTransportista: { id: string; nombre: string };
   costoInterno: number;
   precioCliente: number;
@@ -28,6 +31,10 @@ interface TarifaFila {
 
 interface SeccionZonasTarifasProps {
   transportistaId: string;
+  // 023-transportistas-por-pais — null = "país pendiente" (FR-009): se
+  // deshabilita agregar zonas/tarifas nuevas hasta completarlo.
+  pais: { nombre: string; banderaEmoji: string | null } | null;
+  paisId: string | null;
   zonasIniciales: { id: string; nombre: string }[];
   servicios: { id: string; nombre: string }[];
   tarifas: TarifaFila[];
@@ -41,8 +48,10 @@ interface SeccionZonasTarifasProps {
 // el permiso "transportistas-costos" (US5, Fase 7 — no implementado en esta
 // pasada; se deja el flag `puedeVerCostos` cableado para esa historia).
 export function SeccionZonasTarifas({
-  transportistaId, zonasIniciales, servicios, tarifas, promedio, puedeVerCostos, puedeModificar,
+  transportistaId, pais, paisId, zonasIniciales, servicios, tarifas, promedio, puedeVerCostos, puedeModificar,
 }: SeccionZonasTarifasProps) {
+  const paisLabel = pais ? `${pais.banderaEmoji ? `${pais.banderaEmoji} ` : ""}${pais.nombre}`.trim() : null;
+  const puedeAgregar = puedeModificar && paisId != null;
   const [zonas, setZonas] = useState(zonasIniciales);
   const [busqueda, setBusqueda] = useState("");
   const [dialogTarifaAbierto, setDialogTarifaAbierto] = useState(false);
@@ -127,11 +136,33 @@ export function SeccionZonasTarifas({
         </div>
         {puedeModificar && (
           <div className="flex items-center gap-2">
-            <DialogZonaEntrega onCreada={(z) => setZonas((prev) => [...prev, z])} />
-            <Button type="button" size="sm" className="gap-1.5" onClick={abrirNuevaTarifa} disabled={zonas.length === 0}>
-              <Plus className="h-3.5 w-3.5" />
-              Agregar tarifa
-            </Button>
+            {puedeAgregar ? (
+              <>
+                <DialogZonaEntrega paisId={paisId!} paisLabel={paisLabel!} onCreada={(z) => setZonas((prev) => [...prev, z])} />
+                <Button type="button" size="sm" className="gap-1.5" onClick={abrirNuevaTarifa} disabled={zonas.length === 0}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Agregar tarifa
+                </Button>
+              </>
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger className="flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled>
+                      <Plus className="h-3.5 w-3.5" />
+                      Agregar zona
+                    </Button>
+                    <Button type="button" size="sm" className="gap-1.5" disabled>
+                      <Plus className="h-3.5 w-3.5" />
+                      Agregar tarifa
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                    Completa el país del transportista para configurar zonas
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         )}
       </div>
@@ -141,6 +172,7 @@ export function SeccionZonasTarifas({
           <TableHeader>
             <TableRow>
               <TableHead>Zona</TableHead>
+              <TableHead>Estado/Provincia</TableHead>
               <TableHead>Servicio</TableHead>
               {puedeVerCostos && <TableHead className="text-right">Costo</TableHead>}
               <TableHead className="text-right">Precio cliente</TableHead>
@@ -153,7 +185,7 @@ export function SeccionZonasTarifas({
           <TableBody>
             {tarifasVisibles.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">
                   Sin tarifas configuradas
                 </TableCell>
               </TableRow>
@@ -161,6 +193,7 @@ export function SeccionZonasTarifas({
               tarifasVisibles.map((t) => (
                 <TableRow key={t.id} className={!t.activa ? "opacity-50" : undefined}>
                   <TableCell className="font-medium">{t.zonaEntrega.nombre}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{t.ubicacion}</TableCell>
                   <TableCell>{t.servicioTransportista.nombre}</TableCell>
                   {puedeVerCostos && <TableCell className="text-right tabular-nums">{t.costoInterno.toFixed(2)}</TableCell>}
                   <TableCell className="text-right tabular-nums">{t.precioCliente.toFixed(2)}</TableCell>

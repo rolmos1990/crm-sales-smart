@@ -152,3 +152,102 @@ test.describe('Uso de transportistas en pedidos', () => {
     await expect(page.getByRole('option', { name: nombreInactivo })).not.toBeVisible();
   });
 });
+
+// ─── País del transportista (023-transportistas-por-pais) ─────────────────────
+//
+// NOTA: los tests de arriba (TR-01 a TR-07) documentan el flujo previo a
+// 022-transportistas-zonas-tarifas (dialog inline de edición, sin panel de
+// detalle) y no reflejan la UI actual (crear redirige a
+// /sales/transportistas/[id], editar vive en la pestaña "Información" de
+// ese panel) — deriva preexistente a este feature, fuera de su alcance.
+test.describe('País del transportista (023)', () => {
+  test('TR-08 País obligatorio al crear; visible en detalle y en la lista', async ({ page }) => {
+    await page.goto(URL_TRANSPORTISTAS);
+    const nombre = `TransPais-${Date.now()}`;
+
+    await page.getByRole('button', { name: /nuevo transportista/i }).click();
+    await page.getByLabel(/nombre/i).fill(nombre);
+
+    // Sin país, la creación debe rechazarse (FR-001).
+    await page.getByRole('button', { name: /crear transportista/i }).click();
+    await expect(page.locator('text=/selecciona un país/i').first()).toBeVisible();
+
+    await page.getByRole('button', { name: /selecciona un país/i }).click();
+    await page.getByPlaceholder(/buscar país/i).fill('Panamá');
+    await page.getByRole('option', { name: /panamá/i }).first().click();
+    await page.getByRole('button', { name: /crear transportista/i }).click();
+
+    // Crear redirige al panel de detalle (022); el país aparece en el encabezado.
+    await expect(page).toHaveURL(/\/sales\/transportistas\/[^/]+$/, { timeout: 8000 });
+    await expect(page.getByRole('heading', { name: nombre })).toBeVisible();
+    await expect(page.locator('text=/panamá/i').first()).toBeVisible();
+
+    await page.goto(URL_TRANSPORTISTAS);
+    await expect(page.locator(`text="${nombre}"`)).toBeVisible();
+    await expect(filaTransportista(page, nombre).locator('text=/panamá/i')).toBeVisible();
+  });
+
+  test('TR-09 Agregar zona hereda el país del transportista y usa el catálogo real de provincias', async ({ page }) => {
+    await page.goto(URL_TRANSPORTISTAS);
+    const nombre = `TransZonaPais-${Date.now()}`;
+
+    await page.getByRole('button', { name: /nuevo transportista/i }).click();
+    await page.getByLabel(/nombre/i).fill(nombre);
+    await page.getByRole('button', { name: /selecciona un país/i }).click();
+    await page.getByPlaceholder(/buscar país/i).fill('Panamá');
+    await page.getByRole('option', { name: /panamá/i }).first().click();
+    await page.getByRole('button', { name: /crear transportista/i }).click();
+    await expect(page).toHaveURL(/\/sales\/transportistas\/[^/]+$/, { timeout: 8000 });
+
+    await page.getByRole('tab', { name: /zonas y tarifas/i }).click();
+    await page.getByRole('button', { name: /agregar zona/i }).click();
+
+    // El país viene fijo/bloqueado — no hay selector de país en el diálogo.
+    await expect(page.locator('text=/panamá/i').first()).toBeVisible();
+    await expect(page.locator('text=/heredado del transportista/i')).toBeVisible();
+
+    await page.getByLabel(/^nombre$/i).fill(`Panamá Centro ${Date.now()}`);
+    await page.getByRole('button', { name: /selecciona un estado\/provincia/i }).click();
+    await page.getByPlaceholder(/buscar estado o provincia/i).fill('Panamá');
+    await page.getByRole('option', { name: /^panamá/i }).first().click();
+    await page.getByRole('button', { name: /crear zona/i }).click();
+
+    await expect(page.locator('text=/zona creada/i').first()).toBeVisible({ timeout: 5000 });
+  });
+
+  test('TR-10 El país queda bloqueado en cuanto el transportista tiene una tarifa', async ({ page }) => {
+    await page.goto(URL_TRANSPORTISTAS);
+    const nombre = `TransBloqueo-${Date.now()}`;
+
+    await page.getByRole('button', { name: /nuevo transportista/i }).click();
+    await page.getByLabel(/nombre/i).fill(nombre);
+    await page.getByRole('button', { name: /selecciona un país/i }).click();
+    await page.getByPlaceholder(/buscar país/i).fill('Panamá');
+    await page.getByRole('option', { name: /panamá/i }).first().click();
+    await page.getByRole('button', { name: /crear transportista/i }).click();
+    await expect(page).toHaveURL(/\/sales\/transportistas\/[^/]+$/, { timeout: 8000 });
+
+    await page.getByRole('tab', { name: /zonas y tarifas/i }).click();
+    await page.getByRole('button', { name: /agregar zona/i }).click();
+    await page.getByLabel(/^nombre$/i).fill(`Panamá Centro ${Date.now()}`);
+    await page.getByRole('button', { name: /selecciona un estado\/provincia/i }).click();
+    await page.getByPlaceholder(/buscar estado o provincia/i).fill('Panamá');
+    await page.getByRole('option', { name: /^panamá/i }).first().click();
+    await page.getByRole('button', { name: /crear zona/i }).click();
+    await expect(page.locator('text=/zona creada/i').first()).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole('button', { name: /agregar tarifa/i }).click();
+    await page.getByRole('combobox', { name: /selecciona una zona/i }).click();
+    await page.getByRole('option').first().click();
+    await page.getByRole('combobox', { name: /selecciona un servicio/i }).click();
+    await page.getByRole('option', { name: /estándar/i }).click();
+    await page.getByLabel(/costo interno/i).fill('3.5');
+    await page.getByLabel(/precio al cliente/i).fill('5');
+    await page.getByRole('button', { name: /crear tarifa/i }).click();
+    await expect(page.locator('text=/tarifa creada/i').first()).toBeVisible({ timeout: 5000 });
+
+    // Con al menos una tarifa, el país en "Información" queda de solo lectura.
+    await page.getByRole('tab', { name: /información/i }).click();
+    await expect(page.locator('text=/no se puede cambiar el país/i')).toBeVisible({ timeout: 8000 });
+  });
+});

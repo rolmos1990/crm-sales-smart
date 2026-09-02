@@ -7,10 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SeccionInformacionTransportista } from "./seccion-informacion-transportista";
 import { SeccionZonasTarifas } from "./seccion-zonas-tarifas";
 import { TIPO_TRANSPORTISTA_LABELS } from "../types";
-import type { Transportista, CondicionesTransportista } from "../types";
+import type { TransportistaConPais, CondicionesTransportista } from "../types";
 
 interface PanelTransportistaProps {
-  transportista: Transportista & { zonasActivas: number };
+  transportista: TransportistaConPais & { zonasActivas: number };
   servicios: { id: string; nombre: string }[];
   condiciones: CondicionesTransportista | null;
   zonas: { id: string; nombre: string }[];
@@ -41,6 +41,16 @@ export function PanelTransportista({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight text-foreground">{transportista.nombre}</h1>
+            {transportista.pais ? (
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                {transportista.pais.banderaEmoji && <span>{transportista.pais.banderaEmoji}</span>}
+                {transportista.pais.nombre}
+              </span>
+            ) : (
+              <Badge variant="outline" className="text-[10px] rounded-full border-warning/30 text-warning bg-warning/5">
+                País pendiente
+              </Badge>
+            )}
             <Badge variant={transportista.activo ? "default" : "outline"}>{transportista.activo ? "Activo" : "Inactivo"}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -63,6 +73,8 @@ export function PanelTransportista({
         <TabsContent value="zonas-tarifas" className="mt-5">
           <SeccionZonasTarifas
             transportistaId={transportista.id}
+            pais={transportista.pais}
+            paisId={transportista.paisId}
             zonasIniciales={zonas}
             servicios={servicios}
             tarifas={tarifas}
