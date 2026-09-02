@@ -265,7 +265,14 @@
       "Bash(jobs -l)",
       "Bash(git pull *)",
       "Bash(node /private/tmp/claude-501/bundled-skills/2.1.235/26953fde26730262d2ba36ffd5833b37/design/seed-canvas.mjs --template /private/tmp/claude-501/bundled-skills/2.1.235/26953fde26730262d2ba36ffd5833b37/design/payload.template.html --out transportistas-por-pais.html --title 'Transportistas por País' --artboard Main.dc.html --artboard Informacion.dc.html --artboard Zonas.dc.html --artboard Condiciones.dc.html --canvas canvas.json)",
-      "Bash(node \"/private/tmp/claude-501/bundled-skills/2.1.235/26953fde26730262d2ba36ffd5833b37/design/seed-canvas.mjs\" --check transportistas-por-pais.html)"
+      "Bash(node \"/private/tmp/claude-501/bundled-skills/2.1.235/26953fde26730262d2ba36ffd5833b37/design/seed-canvas.mjs\" --check transportistas-por-pais.html)",
+      "Bash(timeout 15 git ls-remote origin HEAD)",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(kill 36978)",
+      "Bash(git config *)",
+      "Bash(GIT_TERMINAL_PROMPT=0 GIT_CURL_VERBOSE=1 GIT_TRACE=1 git push -u origin 023-transportistas-por-pais)",
+      "Bash(echo \"PID=$!\")",
+      "Bash(node -e \"const icons = require\\('lucide-react'\\); console.log\\(Object.keys\\(icons\\).filter\\(k => /MapPin/i.test\\(k\\)\\)\\)\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
