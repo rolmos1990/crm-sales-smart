@@ -64,7 +64,7 @@ export async function crearTransportista(datos: unknown): Promise<ResultadoAccio
     instanciaId: auth.sesion.instanciaId,
     entidadId: transportista.id,
     accion: "creado",
-    valorNuevo: { nombre: transportista.nombre, tipo: transportista.tipo },
+    valorNuevo: { nombre: transportista.nombre, tipo: transportista.tipo, paisId: transportista.paisId },
     usuarioId: auth.sesion.usuarioId,
     usuarioNombre: auth.sesion.nombre,
   });
@@ -85,6 +85,20 @@ export async function editarTransportista(datos: unknown): Promise<ResultadoAcci
   const anterior = await prisma.transportista.findFirst({ where: { id, instanciaId: auth.sesion.instanciaId } });
   if (!anterior) return { exito: false, error: "Transportista no encontrado" };
 
+  // 023-transportistas-por-pais — research.md Decisión 3: el país queda de
+  // solo lectura en cuanto el transportista tiene alguna tarifa configurada
+  // (activa o no) — evita dejar zonas/tarifas asociadas a un país distinto
+  // al vigente (FR-010).
+  if (campos.paisId !== undefined && campos.paisId !== anterior.paisId) {
+    const totalTarifas = await prisma.tarifaTransportistaZona.count({ where: { transportistaId: id } });
+    if (totalTarifas > 0) {
+      return {
+        exito: false,
+        error: "No se puede cambiar el país de un transportista con tarifas configuradas. Crea un transportista nuevo para operar en otro país.",
+      };
+    }
+  }
+
   const transportista = await prisma.transportista.update({
     where: { id },
     data: {
@@ -100,8 +114,8 @@ export async function editarTransportista(datos: unknown): Promise<ResultadoAcci
     instanciaId: auth.sesion.instanciaId,
     entidadId: id,
     accion: "editado",
-    valorAnterior: { nombre: anterior.nombre, tipo: anterior.tipo },
-    valorNuevo: { nombre: transportista.nombre, tipo: transportista.tipo },
+    valorAnterior: { nombre: anterior.nombre, tipo: anterior.tipo, paisId: anterior.paisId },
+    valorNuevo: { nombre: transportista.nombre, tipo: transportista.tipo, paisId: transportista.paisId },
     usuarioId: auth.sesion.usuarioId,
     usuarioNombre: auth.sesion.nombre,
   });

@@ -6,7 +6,10 @@ import path from "node:path";
 // integración/E2E del proyecto. Este solo mira *.test.ts.
 export default defineConfig({
   test: {
-    include: ["src/**/*.test.ts"],
+    // 023-transportistas-por-pais — scripts/*.test.ts se suma para poder
+    // testear la lógica pura de scripts/backfill-pais-transportista.ts sin
+    // moverlo fuera de scripts/ (research.md Decisión 4).
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     environment: "node",
   },
   resolve: {

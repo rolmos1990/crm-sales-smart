@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { SelectorPais } from "@/shared/entregas/components/selector-pais";
 import { crearTransportista } from "../actions";
 import { CrearTransportistaSchema, type CrearTransportistaInput } from "../schema";
 import { TIPO_TRANSPORTISTA_LABELS } from "../types";
@@ -33,7 +34,7 @@ export function FormTransportista({ onExito }: FormTransportistaProps) {
 
   const form = useForm<CrearTransportistaInput>({
     resolver: zodResolver(CrearTransportistaSchema),
-    defaultValues: { nombre: "", tipo: "COURIER_EXTERNO" },
+    defaultValues: { nombre: "", tipo: "COURIER_EXTERNO", paisId: "" },
   });
 
   const onSubmit = (valores: CrearTransportistaInput) => {
@@ -84,6 +85,18 @@ export function FormTransportista({ onExito }: FormTransportistaProps) {
                   ))}
                 </SelectContent>
               </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="paisId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>País</FormLabel>
+              <SelectorPais value={field.value || null} onChange={(v) => field.onChange(v ?? "")} />
               <FormMessage />
             </FormItem>
           )}

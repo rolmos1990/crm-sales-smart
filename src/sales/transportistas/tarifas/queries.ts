@@ -8,7 +8,15 @@ export async function listarTarifas(transportistaId: string) {
   const tarifas = await prisma.tarifaTransportistaZona.findMany({
     where: { transportistaId },
     include: {
-      zonaEntrega: { select: { id: true, nombre: true } },
+      // 023-transportistas-por-pais — ubicaciones+país para mostrar la
+      // provincia/estado real en la columna "Estado/Provincia" (FR-007)
+      zonaEntrega: {
+        select: {
+          id: true,
+          nombre: true,
+          ubicaciones: { select: { provinciaEstado: true, pais: { select: { nombre: true, banderaEmoji: true } } } },
+        },
+      },
       servicioTransportista: { select: { id: true, nombre: true } },
     },
     orderBy: [{ activa: "desc" }, { zonaEntrega: { nombre: "asc" } }],
