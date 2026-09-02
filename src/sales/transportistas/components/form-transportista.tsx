@@ -13,38 +13,36 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { crearTransportista, editarTransportista } from "../actions";
+import { crearTransportista } from "../actions";
 import { CrearTransportistaSchema, type CrearTransportistaInput } from "../schema";
 import { TIPO_TRANSPORTISTA_LABELS } from "../types";
 import type { Transportista } from "../types";
 
 const TIPOS = Object.entries(TIPO_TRANSPORTISTA_LABELS) as [string, string][];
+const TIPOS_ITEMS = Object.fromEntries(TIPOS);
 
 interface FormTransportistaProps {
-  transportista?: Transportista;
-  onExito: () => void;
+  onExito: (transportista: Transportista) => void;
 }
 
-export function FormTransportista({ transportista, onExito }: FormTransportistaProps) {
+// 022-transportistas-zonas-tarifas — recortado a nombre/tipo/estado (FR-001);
+// el resto de la configuración (contacto, zonas, tarifas, condiciones) vive
+// en el panel /sales/transportistas/[id].
+export function FormTransportista({ onExito }: FormTransportistaProps) {
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<CrearTransportistaInput>({
     resolver: zodResolver(CrearTransportistaSchema),
-    defaultValues: {
-      nombre: transportista?.nombre ?? "",
-      tipo:   (transportista?.tipo as CrearTransportistaInput["tipo"]) ?? "COURIER_EXTERNO",
-    },
+    defaultValues: { nombre: "", tipo: "COURIER_EXTERNO" },
   });
 
   const onSubmit = (valores: CrearTransportistaInput) => {
     startTransition(async () => {
-      const resultado = transportista
-        ? await editarTransportista({ ...valores, id: transportista.id })
-        : await crearTransportista(valores);
+      const resultado = await crearTransportista(valores);
 
       if (resultado.exito) {
-        toast.success(transportista ? "Transportista actualizado" : "Transportista creado");
-        onExito();
+        toast.success("Transportista creado");
+        onExito(resultado.data!);
       } else {
         toast.error(resultado.error);
       }
@@ -74,10 +72,10 @@ export function FormTransportista({ transportista, onExito }: FormTransportistaP
           render={({ field }) => (
             <FormItem>
               <FormLabel>Tipo</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select items={TIPOS_ITEMS} onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue>{TIPO_TRANSPORTISTA_LABELS[field.value] ?? field.value}</SelectValue>
+                    <SelectValue />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -94,7 +92,7 @@ export function FormTransportista({ transportista, onExito }: FormTransportistaP
         <div className="flex justify-end gap-2 pt-2">
           <Button type="submit" disabled={isPending} className="rounded-xl bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02]">
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {transportista ? "Guardar cambios" : "Crear transportista"}
+            Crear transportista
           </Button>
         </div>
       </form>

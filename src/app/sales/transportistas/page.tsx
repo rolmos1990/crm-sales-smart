@@ -33,7 +33,7 @@ export default async function TransportistasPage() {
         <PageHeader
           titulo="Catálogo"
           descripcion={`${transportistas.length} transportista${transportistas.length !== 1 ? "s" : ""} registrado${transportistas.length !== 1 ? "s" : ""}`}
-          accion={<DialogTransportista tipo="crear" />}
+          accion={<DialogTransportista />}
         />
         <ListaTransportistas transportistas={transportistas} />
       </div>

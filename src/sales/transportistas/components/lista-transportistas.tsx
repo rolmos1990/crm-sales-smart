@@ -1,24 +1,30 @@
 "use client";
 
+import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { Truck, Power } from "lucide-react";
+import { Truck, Power, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toggleTransportista } from "../actions";
-import { DialogTransportista } from "./dialog-transportista";
 import { TIPO_TRANSPORTISTA_LABELS } from "../types";
 import type { Transportista } from "../types";
 
-interface ListaTransportistasProps {
-  transportistas: Transportista[];
+interface TransportistaConZonas extends Transportista {
+  zonasActivas: number;
 }
 
-function FilaTransportista({ transportista }: { transportista: Transportista }) {
+interface ListaTransportistasProps {
+  transportistas: TransportistaConZonas[];
+}
+
+function FilaTransportista({ transportista }: { transportista: TransportistaConZonas }) {
   const [isPending, startTransition] = useTransition();
 
-  const handleToggle = () => {
+  const handleToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     startTransition(async () => {
       const resultado = await toggleTransportista(transportista.id);
       if (!resultado.exito) toast.error(resultado.error);
@@ -27,7 +33,10 @@ function FilaTransportista({ transportista }: { transportista: Transportista }) 
   };
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/[0.07] transition-colors">
+    <Link
+      href={`/sales/transportistas/${transportista.id}`}
+      className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/[0.07] transition-colors"
+    >
       <div className={cn(
         "h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0",
         transportista.activo
@@ -46,6 +55,7 @@ function FilaTransportista({ transportista }: { transportista: Transportista }) 
         </p>
         <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
           {TIPO_TRANSPORTISTA_LABELS[transportista.tipo] ?? transportista.tipo}
+          {transportista.zonasActivas > 0 && ` · ${transportista.zonasActivas} zona${transportista.zonasActivas !== 1 ? "s" : ""}`}
         </p>
       </div>
 
@@ -62,7 +72,6 @@ function FilaTransportista({ transportista }: { transportista: Transportista }) 
       </Badge>
 
       <div className="flex items-center gap-1 flex-shrink-0">
-        <DialogTransportista tipo="editar" transportista={transportista} />
         <Button
           variant="ghost"
           size="icon"
@@ -73,8 +82,9 @@ function FilaTransportista({ transportista }: { transportista: Transportista }) 
         >
           <Power className="h-3.5 w-3.5" />
         </Button>
+        <ChevronRight className="h-4 w-4 text-stone-300 dark:text-stone-600" />
       </div>
-    </div>
+    </Link>
   );
 }
 

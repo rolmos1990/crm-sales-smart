@@ -240,7 +240,22 @@
       "Bash(bash .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
       "Bash(echo \"started with pid $!\")",
       "Bash(sleep 8 && tail -30 /tmp/dev-server.log 2>/dev/null || tail -30 \"C:\\\\Users\\\\RAMON~1.OLM\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ramon-olmos-source-repos-crm-sales-smart\\\\17677ab3-841c-46dc-bf86-84a62b861a6a\\\\tasks\\\\b2tvf506g.output\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/sales/transportistas --max-time 10)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/sales/transportistas --max-time 10)",
+      "Bash(sh .specify/scripts/bash/setup-plan.sh --json)",
+      "Bash(sh .specify/scripts/bash/setup-tasks.sh --json)",
+      "Bash(sh .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(test -f .eslintrc.json -o -f .eslintrc.js -o -f eslint.config.js -o -f eslint.config.mjs -o -f eslint.config.ts)",
+      "Bash(npx tsx -e ' *)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\(!!process.env.DATABASE_URL\\)\")",
+      "Bash(sh .specify/scripts/bash/check-prerequisites.sh --json --paths-only)",
+      "Bash(SPECIFY_FEATURE=021-alias-proveedores-ia .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(SPECIFY_FEATURE_DIRECTORY=specs/021-alias-proveedores-ia .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(SPECIFY_FEATURE_DIRECTORY=specs/022-transportistas-zonas-tarifas .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(awk '/enum TipoTransportista/,/^}/' prisma/schema.prisma)",
+      "Bash(grep -n \"INSERT\\\\|gen_random_uuid\\\\|DO \\\\$\\\\$\" prisma/migrations/20260901153319_cobertura_geografica_envios/migration.sql)",
+      "Bash(nc -zv aws-0-eu-north-1.pooler.supabase.com 5432)",
+      "Bash(pkill -f \"next build\")",
+      "Bash(node -e \"require\\('@babel/core'\\)\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

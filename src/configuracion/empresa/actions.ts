@@ -5,7 +5,7 @@ import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "./queries";
-import { ConfiguracionEmpresaSchema, ConfiguracionGeograficaSchema } from "./schema";
+import { ConfiguracionEmpresaSchema, ConfiguracionGeograficaSchema, ConfiguracionEnvioSchema } from "./schema";
 import type { ResultadoAccion, ConfigEmpresa } from "./types";
 
 // 019-cobertura-geografica-envios — entrypoint client-callable liviano
@@ -97,5 +97,32 @@ export async function guardarConfiguracionGeografica(datos: unknown): Promise<Re
     return { exito: true, datos: config as ConfigEmpresa };
   } catch {
     return { exito: false, error: "Error al guardar la configuración geográfica" };
+  }
+}
+
+// 022-transportistas-zonas-tarifas — FR-040: permite convertir una
+// cotización con costo de envío "por confirmar" en pedido sin exigir la
+// confirmación.
+export async function guardarConfiguracionEnvio(datos: unknown): Promise<ResultadoAccion<ConfigEmpresa>> {
+  const sesion = await requireSesion();
+  const acceso = verificarAcceso(sesion, "configuracion", "modificar");
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
+  const validado = ConfiguracionEnvioSchema.safeParse(datos);
+  if (!validado.success) {
+    return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
+  }
+
+  try {
+    const config = await prisma.configuracionEmpresa.upsert({
+      where: { instanciaId: sesion.instanciaId },
+      create: { instanciaId: sesion.instanciaId, ...validado.data },
+      update: validado.data,
+    });
+
+    revalidatePath("/configuracion");
+    return { exito: true, datos: config as ConfigEmpresa };
+  } catch {
+    return { exito: false, error: "Error al guardar la configuración de envío" };
   }
 }

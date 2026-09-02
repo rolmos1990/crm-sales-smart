@@ -13,6 +13,9 @@ export const ConfiguracionIASchema = z.object({
 export type ConfiguracionIAInput = z.infer<typeof ConfiguracionIASchema>;
 
 export const ProveedorIASchema = z.object({
+  // 021-alias-proveedores-ia — identificador único por instancia, requerido
+  // para poder tener varias configuraciones del mismo proveedor.
+  alias: z.string().trim().min(1, "El alias es obligatorio").max(50, "Máximo 50 caracteres"),
   proveedor: z.enum(["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "NVIDIA", "LOCAL"]),
   tipoAgenteIA: z.enum(["COMERCIAL", "GERENCIA"]).nullable().optional(),
   apiKey: z.string().min(1, "La API key es requerida").optional().or(z.literal("")),
@@ -26,6 +29,11 @@ export const ProveedorIASchema = z.object({
 });
 
 export type ProveedorIAInput = z.infer<typeof ProveedorIASchema>;
+
+// 021-alias-proveedores-ia — edición: el proveedor subyacente es inmutable
+// tras la creación (research.md Decisión 5), el resto de los campos sí.
+export const ActualizarProveedorIASchema = ProveedorIASchema.omit({ proveedor: true });
+export type ActualizarProveedorIAInput = z.infer<typeof ActualizarProveedorIASchema>;
 
 // 010-enrutamiento-modelos-ia-por-objetivo
 export const OBJETIVOS_ENRUTAMIENTO = [

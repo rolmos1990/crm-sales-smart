@@ -2,15 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Zap, Trash2, ToggleLeft, ToggleRight, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Zap, Trash2, ToggleLeft, ToggleRight, ChevronUp, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FormProveedorIA } from "./form-proveedor-ia";
+import { FormProveedorIA, type ProveedorIAExistente } from "./form-proveedor-ia";
 import { toggleProveedorIA, eliminarProveedorIA } from "@/configuracion/ia/actions";
+import type { ProveedorIAInput } from "@/configuracion/ia/schema";
 
 interface ProveedorIARow {
   id: string;
+  alias: string;
   proveedor: string;
+  tipoAgenteIA: string | null;
   activo: boolean;
   prioridad: number;
   modelosDisponibles: unknown;
@@ -37,10 +40,36 @@ const PROVEEDOR_COLORES: Record<string, string> = {
 export function ListaProveedoresIA({ proveedores: inicial }: ListaProveedoresIAProps) {
   const [proveedores, setProveedores] = useState(inicial);
   const [dialogAbierto, setDialogAbierto] = useState(false);
+  // 021-alias-proveedores-ia — null = modo creación, con valor = editando esa fila
+  const [proveedorEditando, setProveedorEditando] = useState<ProveedorIAExistente | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function handleAgregar() {
+    setProveedorEditando(null);
+    setDialogAbierto(true);
+  }
+
+  function handleEditar(p: ProveedorIARow) {
+    const modelos = Array.isArray(p.modelosDisponibles) ? (p.modelosDisponibles as string[]) : [];
+    setProveedorEditando({
+      id: p.id,
+      alias: p.alias,
+      proveedor: p.proveedor as ProveedorIAInput["proveedor"],
+      tipoAgenteIA: (p.tipoAgenteIA as ProveedorIAInput["tipoAgenteIA"]) ?? null,
+      baseUrl: p.baseUrl,
+      modelosDisponibles: modelos.join(", "),
+      prioridad: p.prioridad,
+      limitePorMinuto: p.limitePorMinuto,
+      limitePorDia: p.limitePorDia,
+      timeoutMs: p.timeoutMs,
+      reintentosMax: p.reintentosMax,
+    });
+    setDialogAbierto(true);
+  }
 
   function handleExito() {
     setDialogAbierto(false);
+    setProveedorEditando(null);
     // El revalidatePath del server action actualiza la lista en el siguiente render
     window.location.reload();
   }
@@ -82,7 +111,7 @@ export function ListaProveedoresIA({ proveedores: inicial }: ListaProveedoresIAP
         </div>
         <Button
           size="sm"
-          onClick={() => setDialogAbierto(true)}
+          onClick={handleAgregar}
           className="rounded-xl bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02] font-semibold"
         >
           <Plus className="h-4 w-4 mr-1.5" />
@@ -107,8 +136,11 @@ export function ListaProveedoresIA({ proveedores: inicial }: ListaProveedoresIAP
                 key={p.id}
                 className="flex items-center gap-4 rounded-xl border border-white/8 bg-white/5 px-4 py-3"
               >
-                <div className="flex items-center gap-2 w-36">
-                  <Badge variant="outline" className={`text-xs font-mono ${colorClase}`}>
+                <div className="flex flex-col gap-1 w-40 min-w-0">
+                  <p className="text-sm font-medium text-stone-50 truncate" title={p.alias}>
+                    {p.alias}
+                  </p>
+                  <Badge variant="outline" className={`text-xs font-mono w-fit ${colorClase}`}>
                     {p.proveedor}
                   </Badge>
                 </div>
@@ -130,6 +162,16 @@ export function ListaProveedoresIA({ proveedores: inicial }: ListaProveedoresIAP
                 </div>
 
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={isPending}
+                    onClick={() => handleEditar(p)}
+                    className="h-8 w-8 text-stone-400 hover:text-stone-50 hover:bg-white/10"
+                    title="Editar agente"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -163,7 +205,11 @@ export function ListaProveedoresIA({ proveedores: inicial }: ListaProveedoresIAP
 
       <FormProveedorIA
         abierto={dialogAbierto}
-        onCerrar={() => setDialogAbierto(false)}
+        onCerrar={() => {
+          setDialogAbierto(false);
+          setProveedorEditando(null);
+        }}
+        proveedorExistente={proveedorEditando}
         onExito={handleExito}
       />
     </div>

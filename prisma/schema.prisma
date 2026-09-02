@@ -361,9 +361,13 @@ model Instancia {
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
 
-  flujosVenta    FlujoVenta[]
-  importaciones  HistorialImportacion[]
-  transportistas Transportista[]
+  flujosVenta            FlujoVenta[]
+  importaciones          HistorialImportacion[]
+  transportistas         Transportista[]
+  // 022-transportistas-zonas-tarifas
+  zonasEntrega           ZonaEntrega[]
+  tarifasTransportista   TarifaTransportistaZona[]
+  transportistaHistorial TransportistaHistorial[]
 
   // IA
   configuracionIA               ConfiguracionIA?
@@ -1064,8 +1068,36 @@ model EntregaCotizacion {
 
   ciudad String?
 
+  // 022-transportistas-zonas-tarifas — snapshot de envío (FR-041/046, ver
+  // data-model.md). corregimiento/sectorOCodigoPostal son nuevos niveles de
+  // destino junto a ciudad (distrito/ciudad).
+  corregimiento       String?
+  sectorOCodigoPostal String?
+
+  zonaEntregaId           String?
+  zonaEntrega             ZonaEntrega? @relation(fields: [zonaEntregaId], references: [id])
+  zonaAsignadaManualmente Boolean      @default(false)
+
+  servicioTransportistaId String?
+  servicioTransportista   ServicioTransportista? @relation(fields: [servicioTransportistaId], references: [id])
+
+  tarifaTransportistaZonaId String?
+  tarifaTransportistaZona   TarifaTransportistaZona? @relation(fields: [tarifaTransportistaZonaId], references: [id])
+
+  // Snapshot del costo interno al crear el documento — solo visible con
+  // permiso financiero (FR-042/050); costoEnvio (raíz de Cotizacion) sigue
+  // siendo el precio al cliente, sin cambio de significado (Decisión 6).
+  costoInternoEnvio          Decimal?
+  // false = "Costo de entrega por confirmar" (FR-039/044); default true
+  // preserva el comportamiento de toda fila existente antes de esta feature.
+  costoEnvioConfirmado       Boolean  @default(true)
+  costoManualAutorizadoPorId String?
+
   @@index([cotizacionId])
   @@index([estadoProvinciaId])
+  @@index([zonaEntregaId])
+  @@index([servicioTransportistaId])
+  @@index([tarifaTransportistaZonaId])
 }
 
 // Cumplimiento cuando Cotizacion.tipoCumplimiento = SERVICIO — espejo de
@@ -1266,14 +1298,174 @@ model Transportista {
   creadoEn      DateTime          @default(now())
   actualizadoEn DateTime          @updatedAt
 
+  // 022-transportistas-zonas-tarifas — datos de contacto operativo (FR-004)
+  personaContacto   String?
+  telefono          String?
+  correoElectronico String?
+  notasInternas     String?
+
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  entregas            EntregaPedido[]
-  entregasCotizacion  EntregaCotizacion[]
-  coberturaGeografica TransportistaCoberturaGeografica[]
+  entregas           EntregaPedido[]
+  entregasCotizacion EntregaCotizacion[]
+
+  // 022-transportistas-zonas-tarifas — reemplaza coberturaGeografica (retirada, ver ZonaEntrega/TarifaTransportistaZona)
+  servicios   ServicioTransportista[]
+  tarifas     TarifaTransportistaZona[]
+  condiciones CondicionesTransportista?
 
   @@index([instanciaId])
+}
+
+// --- 022-transportistas-zonas-tarifas ---
+// Catálogo reutilizable por empresa de zonas de entrega, independiente de
+// cualquier transportista (FR-009) — reemplaza TransportistaCoberturaGeografica
+// (research.md Decisión 1).
+model ZonaEntrega {
+  id            String   @id @default(cuid())
+  nombre        String
+  descripcion   String?
+  activa        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  ubicaciones        ZonaEntregaUbicacion[]
+  tarifas            TarifaTransportistaZona[]
+  entregasCotizacion EntregaCotizacion[]
+  entregasPedido     EntregaPedido[]
+
+  @@unique([instanciaId, nombre])
+  @@index([instanciaId])
+}
+
+// Un punto geográfico dentro de una zona (FR-010/FR-011). País es catálogo
+// obligatorio; el resto es texto libre — un nivel vacío actúa como comodín
+// (research.md Decisión 2/3).
+model ZonaEntregaUbicacion {
+  id String @id @default(cuid())
+
+  zonaEntregaId String
+  zonaEntrega   ZonaEntrega @relation(fields: [zonaEntregaId], references: [id], onDelete: Cascade)
+
+  paisId String
+  pais   Pais   @relation(fields: [paisId], references: [id])
+
+  provinciaEstado     String?
+  distritoCiudad      String?
+  corregimiento       String?
+  sectorOCodigoPostal String?
+
+  @@index([zonaEntregaId])
+  @@index([paisId])
+}
+
+// Modalidad de envío ofrecida por un transportista concreto (FR-016) —
+// sembrada con Estándar/Express/Personalizado al crear el transportista.
+model ServicioTransportista {
+  id          String  @id @default(cuid())
+  nombre      String
+  descripcion String?
+  activo      Boolean @default(true)
+
+  transportistaId String
+  transportista   Transportista @relation(fields: [transportistaId], references: [id], onDelete: Cascade)
+
+  tarifas            TarifaTransportistaZona[]
+  entregasCotizacion EntregaCotizacion[]
+  entregasPedido     EntregaPedido[]
+
+  @@unique([transportistaId, nombre])
+  @@index([transportistaId])
+}
+
+// Costo/precio/margen para transportista+zona+servicio (FR-015). El margen
+// no se almacena — se calcula en cada lectura (research.md Decisión 6).
+model TarifaTransportistaZona {
+  id               String    @id @default(cuid())
+  costoInterno     Decimal
+  precioCliente    Decimal
+  tiempoMinimoDias Int?
+  tiempoMaximoDias Int?
+  vigenteDesde     DateTime?
+  vigenteHasta     DateTime?
+  activa           Boolean   @default(true)
+  creadoEn         DateTime  @default(now())
+  actualizadoEn    DateTime  @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  transportistaId String
+  transportista   Transportista @relation(fields: [transportistaId], references: [id], onDelete: Cascade)
+
+  zonaEntregaId String
+  zonaEntrega   ZonaEntrega @relation(fields: [zonaEntregaId], references: [id])
+
+  servicioTransportistaId String
+  servicioTransportista   ServicioTransportista @relation(fields: [servicioTransportistaId], references: [id])
+
+  entregasCotizacion EntregaCotizacion[]
+  entregasPedido     EntregaPedido[]
+
+  @@unique([transportistaId, zonaEntregaId, servicioTransportistaId])
+  @@index([instanciaId])
+  @@index([transportistaId, activa])
+  @@index([zonaEntregaId])
+}
+
+// Reglas generales de operación/restricciones/cobro (FR-029/030/031), 1-1
+// con Transportista. No duplica nada que ya viva en la tarifa (FR-033).
+model CondicionesTransportista {
+  id String @id @default(cuid())
+
+  diasEntrega               Json
+  horaLimiteMismoDia        String?
+  tiempoPreparacionDias     Int      @default(0)
+  permiteEntregaMismoDia    Boolean  @default(true)
+  pesoMaximoKg              Decimal?
+  requiereDireccionCompleta Boolean  @default(true)
+  permiteArticulosFragiles  Boolean  @default(true)
+  permitePagoContraEntrega  Boolean  @default(false)
+  observaciones             String?
+  metodoPagoTransportista   String?
+  frecuenciaFacturacion     String?
+  responsableCoordinacion   String?
+  instruccionesCoordinacion String?
+
+  transportistaId String        @unique
+  transportista   Transportista @relation(fields: [transportistaId], references: [id], onDelete: Cascade)
+}
+
+enum TipoEntidadHistorialTransportista {
+  TRANSPORTISTA
+  TARIFA
+  CONDICIONES
+  ZONA_MANUAL
+  COSTO_MANUAL
+}
+
+// Auditoría del módulo de transportistas (FR-051, Historia 6) — mismo
+// patrón que PedidoHistorial (research.md Decisión 7).
+model TransportistaHistorial {
+  id            String                            @id @default(cuid())
+  entidadTipo   TipoEntidadHistorialTransportista
+  entidadId     String
+  accion        String
+  valorAnterior Json?
+  valorNuevo    Json?
+  usuarioId     String?
+  usuarioNombre String?
+  creadoEn      DateTime                          @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId])
+  @@index([entidadTipo, entidadId])
 }
 
 // Solo aplica cuando Pedido.tipoCumplimiento = FISICO.
@@ -1305,8 +1497,30 @@ model EntregaPedido {
 
   ciudad String?
 
+  // 022-transportistas-zonas-tarifas — snapshot inmutable de envío copiado
+  // desde EntregaCotizacion al convertir en pedido (FR-046/047).
+  corregimiento       String?
+  sectorOCodigoPostal String?
+
+  zonaEntregaId           String?
+  zonaEntrega             ZonaEntrega? @relation(fields: [zonaEntregaId], references: [id])
+  zonaAsignadaManualmente Boolean      @default(false)
+
+  servicioTransportistaId String?
+  servicioTransportista   ServicioTransportista? @relation(fields: [servicioTransportistaId], references: [id])
+
+  tarifaTransportistaZonaId String?
+  tarifaTransportistaZona   TarifaTransportistaZona? @relation(fields: [tarifaTransportistaZonaId], references: [id])
+
+  costoInternoEnvio          Decimal?
+  costoEnvioConfirmado       Boolean  @default(true)
+  costoManualAutorizadoPorId String?
+
   @@index([pedidoId])
   @@index([estadoProvinciaId])
+  @@index([zonaEntregaId])
+  @@index([servicioTransportistaId])
+  @@index([tarifaTransportistaZonaId])
 }
 
 // Cumplimiento cuando Pedido.tipoCumplimiento = SERVICIO — espejo de
@@ -1678,6 +1892,10 @@ model ConfiguracionEmpresa {
   paisOperacionId String?
   paisOperacion   Pais?          @relation(fields: [paisOperacionId], references: [id])
 
+  // 022-transportistas-zonas-tarifas — permite convertir una cotización con
+  // costoEnvioConfirmado=false en pedido sin exigir la confirmación (FR-040).
+  permiteConvertirSinConfirmarCostoEnvio Boolean @default(false)
+
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 }
@@ -2044,6 +2262,11 @@ model ConfiguracionIA {
 // Credenciales y configuración de cada proveedor IA por instancia
 model ProveedorIA {
   id                     String          @id @default(cuid())
+  // 021-alias-proveedores-ia — identificador legible y único por instancia;
+  // permite tener varias configuraciones del mismo proveedor (ver alias vs.
+  // aliasNormalizado en data-model.md).
+  alias                  String
+  aliasNormalizado       String
   proveedor              ProveedorIAEnum
   apiKeyEncriptada       String?
   baseUrl                String?
@@ -2066,7 +2289,7 @@ model ProveedorIA {
 
   usoIA UsoIA[]
 
-  @@unique([instanciaId, proveedor, tipoAgenteIA])
+  @@unique([instanciaId, aliasNormalizado])
   @@index([instanciaId])
   @@index([instanciaId, activo, prioridad])
 }
@@ -2397,10 +2620,11 @@ model Pais {
   banderaEmoji         String?
 
   estados                EstadoProvincia[]
-  coberturas             TransportistaCoberturaGeografica[]
   configuracionesEmpresa ConfiguracionEmpresa[]
   cotizacionesEntrega    EntregaCotizacion[]
   pedidosEntrega         EntregaPedido[]
+  // 022-transportistas-zonas-tarifas — reemplaza `coberturas` (TransportistaCoberturaGeografica, retirado)
+  zonaEntregaUbicaciones ZonaEntregaUbicacion[]
 
   @@index([nombre])
 }
@@ -2415,35 +2639,11 @@ model EstadoProvincia {
   paisId String
   pais   Pais   @relation(fields: [paisId], references: [id], onDelete: Cascade)
 
-  coberturas          TransportistaCoberturaGeografica[]
   cotizacionesEntrega EntregaCotizacion[]
   pedidosEntrega      EntregaPedido[]
 
   @@unique([paisId, nombre])
   @@index([paisId])
-}
-
-// Zona de cobertura de un transportista concreto, por país + estado/provincia
-// — el costo es el costo final para esa zona con ese transportista, no un
-// adicional (research.md Decisión 1).
-model TransportistaCoberturaGeografica {
-  id            String   @id @default(cuid())
-  costoEnvio    Decimal
-  activo        Boolean  @default(true)
-  creadoEn      DateTime @default(now())
-  actualizadoEn DateTime @updatedAt
-
-  transportistaId String
-  transportista   Transportista @relation(fields: [transportistaId], references: [id], onDelete: Cascade)
-
-  paisId String
-  pais   Pais   @relation(fields: [paisId], references: [id])
-
-  estadoProvinciaId String
-  estadoProvincia   EstadoProvincia @relation(fields: [estadoProvinciaId], references: [id])
-
-  @@unique([transportistaId, estadoProvinciaId])
-  @@index([transportistaId])
 }
 
 // --- 016-niveles-autonomia-automatizacion ---

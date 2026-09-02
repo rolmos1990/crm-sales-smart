@@ -1,5 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { decidirCoincidenciaCosto, type CandidatoCosto } from "./resolver-costo-envio";
+
+// 022-transportistas-zonas-tarifas — mocks para obtenerCandidatosEnvioPorZona
+// (T037); decidirCoincidenciaCosto (arriba) es pura y no los necesita.
+const paisFindManyMock = vi.fn();
+const zonaUbicacionFindManyMock = vi.fn();
+const tarifaFindManyMock = vi.fn();
+const configFindUniqueMock = vi.fn();
+
+vi.mock("@/shared/db/prisma", () => ({
+  prisma: {
+    pais: { findMany: (...a: unknown[]) => paisFindManyMock(...a) },
+    zonaEntregaUbicacion: { findMany: (...a: unknown[]) => zonaUbicacionFindManyMock(...a) },
+    tarifaTransportistaZona: { findMany: (...a: unknown[]) => tarifaFindManyMock(...a) },
+    configuracionEmpresa: { findUnique: (...a: unknown[]) => configFindUniqueMock(...a) },
+  },
+}));
 
 function candidato(costo: number, extra: Partial<CandidatoCosto> = {}): CandidatoCosto {
   return { fuente: "transportista", costo, ...extra };
@@ -104,5 +120,82 @@ describe("decidirCoincidenciaCosto (019, Historia 3 — research.md Decisión 5)
       ubicacionReconocida: true,
     });
     expect(resultado).toMatchObject({ estado: "CLARA", cubierto: true, costo: 15, diasMin: 1, diasMax: 6 });
+  });
+});
+
+// 022-transportistas-zonas-tarifas — obtenerCandidatosEnvioPorZona (T037):
+// lista completa de candidatos sin colapsar, consumida por la UI (US2) y por
+// la futura tool de opciones de envío (US7), a diferencia de
+// decidirCoincidenciaCosto que sigue usando las tools de IA de spec 019.
+describe("obtenerCandidatosEnvioPorZona (022, Historia 2/7 — research.md Decisión 3/4)", () => {
+  const TARIFA_BASE = {
+    id: "tarifa-1",
+    transportistaId: "transportista-1",
+    zonaEntregaId: "zona-1",
+    servicioTransportistaId: "servicio-1",
+    costoInterno: 10,
+    precioCliente: 15,
+    tiempoMinimoDias: 1,
+    tiempoMaximoDias: 2,
+    vigenteDesde: null,
+    vigenteHasta: null,
+    transportista: { id: "transportista-1", nombre: "DHL", tipo: "COURIER_EXTERNO" },
+    zonaEntrega: { nombre: "Zona Centro" },
+    servicioTransportista: { nombre: "Estándar" },
+  };
+
+  beforeEach(async () => {
+    paisFindManyMock.mockReset().mockResolvedValue([{ id: "pais-1", nombre: "Panama" }]);
+    zonaUbicacionFindManyMock.mockReset().mockResolvedValue([
+      { zonaEntregaId: "zona-1", provinciaEstado: null, distritoCiudad: null, corregimiento: null, sectorOCodigoPostal: null },
+    ]);
+    tarifaFindManyMock.mockReset().mockResolvedValue([TARIFA_BASE]);
+    configFindUniqueMock.mockReset().mockResolvedValue(null);
+  });
+
+  it("un nivel vacío en la ubicación actúa como comodín — coincide sin importar el destino", async () => {
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const candidatos = await obtenerCandidatosEnvioPorZona({ instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Cualquier cosa" });
+    expect(candidatos).toHaveLength(1);
+    expect(candidatos[0]).toMatchObject({ tarifaId: "tarifa-1", precioCliente: 15, costoInterno: 10 });
+  });
+
+  it("varias zonas coincidentes agregan los candidatos de todas (sin elegir una sola)", async () => {
+    zonaUbicacionFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "zona-1", provinciaEstado: null, distritoCiudad: null, corregimiento: null, sectorOCodigoPostal: null },
+      { zonaEntregaId: "zona-2", provinciaEstado: null, distritoCiudad: null, corregimiento: null, sectorOCodigoPostal: null },
+    ]);
+    tarifaFindManyMock.mockResolvedValue([
+      TARIFA_BASE,
+      { ...TARIFA_BASE, id: "tarifa-2", zonaEntregaId: "zona-2", zonaEntrega: { nombre: "Zona Norte" } },
+    ]);
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const candidatos = await obtenerCandidatosEnvioPorZona({ instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Cualquier cosa" });
+    expect(candidatos).toHaveLength(2);
+  });
+
+  it("un nivel definido en la ubicación que el destino no aporta NO coincide (no adivina)", async () => {
+    zonaUbicacionFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "zona-1", provinciaEstado: "Panama Oeste", distritoCiudad: null, corregimiento: null, sectorOCodigoPostal: null },
+    ]);
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const candidatos = await obtenerCandidatosEnvioPorZona({ instanciaId: "instancia-1", pais: "Panama" });
+    expect(candidatos).toHaveLength(0);
+  });
+
+  it("excluye tarifas fuera de vigencia (vigenteHasta ya pasado)", async () => {
+    tarifaFindManyMock.mockResolvedValue([
+      { ...TARIFA_BASE, vigenteHasta: new Date("2020-01-01") },
+    ]);
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const candidatos = await obtenerCandidatosEnvioPorZona({ instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "X" });
+    expect(candidatos).toHaveLength(0);
+  });
+
+  it("sin país resoluble (ni texto ni modo UN_SOLO_PAIS) devuelve lista vacía sin consultar zonas", async () => {
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const candidatos = await obtenerCandidatosEnvioPorZona({ instanciaId: "instancia-1" });
+    expect(candidatos).toHaveLength(0);
+    expect(zonaUbicacionFindManyMock).not.toHaveBeenCalled();
   });
 });

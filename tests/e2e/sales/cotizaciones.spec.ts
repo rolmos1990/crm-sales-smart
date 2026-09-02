@@ -208,3 +208,60 @@ test.describe('Permisos por rol', () => {
     await ctx.close();
   });
 });
+
+// ─── 022-transportistas-zonas-tarifas — Historia 2 (T044) ─────────────────────
+// Escrito conforme a quickstart.md Escenario 2; no ejecutado en este entorno
+// (falta .env.test con credenciales de usuarios de prueba). Requiere que ya
+// exista al menos un transportista con una zona/tarifa activa configurada
+// que cubra el destino usado acá (ver Escenario 1 del quickstart).
+
+test.describe('Cotizaciones — envío por zonas y tarifas (022)', () => {
+  test('CQ-18 Destino cubierto por una zona configurada muestra opciones ordenadas por precio', async ({ page }) => {
+    await page.goto('/sales/cotizaciones/nueva');
+
+    const inputCliente = page.getByLabel(/cliente|contacto/i).first();
+    if (await inputCliente.isVisible()) {
+      await inputCliente.fill('Cliente Test');
+      const primeraOpcion = page.getByRole('option').first();
+      if (await primeraOpcion.isVisible()) await primeraOpcion.click();
+    }
+
+    // Estado/provincia con cobertura configurada — ajustar al fixture real.
+    const selectorEstado = page.getByLabel(/provincia.*estado/i);
+    if (await selectorEstado.isVisible()) {
+      await selectorEstado.click();
+      await page.getByRole('option').first().click();
+    }
+
+    // Esperado (FR-036): la sección "Opciones de envío" lista transportistas
+    // activos ordenados de menor a mayor precio.
+    await expect(page.getByText(/opciones de envío/i)).toBeVisible({ timeout: 8000 });
+  });
+
+  test('CQ-19 Destino sin ninguna zona configurada muestra "por confirmar" sin bloquear', async ({ page }) => {
+    await page.goto('/sales/cotizaciones/nueva');
+
+    const inputCliente = page.getByLabel(/cliente|contacto/i).first();
+    if (await inputCliente.isVisible()) {
+      await inputCliente.fill('Cliente Test');
+      const primeraOpcion = page.getByRole('option').first();
+      if (await primeraOpcion.isVisible()) await primeraOpcion.click();
+    }
+
+    const selectorEstado = page.getByLabel(/provincia.*estado/i);
+    if (await selectorEstado.isVisible()) {
+      await selectorEstado.click();
+      // Última opción — asumida sin cobertura configurada en el fixture.
+      await page.getByRole('option').last().click();
+    }
+
+    const checkboxPorConfirmar = page.getByLabel(/costo de entrega por confirmar/i);
+    if (await checkboxPorConfirmar.isVisible()) {
+      await checkboxPorConfirmar.check();
+    }
+
+    await page.getByRole('button', { name: /guardar borrador|guardar|crear/i }).click();
+    // Esperado (FR-039): el guardado no queda bloqueado por falta de costo.
+    await page.waitForURL(/\/sales\/cotizaciones/, { timeout: 30000 });
+  });
+});

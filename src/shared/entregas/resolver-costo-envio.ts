@@ -4,7 +4,7 @@ import { generarSlug } from "@/shared/lib/slug";
 // cobertura de envío, compartido entre las tools de IA (calcular_costo_envio,
 // validar_cobertura, estimar_fecha_entrega) y la UI humana (cotización/
 // pedido). Combina dos fuentes independientes:
-//   - Transportista: cobertura formal por país + estado/provincia (Historia 1)
+//   - Transportista: cobertura por zonas de entrega + tarifas (022-transportistas-zonas-tarifas)
 //   - Delivery propio: zonas aproximadas de texto libre + modo de cobertura
 //     (Historia 2)
 // y decide si hay una única coincidencia clara o si debe escalar a humano
@@ -102,10 +102,139 @@ export interface ResolverCostoEnvioArgs {
   transportistaId?: string | null;
 }
 
+// 022-transportistas-zonas-tarifas — un candidato de envío resuelto contra
+// el catálogo de zonas (transportista + zona + servicio + tarifa), sin
+// colapsar a un veredicto único (research.md Decisión 4). Consumido
+// directamente por la UI humana (Historia 2) y por la tool de opciones de
+// envío para IA (Historia 7) — nunca por las tools de IA de spec 019, que
+// siguen pasando por decidirCoincidenciaCosto.
+export interface CandidatoEnvioZona {
+  tarifaId: string;
+  transportistaId: string;
+  transportistaNombre: string;
+  transportistaTipo: string;
+  zonaEntregaId: string;
+  zonaEntregaNombre: string;
+  servicioTransportistaId: string;
+  servicioNombre: string;
+  costoInterno: number;
+  precioCliente: number;
+  tiempoMinimoDias: number | null;
+  tiempoMaximoDias: number | null;
+}
+
+export interface DestinoEnvioZona {
+  instanciaId: string;
+  /** Nombre del país (texto). Opcional si la instancia opera en modo UN_SOLO_PAIS. */
+  pais?: string | null;
+  estadoProvincia?: string | null;
+  distritoCiudad?: string | null;
+  corregimiento?: string | null;
+  sectorOCodigoPostal?: string | null;
+  /** Restringe la búsqueda a un transportista puntual. */
+  transportistaId?: string | null;
+}
+
 /**
- * Orquestación con I/O: resuelve país/estado contra el catálogo, junta
- * candidatos de TransportistaCoberturaGeografica y de zonas aproximadas de
- * delivery, y delega la decisión final a decidirCoincidenciaCosto.
+ * Resuelve un destino contra el catálogo de ZonaEntrega/ZonaEntregaUbicacion
+ * y devuelve TODAS las tarifas candidatas (activas y vigentes), sin
+ * colapsar a un único veredicto (research.md Decisión 3/4). Un nivel vacío
+ * en la ubicación es comodín; un nivel definido en la ubicación que el
+ * destino no aporta NO coincide (no se adivina). Pueden coincidir varias
+ * zonas a la vez — se agregan los candidatos de todas.
+ */
+export async function obtenerCandidatosEnvioPorZona(destino: DestinoEnvioZona): Promise<CandidatoEnvioZona[]> {
+  const { prisma } = await import("@/shared/db/prisma");
+
+  let paisId: string | null = null;
+  if (destino.pais) {
+    const paisTexto = generarSlug(destino.pais);
+    const paises = await prisma.pais.findMany({ select: { id: true, nombre: true } });
+    paisId = paises.find((p) => generarSlug(p.nombre) === paisTexto)?.id ?? null;
+  } else {
+    const config = await prisma.configuracionEmpresa.findUnique({
+      where: { instanciaId: destino.instanciaId },
+      select: { modoGeografico: true, paisOperacionId: true },
+    });
+    if (config?.modoGeografico === "UN_SOLO_PAIS") paisId = config.paisOperacionId;
+  }
+  if (!paisId) return [];
+
+  const ubicaciones = await prisma.zonaEntregaUbicacion.findMany({
+    where: { paisId, zonaEntrega: { instanciaId: destino.instanciaId, activa: true } },
+    select: {
+      zonaEntregaId: true,
+      provinciaEstado: true,
+      distritoCiudad: true,
+      corregimiento: true,
+      sectorOCodigoPostal: true,
+    },
+  });
+
+  // Comparación por slug (sin tildes/mayúsculas) — mismo criterio que el
+  // match de país. Un nivel vacío en la ubicación es comodín; un nivel
+  // definido que el destino no aporta NO coincide.
+  const coincideNivel = (valorUbicacion: string | null, valorDestino: string | null | undefined): boolean => {
+    if (!valorUbicacion) return true;
+    if (!valorDestino) return false;
+    return generarSlug(valorUbicacion) === generarSlug(valorDestino);
+  };
+
+  const zonaIds = new Set<string>();
+  for (const u of ubicaciones) {
+    if (
+      coincideNivel(u.provinciaEstado, destino.estadoProvincia) &&
+      coincideNivel(u.distritoCiudad, destino.distritoCiudad) &&
+      coincideNivel(u.corregimiento, destino.corregimiento) &&
+      coincideNivel(u.sectorOCodigoPostal, destino.sectorOCodigoPostal)
+    ) {
+      zonaIds.add(u.zonaEntregaId);
+    }
+  }
+  if (zonaIds.size === 0) return [];
+
+  const ahora = new Date();
+  const tarifas = await prisma.tarifaTransportistaZona.findMany({
+    where: {
+      zonaEntregaId: { in: [...zonaIds] },
+      activa: true,
+      instanciaId: destino.instanciaId,
+      transportista: {
+        activo: true,
+        ...(destino.transportistaId ? { id: destino.transportistaId } : {}),
+      },
+      OR: [{ vigenteDesde: null }, { vigenteDesde: { lte: ahora } }],
+    },
+    include: {
+      transportista: { select: { id: true, nombre: true, tipo: true } },
+      zonaEntrega: { select: { nombre: true } },
+      servicioTransportista: { select: { nombre: true } },
+    },
+  });
+
+  return tarifas
+    .filter((t) => !t.vigenteHasta || t.vigenteHasta >= ahora)
+    .map((t) => ({
+      tarifaId: t.id,
+      transportistaId: t.transportistaId,
+      transportistaNombre: t.transportista.nombre,
+      transportistaTipo: t.transportista.tipo,
+      zonaEntregaId: t.zonaEntregaId,
+      zonaEntregaNombre: t.zonaEntrega.nombre,
+      servicioTransportistaId: t.servicioTransportistaId,
+      servicioNombre: t.servicioTransportista.nombre,
+      costoInterno: Number(t.costoInterno),
+      precioCliente: Number(t.precioCliente),
+      tiempoMinimoDias: t.tiempoMinimoDias,
+      tiempoMaximoDias: t.tiempoMaximoDias,
+    }));
+}
+
+/**
+ * Orquestación con I/O: resuelve país/zona/delivery y delega la decisión
+ * final a decidirCoincidenciaCosto — usada por las tools de IA de spec 019
+ * (calcular_costo_envio, validar_cobertura, estimar_fecha_entrega), que
+ * nunca deben recibir más de un precio ambiguo (research.md Decisión 4).
  */
 export async function resolverCostoEnvio(args: ResolverCostoEnvioArgs): Promise<ResolucionCosto> {
   const { prisma } = await import("@/shared/db/prisma");
@@ -115,48 +244,21 @@ export async function resolverCostoEnvio(args: ResolverCostoEnvioArgs): Promise<
   let hayNegativaExplicita = false;
   let hayZonaPendienteEvaluacion = false;
 
-  // --- Fuente 1: Transportista (país + estado/provincia formal) ---
-  // Comparación por slug (sin tildes/mayúsculas): el catálogo sembrado usa
-  // nombres en inglés sin diacríticos (ej. "Panama"), pero el negocio y sus
-  // clientes escriben en español con tilde ("Panamá") — un match exacto
-  // (aunque sea case-insensitive) fallaría siempre para esos países.
-  let paisId: string | null = null;
-  if (args.pais) {
-    const paisTexto = generarSlug(args.pais);
-    const paises = await prisma.pais.findMany({ select: { id: true, nombre: true } });
-    paisId = paises.find((p) => generarSlug(p.nombre) === paisTexto)?.id ?? null;
-  } else {
-    const config = await prisma.configuracionEmpresa.findUnique({
-      where: { instanciaId: args.instanciaId },
-      select: { modoGeografico: true, paisOperacionId: true },
-    });
-    if (config?.modoGeografico === "UN_SOLO_PAIS") paisId = config.paisOperacionId;
-  }
-
-  if (paisId) {
-    const estadoTexto = generarSlug(args.estadoProvincia);
-    const estados = await prisma.estadoProvincia.findMany({ where: { paisId }, select: { id: true, nombre: true } });
-    const estado = estados.find((e) => generarSlug(e.nombre) === estadoTexto);
-    if (estado) {
-      ubicacionReconocida = true;
-      const coberturas = await prisma.transportistaCoberturaGeografica.findMany({
-        where: {
-          estadoProvinciaId: estado.id,
-          activo: true,
-          transportista: {
-            instanciaId: args.instanciaId,
-            activo: true,
-            ...(args.transportistaId ? { id: args.transportistaId } : {}),
-          },
-        },
-        select: { costoEnvio: true, transportista: { select: { tipo: true } } },
-      });
-      // El tipo de transportista usa el mismo enum que MetodoEntrega (ver
-      // comentario histórico en form-entrega.tsx) — sirve como "método" para
-      // el resultado de validar_cobertura.
-      for (const c of coberturas) {
-        candidatos.push({ fuente: "transportista", costo: Number(c.costoEnvio), metodoEntrega: c.transportista.tipo });
-      }
+  // --- Fuente 1: Transportista (zonas de entrega + tarifas, 022) ---
+  const candidatosZona = await obtenerCandidatosEnvioPorZona({
+    instanciaId: args.instanciaId,
+    pais: args.pais,
+    estadoProvincia: args.estadoProvincia,
+    distritoCiudad: args.ciudad,
+    transportistaId: args.transportistaId,
+  });
+  if (candidatosZona.length > 0) {
+    ubicacionReconocida = true;
+    // El tipo de transportista usa el mismo enum que MetodoEntrega (ver
+    // comentario histórico en form-entrega.tsx) — sirve como "método" para
+    // el resultado de validar_cobertura.
+    for (const c of candidatosZona) {
+      candidatos.push({ fuente: "transportista", costo: c.precioCliente, metodoEntrega: c.transportistaTipo });
     }
   }
 

@@ -25,6 +25,9 @@ import { SelectorPais } from "@/shared/entregas/components/selector-pais";
 import { SelectorEstadoProvincia } from "@/shared/entregas/components/selector-estado-provincia";
 import { obtenerModoGeograficoAction } from "@/configuracion/empresa/actions";
 import { obtenerCostoSugerido } from "@/shared/entregas/actions";
+import { obtenerOpcionesEnvioAction } from "@/sales/transportistas/tarifas/actions";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { CampoCodigoLicencia } from "@/shared/ui/campo-codigo-licencia";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
@@ -182,7 +185,15 @@ export function FormCotizacion({
       empresaId: "",
       oportunidadId: oportunidadId ?? "",
       destinatario: { nombre: "", apellido: "", telefono: "", email: "" },
-      entrega: { metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE", costoEnvio: 0, paisId: null, estadoProvinciaId: null, ciudad: "" },
+      entrega: {
+        metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE", costoEnvio: 0,
+        paisId: null, estadoProvinciaId: null, ciudad: "",
+        // 022-transportistas-zonas-tarifas
+        corregimiento: "", sectorOCodigoPostal: "",
+        zonaEntregaId: null, zonaAsignadaManualmente: false,
+        servicioTransportistaId: null, tarifaTransportistaZonaId: null,
+        costoEnvioConfirmado: true,
+      },
       servicio: { hora: "", duracion: "", ubicacion: "", direccion: "", responsable: "", instrucciones: "", observaciones: "" },
       // entregaDigital ya no va acá — es por línea (ver lineas[].entregaDigital,
       // precargado en onSeleccionar cuando el producto elegido es Digital).
@@ -212,6 +223,56 @@ export function FormCotizacion({
   const paisEntregaId = form.watch("entrega.paisId");
   const estadoProvinciaEntregaId = form.watch("entrega.estadoProvinciaId");
   const transportistaIdEntrega = form.watch("entrega.transportistaId");
+  const ciudadEntrega = form.watch("entrega.ciudad");
+
+  // 022-transportistas-zonas-tarifas — opciones de envío resueltas por zona
+  // (FR-036/037), ordenadas por precio ascendente. Distinto del "Sugerir"
+  // de arriba (019, verdicto único vía decidirCoincidenciaCosto): acá se
+  // listan TODAS las opciones activas/vigentes para elegir entre ellas.
+  const [opcionesEnvio, setOpcionesEnvio] = useState<Awaited<ReturnType<typeof obtenerOpcionesEnvioAction>>>([]);
+  const [cargandoOpciones, setCargandoOpciones] = useState(false);
+  const tarifaSeleccionadaId = form.watch("entrega.tarifaTransportistaZonaId");
+  const zonaAsignadaManualmente = form.watch("entrega.zonaAsignadaManualmente");
+  const costoEnvioConfirmado = form.watch("entrega.costoEnvioConfirmado") ?? true;
+  const zonaEntregaNombreDetectada = opcionesEnvio[0]?.zonaEntregaNombre;
+
+  useEffect(() => {
+    if (!estadoProvinciaEntregaId) {
+      setOpcionesEnvio([]);
+      return;
+    }
+    let cancelado = false;
+    setCargandoOpciones(true);
+    const paisIdEfectivo = modoGeografico?.modoGeografico === "UN_SOLO_PAIS" ? modoGeografico.paisOperacionId : paisEntregaId;
+    obtenerOpcionesEnvioAction({
+      paisId: paisIdEfectivo,
+      estadoProvinciaId: estadoProvinciaEntregaId,
+      ciudad: ciudadEntrega,
+    })
+      .then((resultado) => { if (!cancelado) setOpcionesEnvio(resultado); })
+      .finally(() => { if (!cancelado) setCargandoOpciones(false); });
+    return () => { cancelado = true; };
+  }, [estadoProvinciaEntregaId, ciudadEntrega, paisEntregaId, modoGeografico]);
+
+  function elegirOpcionEnvio(opcion: (typeof opcionesEnvio)[number]) {
+    form.setValue("entrega.transportistaId", opcion.transportistaId);
+    form.setValue("entrega.servicioTransportistaId", opcion.servicioTransportistaId);
+    form.setValue("entrega.tarifaTransportistaZonaId", opcion.tarifaId);
+    form.setValue("entrega.zonaEntregaId", opcion.zonaEntregaId);
+    form.setValue("entrega.costoEnvio", opcion.precioCliente);
+    form.setValue("entrega.costoEnvioConfirmado", true);
+    form.setValue("entrega.zonaAsignadaManualmente", false);
+  }
+
+  function marcarCostoPorConfirmar(porConfirmar: boolean) {
+    form.setValue("entrega.costoEnvioConfirmado", !porConfirmar);
+    if (porConfirmar) {
+      form.setValue("entrega.tarifaTransportistaZonaId", null);
+      form.setValue("entrega.servicioTransportistaId", null);
+      form.setValue("entrega.zonaEntregaId", null);
+      form.setValue("entrega.costoEnvio", 0);
+    }
+  }
 
   async function sugerirCostoEnvio() {
     if (!estadoProvinciaEntregaId) {
@@ -826,6 +887,68 @@ export function FormCotizacion({
                     </FormItem>
                   )} />
                 </div>
+
+                {/* 022-transportistas-zonas-tarifas — opciones de envío
+                    resueltas por zona (FR-036/037): lista los transportistas
+                    activos que cubren el destino, ordenados por precio,
+                    permitiendo elegir cualquiera; sin cobertura, "Costo de
+                    entrega por confirmar" sin bloquear (FR-039). */}
+                {estadoProvinciaEntregaId && (
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-foreground">
+                        Opciones de envío
+                        {zonaEntregaNombreDetectada && (
+                          <Badge variant="outline" className="ml-2">
+                            Zona {zonaAsignadaManualmente ? "asignada manualmente" : "detectada"}: {zonaEntregaNombreDetectada}
+                          </Badge>
+                        )}
+                      </p>
+                      {cargandoOpciones && <span className="text-xs text-muted-foreground">Buscando...</span>}
+                    </div>
+
+                    {opcionesEnvio.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {opcionesEnvio.map((op) => (
+                          <li key={op.tarifaId}>
+                            <button
+                              type="button"
+                              onClick={() => elegirOpcionEnvio(op)}
+                              className={`w-full flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                                tarifaSeleccionadaId === op.tarifaId
+                                  ? "border-primary bg-primary-subtle"
+                                  : "border-border hover:bg-muted"
+                              }`}
+                            >
+                              <span className="text-foreground">
+                                {op.transportistaNombre} <span className="text-muted-foreground">· {op.servicioNombre}</span>
+                                {(op.tiempoMinimoDias != null || op.tiempoMaximoDias != null) && (
+                                  <span className="text-muted-foreground"> · {op.tiempoMinimoDias ?? "?"}-{op.tiempoMaximoDias ?? "?"} días</span>
+                                )}
+                              </span>
+                              <span className="font-semibold tabular-nums text-foreground">{moneda} {op.precioCliente.toFixed(2)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : !cargandoOpciones ? (
+                      <p className="text-sm text-muted-foreground">
+                        Sin transportistas configurados para este destino — costo de entrega por confirmar.
+                      </p>
+                    ) : null}
+
+                    <div className="flex items-center gap-2 pt-1 border-t border-border">
+                      <Checkbox
+                        checked={!costoEnvioConfirmado}
+                        onCheckedChange={(checked) => marcarCostoPorConfirmar(!!checked)}
+                        id="costo-envio-por-confirmar"
+                      />
+                      <label htmlFor="costo-envio-por-confirmar" className="text-sm text-muted-foreground cursor-pointer">
+                        Costo de entrega por confirmar (no bloquea el guardado, pero se exigirá confirmar antes de convertir en pedido)
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 {/* numeroGuia y urlSeguimiento no se capturan en la cotización —
                     todavía no existen a esa altura; se completan recién en el

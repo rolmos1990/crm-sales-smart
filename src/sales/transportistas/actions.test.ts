@@ -1,132 +1,109 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const sesionMock = { instanciaId: "instancia-1", usuarioId: "usuario-1", rol: "ADMIN" };
-
+const sesionMock = { instanciaId: "instancia-1", usuarioId: "usuario-1", nombre: "Ana", rol: "ADMIN" };
 const requirePermisoActionMock = vi.fn().mockResolvedValue({ ok: true, sesion: sesionMock });
 vi.mock("@/shared/auth/permisos-server", () => ({
   requirePermisoAction: (...a: unknown[]) => requirePermisoActionMock(...a),
 }));
 
-const obtenerConfiguracionEmpresaMock = vi.fn().mockResolvedValue(null);
-vi.mock("@/configuracion/empresa/queries", () => ({
-  obtenerConfiguracionEmpresa: (...a: unknown[]) => obtenerConfiguracionEmpresaMock(...a),
-}));
-
+const transportistaCreateMock = vi.fn();
 const transportistaFindFirstMock = vi.fn();
-const estadoProvinciaFindUniqueMock = vi.fn();
-const coberturaUpsertMock = vi.fn();
-const coberturaFindFirstMock = vi.fn();
-const coberturaDeleteMock = vi.fn();
+const transportistaFindUniqueMock = vi.fn();
+const transportistaUpdateMock = vi.fn();
+const historialCreateMock = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
-    transportista: { findFirst: (...a: unknown[]) => transportistaFindFirstMock(...a) },
-    estadoProvincia: { findUnique: (...a: unknown[]) => estadoProvinciaFindUniqueMock(...a) },
-    transportistaCoberturaGeografica: {
-      upsert: (...a: unknown[]) => coberturaUpsertMock(...a),
-      findFirst: (...a: unknown[]) => coberturaFindFirstMock(...a),
-      delete: (...a: unknown[]) => coberturaDeleteMock(...a),
+    transportista: {
+      create: (...a: unknown[]) => transportistaCreateMock(...a),
+      findFirst: (...a: unknown[]) => transportistaFindFirstMock(...a),
+      findUnique: (...a: unknown[]) => transportistaFindUniqueMock(...a),
+      update: (...a: unknown[]) => transportistaUpdateMock(...a),
     },
+    transportistaHistorial: { create: (...a: unknown[]) => historialCreateMock(...a) },
   },
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const { guardarCoberturaGeografica, eliminarCoberturaGeografica } = await import("./actions");
+const { crearTransportista, editarTransportista, toggleTransportista } = await import("./actions");
 
-const INPUT_BASE = {
-  transportistaId: "transportista-1",
-  paisId: "pais-pe",
-  estadoProvinciaId: "estado-lima",
-  costoEnvio: 20,
-  activo: true,
-};
-
-describe("transportistas/actions — cobertura geográfica (019, Historia 1)", () => {
+describe("transportistas/actions (022 — corrección de permiso + siembra)", () => {
   beforeEach(() => {
     requirePermisoActionMock.mockClear().mockResolvedValue({ ok: true, sesion: sesionMock });
-    obtenerConfiguracionEmpresaMock.mockReset().mockResolvedValue(null);
-    transportistaFindFirstMock.mockReset().mockResolvedValue({ id: "transportista-1" });
-    estadoProvinciaFindUniqueMock.mockReset().mockResolvedValue({ paisId: "pais-pe" });
-    coberturaUpsertMock.mockReset().mockResolvedValue({ id: "cobertura-1", ...INPUT_BASE });
-    coberturaFindFirstMock.mockReset();
-    coberturaDeleteMock.mockReset();
+    transportistaCreateMock.mockReset().mockResolvedValue({ id: "transportista-1", nombre: "DHL", tipo: "COURIER_EXTERNO" });
+    transportistaFindFirstMock.mockReset().mockResolvedValue({ id: "transportista-1", nombre: "DHL", tipo: "COURIER_EXTERNO" });
+    transportistaFindUniqueMock.mockReset().mockResolvedValue({ activo: true });
+    transportistaUpdateMock.mockReset().mockResolvedValue({ id: "transportista-1", nombre: "DHL", tipo: "COURIER_EXTERNO" });
+    historialCreateMock.mockReset();
   });
 
-  describe("guardarCoberturaGeografica", () => {
-    it("rechaza costo negativo (FR-016)", async () => {
-      const resultado = await guardarCoberturaGeografica({ ...INPUT_BASE, costoEnvio: -5 });
+  describe("crearTransportista", () => {
+    it("valida contra el módulo 'transportistas' (no 'configuracion')", async () => {
+      await crearTransportista({ nombre: "DHL", tipo: "COURIER_EXTERNO" });
+      expect(requirePermisoActionMock).toHaveBeenCalledWith("transportistas", "modificar");
+    });
+
+    it("siembra 3 servicios (Estándar/Express/Personalizado) y condiciones por defecto", async () => {
+      await crearTransportista({ nombre: "DHL", tipo: "COURIER_EXTERNO" });
+      expect(transportistaCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            servicios: { create: [{ nombre: "Estándar" }, { nombre: "Express" }, { nombre: "Personalizado" }] },
+            condiciones: { create: expect.objectContaining({ permitePagoContraEntrega: false }) },
+          }),
+        })
+      );
+    });
+
+    it("registra TransportistaHistorial al crear", async () => {
+      await crearTransportista({ nombre: "DHL", tipo: "COURIER_EXTERNO" });
+      expect(historialCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ entidadTipo: "TRANSPORTISTA", accion: "creado" }) })
+      );
+    });
+
+    it("rechaza sin permiso", async () => {
+      requirePermisoActionMock.mockResolvedValue({ ok: false, error: "Sin permiso" });
+      const resultado = await crearTransportista({ nombre: "DHL", tipo: "COURIER_EXTERNO" });
       expect(resultado.exito).toBe(false);
-      expect(coberturaUpsertMock).not.toHaveBeenCalled();
+      expect(transportistaCreateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("editarTransportista", () => {
+    it("acepta los campos de contacto nuevos", async () => {
+      const resultado = await editarTransportista({
+        id: "transportista-1", nombre: "DHL", tipo: "COURIER_EXTERNO",
+        personaContacto: "Juan Pérez", telefono: "+51999999999", correoElectronico: "juan@dhl.com",
+      });
+      expect(resultado.exito).toBe(true);
+      expect(transportistaUpdateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ personaContacto: "Juan Pérez", correoElectronico: "juan@dhl.com" }) })
+      );
     });
 
     it("rechaza si el transportista no pertenece a la instancia actual", async () => {
       transportistaFindFirstMock.mockResolvedValue(null);
-      const resultado = await guardarCoberturaGeografica(INPUT_BASE);
+      const resultado = await editarTransportista({ id: "transportista-1", nombre: "DHL", tipo: "COURIER_EXTERNO" });
       expect(resultado.exito).toBe(false);
-      expect(coberturaUpsertMock).not.toHaveBeenCalled();
-    });
-
-    it("rechaza si el estado/provincia no existe", async () => {
-      estadoProvinciaFindUniqueMock.mockResolvedValue(null);
-      const resultado = await guardarCoberturaGeografica(INPUT_BASE);
-      expect(resultado.exito).toBe(false);
-      expect(coberturaUpsertMock).not.toHaveBeenCalled();
-    });
-
-    it("rechaza si el estado/provincia no pertenece al país indicado (FR-016)", async () => {
-      estadoProvinciaFindUniqueMock.mockResolvedValue({ paisId: "pais-otro" });
-      const resultado = await guardarCoberturaGeografica(INPUT_BASE);
-      expect(resultado.exito).toBe(false);
-      expect(coberturaUpsertMock).not.toHaveBeenCalled();
-    });
-
-    it("guarda vía upsert por (transportistaId, estadoProvinciaId) — sin duplicar filas", async () => {
-      const resultado = await guardarCoberturaGeografica(INPUT_BASE);
-      expect(resultado.exito).toBe(true);
-      expect(coberturaUpsertMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            transportistaId_estadoProvinciaId: {
-              transportistaId: "transportista-1",
-              estadoProvinciaId: "estado-lima",
-            },
-          },
-        })
-      );
-    });
-
-    it("en modo UN_SOLO_PAIS, fuerza paisOperacionId en vez del paisId recibido", async () => {
-      obtenerConfiguracionEmpresaMock.mockResolvedValue({
-        modoGeografico: "UN_SOLO_PAIS",
-        paisOperacionId: "pais-operacion",
-      });
-      estadoProvinciaFindUniqueMock.mockResolvedValue({ paisId: "pais-operacion" });
-
-      const resultado = await guardarCoberturaGeografica({ ...INPUT_BASE, paisId: "pais-distinto-enviado" });
-
-      expect(resultado.exito).toBe(true);
-      expect(coberturaUpsertMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          create: expect.objectContaining({ paisId: "pais-operacion" }),
-        })
-      );
+      expect(transportistaUpdateMock).not.toHaveBeenCalled();
     });
   });
 
-  describe("eliminarCoberturaGeografica", () => {
-    it("rechaza si la cobertura no pertenece a un transportista de la instancia actual", async () => {
-      coberturaFindFirstMock.mockResolvedValue(null);
-      const resultado = await eliminarCoberturaGeografica("cobertura-1");
-      expect(resultado.exito).toBe(false);
-      expect(coberturaDeleteMock).not.toHaveBeenCalled();
+  describe("toggleTransportista", () => {
+    it("activa/desactiva y registra historial", async () => {
+      const resultado = await toggleTransportista("transportista-1");
+      expect(resultado.exito).toBe(true);
+      expect(historialCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ accion: "desactivado" }) })
+      );
     });
 
-    it("elimina cuando la cobertura pertenece a la instancia actual", async () => {
-      coberturaFindFirstMock.mockResolvedValue({ id: "cobertura-1" });
-      const resultado = await eliminarCoberturaGeografica("cobertura-1");
-      expect(resultado.exito).toBe(true);
-      expect(coberturaDeleteMock).toHaveBeenCalledWith({ where: { id: "cobertura-1" } });
+    it("rechaza si el transportista no existe en la instancia", async () => {
+      transportistaFindUniqueMock.mockResolvedValue(null);
+      const resultado = await toggleTransportista("transportista-1");
+      expect(resultado.exito).toBe(false);
     });
   });
 });

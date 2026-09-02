@@ -23,6 +23,8 @@ export interface ConfigEmpresa {
   // 019-cobertura-geografica-envios
   modoGeografico: "UN_SOLO_PAIS" | "MULTIPAIS";
   paisOperacionId: string | null;
+  // 022-transportistas-zonas-tarifas — FR-040
+  permiteConvertirSinConfirmarCostoEnvio: boolean;
   instanciaId: string;
   creadoEn: Date;
   actualizadoEn: Date;

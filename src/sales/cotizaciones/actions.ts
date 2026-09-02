@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import type { SesionActual } from "@/shared/auth/sesion";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
@@ -20,7 +22,7 @@ import { resolverCodigoEfectivo, ocultarCodigo } from "@/shared/lib/codigo-sensi
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
 import type { ResultadoAccion, Cotizacion } from "./types";
-import type { LineaCotizacionInput, EntregaDigitalCotizacionInput } from "./schema";
+import type { LineaCotizacionInput, EntregaDigitalCotizacionInput, EntregaCotizacionInput } from "./schema";
 
 /**
  * Determina qué bloque de cumplimiento corresponde (Físico/Servicio/
@@ -97,6 +99,94 @@ function datosEntregaDigitalLinea(entregaLinea: EntregaDigitalCotizacionInput | 
   };
 }
 
+interface ResolucionEnvioTarifa {
+  costoEnvio: number;
+  costoInternoEnvio: number | null;
+  costoEnvioConfirmado: boolean;
+  costoManualAutorizadoPorId: string | null;
+  error?: string;
+}
+
+const ERROR_BASE: Omit<ResolucionEnvioTarifa, "error"> = {
+  costoEnvio: 0, costoInternoEnvio: null, costoEnvioConfirmado: true, costoManualAutorizadoPorId: null,
+};
+
+/**
+ * 022-transportistas-zonas-tarifas — resuelve el costo de envío final de
+ * una cotización a partir de la tarifa elegida (FR-041) o de un costo
+ * manual autorizado (FR-044, requiere permiso "transportistas-costos").
+ * Sin tarifa ni costo manual, preserva el comportamiento previo a esta
+ * feature (usa `entrega.costoEnvio` tal cual). No escribe
+ * TransportistaHistorial acá — el caller lo hace una vez que conoce el id
+ * de la EntregaCotizacion resultante (contracts/server-actions.md).
+ */
+async function resolverCostoEnvioEntrega(
+  entrega: EntregaCotizacionInput | undefined,
+  sesion: SesionActual,
+): Promise<ResolucionEnvioTarifa> {
+  if (entrega?.tarifaTransportistaZonaId) {
+    const tarifa = await prisma.tarifaTransportistaZona.findFirst({
+      where: { id: entrega.tarifaTransportistaZonaId, instanciaId: sesion.instanciaId, activa: true },
+    });
+    if (!tarifa) return { ...ERROR_BASE, error: "La tarifa seleccionada no existe o ya no está activa" };
+    const ahora = new Date();
+    if (tarifa.vigenteDesde && tarifa.vigenteDesde > ahora) return { ...ERROR_BASE, error: "La tarifa seleccionada aún no está vigente" };
+    if (tarifa.vigenteHasta && tarifa.vigenteHasta < ahora) return { ...ERROR_BASE, error: "La tarifa seleccionada ya no está vigente" };
+    return {
+      costoEnvio: Number(tarifa.precioCliente),
+      costoInternoEnvio: Number(tarifa.costoInterno),
+      costoEnvioConfirmado: entrega?.costoEnvioConfirmado ?? true,
+      costoManualAutorizadoPorId: null,
+    };
+  }
+
+  if (entrega?.costoManual !== undefined) {
+    const acceso = verificarAcceso(sesion, "transportistas-costos", "modificar");
+    if (!acceso.permitido) return { ...ERROR_BASE, error: "No tienes permiso para sobrescribir manualmente el costo de envío" };
+    return {
+      costoEnvio: entrega.costoManual,
+      costoInternoEnvio: null,
+      costoEnvioConfirmado: entrega?.costoEnvioConfirmado ?? true,
+      costoManualAutorizadoPorId: sesion.usuarioId,
+    };
+  }
+
+  return {
+    costoEnvio: entrega?.costoEnvio ?? 0,
+    costoInternoEnvio: null,
+    costoEnvioConfirmado: entrega?.costoEnvioConfirmado ?? true,
+    costoManualAutorizadoPorId: null,
+  };
+}
+
+async function registrarHistorialEnvioCotizacion(params: {
+  instanciaId: string;
+  entregaCotizacionId: string;
+  zonaAsignadaManualmente: boolean;
+  huboCostoManual: boolean;
+  costoManual?: number;
+  sesion: SesionActual;
+}) {
+  const { instanciaId, entregaCotizacionId, sesion } = params;
+  if (params.zonaAsignadaManualmente) {
+    await prisma.transportistaHistorial.create({
+      data: {
+        instanciaId, entidadTipo: "ZONA_MANUAL", entidadId: entregaCotizacionId,
+        accion: "zona_cambiada_manualmente", usuarioId: sesion.usuarioId, usuarioNombre: sesion.nombre,
+      },
+    });
+  }
+  if (params.huboCostoManual) {
+    await prisma.transportistaHistorial.create({
+      data: {
+        instanciaId, entidadTipo: "COSTO_MANUAL", entidadId: entregaCotizacionId,
+        accion: "costo_sobrescrito_manualmente", valorNuevo: { costoEnvio: params.costoManual },
+        usuarioId: sesion.usuarioId, usuarioNombre: sesion.nombre,
+      },
+    });
+  }
+}
+
 export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<Cotizacion>> {
   const validado = CrearCotizacionSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
@@ -114,7 +204,13 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
       return acc + base * (1 - l.descuento / 100);
     }, 0);
     const impuestoMonto = subtotal * (impuesto / 100);
-    const costoEnvio = entrega?.costoEnvio ?? 0;
+
+    // 022-transportistas-zonas-tarifas — resuelve el costo de envío final
+    // (tarifa elegida, costo manual autorizado, o el valor tal cual venía)
+    // antes de calcular el total (FR-041/044).
+    const resolucionEnvio = await resolverCostoEnvioEntrega(entrega, sesion);
+    if (resolucionEnvio.error) return { exito: false, error: resolucionEnvio.error };
+    const costoEnvio = resolucionEnvio.costoEnvio;
     const total = subtotal + impuestoMonto + costoEnvio;
 
     const tipoCumplimiento = await resolverTipoCumplimiento(lineas);
@@ -122,7 +218,11 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     // Solo se registra el bloque de cumplimiento si el usuario realmente
     // tocó algo de esa sección Y coincide con el tipo resuelto — evita crear
     // una fila vacía por defecto, o de un bloque que no corresponde.
-    const hayEntrega = tipoCumplimiento === "FISICO" && entrega && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId || entrega.estadoProvinciaId);
+    const hayEntrega = tipoCumplimiento === "FISICO" && entrega && (
+      entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId ||
+      entrega.estadoProvinciaId || entrega.zonaEntregaId || entrega.tarifaTransportistaZonaId ||
+      entrega.costoManual !== undefined || entrega.costoEnvioConfirmado === false
+    );
     const hayServicio = tipoCumplimiento === "SERVICIO" && servicio && (servicio.modalidad || servicio.fecha || servicio.hora || servicio.duracion || servicio.ubicacion || servicio.direccion || servicio.responsable || servicio.instrucciones || servicio.observaciones);
 
     // Plantillas de entrega digital por producto — solo si esta cotización
@@ -175,6 +275,16 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
             paisId: entrega!.paisId || null,
             estadoProvinciaId: entrega!.estadoProvinciaId || null,
             ciudad: entrega!.ciudad || null,
+            // 022-transportistas-zonas-tarifas
+            corregimiento: entrega!.corregimiento || null,
+            sectorOCodigoPostal: entrega!.sectorOCodigoPostal || null,
+            zonaEntregaId: entrega!.zonaEntregaId || null,
+            zonaAsignadaManualmente: entrega!.zonaAsignadaManualmente ?? false,
+            servicioTransportistaId: entrega!.servicioTransportistaId || null,
+            tarifaTransportistaZonaId: entrega!.tarifaTransportistaZonaId || null,
+            costoInternoEnvio: resolucionEnvio.costoInternoEnvio,
+            costoEnvioConfirmado: resolucionEnvio.costoEnvioConfirmado,
+            costoManualAutorizadoPorId: resolucionEnvio.costoManualAutorizadoPorId,
           },
         } : undefined,
         servicio: hayServicio ? {
@@ -191,8 +301,19 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
           },
         } : undefined,
       },
-      include: { contacto: { select: { id: true, nombre: true, apellido: true } }, empresa: { select: { id: true, nombre: true } } },
+      include: { contacto: { select: { id: true, nombre: true, apellido: true } }, empresa: { select: { id: true, nombre: true } }, entrega: { select: { id: true } } },
     });
+
+    if (cotizacion.entrega) {
+      await registrarHistorialEnvioCotizacion({
+        instanciaId: sesion.instanciaId,
+        entregaCotizacionId: cotizacion.entrega.id,
+        zonaAsignadaManualmente: !!entrega?.zonaAsignadaManualmente,
+        huboCostoManual: entrega?.costoManual !== undefined,
+        costoManual: entrega?.costoManual,
+        sesion,
+      });
+    }
 
     await publicadorEventos.publicar(EventosSistema.CotizacionCreada, sesion.instanciaId, { instanciaId: sesion.instanciaId, cotizacionId: cotizacion.id, numero: cotizacion.numero, total });
     revalidatePath("/sales/cotizaciones");
@@ -245,8 +366,18 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
       updateData.metadata = { ...metadataActual, destinatario };
     }
 
+    let resolucionEnvio: ResolucionEnvioTarifa | null = null;
     if (entrega !== undefined) {
-      const hayEntrega = tipoCumplimiento === "FISICO" && (entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId || entrega.estadoProvinciaId);
+      // 022-transportistas-zonas-tarifas — misma resolución de costo que
+      // crearCotizacion (FR-041/044).
+      resolucionEnvio = await resolverCostoEnvioEntrega(entrega, sesion);
+      if (resolucionEnvio.error) return { exito: false, error: resolucionEnvio.error };
+
+      const hayEntrega = tipoCumplimiento === "FISICO" && (
+        entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId ||
+        entrega.estadoProvinciaId || entrega.zonaEntregaId || entrega.tarifaTransportistaZonaId ||
+        entrega.costoManual !== undefined || entrega.costoEnvioConfirmado === false
+      );
       const datosEntrega = {
         metodoEntrega: entrega.metodoEntrega || "COURIER_EXTERNO",
         estadoEntrega: entrega.estadoEntrega || "PENDIENTE",
@@ -257,6 +388,16 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
         paisId: entrega.paisId || null,
         estadoProvinciaId: entrega.estadoProvinciaId || null,
         ciudad: entrega.ciudad || null,
+        // 022-transportistas-zonas-tarifas
+        corregimiento: entrega.corregimiento || null,
+        sectorOCodigoPostal: entrega.sectorOCodigoPostal || null,
+        zonaEntregaId: entrega.zonaEntregaId || null,
+        zonaAsignadaManualmente: entrega.zonaAsignadaManualmente ?? false,
+        servicioTransportistaId: entrega.servicioTransportistaId || null,
+        tarifaTransportistaZonaId: entrega.tarifaTransportistaZonaId || null,
+        costoInternoEnvio: resolucionEnvio.costoInternoEnvio,
+        costoEnvioConfirmado: resolucionEnvio.costoEnvioConfirmado,
+        costoManualAutorizadoPorId: resolucionEnvio.costoManualAutorizadoPorId,
       };
       updateData.entrega = hayEntrega ? {
         upsert: { create: datosEntrega, update: datosEntrega },
@@ -290,7 +431,7 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
     // (es un único form), así que alcanza con recalcular el total acá — pero
     // igual cae al valor ya guardado si algún caller llega a mandar solo el
     // costo de envío sin tocar las líneas.
-    const costoEnvioNuevo = entrega?.costoEnvio;
+    const costoEnvioNuevo = resolucionEnvio?.costoEnvio;
     if (lineas || costoEnvioNuevo !== undefined) {
       const subtotal = lineas
         ? lineas.reduce((acc, l) => {
@@ -361,8 +502,19 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
 
     const cotizacionActualizada = await prisma.cotizacion.findFirst({
       where: { id },
-      include: { contacto: { select: { id: true, nombre: true, apellido: true } }, empresa: { select: { id: true, nombre: true } } },
+      include: { contacto: { select: { id: true, nombre: true, apellido: true } }, empresa: { select: { id: true, nombre: true } }, entrega: { select: { id: true } } },
     });
+
+    if (cotizacionActualizada?.entrega) {
+      await registrarHistorialEnvioCotizacion({
+        instanciaId: sesion.instanciaId,
+        entregaCotizacionId: cotizacionActualizada.entrega.id,
+        zonaAsignadaManualmente: !!entrega?.zonaAsignadaManualmente,
+        huboCostoManual: entrega?.costoManual !== undefined,
+        costoManual: entrega?.costoManual,
+        sesion,
+      });
+    }
 
     revalidatePath("/sales/cotizaciones");
     revalidatePath(`/sales/cotizaciones/${id}`);
@@ -441,11 +593,25 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<voi
             producto: { select: { id: true, nombre: true, manejaStock: true, cantidadDisponible: true } },
           },
         },
+        entrega: { select: { costoEnvioConfirmado: true } },
       },
     });
 
     if (!cotizacion) return { exito: false, error: "Cotización no encontrada" };
     if (cotizacion.estado === "APROBADA") return { exito: false, error: "La cotización ya fue aprobada" };
+
+    // 022-transportistas-zonas-tarifas — FR-040: exige confirmar el costo
+    // de envío antes de convertir en pedido, salvo que la empresa permita
+    // continuar sin confirmar.
+    if (cotizacion.entrega?.costoEnvioConfirmado === false) {
+      const config = await prisma.configuracionEmpresa.findUnique({
+        where: { instanciaId: sesion.instanciaId },
+        select: { permiteConvertirSinConfirmarCostoEnvio: true },
+      });
+      if (!config?.permiteConvertirSinConfirmarCostoEnvio) {
+        return { exito: false, error: "Confirma el costo de envío antes de convertir esta cotización en pedido" };
+      }
+    }
 
     // Validar stock antes de hacer cualquier cambio
     const erroresStock: string[] = [];
@@ -669,6 +835,10 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
     metodoEntrega: string; estadoEntrega: string; transportistaId: string | null;
     fechaEstimada: Date | string | null; observaciones: string | null;
     paisId: string | null; estadoProvinciaId: string | null; ciudad: string | null;
+    corregimiento: string | null; sectorOCodigoPostal: string | null;
+    zonaEntregaId: string | null; zonaAsignadaManualmente: boolean;
+    servicioTransportistaId: string | null; tarifaTransportistaZonaId: string | null;
+    costoEnvioConfirmado: boolean;
   } | null;
 
   const defaultValues: Partial<CrearCotizacionInput> = {
@@ -694,6 +864,14 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
       paisId: entregaGuardada?.paisId ?? null,
       estadoProvinciaId: entregaGuardada?.estadoProvinciaId ?? null,
       ciudad: entregaGuardada?.ciudad ?? "",
+      // 022-transportistas-zonas-tarifas
+      corregimiento: entregaGuardada?.corregimiento ?? "",
+      sectorOCodigoPostal: entregaGuardada?.sectorOCodigoPostal ?? "",
+      zonaEntregaId: entregaGuardada?.zonaEntregaId ?? null,
+      zonaAsignadaManualmente: entregaGuardada?.zonaAsignadaManualmente ?? false,
+      servicioTransportistaId: entregaGuardada?.servicioTransportistaId ?? null,
+      tarifaTransportistaZonaId: entregaGuardada?.tarifaTransportistaZonaId ?? null,
+      costoEnvioConfirmado: entregaGuardada?.costoEnvioConfirmado ?? true,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       costoEnvio: Number((cotizacion as any).costoEnvio ?? 0),
     } as CrearCotizacionInput["entrega"],

@@ -14,7 +14,9 @@ export async function obtenerProveedoresIA(instanciaId: string) {
     orderBy: { prioridad: "desc" },
     select: {
       id: true,
+      alias: true,
       proveedor: true,
+      tipoAgenteIA: true,
       activo: true,
       prioridad: true,
       modelosDisponibles: true,
@@ -36,6 +38,7 @@ export async function obtenerProveedorIA(id: string, instanciaId: string) {
     where: { id, instanciaId },
     select: {
       id: true,
+      alias: true,
       proveedor: true,
       activo: true,
       prioridad: true,
@@ -61,6 +64,7 @@ export interface AsignacionObjetivoIA {
   objetivo: ObjetivoEnrutamiento;
   proveedorIAId: string | null;
   proveedorNombre: string | null;
+  proveedorAlias: string | null;
   proveedorInvalido: boolean;
 }
 
@@ -68,13 +72,13 @@ export interface AsignacionObjetivoIA {
 export async function obtenerAsignacionesObjetivoIA(instanciaId: string): Promise<AsignacionObjetivoIA[]> {
   const proveedores = await prisma.proveedorIA.findMany({
     where: { instanciaId },
-    select: { id: true, proveedor: true, activo: true, casosDeUso: true },
+    select: { id: true, alias: true, proveedor: true, activo: true, casosDeUso: true },
   });
 
-  const mapa = new Map<ObjetivoEnrutamiento, { id: string; proveedor: string; activo: boolean }>();
+  const mapa = new Map<ObjetivoEnrutamiento, { id: string; proveedor: string; alias: string; activo: boolean }>();
   for (const p of proveedores) {
     for (const objetivo of parsearObjetivos(p.casosDeUso)) {
-      mapa.set(objetivo, { id: p.id, proveedor: p.proveedor, activo: p.activo });
+      mapa.set(objetivo, { id: p.id, proveedor: p.proveedor, alias: p.alias, activo: p.activo });
     }
   }
 
@@ -84,6 +88,7 @@ export async function obtenerAsignacionesObjetivoIA(instanciaId: string): Promis
       objetivo,
       proveedorIAId: asignado?.id ?? null,
       proveedorNombre: asignado?.proveedor ?? null,
+      proveedorAlias: asignado?.alias ?? null,
       proveedorInvalido: asignado ? !asignado.activo : false,
     };
   });

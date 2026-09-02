@@ -8,6 +8,7 @@ import { verificarAcceso } from "@/shared/auth/permisos";
 import {
   ConfiguracionIASchema,
   ProveedorIASchema,
+  ActualizarProveedorIASchema,
   AsignacionesObjetivoIASchema,
   OBJETIVOS_ENRUTAMIENTO,
   type ObjetivoEnrutamiento,
@@ -35,6 +36,20 @@ export async function guardarConfiguracionIA(datos: unknown) {
   return { exito: true };
 }
 
+// 021-alias-proveedores-ia — insensible a mayúsculas/espacios de borde
+// (spec Edge Cases / FR-004), calculado en el único punto de escritura.
+function normalizarAlias(alias: string): string {
+  return alias.trim().toLowerCase();
+}
+
+function mensajeAliasDuplicado(alias: string): string {
+  return `Ya existe un agente con el alias "${alias.trim()}"`;
+}
+
+function esErrorAliasDuplicado(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
 export async function crearProveedorIA(datos: unknown) {
   const sesion = await requireSesion();
   const { permitido, error } = verificarAcceso(sesion, "ia", "modificar");
@@ -43,27 +58,101 @@ export async function crearProveedorIA(datos: unknown) {
   const validado = ProveedorIASchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: "Datos inválidos" };
 
+  const aliasNormalizado = normalizarAlias(validado.data.alias);
+
+  // FR-005 — rechazo explícito antes de tocar Prisma; el índice único de BD
+  // (@@unique([instanciaId, aliasNormalizado])) queda como resguardo ante
+  // condiciones de carrera, capturado más abajo.
+  const duplicado = await prisma.proveedorIA.findFirst({
+    where: { instanciaId: sesion.instanciaId, aliasNormalizado },
+  });
+  if (duplicado) return { exito: false, error: mensajeAliasDuplicado(validado.data.alias) };
+
   const modelos = validado.data.modelosDisponibles
     .split(",")
     .map((m) => m.trim())
     .filter(Boolean);
 
-  await prisma.proveedorIA.create({
-    data: {
-      instanciaId: sesion.instanciaId,
-      proveedor: validado.data.proveedor,
-      tipoAgenteIA: validado.data.tipoAgenteIA ?? null,
-      apiKeyEncriptada: validado.data.apiKey || null,
-      baseUrl: validado.data.baseUrl || null,
-      modelosDisponibles: modelos,
-      prioridad: validado.data.prioridad,
-      limitePorMinuto: validado.data.limitePorMinuto ?? null,
-      limitePorDia: validado.data.limitePorDia ?? null,
-      timeoutMs: validado.data.timeoutMs,
-      reintentosMax: validado.data.reintentosMax,
-      activo: true,
-    },
+  try {
+    await prisma.proveedorIA.create({
+      data: {
+        instanciaId: sesion.instanciaId,
+        alias: validado.data.alias.trim(),
+        aliasNormalizado,
+        proveedor: validado.data.proveedor,
+        tipoAgenteIA: validado.data.tipoAgenteIA ?? null,
+        apiKeyEncriptada: validado.data.apiKey || null,
+        baseUrl: validado.data.baseUrl || null,
+        modelosDisponibles: modelos,
+        prioridad: validado.data.prioridad,
+        limitePorMinuto: validado.data.limitePorMinuto ?? null,
+        limitePorDia: validado.data.limitePorDia ?? null,
+        timeoutMs: validado.data.timeoutMs,
+        reintentosMax: validado.data.reintentosMax,
+        activo: true,
+      },
+    });
+  } catch (err) {
+    if (esErrorAliasDuplicado(err)) return { exito: false, error: mensajeAliasDuplicado(validado.data.alias) };
+    throw err;
+  }
+
+  revalidatePath("/configuracion");
+  return { exito: true };
+}
+
+// 021-alias-proveedores-ia — FR-006/FR-007. El proveedor subyacente es
+// inmutable tras la creación (research.md Decisión 5): no forma parte del
+// input de edición.
+export async function actualizarProveedorIA(id: string, datos: unknown) {
+  const sesion = await requireSesion();
+  const { permitido, error } = verificarAcceso(sesion, "ia", "modificar");
+  if (!permitido) return { exito: false, error };
+
+  const existente = await prisma.proveedorIA.findFirst({
+    where: { id, instanciaId: sesion.instanciaId },
   });
+  if (!existente) return { exito: false, error: "Proveedor no encontrado" };
+
+  const validado = ActualizarProveedorIASchema.safeParse(datos);
+  if (!validado.success) return { exito: false, error: "Datos inválidos" };
+
+  const aliasNormalizado = normalizarAlias(validado.data.alias);
+
+  // FR-007 — excluye el propio registro: conservar su alias no es "duplicado".
+  const duplicado = await prisma.proveedorIA.findFirst({
+    where: { instanciaId: sesion.instanciaId, aliasNormalizado, NOT: { id } },
+  });
+  if (duplicado) return { exito: false, error: mensajeAliasDuplicado(validado.data.alias) };
+
+  const modelos = validado.data.modelosDisponibles
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+
+  try {
+    await prisma.proveedorIA.update({
+      where: { id },
+      data: {
+        alias: validado.data.alias.trim(),
+        aliasNormalizado,
+        tipoAgenteIA: validado.data.tipoAgenteIA ?? null,
+        // La API key nunca se devuelve al cliente (ver queries.ts) — un campo
+        // vacío en edición significa "no cambiarla", no "borrarla".
+        apiKeyEncriptada: validado.data.apiKey || existente.apiKeyEncriptada,
+        baseUrl: validado.data.baseUrl || null,
+        modelosDisponibles: modelos,
+        prioridad: validado.data.prioridad,
+        limitePorMinuto: validado.data.limitePorMinuto ?? null,
+        limitePorDia: validado.data.limitePorDia ?? null,
+        timeoutMs: validado.data.timeoutMs,
+        reintentosMax: validado.data.reintentosMax,
+      },
+    });
+  } catch (err) {
+    if (esErrorAliasDuplicado(err)) return { exito: false, error: mensajeAliasDuplicado(validado.data.alias) };
+    throw err;
+  }
 
   revalidatePath("/configuracion");
   return { exito: true };
