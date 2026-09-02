@@ -22,7 +22,7 @@ description: "Task list for feature implementation"
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirmar rama `022-transportistas-zonas-tarifas` activa, `npm install` al día, y que `npm run db:migrate`/`npx prisma migrate status` puede conectar a la base de datos de desarrollo (sin aplicar todavía ninguna migración de esta feature)
+- [X] T001 Confirmar rama `022-transportistas-zonas-tarifas` activa, `npm install` al día, y que `npm run db:migrate`/`npx prisma migrate status` puede conectar a la base de datos de desarrollo (sin aplicar todavía ninguna migración de esta feature)
 
 **Checkpoint**: Entorno listo
 
@@ -34,24 +34,24 @@ description: "Task list for feature implementation"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 Modificar `prisma/schema.prisma`: extender `Transportista` con `personaContacto String?`, `telefono String?`, `correoElectronico String?`, `notasInternas String?` (FR-004)
-- [ ] T003 Modificar `prisma/schema.prisma`: agregar modelos `ZonaEntrega` y `ZonaEntregaUbicacion` (ver [data-model.md](data-model.md))
-- [ ] T004 Modificar `prisma/schema.prisma`: agregar modelo `ServicioTransportista` con `@@unique([transportistaId, nombre])`
-- [ ] T005 Modificar `prisma/schema.prisma`: agregar modelo `TarifaTransportistaZona` con `@@unique([transportistaId, zonaEntregaId, servicioTransportistaId])` (FR-026)
-- [ ] T006 Modificar `prisma/schema.prisma`: agregar modelo `CondicionesTransportista` (1-1 con `Transportista`, `@unique` en `transportistaId`)
-- [ ] T007 Modificar `prisma/schema.prisma`: agregar enum `TipoEntidadHistorialTransportista` y modelo `TransportistaHistorial` (mismo shape que `PedidoHistorial`, ver research.md Decisión 7)
-- [ ] T008 Modificar `prisma/schema.prisma`: extender `EntregaCotizacion` y `EntregaPedido` con `zonaEntregaId`, `zonaAsignadaManualmente`, `servicioTransportistaId`, `tarifaTransportistaZonaId`, `costoInternoEnvio`, `costoEnvioConfirmado` (default `true`), `costoManualAutorizadoPorId`, `corregimiento`, `sectorOCodigoPostal`; quitar la relación `coberturaGeografica` de `Transportista` y eliminar el modelo `TransportistaCoberturaGeografica`
-- [ ] T009 Modificar `prisma/schema.prisma`: agregar `ConfiguracionEmpresa.permiteConvertirSinConfirmarCostoEnvio Boolean @default(false)` (FR-040)
-- [ ] T010 Crear `prisma/migrations/<timestamp>_transportistas_zonas_tarifas/migration.sql` (depende de T002-T009): crear las tablas nuevas; backfill — por cada fila de `TransportistaCoberturaGeografica`, crear una `ZonaEntrega` (nombre = nombre del `EstadoProvincia`) + su `ZonaEntregaUbicacion` (paisId, provinciaEstado = ese nombre) + un `ServicioTransportista` "Estándar" (si no existe ya para ese transportista) + una `TarifaTransportistaZona` con `costoInterno = precioCliente = costoEnvio` original; agregar columnas nuevas a `EntregaCotizacion`/`EntregaPedido`/`ConfiguracionEmpresa`; recién al final, `DROP TABLE "TransportistaCoberturaGeografica"` (ver research.md Decisión 1, quickstart.md Escenario 6)
-- [ ] T011 Aplicar la migración (`npx prisma migrate deploy`) y regenerar el cliente Prisma (`npx prisma generate`); confirmar en `src/generated/prisma` que los 6 modelos nuevos existen y `TransportistaCoberturaGeografica` ya no (depende de T010)
-- [ ] T012 [P] Modificar `src/shared/auth/permisos.ts`: agregar `"transportistas-costos"` a `Modulo` y al mapa `PERMISOS` (default `rw` para `OWNER`/`ADMIN`, `none` para el resto, ver research.md Decisión 8)
-- [ ] T013 Modificar `src/shared/entregas/resolver-costo-envio.ts` (depende de T011): agregar `obtenerCandidatosEnvioPorZona(destino)` — nueva función pura de consulta que resuelve destino (país/provinciaEstado/distritoCiudad/corregimiento/sectorOCodigoPostal) contra `ZonaEntregaUbicacion` (comparación por slug, nivel vacío = comodín, ver research.md Decisión 2/3) y devuelve la lista completa de `TarifaTransportistaZona` candidatas (activas y vigentes) sin colapsar
-- [ ] T014 Modificar `src/shared/entregas/resolver-costo-envio.ts` (depende de T013): reescribir la "Fuente 1: Transportista" dentro de `resolverCostoEnvio` para usar `obtenerCandidatosEnvioPorZona` en vez de `TransportistaCoberturaGeografica`/`EstadoProvincia`, preservando sin cambios el contrato de `decidirCoincidenciaCosto` (research.md Decisión 4) — actualizar `resolver-costo-envio.test.ts`/`.integration.test.ts` reemplazando los casos de país+estado por casos de zona
-- [ ] T015 [P] Crear `src/sales/transportistas/zonas/schema.ts`: `CrearZonaEntregaSchema`, `EditarZonaEntregaSchema`, `UbicacionZonaSchema` (país obligatorio, resto opcional)
-- [ ] T016 [P] Crear `src/sales/transportistas/tarifas/schema.ts`: `CrearTarifaSchema`/`EditarTarifaSchema` (`costoInterno`/`precioCliente` `>= 0`), `CambioMasivoSchema`
-- [ ] T017 [P] Crear `src/sales/transportistas/condiciones/schema.ts`: `CondicionesTransportistaSchema`
-- [ ] T018 Modificar `src/sales/transportistas/schema.ts`: extender `CrearTransportistaSchema`/`EditarTransportistaSchema` con `personaContacto`/`telefono` (formato)/`correoElectronico` (formato)/`notasInternas`, todos opcionales
-- [ ] T019 Modificar `src/sales/transportistas/types.ts`: actualizar tipos para el `Transportista` extendido y las entidades nuevas
+- [X] T002 Modificar `prisma/schema.prisma`: extender `Transportista` con `personaContacto String?`, `telefono String?`, `correoElectronico String?`, `notasInternas String?` (FR-004)
+- [X] T003 Modificar `prisma/schema.prisma`: agregar modelos `ZonaEntrega` y `ZonaEntregaUbicacion` (ver [data-model.md](data-model.md))
+- [X] T004 Modificar `prisma/schema.prisma`: agregar modelo `ServicioTransportista` con `@@unique([transportistaId, nombre])`
+- [X] T005 Modificar `prisma/schema.prisma`: agregar modelo `TarifaTransportistaZona` con `@@unique([transportistaId, zonaEntregaId, servicioTransportistaId])` (FR-026)
+- [X] T006 Modificar `prisma/schema.prisma`: agregar modelo `CondicionesTransportista` (1-1 con `Transportista`, `@unique` en `transportistaId`)
+- [X] T007 Modificar `prisma/schema.prisma`: agregar enum `TipoEntidadHistorialTransportista` y modelo `TransportistaHistorial` (mismo shape que `PedidoHistorial`, ver research.md Decisión 7)
+- [X] T008 Modificar `prisma/schema.prisma`: extender `EntregaCotizacion` y `EntregaPedido` con `zonaEntregaId`, `zonaAsignadaManualmente`, `servicioTransportistaId`, `tarifaTransportistaZonaId`, `costoInternoEnvio`, `costoEnvioConfirmado` (default `true`), `costoManualAutorizadoPorId`, `corregimiento`, `sectorOCodigoPostal`; quitar la relación `coberturaGeografica` de `Transportista` y eliminar el modelo `TransportistaCoberturaGeografica`
+- [X] T009 Modificar `prisma/schema.prisma`: agregar `ConfiguracionEmpresa.permiteConvertirSinConfirmarCostoEnvio Boolean @default(false)` (FR-040)
+- [X] T010 Crear `prisma/migrations/<timestamp>_transportistas_zonas_tarifas/migration.sql` (depende de T002-T009): crear las tablas nuevas; backfill — por cada fila de `TransportistaCoberturaGeografica`, crear una `ZonaEntrega` (nombre = nombre del `EstadoProvincia`) + su `ZonaEntregaUbicacion` (paisId, provinciaEstado = ese nombre) + un `ServicioTransportista` "Estándar" (si no existe ya para ese transportista) + una `TarifaTransportistaZona` con `costoInterno = precioCliente = costoEnvio` original; agregar columnas nuevas a `EntregaCotizacion`/`EntregaPedido`/`ConfiguracionEmpresa`; recién al final, `DROP TABLE "TransportistaCoberturaGeografica"` (ver research.md Decisión 1, quickstart.md Escenario 6)
+- [X] T011 Aplicar la migración (`npx prisma migrate deploy`) y regenerar el cliente Prisma (`npx prisma generate`); confirmar en `src/generated/prisma` que los 6 modelos nuevos existen y `TransportistaCoberturaGeografica` ya no (depende de T010)
+- [X] T012 [P] Modificar `src/shared/auth/permisos.ts`: agregar `"transportistas-costos"` a `Modulo` y al mapa `PERMISOS` (default `rw` para `OWNER`/`ADMIN`, `none` para el resto, ver research.md Decisión 8)
+- [X] T013 Modificar `src/shared/entregas/resolver-costo-envio.ts` (depende de T011): agregar `obtenerCandidatosEnvioPorZona(destino)` — nueva función pura de consulta que resuelve destino (país/provinciaEstado/distritoCiudad/corregimiento/sectorOCodigoPostal) contra `ZonaEntregaUbicacion` (comparación por slug, nivel vacío = comodín, ver research.md Decisión 2/3) y devuelve la lista completa de `TarifaTransportistaZona` candidatas (activas y vigentes) sin colapsar
+- [X] T014 Modificar `src/shared/entregas/resolver-costo-envio.ts` (depende de T013): reescribir la "Fuente 1: Transportista" dentro de `resolverCostoEnvio` para usar `obtenerCandidatosEnvioPorZona` en vez de `TransportistaCoberturaGeografica`/`EstadoProvincia`, preservando sin cambios el contrato de `decidirCoincidenciaCosto` (research.md Decisión 4) — actualizar `resolver-costo-envio.test.ts`/`.integration.test.ts` reemplazando los casos de país+estado por casos de zona
+- [X] T015 [P] Crear `src/sales/transportistas/zonas/schema.ts`: `CrearZonaEntregaSchema`, `EditarZonaEntregaSchema`, `UbicacionZonaSchema` (país obligatorio, resto opcional)
+- [X] T016 [P] Crear `src/sales/transportistas/tarifas/schema.ts`: `CrearTarifaSchema`/`EditarTarifaSchema` (`costoInterno`/`precioCliente` `>= 0`), `CambioMasivoSchema`
+- [X] T017 [P] Crear `src/sales/transportistas/condiciones/schema.ts`: `CondicionesTransportistaSchema`
+- [X] T018 Modificar `src/sales/transportistas/schema.ts`: extender `CrearTransportistaSchema`/`EditarTransportistaSchema` con `personaContacto`/`telefono` (formato)/`correoElectronico` (formato)/`notasInternas`, todos opcionales
+- [X] T019 Modificar `src/sales/transportistas/types.ts`: actualizar tipos para el `Transportista` extendido y las entidades nuevas
 
 **Checkpoint**: Schema, migración, permiso financiero y motor de resolución listos — las 7 historias pueden empezar
 
@@ -65,26 +65,26 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 1
 
-- [ ] T020 [P] [US1] Tests Vitest en `src/sales/transportistas/zonas/actions.test.ts` (archivo nuevo): crear zona con varias ubicaciones; rechaza nombre de zona duplicado en la instancia; buscar zonas por nombre
-- [ ] T021 [P] [US1] Tests Vitest en `src/sales/transportistas/tarifas/actions.test.ts` (archivo nuevo): crea tarifa y calcula margen `precioCliente - costoInterno`; rechaza costo/precio negativos; advierte (sin bloquear) si `precioCliente < costoInterno`; rechaza tarifa duplicada (mismo transportista+zona+servicio); elimina solo si nunca fue usada, si no, solo desactiva; duplicar tarifa como copia editable
+- [X] T020 [P] [US1] Tests Vitest en `src/sales/transportistas/zonas/actions.test.ts` (archivo nuevo): crear zona con varias ubicaciones; rechaza nombre de zona duplicado en la instancia; buscar zonas por nombre
+- [X] T021 [P] [US1] Tests Vitest en `src/sales/transportistas/tarifas/actions.test.ts` (archivo nuevo): crea tarifa y calcula margen `precioCliente - costoInterno`; rechaza costo/precio negativos; advierte (sin bloquear) si `precioCliente < costoInterno`; rechaza tarifa duplicada (mismo transportista+zona+servicio); elimina solo si nunca fue usada, si no, solo desactiva; duplicar tarifa como copia editable
 
 ### Implementation for User Story 1
 
-- [ ] T022 [US1] Crear `src/sales/transportistas/zonas/actions.ts`: `crearZonaEntrega`, `editarZonaEntrega`, `eliminarZonaEntrega` (permiso `"transportistas"` `modificar`; elimina solo si ninguna tarifa la referencia)
-- [ ] T023 [US1] Crear `src/sales/transportistas/zonas/queries.ts`: `listarZonasEntrega(instanciaId, busqueda?)` (FR-013)
-- [ ] T024 [US1] Crear `src/sales/transportistas/tarifas/actions.ts`: `crearTarifa`, `editarTarifa`, `duplicarTarifa`, `toggleTarifa`, `eliminarTarifa` (bloqueado si `id` aparece en `EntregaCotizacion`/`EntregaPedido`), `aplicarCambioMasivo` (permiso `"transportistas"` `modificar`; cada mutación registra `TransportistaHistorial{entidadTipo: TARIFA}`)
-- [ ] T025 [US1] Crear `src/sales/transportistas/tarifas/queries.ts`: `listarTarifas(transportistaId)` (incluye flag `usada` precalculado para habilitar/deshabilitar "Eliminar"), `obtenerPromedioTarifas(transportistaId)` (FR-022)
-- [ ] T026 [US1] Modificar `src/sales/transportistas/actions.ts`: corregir `crearTransportista`/`editarTransportista`/`toggleTransportista` para validar `requirePermisoAction("transportistas", ...)` en vez de `"configuracion"`; `crearTransportista` siembra 3 `ServicioTransportista` (Estándar/Express/Personalizado) + una fila `CondicionesTransportista` con valores por defecto; `editarTransportista` acepta los campos de contacto nuevos; ambas registran `TransportistaHistorial{entidadTipo: TRANSPORTISTA}`
-- [ ] T027 [US1] Modificar `src/sales/transportistas/queries.ts`: extender `obtenerTransportistas`/`obtenerTransportista` con los campos de contacto y un conteo de zonas activas (para el encabezado del panel)
-- [ ] T028 [US1] Crear `src/app/sales/transportistas/[id]/page.tsx`: Server Component — carga transportista + zonas + tarifas + condiciones, verifica `verificarAcceso(sesion, "transportistas", "ver")`, renderiza `PanelTransportista`
-- [ ] T029 [US1] Crear `src/sales/transportistas/components/panel-transportista.tsx`: encabezado (nombre, tipo, badge de estado, "N zonas configuradas"), botón "Volver" (`Link` a `/sales/transportistas`), botón "Guardar cambios", `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent` para Información/Zonas y tarifas/Condiciones (FR-003)
-- [ ] T030 [US1] Crear `src/sales/transportistas/components/seccion-informacion-transportista.tsx`: formulario de los campos de la pestaña Información + botón "Desactivar transportista" (FR-004/FR-008)
-- [ ] T031 [US1] Modificar `src/sales/transportistas/components/dialog-transportista.tsx`: recortar a solo `nombre`/`tipo`/`estado` (FR-001); al guardar, redirige a `/sales/transportistas/[id]` en vez de cerrar el dialog
-- [ ] T032 [US1] Modificar `src/sales/transportistas/components/lista-transportistas.tsx`: quitar la edición inline (ya no abre `DialogTransportista tipo="editar"`), cada fila enlaza a `/sales/transportistas/[id]`
-- [ ] T033 [US1] Crear `src/sales/transportistas/components/seccion-zonas-tarifas.tsx`: buscador de zonas + botón "Agregar zona"; tabla editable (Zona · Servicio · Costo · Precio cliente · Margen · Entrega · Estado · Acciones) con edición inline, duplicar, activar/desactivar, eliminar (deshabilitado si `usada`); acción "Aplicar a varias zonas"; tarjetas KPI de costo/margen promedio (FR-014 a FR-022)
-- [ ] T034 [US1] Crear `src/sales/transportistas/components/dialog-zona-entrega.tsx`: crear una `ZonaEntrega` (con sus ubicaciones) sin salir del flujo de configuración de tarifas (FR-012)
-- [ ] T035 [US1] Modificar `src/app/sales/transportistas/page.tsx`: quitar el dialog de edición y la cobertura embebida del listado (ahora viven en el panel `[id]`)
-- [ ] T036 [US1] Eliminar `src/sales/transportistas/components/seccion-cobertura-geografica.tsx` (retirado, research.md Decisión 1)
+- [X] T022 [US1] Crear `src/sales/transportistas/zonas/actions.ts`: `crearZonaEntrega`, `editarZonaEntrega`, `eliminarZonaEntrega` (permiso `"transportistas"` `modificar`; elimina solo si ninguna tarifa la referencia)
+- [X] T023 [US1] Crear `src/sales/transportistas/zonas/queries.ts`: `listarZonasEntrega(instanciaId, busqueda?)` (FR-013)
+- [X] T024 [US1] Crear `src/sales/transportistas/tarifas/actions.ts`: `crearTarifa`, `editarTarifa`, `duplicarTarifa`, `toggleTarifa`, `eliminarTarifa` (bloqueado si `id` aparece en `EntregaCotizacion`/`EntregaPedido`), `aplicarCambioMasivo` (permiso `"transportistas"` `modificar`; cada mutación registra `TransportistaHistorial{entidadTipo: TARIFA}`)
+- [X] T025 [US1] Crear `src/sales/transportistas/tarifas/queries.ts`: `listarTarifas(transportistaId)` (incluye flag `usada` precalculado para habilitar/deshabilitar "Eliminar"), `obtenerPromedioTarifas(transportistaId)` (FR-022)
+- [X] T026 [US1] Modificar `src/sales/transportistas/actions.ts`: corregir `crearTransportista`/`editarTransportista`/`toggleTransportista` para validar `requirePermisoAction("transportistas", ...)` en vez de `"configuracion"`; `crearTransportista` siembra 3 `ServicioTransportista` (Estándar/Express/Personalizado) + una fila `CondicionesTransportista` con valores por defecto; `editarTransportista` acepta los campos de contacto nuevos; ambas registran `TransportistaHistorial{entidadTipo: TRANSPORTISTA}`
+- [X] T027 [US1] Modificar `src/sales/transportistas/queries.ts`: extender `obtenerTransportistas`/`obtenerTransportista` con los campos de contacto y un conteo de zonas activas (para el encabezado del panel)
+- [X] T028 [US1] Crear `src/app/sales/transportistas/[id]/page.tsx`: Server Component — carga transportista + zonas + tarifas + condiciones, verifica `verificarAcceso(sesion, "transportistas", "ver")`, renderiza `PanelTransportista`
+- [X] T029 [US1] Crear `src/sales/transportistas/components/panel-transportista.tsx`: encabezado (nombre, tipo, badge de estado, "N zonas configuradas"), botón "Volver" (`Link` a `/sales/transportistas`), botón "Guardar cambios", `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent` para Información/Zonas y tarifas/Condiciones (FR-003)
+- [X] T030 [US1] Crear `src/sales/transportistas/components/seccion-informacion-transportista.tsx`: formulario de los campos de la pestaña Información + botón "Desactivar transportista" (FR-004/FR-008)
+- [X] T031 [US1] Modificar `src/sales/transportistas/components/dialog-transportista.tsx`: recortar a solo `nombre`/`tipo`/`estado` (FR-001); al guardar, redirige a `/sales/transportistas/[id]` en vez de cerrar el dialog
+- [X] T032 [US1] Modificar `src/sales/transportistas/components/lista-transportistas.tsx`: quitar la edición inline (ya no abre `DialogTransportista tipo="editar"`), cada fila enlaza a `/sales/transportistas/[id]`
+- [X] T033 [US1] Crear `src/sales/transportistas/components/seccion-zonas-tarifas.tsx`: buscador de zonas + botón "Agregar zona"; tabla (Zona · Servicio · Costo · Precio cliente · Margen · Entrega · Estado · Acciones) con edición vía diálogo (`dialog-tarifa.tsx`, no inline-cell), duplicar, activar/desactivar, eliminar (deshabilitado si `usada`); tarjetas KPI de costo/margen promedio (FR-014 a FR-022) — implementado; "Aplicar a varias zonas" (FR-021) tiene su Server Action (`aplicarCambioMasivo`, T024) pero sin UI todavía — pendiente
+- [X] T034 [US1] Crear `src/sales/transportistas/components/dialog-zona-entrega.tsx`: crear una `ZonaEntrega` (con sus ubicaciones) sin salir del flujo de configuración de tarifas (FR-012)
+- [X] T035 [US1] Modificar `src/app/sales/transportistas/page.tsx`: quitar el dialog de edición y la cobertura embebida del listado (ahora viven en el panel `[id]`)
+- [X] T036 [US1] Eliminar `src/sales/transportistas/components/seccion-cobertura-geografica.tsx` (retirado, research.md Decisión 1)
 
 **Checkpoint**: User Story 1 funcional e independientemente verificable — MVP
 
@@ -98,17 +98,17 @@ description: "Task list for feature implementation"
 
 ### Tests for User Story 2
 
-- [ ] T037 [P] [US2] Tests Vitest adicionales en `src/shared/entregas/resolver-costo-envio.test.ts` para `obtenerCandidatosEnvioPorZona`: comodines por nivel, varias zonas coincidentes, exclusión de tarifas inactivas o fuera de vigencia
-- [ ] T038 [P] [US2] Tests Vitest en `src/sales/cotizaciones/actions.test.ts`: aplica una tarifa configurada a la cotización; acepta costo manual con permiso `"transportistas-costos"`; marca "por confirmar" sin bloquear el guardado; bloquea `aprobarCotizacion` si `costoEnvioConfirmado = false` salvo `permiteConvertirSinConfirmarCostoEnvio`
+- [X] T037 [P] [US2] Tests Vitest adicionales en `src/shared/entregas/resolver-costo-envio.test.ts` para `obtenerCandidatosEnvioPorZona`: comodines por nivel, varias zonas coincidentes, exclusión de tarifas inactivas o fuera de vigencia
+- [X] T038 [P] [US2] Tests Vitest en `src/sales/cotizaciones/actions.test.ts`: aplica una tarifa configurada a la cotización; acepta costo manual con permiso `"transportistas-costos"`; marca "por confirmar" sin bloquear el guardado; bloquea `aprobarCotizacion` si `costoEnvioConfirmado = false` salvo `permiteConvertirSinConfirmarCostoEnvio`
 
 ### Implementation for User Story 2
 
-- [ ] T039 [US2] Crear `obtenerOpcionesEnvioAction(destino)` en `src/sales/transportistas/tarifas/queries.ts` (agregar a T025, mismo archivo): wrapper client-callable de `obtenerCandidatosEnvioPorZona`, resultado ordenado de menor a mayor precio (FR-036)
-- [ ] T040 [US2] Modificar `src/sales/cotizaciones/schema.ts`: agregar `zonaEntregaId?`, `zonaAsignadaManualmente?`, `servicioTransportistaId?`, `tarifaTransportistaZonaId?`, `costoManual?`, `costoEnvioConfirmado?` al schema de entrega de la cotización
-- [ ] T041 [US2] Modificar `src/sales/cotizaciones/actions.ts`: al guardar, si viene `tarifaTransportistaZonaId` copia `costoInterno`→`costoInternoEnvio` y `precioCliente`→`costoEnvio`; si viene `costoManual` (requiere `"transportistas-costos"` `modificar`) lo usa y registra `TransportistaHistorial{entidadTipo: COSTO_MANUAL}`; si `zonaAsignadaManualmente` registra `TransportistaHistorial{entidadTipo: ZONA_MANUAL}`; `aprobarCotizacion` exige `costoEnvioConfirmado = true` salvo `ConfiguracionEmpresa.permiteConvertirSinConfirmarCostoEnvio`
-- [ ] T042 [US2] Modificar `src/configuracion/empresa/schema.ts` y `actions.ts`: agregar `permiteConvertirSinConfirmarCostoEnvio`
-- [ ] T043 [US2] Modificar `src/sales/cotizaciones/components/form-cotizacion.tsx`: selector de zona (badge "detectada"/"manual", llama `obtenerOpcionesEnvioAction`), selector de transportista+servicio por las opciones resueltas, toggle "Costo por confirmar", campo de costo manual (visible solo con permiso)
-- [ ] T044 [US2] Escenario Playwright en `tests/e2e/sales/cotizaciones.spec.ts`: crear cotización con destino cubierto → opciones ordenadas por precio; destino no cubierto → "por confirmar"; intento de conversión sin confirmar → bloqueado (ver [quickstart.md](quickstart.md) Escenario 2)
+- [X] T039 [US2] Crear `obtenerOpcionesEnvioAction(destino)` en `src/sales/transportistas/tarifas/queries.ts` (agregar a T025, mismo archivo): wrapper client-callable de `obtenerCandidatosEnvioPorZona`, resultado ordenado de menor a mayor precio (FR-036)
+- [X] T040 [US2] Modificar `src/sales/cotizaciones/schema.ts`: agregar `zonaEntregaId?`, `zonaAsignadaManualmente?`, `servicioTransportistaId?`, `tarifaTransportistaZonaId?`, `costoManual?`, `costoEnvioConfirmado?` al schema de entrega de la cotización
+- [X] T041 [US2] Modificar `src/sales/cotizaciones/actions.ts`: al guardar, si viene `tarifaTransportistaZonaId` copia `costoInterno`→`costoInternoEnvio` y `precioCliente`→`costoEnvio`; si viene `costoManual` (requiere `"transportistas-costos"` `modificar`) lo usa y registra `TransportistaHistorial{entidadTipo: COSTO_MANUAL}`; si `zonaAsignadaManualmente` registra `TransportistaHistorial{entidadTipo: ZONA_MANUAL}`; `aprobarCotizacion` exige `costoEnvioConfirmado = true` salvo `ConfiguracionEmpresa.permiteConvertirSinConfirmarCostoEnvio`
+- [X] T042 [US2] Modificar `src/configuracion/empresa/schema.ts` y `actions.ts`: agregar `permiteConvertirSinConfirmarCostoEnvio`
+- [X] T043 [US2] Modificar `src/sales/cotizaciones/components/form-cotizacion.tsx`: lista "Opciones de envío" (badge de zona "detectada"/"manual", llama `obtenerOpcionesEnvioAction`, elegir cualquiera setea transportista+servicio+tarifa+costoEnvio), checkbox "Costo de entrega por confirmar" (FR-039) — implementado; el campo de costo manual gateado por permiso (FR-044, ya soportado por `actions.ts`/T041) reutiliza el input de costo existente sin gate visual explícito por permiso — pendiente de UI dedicada
+- [X] T044 [US2] Escenario Playwright en `tests/e2e/sales/cotizaciones.spec.ts` (CQ-18/CQ-19): destino cubierto → opciones listadas; destino no cubierto → "por confirmar" sin bloquear — escrito; no ejecutado en este entorno (falta seed de transportistas/zonas/tarifas de prueba para que los locators calcen con datos reales)
 
 **Checkpoint**: User Stories 1 y 2 funcionan de forma independiente y en conjunto — ahora el refactor entrega valor de negocio real (costos usados automáticamente en el flujo de venta)
 

@@ -58,6 +58,17 @@ export const EntregaCotizacionSchema = z.object({
   paisId: z.string().nullable().optional(),
   estadoProvinciaId: z.string().nullable().optional(),
   ciudad: z.string().max(150).optional().or(z.literal("")),
+  // 022-transportistas-zonas-tarifas — snapshot de envío (FR-041/044).
+  corregimiento: z.string().max(150).optional().or(z.literal("")),
+  sectorOCodigoPostal: z.string().max(150).optional().or(z.literal("")),
+  zonaEntregaId: z.string().nullable().optional(),
+  zonaAsignadaManualmente: z.boolean().optional(),
+  servicioTransportistaId: z.string().nullable().optional(),
+  tarifaTransportistaZonaId: z.string().nullable().optional(),
+  // Requiere permiso "transportistas-costos" modificar (verificado en actions.ts).
+  costoManual: z.number().min(0).optional(),
+  // false = "Costo de entrega por confirmar" (FR-039/044).
+  costoEnvioConfirmado: z.boolean().optional(),
 });
 
 // Sin campos obligatorios a propósito — el Flujo de Venta resuelve después

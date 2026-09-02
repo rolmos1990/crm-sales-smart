@@ -1,16 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const paisFindManyMock = vi.fn();
-const estadoFindManyMock = vi.fn();
-const coberturaFindManyMock = vi.fn();
+const zonaUbicacionFindManyMock = vi.fn();
+const tarifaFindManyMock = vi.fn();
 const configFindUniqueMock = vi.fn();
 const metodoFindManyMock = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
     pais: { findMany: (...a: unknown[]) => paisFindManyMock(...a) },
-    estadoProvincia: { findMany: (...a: unknown[]) => estadoFindManyMock(...a) },
-    transportistaCoberturaGeografica: { findMany: (...a: unknown[]) => coberturaFindManyMock(...a) },
+    zonaEntregaUbicacion: { findMany: (...a: unknown[]) => zonaUbicacionFindManyMock(...a) },
+    tarifaTransportistaZona: { findMany: (...a: unknown[]) => tarifaFindManyMock(...a) },
     configuracionEmpresa: { findUnique: (...a: unknown[]) => configFindUniqueMock(...a) },
     metodoEntregaConfig: { findMany: (...a: unknown[]) => metodoFindManyMock(...a) },
   },
@@ -18,11 +18,29 @@ vi.mock("@/shared/db/prisma", () => ({
 
 const { resolverCostoEnvio } = await import("./resolver-costo-envio");
 
-describe("resolverCostoEnvio — orquestación con I/O (019, Historia 3)", () => {
+const TARIFA_BASE = {
+  id: "tarifa-1",
+  transportistaId: "transportista-1",
+  zonaEntregaId: "zona-panama-oeste",
+  servicioTransportistaId: "servicio-estandar",
+  costoInterno: 12,
+  precioCliente: 18,
+  tiempoMinimoDias: 1,
+  tiempoMaximoDias: 3,
+  vigenteDesde: null,
+  vigenteHasta: null,
+  transportista: { id: "transportista-1", nombre: "DHL", tipo: "COURIER_EXTERNO" },
+  zonaEntrega: { nombre: "Panama Oeste" },
+  servicioTransportista: { nombre: "Estándar" },
+};
+
+describe("resolverCostoEnvio — orquestación con I/O (019/022)", () => {
   beforeEach(() => {
     paisFindManyMock.mockReset().mockResolvedValue([{ id: "pais-panama", nombre: "Panama" }]);
-    estadoFindManyMock.mockReset().mockResolvedValue([{ id: "estado-panama-oeste", nombre: "Panama Oeste" }]);
-    coberturaFindManyMock.mockReset().mockResolvedValue([{ costoEnvio: 18, transportista: { tipo: "COURIER_EXTERNO" } }]);
+    zonaUbicacionFindManyMock.mockReset().mockResolvedValue([
+      { zonaEntregaId: "zona-panama-oeste", provinciaEstado: "Panama Oeste", distritoCiudad: null, corregimiento: null, sectorOCodigoPostal: null },
+    ]);
+    tarifaFindManyMock.mockReset().mockResolvedValue([TARIFA_BASE]);
     configFindUniqueMock.mockReset().mockResolvedValue(null);
     metodoFindManyMock.mockReset().mockResolvedValue([]);
   });
@@ -45,7 +63,8 @@ describe("resolverCostoEnvio — orquestación con I/O (019, Historia 3)", () =>
     expect(resultado).toMatchObject({ estado: "CLARA", cubierto: true, costo: 18 });
   });
 
-  it("estado/provincia no reconocido en el país resuelto → SIN_COINCIDENCIA_CLARA", async () => {
+  it("ninguna zona configurada cubre el destino → SIN_COINCIDENCIA_CLARA", async () => {
+    zonaUbicacionFindManyMock.mockResolvedValue([]);
     const resultado = await resolverCostoEnvio({
       instanciaId: "instancia-1",
       pais: "Panamá",
@@ -55,9 +74,17 @@ describe("resolverCostoEnvio — orquestación con I/O (019, Historia 3)", () =>
   });
 
   it("dos transportistas cubren la misma zona con costos distintos → SIN_COINCIDENCIA_CLARA (sin transportistaId para desambiguar)", async () => {
-    coberturaFindManyMock.mockResolvedValue([
-      { costoEnvio: 18, transportista: { tipo: "COURIER_EXTERNO" } },
-      { costoEnvio: 30, transportista: { tipo: "COURIER_EXTERNO" } },
+    tarifaFindManyMock.mockResolvedValue([
+      TARIFA_BASE,
+      { ...TARIFA_BASE, id: "tarifa-2", transportistaId: "transportista-2", precioCliente: 30, transportista: { id: "transportista-2", nombre: "FedEx", tipo: "COURIER_EXTERNO" } },
+    ]);
+    const resultado = await resolverCostoEnvio({ instanciaId: "instancia-1", pais: "Panamá", estadoProvincia: "Panamá Oeste" });
+    expect(resultado.estado).toBe("SIN_COINCIDENCIA_CLARA");
+  });
+
+  it("una ubicación de zona con nivel definido que el destino no aporta → no coincide (no adivina, research.md Decisión 3)", async () => {
+    zonaUbicacionFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "zona-panama-oeste", provinciaEstado: "Panama Oeste", distritoCiudad: "Arraiján", corregimiento: null, sectorOCodigoPostal: null },
     ]);
     const resultado = await resolverCostoEnvio({ instanciaId: "instancia-1", pais: "Panamá", estadoProvincia: "Panamá Oeste" });
     expect(resultado.estado).toBe("SIN_COINCIDENCIA_CLARA");
@@ -65,7 +92,7 @@ describe("resolverCostoEnvio — orquestación con I/O (019, Historia 3)", () =>
 
   it("delivery en modo TODOS_LADOS_CON_EXCEPCIONES con la zona como excepción → CLARA, cubierto:false", async () => {
     paisFindManyMock.mockResolvedValue([]);
-    coberturaFindManyMock.mockResolvedValue([]);
+    zonaUbicacionFindManyMock.mockResolvedValue([]);
     metodoFindManyMock.mockResolvedValue([
       {
         metodoEntrega: "MENSAJERO_PROPIO",
@@ -82,7 +109,7 @@ describe("resolverCostoEnvio — orquestación con I/O (019, Historia 3)", () =>
 
   it("delivery en modo SOLO_ZONAS_EVALUADAS con zona no listada → SIN_COINCIDENCIA_CLARA (nunca 'no cubierto')", async () => {
     paisFindManyMock.mockResolvedValue([]);
-    coberturaFindManyMock.mockResolvedValue([]);
+    zonaUbicacionFindManyMock.mockResolvedValue([]);
     metodoFindManyMock.mockResolvedValue([
       {
         metodoEntrega: "MENSAJERO_PROPIO",
@@ -99,7 +126,7 @@ describe("resolverCostoEnvio — orquestación con I/O (019, Historia 3)", () =>
 
   it("delivery en modo SOLO_ZONAS_EVALUADAS con zona LISTADA y cubierta:false → CLARA, cubierto:false (no escala — compatibilidad con negocios que ya tenían esto configurado)", async () => {
     paisFindManyMock.mockResolvedValue([]);
-    coberturaFindManyMock.mockResolvedValue([]);
+    zonaUbicacionFindManyMock.mockResolvedValue([]);
     metodoFindManyMock.mockResolvedValue([
       {
         metodoEntrega: "MENSAJERO_PROPIO",

@@ -34,3 +34,9 @@ export const ConfiguracionGeograficaSchema = z
     path: ["paisOperacionId"],
   });
 export type ConfiguracionGeograficaInput = z.infer<typeof ConfiguracionGeograficaSchema>;
+
+// 022-transportistas-zonas-tarifas — FR-040
+export const ConfiguracionEnvioSchema = z.object({
+  permiteConvertirSinConfirmarCostoEnvio: z.boolean(),
+});
+export type ConfiguracionEnvioInput = z.infer<typeof ConfiguracionEnvioSchema>;

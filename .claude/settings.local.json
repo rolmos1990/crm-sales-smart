@@ -247,7 +247,15 @@
       "Bash(test -f .eslintrc.json -o -f .eslintrc.js -o -f eslint.config.js -o -f eslint.config.mjs -o -f eslint.config.ts)",
       "Bash(npx tsx -e ' *)",
       "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\(!!process.env.DATABASE_URL\\)\")",
-      "Bash(sh .specify/scripts/bash/check-prerequisites.sh --json --paths-only)"
+      "Bash(sh .specify/scripts/bash/check-prerequisites.sh --json --paths-only)",
+      "Bash(SPECIFY_FEATURE=021-alias-proveedores-ia .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(SPECIFY_FEATURE_DIRECTORY=specs/021-alias-proveedores-ia .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(SPECIFY_FEATURE_DIRECTORY=specs/022-transportistas-zonas-tarifas .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks)",
+      "Bash(awk '/enum TipoTransportista/,/^}/' prisma/schema.prisma)",
+      "Bash(grep -n \"INSERT\\\\|gen_random_uuid\\\\|DO \\\\$\\\\$\" prisma/migrations/20260901153319_cobertura_geografica_envios/migration.sql)",
+      "Bash(nc -zv aws-0-eu-north-1.pooler.supabase.com 5432)",
+      "Bash(pkill -f \"next build\")",
+      "Bash(node -e \"require\\('@babel/core'\\)\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
