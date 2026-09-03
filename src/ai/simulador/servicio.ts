@@ -108,7 +108,14 @@ class SimuladorService {
       where: { id: escenario.agenteIAConfigId },
       select: { herramientas: true },
     });
-    const herramientasPermitidas = parsearListaHerramientas(agenteFull?.herramientas);
+    // 024-alias-ubicaciones-transportistas (research.md §6) — mismo fix que
+    // generar-respuesta-ia.suscriptor.ts: sin unir las herramientas "siempre
+    // disponibles" acá, el simulador mostraría un resultado distinto al de
+    // una conversación real con el mismo agente.
+    const { HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES } = await import("@/ai/tools/constantes");
+    const herramientasPermitidas = [
+      ...new Set([...parsearListaHerramientas(agenteFull?.herramientas), ...HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES]),
+    ];
 
     const configsAutonomia = await obtenerAutonomiaPorAgente(escenario.agenteIAConfigId);
 

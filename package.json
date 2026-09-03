@@ -14,6 +14,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:geografia": "tsx scripts/seed-geografia.ts",
     "db:backfill:pais-transportista": "tsx scripts/backfill-pais-transportista.ts",
+    "db:backfill:normalizar-ubicaciones": "tsx scripts/backfill-normalizar-ubicaciones.ts",
+    "db:backfill:servicios-condiciones-transportista": "tsx scripts/backfill-servicios-condiciones-transportista.ts",
     "db:seed:test": "tsx prisma/seed-usuarios-prueba.ts",
     "db:seed:test:limpiar": "tsx prisma/limpiar-datos-prueba.ts",
     "db:migrate": "prisma migrate dev",

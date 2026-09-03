@@ -31,3 +31,16 @@ export const TIPO_TRANSPORTISTA_LABELS: Record<string, string> = {
 // 022-transportistas-zonas-tarifas — sembrados al crear un transportista
 // (T026); editables/extensibles después (FR-016).
 export const SERVICIOS_TRANSPORTISTA_INICIALES = ["Estándar", "Express", "Personalizado"] as const;
+
+// 022-transportistas-zonas-tarifas — condiciones operativas por defecto,
+// sembradas junto con el transportista (ver data-model.md CondicionesTransportista).
+// Vive acá (no en actions.ts, que es "use server" y solo puede exportar
+// funciones async) para poder reutilizarse también desde scripts/backfill-*.
+export const CONDICIONES_POR_DEFECTO = {
+  diasEntrega: ["LUN", "MAR", "MIE", "JUE", "VIE"],
+  tiempoPreparacionDias: 0,
+  permiteEntregaMismoDia: true,
+  requiereDireccionCompleta: true,
+  permiteArticulosFragiles: true,
+  permitePagoContraEntrega: false,
+};

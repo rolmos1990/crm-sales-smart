@@ -24,6 +24,7 @@ import {
   X,
   BookOpen,
 } from "lucide-react";
+import { HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES } from "@/ai/tools/constantes";
 import {
   Sheet,
   SheetContent,
@@ -110,18 +111,9 @@ const HERRAMIENTAS_DISPONIBLES = [
 // 018-simulador-agente (Historia 4, "Conocimiento") — herramientas
 // operativas de solo lectura de 015, siempre disponibles (no son
 // togglables como HERRAMIENTAS_DISPONIBLES) — se muestran informativamente.
-const HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES = [
-  "consultar_disponibilidad",
-  "consultar_precio_actual",
-  "consultar_promociones",
-  "validar_combinacion_productos",
-  "obtener_metodos_entrega",
-  "calcular_costo_envio",
-  "estimar_fecha_entrega",
-  "validar_cobertura",
-  "obtener_ubicaciones_retiro",
-  "agregar_productos_oportunidad",
-];
+// 024-alias-ubicaciones-transportistas — HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES
+// se importa ahora de @/ai/tools/constantes (única fuente de verdad, ver
+// import arriba) — también autoriza su ejecución real (research.md §6).
 
 const TONOS = ["Cálido", "Profesional", "Directo", "Empático", "Entusiasta"] as const;
 const FORMALIDADES = ["Formal", "Semi Formal", "Informal"] as const;

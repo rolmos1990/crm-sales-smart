@@ -251,3 +251,99 @@ test.describe('País del transportista (023)', () => {
     await expect(page.locator('text=/no se puede cambiar el país/i')).toBeVisible({ timeout: 8000 });
   });
 });
+
+// ─── Alias e importación de destinos (024) ─────────────────────────────────────
+
+async function crearTransportistaConZona(page: Page, nombre: string, nombreZona: string) {
+  await page.goto(URL_TRANSPORTISTAS);
+  await page.getByRole('button', { name: /nuevo transportista/i }).click();
+  await page.getByLabel(/nombre/i).fill(nombre);
+  await page.getByRole('button', { name: /selecciona un país/i }).click();
+  await page.getByPlaceholder(/buscar país/i).fill('Panamá');
+  await page.getByRole('option', { name: /panamá/i }).first().click();
+  await page.getByRole('button', { name: /crear transportista/i }).click();
+  await expect(page).toHaveURL(/\/sales\/transportistas\/[^/]+$/, { timeout: 8000 });
+
+  await page.getByRole('tab', { name: /zonas y tarifas/i }).click();
+  await page.getByRole('button', { name: /agregar zona/i }).click();
+  await page.getByLabel(/^nombre$/i).fill(nombreZona);
+  await page.getByRole('button', { name: /selecciona un estado\/provincia/i }).click();
+  await page.getByPlaceholder(/buscar estado o provincia/i).fill('Panamá');
+  await page.getByRole('option', { name: /^panamá/i }).first().click();
+  await page.getByRole('button', { name: /crear zona/i }).click();
+  await expect(page.locator('text=/zona creada/i').first()).toBeVisible({ timeout: 5000 });
+
+  await page.getByRole('button', { name: /agregar tarifa/i }).click();
+  await page.getByRole('combobox', { name: /selecciona una zona/i }).click();
+  await page.getByRole('option').first().click();
+  await page.getByRole('combobox', { name: /selecciona un servicio/i }).click();
+  await page.getByRole('option', { name: /estándar/i }).click();
+  await page.getByLabel(/costo interno/i).fill('4.5');
+  await page.getByLabel(/precio al cliente/i).fill('6.5');
+  await page.getByRole('button', { name: /crear tarifa/i }).click();
+  await expect(page.locator('text=/tarifa creada/i').first()).toBeVisible({ timeout: 5000 });
+}
+
+test.describe('Alias e importación de destinos (024)', () => {
+  test('TR-13 Agregar y eliminar un alias de un destino', async ({ page }) => {
+    const nombre = `TransAlias-${Date.now()}`;
+    const nombreZona = `Zona Alias ${Date.now()}`;
+    await crearTransportistaConZona(page, nombre, nombreZona);
+
+    // Abrir el diálogo de alias desde el ícono junto al nombre de la zona.
+    await page.getByRole('button', { name: /administrar alias de este destino/i }).first().click();
+    await expect(page.getByRole('dialog', { name: /alias de destinos/i })).toBeVisible();
+
+    const alias = `Alias-${Date.now()}`;
+    await page.getByPlaceholder(/nuevo alias/i).first().fill(alias);
+    await page.getByRole('button', { name: /^agregar$/i }).first().click();
+
+    await expect(page.locator('text=/alias agregado/i').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(`text="${alias}"`)).toBeVisible();
+
+    // Eliminarlo.
+    await page.getByRole('button', { name: new RegExp(`eliminar alias ${alias}`, 'i') }).click();
+    await expect(page.locator(`text="${alias}"`)).not.toBeVisible({ timeout: 5000 });
+  });
+
+  test('TR-15 Importar destinos desde un archivo CSV, revisando antes de confirmar', async ({ page }) => {
+    const nombre = `TransImport-${Date.now()}`;
+    const nombreZona = `Zona Import ${Date.now()}`;
+    await crearTransportistaConZona(page, nombre, nombreZona);
+
+    const csv = [
+      'zonaNombre,provinciaEstado,servicioNombre,costoInterno,precioCliente',
+      `Destino Nuevo ${Date.now()},Chiriquí,Estándar,4.50,6.50`,
+    ].join('\n');
+
+    await page.getByRole('button', { name: /importar destinos/i }).click();
+    await expect(page.getByRole('dialog', { name: /subir archivo/i })).toBeVisible();
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'destinos.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf-8'),
+    });
+
+    // Paso 2: mapeo — mapear cada columna del archivo a su equivalente.
+    await expect(page.getByRole('dialog', { name: /mapear columnas/i })).toBeVisible({ timeout: 5000 });
+    const encabezados = ['zonaNombre', 'provinciaEstado', 'servicioNombre', 'costoInterno', 'precioCliente'];
+    for (const encabezado of encabezados) {
+      const fila = page.locator('div', { hasText: encabezado }).last();
+      await fila.getByRole('combobox').click();
+      await page.getByRole('option', { name: new RegExp(encabezado === 'zonaNombre' ? 'nombre de la zona' : encabezado, 'i') }).first().click();
+    }
+
+    await page.getByRole('button', { name: /^revisar$/i }).click();
+
+    // Paso 3: revisión — la fila debe clasificarse como nuevo destino.
+    await expect(page.getByRole('dialog', { name: /revisar/i })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=/nuevo destino/i').first()).toBeVisible();
+
+    await page.getByRole('button', { name: /^importar$/i }).click();
+
+    // Paso 4: confirmación.
+    await expect(page.locator('text=/importación completada/i')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=/1 destinos nuevos/i')).toBeVisible();
+  });
+});

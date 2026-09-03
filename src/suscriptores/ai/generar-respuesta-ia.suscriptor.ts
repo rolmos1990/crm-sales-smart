@@ -234,14 +234,22 @@ async function obtenerUltimoMensajeCliente(conversacionId: string): Promise<stri
   return mensaje?.contenido?.trim() || null;
 }
 
-// Extrae la lista de nombres de herramientas habilitadas para el agente
+// Extrae la lista de nombres de herramientas habilitadas para el agente.
+// 024-alias-ubicaciones-transportistas (FR-011, research.md §6) — las
+// herramientas operativas "siempre disponibles" (015/018) se unen acá,
+// independientemente de lo que el negocio haya marcado en el toggle de
+// herramientas CRM. Antes esa lista solo se mostraba informativamente en
+// sheet-editar-agente.tsx y nunca llegaba a `herramientasPermitidas`, así
+// que quedaban registradas pero inalcanzables para el LLM.
 async function obtenerHerramientasPermitidas(agenteId: string): Promise<string[]> {
   const { prisma } = await import("@/shared/db/prisma");
+  const { HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES } = await import("@/ai/tools/constantes");
   const config = await prisma.agenteIAConfig.findUnique({
     where: { id: agenteId },
     select: { herramientas: true },
   });
-  return parsearListaHerramientas(config?.herramientas);
+  const habilitadasPorElNegocio = parsearListaHerramientas(config?.herramientas);
+  return [...new Set([...habilitadasPorElNegocio, ...HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES])];
 }
 
 function parsearListaHerramientas(valor: unknown): string[] {

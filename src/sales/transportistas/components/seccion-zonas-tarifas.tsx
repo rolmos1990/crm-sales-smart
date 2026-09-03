@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Copy, MapPinPlus, Pencil, Plus, Power, Search, Trash2 } from "lucide-react";
+import { Copy, MapPinPlus, Pencil, Plus, Power, Search, Tag, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { duplicarTarifa, eliminarTarifa, toggleTarifa } from "../tarifas/actions";
 import { eliminarZonaEntrega } from "../zonas/actions";
+import { WizardImportacionDestinos } from "../importacion-destinos/components/wizard-importacion-destinos";
+import { DialogAliasUbicacion } from "./dialog-alias-ubicacion";
 import { DialogTarifa, type TarifaExistente } from "./dialog-tarifa";
 import { DialogZonaEntrega } from "./dialog-zona-entrega";
 
@@ -59,6 +61,9 @@ export function SeccionZonasTarifas({
   const [tarifaEnEdicion, setTarifaEnEdicion] = useState<TarifaExistente | undefined>(undefined);
   const [zonaPreseleccionadaId, setZonaPreseleccionadaId] = useState<string | undefined>(undefined);
   const [isPending, startTransition] = useTransition();
+  // 024-alias-ubicaciones-transportistas
+  const [zonaAliasSeleccionada, setZonaAliasSeleccionada] = useState<{ id: string; nombre: string } | null>(null);
+  const [wizardImportacionAbierto, setWizardImportacionAbierto] = useState(false);
 
   const zonasFiltradas = useMemo(
     () => (busqueda ? zonas.filter((z) => z.nombre.toLowerCase().includes(busqueda.toLowerCase())) : zonas),
@@ -173,6 +178,10 @@ export function SeccionZonasTarifas({
                   <Plus className="h-3.5 w-3.5" />
                   Agregar tarifa
                 </Button>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setWizardImportacionAbierto(true)}>
+                  <Upload className="h-3.5 w-3.5" />
+                  Importar destinos
+                </Button>
               </>
             ) : (
               <TooltipProvider>
@@ -206,31 +215,44 @@ export function SeccionZonasTarifas({
           {zonasSinTarifa.map((z) => (
             <div key={z.id} className="flex items-center justify-between gap-2 rounded-lg bg-card px-3 py-2">
               <span className="text-sm font-medium text-foreground">{z.nombre}</span>
-              {puedeModificar && (
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1.5 text-xs"
-                    onClick={() => abrirNuevaTarifaParaZona(z.id)}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Agregar tarifa
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    disabled={isPending}
-                    onClick={() => handleEliminarZona(z.id)}
-                    aria-label="Eliminar zona"
-                    title="Eliminar zona"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setZonaAliasSeleccionada({ id: z.id, nombre: z.nombre })}
+                  aria-label="Administrar alias de este destino"
+                  title="Alias"
+                >
+                  <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+                {puedeModificar && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => abrirNuevaTarifaParaZona(z.id)}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Agregar tarifa
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      disabled={isPending}
+                      onClick={() => handleEliminarZona(z.id)}
+                      aria-label="Eliminar zona"
+                      title="Eliminar zona"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -261,7 +283,22 @@ export function SeccionZonasTarifas({
             ) : (
               tarifasVisibles.map((t) => (
                 <TableRow key={t.id} className={!t.activa ? "opacity-50" : undefined}>
-                  <TableCell className="font-medium">{t.zonaEntrega.nombre}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-1">
+                      <span>{t.zonaEntrega.nombre}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setZonaAliasSeleccionada({ id: t.zonaEntrega.id, nombre: t.zonaEntrega.nombre })}
+                        aria-label="Administrar alias de este destino"
+                        title="Alias"
+                      >
+                        <Tag className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{t.ubicacion}</TableCell>
                   <TableCell>{t.servicioTransportista.nombre}</TableCell>
                   {puedeVerCostos && <TableCell className="text-right tabular-nums">{t.costoInterno.toFixed(2)}</TableCell>}
@@ -322,6 +359,32 @@ export function SeccionZonasTarifas({
         onOpenChange={setDialogTarifaAbierto}
         onGuardada={() => {}}
       />
+
+      {zonaAliasSeleccionada && (
+        <DialogAliasUbicacion
+          zonaEntregaId={zonaAliasSeleccionada.id}
+          zonaNombre={zonaAliasSeleccionada.nombre}
+          abierto={zonaAliasSeleccionada != null}
+          onOpenChange={(abierto) => {
+            if (!abierto) setZonaAliasSeleccionada(null);
+          }}
+        />
+      )}
+
+      {paisId && (
+        <WizardImportacionDestinos
+          transportistaId={transportistaId}
+          paisId={paisId}
+          abierto={wizardImportacionAbierto}
+          onOpenChange={setWizardImportacionAbierto}
+          onImportado={() => {
+            // 024-alias-ubicaciones-transportistas — el listado de zonas/tarifas
+            // se refresca por revalidatePath (Server Component); acá solo se
+            // notifica el éxito, el usuario cierra el wizard cuando quiera ver
+            // el resultado reflejado.
+          }}
+        />
+      )}
     </div>
   );
 }

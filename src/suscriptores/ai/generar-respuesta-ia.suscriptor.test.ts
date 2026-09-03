@@ -15,9 +15,16 @@ vi.mock("@/shared/db/prisma", () => ({
 }));
 
 const generarRespuestaMock = vi.fn();
+// 024-alias-ubicaciones-transportistas (FR-011) — obtenerHerramientasPermitidas
+// ahora siempre incluye las tools "siempre disponibles" (ver constantes.ts),
+// así que estos tests con agenteId ya no toman el camino de texto plano sino
+// el de ejecutarConTools → generarConHerramientas. Se mockea con la misma
+// respuesta de texto para no acoplar estos tests (sobre autonomía, no sobre
+// tool-calling) a cuál de los dos caminos se usa internamente.
+const generarConHerramientasMock = vi.fn().mockResolvedValue({ tipo: "texto", contenido: "Sí, tenemos disponibilidad.", usoIAId: "uso-1" });
 vi.mock("@/ai/gateway/gateway", () => ({
   generarRespuesta: (...a: unknown[]) => generarRespuestaMock(...a),
-  generarConHerramientas: vi.fn(),
+  generarConHerramientas: (...a: unknown[]) => generarConHerramientasMock(...a),
 }));
 
 vi.mock("@/ai/contexto/constructor", () => ({
@@ -71,6 +78,7 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2) 
     agenteIAConfigFindUniqueMock.mockReset().mockResolvedValue({ herramientas: null });
     mensajeFindFirstMock.mockReset().mockResolvedValue({ contenido: "Hola, ¿tienen el producto X?" });
     generarRespuestaMock.mockReset().mockResolvedValue({ contenido: "Sí, tenemos disponibilidad.", usoIAId: "uso-1" });
+    generarConHerramientasMock.mockReset().mockResolvedValue({ tipo: "texto", contenido: "Sí, tenemos disponibilidad.", usoIAId: "uso-1" });
     enviarMensajeMock.mockReset().mockResolvedValue({ ok: true, mensaje: { id: "m1" } });
     obtenerAutonomiaPorAgenteMock.mockReset();
     clasificarCategoriaIntencionMock.mockReset();
@@ -147,5 +155,24 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2) 
 
     expect(enviarMensajeMock).toHaveBeenCalled();
     expect(ensamblarYPersistirRegistroMock).not.toHaveBeenCalled();
+  });
+
+  // 024-alias-ubicaciones-transportistas (T027, FR-011, research.md §6) —
+  // antes de este fix, un agente con `herramientas: null` (ninguna tool CRM
+  // togglable habilitada) tomaba SIEMPRE el camino de texto plano
+  // (generarRespuesta), nunca el de tool-calling — así que
+  // consultar_opciones_envio (y el resto de tools "siempre disponibles")
+  // quedaban registradas pero inalcanzables. Este test confirma que ahora sí
+  // se usa el camino de tool-calling incluso sin ninguna tool CRM habilitada.
+  it("con herramientas: null (ninguna tool CRM habilitada), igual usa el camino de tool-calling (FR-011)", async () => {
+    agenteIAConfigFindUniqueMock.mockResolvedValue({ herramientas: null });
+    obtenerAutonomiaPorAgenteMock.mockResolvedValue(null);
+
+    const suscriptor = new GenerarRespuestaIASuscriptor();
+    await suscriptor.manejar(envelope("agente-1"));
+
+    expect(generarConHerramientasMock).toHaveBeenCalledTimes(1);
+    expect(generarRespuestaMock).not.toHaveBeenCalled();
+    expect(enviarMensajeMock).toHaveBeenCalledWith(expect.objectContaining({ contenido: "Sí, tenemos disponibilidad." }));
   });
 });

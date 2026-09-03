@@ -1,4 +1,6 @@
 import { generarSlug } from "@/shared/lib/slug";
+import { normalizarUbicacion } from "@/shared/entregas/normalizar-ubicacion";
+import { similitud, UMBRAL_SIMILITUD_APROXIMADA } from "@/shared/lib/similitud-texto";
 
 // 019-cobertura-geografica-envios — motor único de resolución de costo/
 // cobertura de envío, compartido entre las tools de IA (calcular_costo_envio,
@@ -143,21 +145,31 @@ export interface DestinoEnvioZona {
  * destino no aporta NO coincide (no se adivina). Pueden coincidir varias
  * zonas a la vez — se agregan los candidatos de todas.
  */
+type PrismaClientType = typeof import("@/shared/db/prisma").prisma;
+
+// 024-alias-ubicaciones-transportistas — extraído sin cambiar su
+// comportamiento, para reutilizarlo también en obtenerOpcionesEnvioConConfianza.
+async function resolverPaisId(
+  prisma: PrismaClientType,
+  instanciaId: string,
+  pais?: string | null
+): Promise<string | null> {
+  if (pais) {
+    const paisTexto = generarSlug(pais);
+    const paises = await prisma.pais.findMany({ select: { id: true, nombre: true } });
+    return paises.find((p) => generarSlug(p.nombre) === paisTexto)?.id ?? null;
+  }
+  const config = await prisma.configuracionEmpresa.findUnique({
+    where: { instanciaId },
+    select: { modoGeografico: true, paisOperacionId: true },
+  });
+  return config?.modoGeografico === "UN_SOLO_PAIS" ? config.paisOperacionId : null;
+}
+
 export async function obtenerCandidatosEnvioPorZona(destino: DestinoEnvioZona): Promise<CandidatoEnvioZona[]> {
   const { prisma } = await import("@/shared/db/prisma");
 
-  let paisId: string | null = null;
-  if (destino.pais) {
-    const paisTexto = generarSlug(destino.pais);
-    const paises = await prisma.pais.findMany({ select: { id: true, nombre: true } });
-    paisId = paises.find((p) => generarSlug(p.nombre) === paisTexto)?.id ?? null;
-  } else {
-    const config = await prisma.configuracionEmpresa.findUnique({
-      where: { instanciaId: destino.instanciaId },
-      select: { modoGeografico: true, paisOperacionId: true },
-    });
-    if (config?.modoGeografico === "UN_SOLO_PAIS") paisId = config.paisOperacionId;
-  }
+  const paisId = await resolverPaisId(prisma, destino.instanciaId, destino.pais);
   if (!paisId) return [];
 
   const ubicaciones = await prisma.zonaEntregaUbicacion.findMany({
@@ -228,6 +240,229 @@ export async function obtenerCandidatosEnvioPorZona(destino: DestinoEnvioZona): 
       tiempoMinimoDias: t.tiempoMinimoDias,
       tiempoMaximoDias: t.tiempoMaximoDias,
     }));
+}
+
+// 024-alias-ubicaciones-transportistas — matching con alias y coincidencia
+// aproximada (research.md §4). Deliberadamente NO comparte código con
+// obtenerCandidatosEnvioPorZona: esta última queda intacta línea por línea
+// (FR-010, T018 la protege con un test de regresión) y esta función nueva
+// hace su propia resolución de ubicaciones/tarifas — así el riesgo de
+// alterar el comportamiento de las tools existentes es cero por construcción,
+// no solo por un flag opt-in.
+export type ConfianzaMatch = "EXACTA" | "ALIAS" | "PROBABLE";
+export type ConfianzaRespuestaEnvio = ConfianzaMatch | "AMBIGUA" | "SIN_COINCIDENCIA";
+
+export interface OpcionEnvioConConfianza extends CandidatoEnvioZona {
+  confianza: ConfianzaMatch;
+  aceptaPagoContraEntrega: boolean;
+  diasEntrega: unknown;
+  horaLimiteMismoDia: string | null;
+}
+
+export interface ResultadoOpcionesEnvio {
+  confianza: ConfianzaRespuestaEnvio;
+  opciones: OpcionEnvioConConfianza[];
+}
+
+const RANGO_CONFIANZA: Record<ConfianzaMatch, number> = { EXACTA: 0, ALIAS: 1, PROBABLE: 2 };
+
+function peorConfianza(a: ConfianzaMatch, b: ConfianzaMatch): ConfianzaMatch {
+  return RANGO_CONFIANZA[b] > RANGO_CONFIANZA[a] ? b : a;
+}
+
+interface AliasNivel {
+  campo: string;
+  valorNormalizado: string;
+}
+
+type ResultadoNivel = { coincide: false } | { coincide: true; confianza: ConfianzaMatch };
+
+// Evalúa UN nivel geográfico (ej. provinciaEstado) del destino contra el
+// mismo nivel de una ubicación configurada. Un nivel vacío en la ubicación
+// sigue siendo comodín (EXACTA); un nivel definido que el destino no aporta
+// sigue sin coincidir — mismo criterio que obtenerCandidatosEnvioPorZona,
+// extendido con ALIAS y PROBABLE.
+function evaluarNivel(
+  valorUbicacion: string | null,
+  valorDestino: string | null | undefined,
+  aliasesDelCampo: AliasNivel[]
+): ResultadoNivel {
+  if (!valorUbicacion) return { coincide: true, confianza: "EXACTA" };
+  if (!valorDestino) return { coincide: false };
+
+  const destinoNormalizado = normalizarUbicacion(valorDestino);
+  if (normalizarUbicacion(valorUbicacion) === destinoNormalizado) return { coincide: true, confianza: "EXACTA" };
+  if (aliasesDelCampo.some((a) => a.valorNormalizado === destinoNormalizado)) return { coincide: true, confianza: "ALIAS" };
+
+  const candidatos = [normalizarUbicacion(valorUbicacion), ...aliasesDelCampo.map((a) => a.valorNormalizado)];
+  const mejorSimilitud = Math.max(...candidatos.map((c) => similitud(destinoNormalizado, c)));
+  if (destinoNormalizado.length >= 3 && mejorSimilitud >= UMBRAL_SIMILITUD_APROXIMADA) {
+    return { coincide: true, confianza: "PROBABLE" };
+  }
+  return { coincide: false };
+}
+
+/**
+ * Resuelve un destino con alias y coincidencia aproximada, devolviendo TODAS
+ * las opciones candidatas con su nivel de confianza (FR-005/FR-006/FR-007) —
+ * consumida por la tool de IA consultar_opciones_envio (US1/US3/US5). Nunca
+ * usada por calcular_costo_envio/validar_cobertura/estimar_fecha_entrega.
+ */
+export async function obtenerOpcionesEnvioConConfianza(destino: DestinoEnvioZona): Promise<ResultadoOpcionesEnvio> {
+  const { prisma } = await import("@/shared/db/prisma");
+
+  const paisId = await resolverPaisId(prisma, destino.instanciaId, destino.pais);
+  if (!paisId) return { confianza: "SIN_COINCIDENCIA", opciones: [] };
+
+  const ubicaciones = await prisma.zonaEntregaUbicacion.findMany({
+    where: { paisId, zonaEntrega: { instanciaId: destino.instanciaId, activa: true } },
+    select: {
+      zonaEntregaId: true,
+      provinciaEstado: true,
+      distritoCiudad: true,
+      corregimiento: true,
+      sectorOCodigoPostal: true,
+      aliases: { select: { campo: true, valorNormalizado: true } },
+    },
+  });
+
+  const aliasesPorCampo = (aliases: AliasNivel[], campo: string) => aliases.filter((a) => a.campo === campo);
+
+  // Confianza de zona = la mejor entre todas sus ubicaciones que coinciden
+  // (una zona puede tener varias ubicaciones; basta con que una coincida
+  // bien para considerar la zona como una opción sólida).
+  const confianzaPorZona = new Map<string, ConfianzaMatch>();
+
+  for (const u of ubicaciones) {
+    const niveles = [
+      evaluarNivel(u.provinciaEstado, destino.estadoProvincia, aliasesPorCampo(u.aliases, "PROVINCIA_ESTADO")),
+      evaluarNivel(u.distritoCiudad, destino.distritoCiudad, aliasesPorCampo(u.aliases, "DISTRITO_CIUDAD")),
+      evaluarNivel(u.corregimiento, destino.corregimiento, aliasesPorCampo(u.aliases, "CORREGIMIENTO")),
+      evaluarNivel(u.sectorOCodigoPostal, destino.sectorOCodigoPostal, aliasesPorCampo(u.aliases, "SECTOR_O_CODIGO_POSTAL")),
+    ];
+    if (niveles.some((n) => !n.coincide)) continue;
+
+    const confianzasCoincididas = niveles.filter((n): n is { coincide: true; confianza: ConfianzaMatch } => n.coincide);
+    const confianzaUbicacion = confianzasCoincididas.reduce((peor, n) => peorConfianza(peor, n.confianza), "EXACTA" as ConfianzaMatch);
+
+    const actual = confianzaPorZona.get(u.zonaEntregaId);
+    if (!actual || RANGO_CONFIANZA[confianzaUbicacion] < RANGO_CONFIANZA[actual]) {
+      confianzaPorZona.set(u.zonaEntregaId, confianzaUbicacion);
+    }
+  }
+
+  if (confianzaPorZona.size === 0) return { confianza: "SIN_COINCIDENCIA", opciones: [] };
+
+  const entradasZona = [...confianzaPorZona.entries()];
+  const hayAltaConfianza = entradasZona.some(([, c]) => c === "EXACTA" || c === "ALIAS");
+  const confianzaRespuesta: ConfianzaRespuestaEnvio =
+    entradasZona.length >= 2 && !hayAltaConfianza
+      ? "AMBIGUA"
+      : entradasZona.reduce<ConfianzaMatch>((peor, [, c]) => peorConfianza(peor, c), entradasZona[0][1]);
+
+  const ahora = new Date();
+  const tarifas = await prisma.tarifaTransportistaZona.findMany({
+    where: {
+      zonaEntregaId: { in: [...confianzaPorZona.keys()] },
+      activa: true,
+      instanciaId: destino.instanciaId,
+      transportista: {
+        activo: true,
+        ...(destino.transportistaId ? { id: destino.transportistaId } : {}),
+      },
+      OR: [{ vigenteDesde: null }, { vigenteDesde: { lte: ahora } }],
+    },
+    include: {
+      transportista: { select: { id: true, nombre: true, tipo: true, condiciones: true } },
+      zonaEntrega: { select: { nombre: true } },
+      servicioTransportista: { select: { nombre: true } },
+    },
+  });
+
+  const opciones: OpcionEnvioConConfianza[] = tarifas
+    .filter((t) => !t.vigenteHasta || t.vigenteHasta >= ahora)
+    .map((t) => ({
+      tarifaId: t.id,
+      transportistaId: t.transportistaId,
+      transportistaNombre: t.transportista.nombre,
+      transportistaTipo: t.transportista.tipo,
+      zonaEntregaId: t.zonaEntregaId,
+      zonaEntregaNombre: t.zonaEntrega.nombre,
+      servicioTransportistaId: t.servicioTransportistaId,
+      servicioNombre: t.servicioTransportista.nombre,
+      costoInterno: Number(t.costoInterno),
+      precioCliente: Number(t.precioCliente),
+      tiempoMinimoDias: t.tiempoMinimoDias,
+      tiempoMaximoDias: t.tiempoMaximoDias,
+      confianza: confianzaPorZona.get(t.zonaEntregaId) ?? "PROBABLE",
+      aceptaPagoContraEntrega: t.transportista.condiciones?.permitePagoContraEntrega ?? false,
+      diasEntrega: t.transportista.condiciones?.diasEntrega ?? [],
+      horaLimiteMismoDia: t.transportista.condiciones?.horaLimiteMismoDia ?? null,
+    }))
+    .sort((a, b) => a.precioCliente - b.precioCliente);
+
+  return { confianza: confianzaRespuesta, opciones };
+}
+
+export interface UbicacionCoincidente {
+  zonaEntregaUbicacionId: string;
+  zonaEntregaId: string;
+  nombreVisible: string | null;
+  confianza: ConfianzaMatch;
+}
+
+export interface DestinoGeografico {
+  instanciaId: string;
+  paisId: string;
+  estadoProvincia?: string | null;
+  distritoCiudad?: string | null;
+  corregimiento?: string | null;
+  sectorOCodigoPostal?: string | null;
+}
+
+/**
+ * Busca destinos (ZonaEntregaUbicacion) que coincidan con una ubicación,
+ * SIN requerir que tengan ninguna tarifa configurada — a diferencia de
+ * obtenerOpcionesEnvioConConfianza (que solo devuelve zonas con tarifa
+ * vigente). Usada por la clasificación de filas de importación (US4): una
+ * fila "NUEVO" es, por definición, un destino sin tarifas todavía.
+ */
+export async function buscarUbicacionesCoincidentes(destino: DestinoGeografico): Promise<UbicacionCoincidente[]> {
+  const { prisma } = await import("@/shared/db/prisma");
+
+  const ubicaciones = await prisma.zonaEntregaUbicacion.findMany({
+    where: { paisId: destino.paisId, zonaEntrega: { instanciaId: destino.instanciaId } },
+    select: {
+      id: true,
+      zonaEntregaId: true,
+      nombreVisible: true,
+      provinciaEstado: true,
+      distritoCiudad: true,
+      corregimiento: true,
+      sectorOCodigoPostal: true,
+      aliases: { select: { campo: true, valorNormalizado: true } },
+    },
+  });
+
+  const aliasesPorCampo = (aliases: AliasNivel[], campo: string) => aliases.filter((a) => a.campo === campo);
+  const resultado: UbicacionCoincidente[] = [];
+
+  for (const u of ubicaciones) {
+    const niveles = [
+      evaluarNivel(u.provinciaEstado, destino.estadoProvincia, aliasesPorCampo(u.aliases, "PROVINCIA_ESTADO")),
+      evaluarNivel(u.distritoCiudad, destino.distritoCiudad, aliasesPorCampo(u.aliases, "DISTRITO_CIUDAD")),
+      evaluarNivel(u.corregimiento, destino.corregimiento, aliasesPorCampo(u.aliases, "CORREGIMIENTO")),
+      evaluarNivel(u.sectorOCodigoPostal, destino.sectorOCodigoPostal, aliasesPorCampo(u.aliases, "SECTOR_O_CODIGO_POSTAL")),
+    ];
+    if (niveles.some((n) => !n.coincide)) continue;
+
+    const confianzasCoincididas = niveles.filter((n): n is { coincide: true; confianza: ConfianzaMatch } => n.coincide);
+    const confianza = confianzasCoincididas.reduce((peor, n) => peorConfianza(peor, n.confianza), "EXACTA" as ConfianzaMatch);
+
+    resultado.push({ zonaEntregaUbicacionId: u.id, zonaEntregaId: u.zonaEntregaId, nombreVisible: u.nombreVisible, confianza });
+  }
+
+  return resultado;
 }
 
 /**

@@ -17,14 +17,5 @@ export const CrearZonaEntregaSchema = z.object({
   ubicaciones: z.array(UbicacionZonaSchema).min(1, "Agrega al menos una ubicación"),
 });
 
-export const EditarZonaEntregaSchema = z.object({
-  id: z.string().min(1),
-  nombre: z.string().trim().min(1, "El nombre es obligatorio").max(100).optional(),
-  descripcion: z.string().max(300).optional().or(z.literal("")),
-  activa: z.boolean().optional(),
-  ubicaciones: z.array(UbicacionZonaSchema).min(1, "Agrega al menos una ubicación").optional(),
-});
-
 export type UbicacionZonaInput = z.infer<typeof UbicacionZonaSchema>;
 export type CrearZonaEntregaInput = z.infer<typeof CrearZonaEntregaSchema>;
-export type EditarZonaEntregaInput = z.infer<typeof EditarZonaEntregaSchema>;

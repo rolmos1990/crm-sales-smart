@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SeccionCondicionesTransportista } from "./seccion-condiciones-transportista";
 import { SeccionInformacionTransportista } from "./seccion-informacion-transportista";
 import { SeccionZonasTarifas } from "./seccion-zonas-tarifas";
 import { TIPO_TRANSPORTISTA_LABELS } from "../types";
@@ -19,10 +20,6 @@ interface PanelTransportistaProps {
   puedeVerCostos: boolean;
   puedeModificar: boolean;
 }
-
-const DIAS_LABELS: Record<string, string> = {
-  LUN: "Lun", MAR: "Mar", MIE: "Mié", JUE: "Jue", VIE: "Vie", SAB: "Sáb", DOM: "Dom",
-};
 
 // 022-transportistas-zonas-tarifas — panel de configuración completo
 // (FR-003): encabezado + pestañas Información/Zonas y tarifas/Condiciones.
@@ -85,38 +82,12 @@ export function PanelTransportista({
         </TabsContent>
 
         <TabsContent value="condiciones" className="mt-5">
-          {condiciones ? (
-            <dl className="grid grid-cols-2 gap-x-8 gap-y-4 max-w-xl">
-              <div>
-                <dt className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Días de entrega</dt>
-                <dd className="text-sm text-foreground">
-                  {(condiciones.diasEntrega as string[]).map((d) => DIAS_LABELS[d] ?? d).join(", ") || "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Hora límite mismo día</dt>
-                <dd className="text-sm text-foreground">{condiciones.horaLimiteMismoDia ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Entrega mismo día</dt>
-                <dd className="text-sm text-foreground">{condiciones.permiteEntregaMismoDia ? "Sí" : "No"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Peso máximo (kg)</dt>
-                <dd className="text-sm text-foreground">{condiciones.pesoMaximoKg != null ? Number(condiciones.pesoMaximoKg) : "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Pago contra entrega</dt>
-                <dd className="text-sm text-foreground">{condiciones.permitePagoContraEntrega ? "Sí" : "No"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Método de pago</dt>
-                <dd className="text-sm text-foreground">{condiciones.metodoPagoTransportista ?? "—"}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sin condiciones configuradas.</p>
-          )}
+          <SeccionCondicionesTransportista
+            transportistaId={transportista.id}
+            transportistaNombre={transportista.nombre}
+            condiciones={condiciones}
+            puedeModificar={puedeModificar}
+          />
         </TabsContent>
       </Tabs>
     </div>

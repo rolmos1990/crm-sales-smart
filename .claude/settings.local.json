@@ -272,7 +272,16 @@
       "Bash(git config *)",
       "Bash(GIT_TERMINAL_PROMPT=0 GIT_CURL_VERBOSE=1 GIT_TRACE=1 git push -u origin 023-transportistas-por-pais)",
       "Bash(echo \"PID=$!\")",
-      "Bash(node -e \"const icons = require\\('lucide-react'\\); console.log\\(Object.keys\\(icons\\).filter\\(k => /MapPin/i.test\\(k\\)\\)\\)\")"
+      "Bash(node -e \"const icons = require\\('lucide-react'\\); console.log\\(Object.keys\\(icons\\).filter\\(k => /MapPin/i.test\\(k\\)\\)\\)\")",
+      "Bash(mkdir -p specs/024-alias-ubicaciones-transportistas/checklists && echo OK)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(xargs -I{} echo {})",
+      "Bash(grep -rln '\\\\$Enums' src)",
+      "Bash(sed -n '/^model HistorialImportacion/,/^}/p' prisma/schema.prisma)",
+      "Bash(sed -n '/^model ServicioTransportista/,/^}/p' prisma/schema.prisma)",
+      "Bash(sed -n '/^model TarifaTransportistaZona/,/^}/p' prisma/schema.prisma)",
+      "Bash(sed -n '/^enum MetodoEntrega /,/^}/p' prisma/schema.prisma)",
+      "Bash(sed -n '/^enum TipoTransportista/,/^}/p' prisma/schema.prisma)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
@@ -280,7 +289,8 @@
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/productos/[id]",
       "\\tmp",
       "/Users/ramonolmos/Repositories/crm-sales-smart/scripts",
-      "/Users/ramonolmos/Repositories/crm-sales-smart"
+      "/Users/ramonolmos/Repositories/crm-sales-smart",
+      "/Users/ramonolmos/Repositories/crm-sales-smart/specs/024-alias-ubicaciones-transportistas"
     ]
   }
 }

@@ -60,7 +60,13 @@ describe("SimuladorService.ejecutar (018, Historia 1)", () => {
     cotizacionCountMock.mockReset();
     cotizacionCreateMock.mockReset();
     generarRespuestaMock.mockReset().mockResolvedValue({ contenido: "Sí, tenemos el producto X disponible." });
-    generarConHerramientasMock.mockReset();
+    // 024-alias-ubicaciones-transportistas (research.md §6) — herramientasPermitidas
+    // ya no queda vacía con `herramientas: null` (se unen las tools "siempre
+    // disponibles"), así que este simulador ahora siempre pasa por
+    // generarConHerramientas — se le da la misma respuesta por defecto que a
+    // generarRespuestaMock para no acoplar los tests que no son sobre
+    // tool-calling a cuál de los dos caminos se toma internamente.
+    generarConHerramientasMock.mockReset().mockResolvedValue({ tipo: "texto", contenido: "Sí, tenemos el producto X disponible." });
   });
 
   it("devuelve un DiagnosticoRespuestaSimulada con todos los campos disponibles poblados", async () => {

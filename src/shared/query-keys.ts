@@ -27,4 +27,8 @@ export const queryKeys = {
     estados: (paisId: string) => ["geografia", "estados", paisId] as const,
     modo: () => ["geografia", "modo"] as const,
   },
+  // 024-alias-ubicaciones-transportistas
+  transportistas: {
+    ubicacionesConAlias: (zonaEntregaId: string) => ["transportistas", "ubicaciones-con-alias", zonaEntregaId] as const,
+  },
 } as const;

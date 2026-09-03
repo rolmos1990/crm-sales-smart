@@ -10,6 +10,7 @@ import { TabPlantillas } from "@/configuracion/components/tab-plantillas";
 import { TabPlan } from "@/configuracion/components/tab-plan";
 import { TabSeguridad } from "@/configuracion/components/tab-seguridad";
 import { TabIA } from "@/configuracion/components/tab-ia";
+import { TabEnvios } from "@/configuracion/components/tab-envios";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import { obtenerPlantillas } from "@/configuracion/plantillas/queries";
 
@@ -43,6 +44,7 @@ export default async function ConfiguracionPage() {
             { value: "plan", etiqueta: "Plan y Facturación" },
             { value: "seguridad", etiqueta: "Seguridad" },
             { value: "ia", etiqueta: "Inteligencia Artificial" },
+            { value: "envios", etiqueta: "Envíos" },
           ].map((tab) => (
             <TabsTrigger
               key={tab.value}
@@ -81,6 +83,10 @@ export default async function ConfiguracionPage() {
 
           <TabsContent value="ia">
             <TabIA instanciaId={sesion.instanciaId} />
+          </TabsContent>
+
+          <TabsContent value="envios">
+            <TabEnvios instanciaId={sesion.instanciaId} />
           </TabsContent>
         </div>
       </Tabs>

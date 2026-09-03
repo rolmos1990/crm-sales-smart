@@ -16,10 +16,3 @@ export async function listarZonasEntrega(instanciaId: string, busqueda?: string,
     orderBy: [{ activa: "desc" }, { nombre: "asc" }],
   });
 }
-
-export async function obtenerZonaEntrega(id: string, instanciaId: string) {
-  return prisma.zonaEntrega.findFirst({
-    where: { id, instanciaId },
-    include: { ubicaciones: { include: { pais: true } } },
-  });
-}

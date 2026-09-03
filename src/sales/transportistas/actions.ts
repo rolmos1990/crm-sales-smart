@@ -4,19 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { CrearTransportistaSchema, EditarTransportistaSchema } from "./schema";
-import { SERVICIOS_TRANSPORTISTA_INICIALES } from "./types";
+import { SERVICIOS_TRANSPORTISTA_INICIALES, CONDICIONES_POR_DEFECTO } from "./types";
 import type { ResultadoAccion, Transportista } from "./types";
-
-// 022-transportistas-zonas-tarifas — condiciones operativas por defecto,
-// sembradas junto con el transportista (ver data-model.md CondicionesTransportista).
-const CONDICIONES_POR_DEFECTO = {
-  diasEntrega: ["LUN", "MAR", "MIE", "JUE", "VIE"],
-  tiempoPreparacionDias: 0,
-  permiteEntregaMismoDia: true,
-  requiereDireccionCompleta: true,
-  permiteArticulosFragiles: true,
-  permitePagoContraEntrega: false,
-};
 
 async function registrarHistorialTransportista(params: {
   instanciaId: string;

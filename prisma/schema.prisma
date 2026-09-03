@@ -368,6 +368,8 @@ model Instancia {
   zonasEntrega           ZonaEntrega[]
   tarifasTransportista   TarifaTransportistaZona[]
   transportistaHistorial TransportistaHistorial[]
+  // 024-alias-ubicaciones-transportistas
+  aliasesUbicacion       AliasUbicacion[]
 
   // IA
   configuracionIA               ConfiguracionIA?
@@ -1369,8 +1371,61 @@ model ZonaEntregaUbicacion {
   corregimiento       String?
   sectorOCodigoPostal String?
 
+  // 024-alias-ubicaciones-transportistas — etiqueta legible calculada a
+  // partir de los niveles no vacíos (ej. "Panamá > Panamá > San Francisco") y
+  // su versión normalizada para búsqueda (FR-001). Nullable en esta migración
+  // (backfill vía scripts/backfill-normalizar-ubicaciones.ts, luego NOT NULL
+  // en una migración de seguimiento — mismo patrón que Transportista.paisId
+  // en 023). El motor de matching (resolver-costo-envio.ts) sigue comparando
+  // nivel por nivel — estos campos son solo para mostrar/buscar la fila como
+  // una unidad en UI e importación, nunca para resolver cobertura.
+  nombreVisible     String?
+  nombreNormalizado String?
+
+  aliases AliasUbicacion[]
+
   @@index([zonaEntregaId])
   @@index([paisId])
+  @@index([nombreNormalizado])
+}
+
+// 024-alias-ubicaciones-transportistas — nombre alternativo por el que puede
+// reconocerse UN nivel geográfico puntual de una ZonaEntregaUbicacion ya
+// existente (error ortográfico común, abreviatura, forma coloquial). No crea
+// destinos nuevos — solo amplía cómo puede nombrarse uno ya configurado
+// (FR-002).
+enum CampoUbicacion {
+  PROVINCIA_ESTADO
+  DISTRITO_CIUDAD
+  CORREGIMIENTO
+  SECTOR_O_CODIGO_POSTAL
+}
+
+model AliasUbicacion {
+  id String @id @default(cuid())
+
+  zonaEntregaUbicacionId String
+  zonaEntregaUbicacion   ZonaEntregaUbicacion @relation(fields: [zonaEntregaUbicacionId], references: [id], onDelete: Cascade)
+
+  // A qué nivel de la ubicación se refiere el alias — un alias de
+  // CORREGIMIENTO solo se compara contra destino.corregimiento, aunque ambos
+  // campos vivan en la misma fila de ZonaEntregaUbicacion.
+  campo CampoUbicacion
+
+  valor            String // texto tal como lo ingresó el usuario (para mostrarlo)
+  valorNormalizado String // normalizarUbicacion(valor) — usado para el match por ALIAS
+
+  // Denormalizado desde zonaEntrega.instanciaId — evita un join de 2 saltos
+  // en cada búsqueda de matching (corre en cada consulta de la tool de IA) y
+  // habilita el índice de unicidad por instancia (FR-003).
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  creadoEn DateTime @default(now())
+
+  @@unique([instanciaId, campo, valorNormalizado])
+  @@index([zonaEntregaUbicacionId])
+  @@index([instanciaId, valorNormalizado])
 }
 
 // Modalidad de envío ofrecida por un transportista concreto (FR-016) —
