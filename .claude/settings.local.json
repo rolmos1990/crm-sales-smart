@@ -281,7 +281,12 @@
       "Bash(sed -n '/^model ServicioTransportista/,/^}/p' prisma/schema.prisma)",
       "Bash(sed -n '/^model TarifaTransportistaZona/,/^}/p' prisma/schema.prisma)",
       "Bash(sed -n '/^enum MetodoEntrega /,/^}/p' prisma/schema.prisma)",
-      "Bash(sed -n '/^enum TipoTransportista/,/^}/p' prisma/schema.prisma)"
+      "Bash(sed -n '/^enum TipoTransportista/,/^}/p' prisma/schema.prisma)",
+      "Bash(grep -rn \"DropdownMenuTrigger disabled\\\\|DropdownMenuTrigger\\\\s*$\" /Users/ramonolmos/Repositories/crm-sales-smart/src --include=\"*.tsx\")",
+      "Bash(lsof -i :3000 -sTCP:LISTEN)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000 --max-time 5)",
+      "Bash(npx --no-install chromium-cli --version)",
+      "Bash(curl -s -D - -o /dev/null http://localhost:3000 --max-time 5)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

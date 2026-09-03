@@ -2,10 +2,13 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { FileUp, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronDown, Download, FileUp, Loader2 } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { parsearArchivo } from "@/crm/datos/utils/parsear-archivo";
 import type { DatosArchivo } from "@/crm/datos/types";
+import { descargarPlantillaDestinosCsv, descargarPlantillaDestinosExcel } from "../utils/descargar-plantilla-destinos";
 
 interface PasoArchivoProps {
   onArchivoParseado: (datos: DatosArchivo) => void;
@@ -44,9 +47,29 @@ export function PasoArchivo({ onArchivoParseado }: PasoArchivoProps) {
         <FileUp className="h-8 w-8 text-muted-foreground" />
       )}
       <p className="text-sm text-muted-foreground">Subí un archivo CSV o Excel con tus destinos y tarifas</p>
-      <Button type="button" variant="outline" size="sm" disabled={cargando} onClick={() => inputRef.current?.click()}>
-        Elegir archivo
-      </Button>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={cargando} onClick={() => inputRef.current?.click()}>
+          Elegir archivo
+        </Button>
+        {/* 025-plantilla-ejemplo-importacion-destinos — dropdown en vez de dos
+            botones separados: el layout del paso es angosto y centrado
+            (research.md Decisión 2), así que un único punto de entrada con
+            las dos opciones de formato evita ocupar más espacio horizontal. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            disabled={cargando}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-1 text-muted-foreground")}
+          >
+            <Download className="h-3.5 w-3.5" />
+            Descargar plantilla de ejemplo
+            <ChevronDown className="h-3.5 w-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center">
+            <DropdownMenuItem onClick={() => descargarPlantillaDestinosCsv()}>Formato CSV</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => descargarPlantillaDestinosExcel()}>Formato Excel (.xlsx)</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <input
         ref={inputRef}
         type="file"
