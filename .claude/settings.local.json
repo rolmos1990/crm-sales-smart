@@ -286,7 +286,9 @@
       "Bash(lsof -i :3000 -sTCP:LISTEN)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000 --max-time 5)",
       "Bash(npx --no-install chromium-cli --version)",
-      "Bash(curl -s -D - -o /dev/null http://localhost:3000 --max-time 5)"
+      "Bash(curl -s -D - -o /dev/null http://localhost:3000 --max-time 5)",
+      "Bash(node --env-file=.env \"/private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check_import.mjs\")",
+      "Bash(rm -f /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check-import.ts /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check_import.mjs)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
