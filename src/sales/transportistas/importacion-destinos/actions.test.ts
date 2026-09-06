@@ -22,7 +22,7 @@ const aliasFindFirstMock = vi.fn();
 const aliasCreateMock = vi.fn();
 const historialCreateMock = vi.fn();
 const historialUpdateMock = vi.fn();
-const transactionMock = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prismaTx));
+const transactionMock = vi.fn(async (fn: (tx: unknown) => Promise<unknown>, _opciones?: unknown) => fn(prismaTx));
 
 const prismaTx = {
   zonaEntrega: { findFirst: (...a: unknown[]) => zonaFindFirstMock(...a), create: (...a: unknown[]) => zonaCreateMock(...a) },
@@ -207,6 +207,35 @@ describe("importacion-destinos/actions (024, Historia 4)", () => {
       expect(resultado.exito).toBe(true);
       expect(aliasFindFirstMock).toHaveBeenCalled();
       expect(aliasCreateMock).not.toHaveBeenCalled();
+    });
+
+    // 026-fix-importacion-destinos — el nombre del servicio se repite en casi
+    // todas las filas del archivo (una fila por destino, mismo servicio);
+    // sin cache, cada fila volvía a consultar la base contra un pooler
+    // remoto, multiplicando los round-trips y agotando el timeout de la
+    // transacción.
+    it("resuelve el mismo servicio una sola vez para dos filas de distinto destino (cache en memoria)", async () => {
+      buscarUbicacionesCoincidentesMock.mockResolvedValue([]);
+      const filaDestino2 = { ...FILA_NUEVA, distritoCiudad: "Boquete" };
+      const resultado = await confirmarImportacionDestinosAction({
+        ...BASE,
+        filas: [FILA_NUEVA, filaDestino2],
+        decisiones: [{ incluir: true }, { incluir: true }],
+      });
+      expect(resultado.exito).toBe(true);
+      expect(servicioFindFirstMock).toHaveBeenCalledTimes(1);
+      expect(servicioCreateMock).toHaveBeenCalledTimes(1);
+      expect(tarifaUpsertMock).toHaveBeenCalledTimes(2);
+    });
+
+    // 026-fix-importacion-destinos — el default de Prisma (5000 ms) para una
+    // transacción interactiva se agotaba a mitad de lote contra el pooler
+    // remoto (Supabase), revirtiendo todo sin guardar nada.
+    it("pasa un timeout de transacción mayor al default de Prisma (5000 ms)", async () => {
+      buscarUbicacionesCoincidentesMock.mockResolvedValue([]);
+      await confirmarImportacionDestinosAction({ ...BASE, filas: [FILA_NUEVA], decisiones: [{ incluir: true }] });
+      const opciones = transactionMock.mock.calls[0]?.[1] as { timeout?: number } | undefined;
+      expect(opciones?.timeout).toBeGreaterThan(5000);
     });
   });
 });

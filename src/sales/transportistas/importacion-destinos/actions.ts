@@ -201,19 +201,39 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
   // creaba una ZonaEntregaUbicacion duplicada. Clave = destino normalizado
   // dentro del mismo país; se reutiliza el id ya creado en esta corrida.
   const resueltosEnEsteImport = new Map<string, { zonaEntregaUbicacionId: string; zonaEntregaId: string }>();
+  // Mismo criterio para servicios: el nombre del servicio se repite en casi
+  // todas las filas (una por destino), y sin este cache cada fila volvía a
+  // consultar la base — contra un pooler remoto (research.md: Supabase,
+  // aws-*.pooler.supabase.com) cada round-trip pesa, y con decenas de filas
+  // eso es justo lo que hacía expirar la transacción de abajo (ver el
+  // "timeout" que reemplazó al bug de la transacción abortada).
+  const serviciosCache = new Map<string, string>();
 
-  const CHUNK = 100;
+  // CHUNK más chico que antes (era 100): cada fila hace varias consultas
+  // secuenciales (resolver zona/servicio, crear ubicación, alias, upsert de
+  // tarifa) contra un pooler remoto con latencia real — un lote de 100 filas
+  // agotaba el timeout por defecto de la transacción (5000 ms) antes de
+  // terminar de procesarlas, y todo el lote revertía sin guardar nada. Un
+  // lote más chico además limita cuántas filas se pierden si una transacción
+  // sí llega a fallar.
+  const CHUNK = 20;
+  // Presupuesto generoso por fila para el timeout de la transacción — el
+  // default de Prisma (5000 ms totales) es el que causaba el corte a mitad
+  // de lote contra un pooler remoto.
+  const TIMEOUT_POR_FILA_MS = 3000;
   for (let inicio = 0; inicio < incluidas.length; inicio += CHUNK) {
     const lote = incluidas.slice(inicio, inicio + CHUNK);
-    // Contadores y destinos-nuevos locales al lote — sólo se aplican a los
-    // acumuladores globales si la transacción de abajo confirma. Si el lote
-    // revierte, un id guardado en resueltosEnEsteImport apuntaría a una fila
-    // que en realidad nunca se guardó, y un lote *posterior* con el mismo
-    // destino fallaría con una FK inválida al reusarlo — por eso se fusiona
-    // recién después del `await` exitoso, nunca dentro del loop.
+    // Contadores y destinos/servicios-nuevos locales al lote — sólo se
+    // aplican a los acumuladores globales si la transacción de abajo
+    // confirma. Si el lote revierte, un id guardado en resueltosEnEsteImport
+    // (o en serviciosCache) apuntaría a una fila que en realidad nunca se
+    // guardó, y un lote *posterior* con el mismo destino/servicio fallaría
+    // con una FK inválida al reusarlo — por eso se fusiona recién después
+    // del `await` exitoso, nunca dentro del loop.
     let creadosLote = 0;
     let actualizadosLote = 0;
     const nuevosDestinosLote = new Map<string, { zonaEntregaUbicacionId: string; zonaEntregaId: string }>();
+    const nuevosServiciosLote = new Map<string, string>();
     try {
       await prisma.$transaction(async (tx) => {
         for (const idx of lote) {
@@ -271,7 +291,12 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
             await crearAliasesDeFila(tx as typeof prisma, auth.sesion.instanciaId, zonaEntregaUbicacionId, "PROVINCIA_ESTADO", parsed.alias);
           }
 
-          const servicioTransportistaId = await resolverServicio(tx as typeof prisma, transportistaId, parsed.servicioNombre);
+          const claveServicio = parsed.servicioNombre.trim().toLowerCase();
+          let servicioTransportistaId = nuevosServiciosLote.get(claveServicio) ?? serviciosCache.get(claveServicio);
+          if (!servicioTransportistaId) {
+            servicioTransportistaId = await resolverServicio(tx as typeof prisma, transportistaId, parsed.servicioNombre);
+            nuevosServiciosLote.set(claveServicio, servicioTransportistaId);
+          }
 
           await (tx as typeof prisma).tarifaTransportistaZona.upsert({
             where: { transportistaId_zonaEntregaId_servicioTransportistaId: { transportistaId, zonaEntregaId, servicioTransportistaId } },
@@ -293,16 +318,18 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
             },
           });
         }
-      });
+      }, { timeout: Math.max(10_000, lote.length * TIMEOUT_POR_FILA_MS), maxWait: 10_000 });
       creados += creadosLote;
       actualizados += actualizadosLote;
       for (const [clave, valor] of nuevosDestinosLote) resueltosEnEsteImport.set(clave, valor);
+      for (const [clave, valor] of nuevosServiciosLote) serviciosCache.set(clave, valor);
     } catch (err) {
       // El lote completo revirtió (Postgres aborta toda la transacción ante
-      // cualquier sentencia fallida) — no se suman creadosLote/actualizadosLote
-      // ni se fusiona nuevosDestinosLote, así que un lote posterior con el
-      // mismo destino lo vuelve a intentar como NUEVO en vez de reusar un id
-      // que en realidad nunca se guardó.
+      // cualquier sentencia fallida, o expira el timeout) — no se suman
+      // creadosLote/actualizadosLote ni se fusionan nuevosDestinosLote/
+      // nuevosServiciosLote, así que un lote posterior con el mismo destino
+      // o servicio lo vuelve a intentar en vez de reusar un id que en
+      // realidad nunca se guardó.
       for (const idx of lote) erroresImport.push({ fila: idx + 1, mensaje: err instanceof Error ? err.message : "Error desconocido" });
     }
   }
