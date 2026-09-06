@@ -124,12 +124,19 @@ async function crearAliasesDeFila(
 
   for (const valor of alias) {
     const valorNormalizado = normalizarUbicacion(valor);
-    // Silenciosamente omite duplicados (ya cubierto/validado en la revisión;
-    // un P2002 acá significa que ya existe con ese mismo valor — no es un
-    // error de importación, es un no-op esperado).
-    await tx.aliasUbicacion
-      .create({ data: { zonaEntregaUbicacionId, campo: campoPrincipal, valor, valorNormalizado, instanciaId } })
-      .catch(() => undefined);
+    // Verifica existencia antes de crear (mismo criterio que resolverZona/
+    // resolverServicio) en vez de crear-y-atrapar-P2002: un `create` que
+    // choca contra el índice único deja la transacción envolvente de
+    // Postgres "abortada" (current transaction is aborted, commands ignored
+    // until end of transaction block) hasta un ROLLBACK/SAVEPOINT explícito
+    // — un catch de JS no alcanza para recuperarla, y termina arrastrando a
+    // un rollback del lote completo (ver 026-fix-importacion-destinos).
+    const existente = await tx.aliasUbicacion.findFirst({
+      where: { instanciaId, campo: campoPrincipal, valorNormalizado },
+      select: { id: true },
+    });
+    if (existente) continue;
+    await tx.aliasUbicacion.create({ data: { zonaEntregaUbicacionId, campo: campoPrincipal, valor, valorNormalizado, instanciaId } });
   }
 }
 
@@ -185,9 +192,28 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
   let actualizados = 0;
   const erroresImport: { fila: number; mensaje: string }[] = [];
 
+  // 026-fix-importacion-destinos — la plantilla espera una fila por servicio
+  // (mismo destino repetido con distinto servicioNombre/tarifa), pero la
+  // clasificación NUEVO/COINCIDENCIA_EXACTA sólo compara contra lo que ya
+  // existía en la base *antes* de importar (clasificaciones se calculó una
+  // sola vez, arriba) — nunca contra las otras filas del propio archivo. Sin
+  // este mapa, la 2ª fila con el mismo destino volvía a clasificar NUEVO y
+  // creaba una ZonaEntregaUbicacion duplicada. Clave = destino normalizado
+  // dentro del mismo país; se reutiliza el id ya creado en esta corrida.
+  const resueltosEnEsteImport = new Map<string, { zonaEntregaUbicacionId: string; zonaEntregaId: string }>();
+
   const CHUNK = 100;
   for (let inicio = 0; inicio < incluidas.length; inicio += CHUNK) {
     const lote = incluidas.slice(inicio, inicio + CHUNK);
+    // Contadores y destinos-nuevos locales al lote — sólo se aplican a los
+    // acumuladores globales si la transacción de abajo confirma. Si el lote
+    // revierte, un id guardado en resueltosEnEsteImport apuntaría a una fila
+    // que en realidad nunca se guardó, y un lote *posterior* con el mismo
+    // destino fallaría con una FK inválida al reusarlo — por eso se fusiona
+    // recién después del `await` exitoso, nunca dentro del loop.
+    let creadosLote = 0;
+    let actualizadosLote = 0;
+    const nuevosDestinosLote = new Map<string, { zonaEntregaUbicacionId: string; zonaEntregaId: string }>();
     try {
       await prisma.$transaction(async (tx) => {
         for (const idx of lote) {
@@ -206,14 +232,24 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
               ? candidatos[0]
               : undefined;
 
+          const nombreVisible = construirNombreVisible(parsed);
+          const claveDestino = `${paisId}:${calcularNombreNormalizado(nombreVisible)}`;
+          const yaResueltaEnEsteImport = nuevosDestinosLote.get(claveDestino) ?? resueltosEnEsteImport.get(claveDestino);
+
           if (candidatoElegido) {
             zonaEntregaUbicacionId = candidatoElegido.zonaEntregaUbicacionId;
             zonaEntregaId = candidatoElegido.zonaEntregaId;
-            actualizados++;
+            actualizadosLote++;
+          } else if (yaResueltaEnEsteImport) {
+            // Mismo destino que otra fila anterior de este mismo archivo
+            // (típicamente otro servicio) — reutiliza la ubicación recién
+            // creada en vez de duplicarla.
+            zonaEntregaUbicacionId = yaResueltaEnEsteImport.zonaEntregaUbicacionId;
+            zonaEntregaId = yaResueltaEnEsteImport.zonaEntregaId;
+            actualizadosLote++;
           } else {
             // NUEVO, o POSIBLE_DUPLICADO resuelto como "crear nuevo".
             zonaEntregaId = await resolverZona(tx as typeof prisma, auth.sesion.instanciaId, parsed.zonaNombre);
-            const nombreVisible = construirNombreVisible(parsed);
             const nueva = await (tx as typeof prisma).zonaEntregaUbicacion.create({
               data: {
                 zonaEntregaId,
@@ -227,7 +263,8 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
               },
             });
             zonaEntregaUbicacionId = nueva.id;
-            creados++;
+            nuevosDestinosLote.set(claveDestino, { zonaEntregaUbicacionId, zonaEntregaId });
+            creadosLote++;
           }
 
           if (parsed.alias) {
@@ -257,7 +294,15 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
           });
         }
       });
+      creados += creadosLote;
+      actualizados += actualizadosLote;
+      for (const [clave, valor] of nuevosDestinosLote) resueltosEnEsteImport.set(clave, valor);
     } catch (err) {
+      // El lote completo revirtió (Postgres aborta toda la transacción ante
+      // cualquier sentencia fallida) — no se suman creadosLote/actualizadosLote
+      // ni se fusiona nuevosDestinosLote, así que un lote posterior con el
+      // mismo destino lo vuelve a intentar como NUEVO en vez de reusar un id
+      // que en realidad nunca se guardó.
       for (const idx of lote) erroresImport.push({ fila: idx + 1, mensaje: err instanceof Error ? err.message : "Error desconocido" });
     }
   }
@@ -273,5 +318,6 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
   });
 
   revalidatePath("/sales/transportistas");
+  revalidatePath(`/sales/transportistas/${transportistaId}`);
   return { exito: true, data: { creados, actualizados } };
 }

@@ -18,6 +18,7 @@ const ubicacionCreateMock = vi.fn();
 const servicioFindFirstMock = vi.fn();
 const servicioCreateMock = vi.fn();
 const tarifaUpsertMock = vi.fn();
+const aliasFindFirstMock = vi.fn();
 const aliasCreateMock = vi.fn();
 const historialCreateMock = vi.fn();
 const historialUpdateMock = vi.fn();
@@ -28,7 +29,7 @@ const prismaTx = {
   zonaEntregaUbicacion: { create: (...a: unknown[]) => ubicacionCreateMock(...a) },
   servicioTransportista: { findFirst: (...a: unknown[]) => servicioFindFirstMock(...a), create: (...a: unknown[]) => servicioCreateMock(...a) },
   tarifaTransportistaZona: { upsert: (...a: unknown[]) => tarifaUpsertMock(...a) },
-  aliasUbicacion: { create: (...a: unknown[]) => aliasCreateMock(...a) },
+  aliasUbicacion: { findFirst: (...a: unknown[]) => aliasFindFirstMock(...a), create: (...a: unknown[]) => aliasCreateMock(...a) },
 };
 
 vi.mock("@/shared/db/prisma", () => ({
@@ -64,6 +65,7 @@ describe("importacion-destinos/actions (024, Historia 4)", () => {
     servicioFindFirstMock.mockReset().mockResolvedValue(null);
     servicioCreateMock.mockReset().mockResolvedValue({ id: "servicio-1" });
     tarifaUpsertMock.mockReset().mockResolvedValue({ id: "tarifa-1" });
+    aliasFindFirstMock.mockReset().mockResolvedValue(null);
     aliasCreateMock.mockReset().mockResolvedValue({ id: "alias-1" });
     historialCreateMock.mockReset().mockResolvedValue({ id: "historial-1" });
     historialUpdateMock.mockReset();
@@ -166,6 +168,45 @@ describe("importacion-destinos/actions (024, Historia 4)", () => {
       await confirmarImportacionDestinosAction({ ...BASE, filas: [FILA_NUEVA], decisiones: [{ incluir: true }] });
       expect(historialCreateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ entidad: "DESTINO_TRANSPORTISTA" }) }));
       expect(historialUpdateMock).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ registrosExitosos: 1 }) }));
+    });
+
+    // 026-fix-importacion-destinos — reproduce el bug real: la plantilla
+    // espera una fila por servicio para el mismo destino, y ambas filas
+    // clasifican NUEVO (no hay nada previo en la base). Sin el mapa de
+    // dedup dentro del propio archivo, la 2ª fila creaba una
+    // ZonaEntregaUbicacion duplicada.
+    it("reutiliza la misma ubicación para dos filas del mismo destino con distinto servicio (una fila por servicio)", async () => {
+      buscarUbicacionesCoincidentesMock.mockResolvedValue([]);
+      const filaServicioA = { ...FILA_NUEVA, servicioNombre: "Estándar" };
+      const filaServicioB = { ...FILA_NUEVA, servicioNombre: "Express" };
+      const resultado = await confirmarImportacionDestinosAction({
+        ...BASE,
+        filas: [filaServicioA, filaServicioB],
+        decisiones: [{ incluir: true }, { incluir: true }],
+      });
+      expect(resultado.exito).toBe(true);
+      expect(ubicacionCreateMock).toHaveBeenCalledTimes(1);
+      expect(zonaCreateMock).toHaveBeenCalledTimes(1);
+      expect(tarifaUpsertMock).toHaveBeenCalledTimes(2);
+      if (resultado.exito) expect(resultado.data).toEqual({ creados: 1, actualizados: 1 });
+    });
+
+    // 026-fix-importacion-destinos — un `create` de alias que choca contra
+    // el índice único dejaba la transacción de Postgres "abortada" para el
+    // resto del lote (un catch de JS no alcanza a recuperarla sin
+    // SAVEPOINT); ahora se verifica existencia antes de crear.
+    it("no intenta crear un alias que ya existe (evita abortar la transacción del lote)", async () => {
+      buscarUbicacionesCoincidentesMock.mockResolvedValue([]);
+      aliasFindFirstMock.mockResolvedValue({ id: "alias-existente" });
+      const filaConAlias = { ...FILA_NUEVA, alias: "David Centro" };
+      const resultado = await confirmarImportacionDestinosAction({
+        ...BASE,
+        filas: [filaConAlias],
+        decisiones: [{ incluir: true }],
+      });
+      expect(resultado.exito).toBe(true);
+      expect(aliasFindFirstMock).toHaveBeenCalled();
+      expect(aliasCreateMock).not.toHaveBeenCalled();
     });
   });
 });

@@ -61,5 +61,6 @@ export async function guardarCondicionesTransportista(datos: unknown): Promise<R
   });
 
   revalidatePath("/sales/transportistas");
+  revalidatePath(`/sales/transportistas/${transportistaId}`);
   return { exito: true, data: condiciones };
 }

@@ -75,6 +75,7 @@ export async function crearTarifa(datos: unknown): Promise<ResultadoAccion<Tarif
     });
 
     revalidatePath("/sales/transportistas");
+    revalidatePath(`/sales/transportistas/${validado.data.transportistaId}`);
     const advertencia = advertenciaMargen(validado.data.costoInterno, validado.data.precioCliente);
     return { exito: true, data: tarifa, ...(advertencia ? { advertencia } : {}) };
   } catch {
@@ -118,6 +119,7 @@ export async function editarTarifa(datos: unknown): Promise<ResultadoAccion<Tari
     });
 
     revalidatePath("/sales/transportistas");
+    revalidatePath(`/sales/transportistas/${anterior.transportistaId}`);
     const advertencia = advertenciaMargen(campos.costoInterno, campos.precioCliente);
     return { exito: true, data: tarifa, ...(advertencia ? { advertencia } : {}) };
   } catch {
@@ -161,6 +163,7 @@ export async function duplicarTarifa(
   });
 
   revalidatePath("/sales/transportistas");
+  revalidatePath(`/sales/transportistas/${origen.transportistaId}`);
   return { exito: true, data: copia };
 }
 
@@ -170,7 +173,7 @@ export async function toggleTarifa(id: string): Promise<ResultadoAccion> {
 
   const actual = await prisma.tarifaTransportistaZona.findFirst({
     where: { id, instanciaId: auth.sesion.instanciaId },
-    select: { activa: true },
+    select: { activa: true, transportistaId: true },
   });
   if (!actual) return { exito: false, error: "Tarifa no encontrada" };
 
@@ -185,6 +188,7 @@ export async function toggleTarifa(id: string): Promise<ResultadoAccion> {
   });
 
   revalidatePath("/sales/transportistas");
+  revalidatePath(`/sales/transportistas/${actual.transportistaId}`);
   return { exito: true };
 }
 
@@ -193,7 +197,7 @@ export async function eliminarTarifa(id: string): Promise<ResultadoAccion> {
   const auth = await requirePermisoAction("transportistas", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
 
-  const tarifa = await prisma.tarifaTransportistaZona.findFirst({ where: { id, instanciaId: auth.sesion.instanciaId }, select: { id: true } });
+  const tarifa = await prisma.tarifaTransportistaZona.findFirst({ where: { id, instanciaId: auth.sesion.instanciaId }, select: { id: true, transportistaId: true } });
   if (!tarifa) return { exito: false, error: "Tarifa no encontrada" };
 
   const [enCotizacion, enPedido] = await Promise.all([
@@ -206,6 +210,7 @@ export async function eliminarTarifa(id: string): Promise<ResultadoAccion> {
 
   await prisma.tarifaTransportistaZona.delete({ where: { id } });
   revalidatePath("/sales/transportistas");
+  revalidatePath(`/sales/transportistas/${tarifa.transportistaId}`);
   return { exito: true };
 }
 
@@ -261,6 +266,7 @@ export async function aplicarCambioMasivo(datos: unknown): Promise<ResultadoAcci
   });
 
   revalidatePath("/sales/transportistas");
+  revalidatePath(`/sales/transportistas/${transportistaId}`);
   return { exito: true, data: { actualizadas, creadas } };
 }
 
