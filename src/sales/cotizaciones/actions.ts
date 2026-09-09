@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import type { SesionActual } from "@/shared/auth/sesion";
@@ -111,6 +112,15 @@ const ERROR_BASE: Omit<ResolucionEnvioTarifa, "error"> = {
   costoEnvio: 0, costoInternoEnvio: null, costoEnvioConfirmado: true, costoManualAutorizadoPorId: null,
 };
 
+/** true si el error es el unique constraint (instanciaId, numero) — dos
+ *  creaciones concurrentes pueden generar el mismo número antes de que
+ *  cualquiera termine su `create` (ver generarNumeroCotizacion). */
+function esErrorNumeroDuplicado(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
+const MAX_INTENTOS_NUMERO_COTIZACION = 3;
+
 /**
  * 022-transportistas-zonas-tarifas — resuelve el costo de envío final de
  * una cotización a partir de la tarifa elegida (FR-041) o de un costo
@@ -197,7 +207,6 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
   try {
     const sesion = auth.sesion;
     const { lineas, contactoId, empresaId, notas, impuesto, oportunidadId, destinatario, entrega, servicio, ...resto } = validado.data;
-    const numero = await generarNumeroCotizacion(sesion.instanciaId);
 
     const subtotal = lineas.reduce((acc, l) => {
       const base = l.cantidad * l.precioUnitario;
@@ -232,77 +241,96 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
       ? await obtenerPlantillasEntregaDigital(lineas.map(l => l.productoId).filter((id): id is string => !!id))
       : new Map();
 
-    const cotizacion = await prisma.cotizacion.create({
-      data: {
-        ...resto,
-        instanciaId: sesion.instanciaId,
-        numero,
-        subtotal,
-        impuesto: impuestoMonto,
-        costoEnvio,
-        total,
-        tipoCumplimiento,
-        notas: notas || null,
-        contactoId, // requerido por el schema — la cotización siempre nace ligada a un contacto
-        empresaId: empresaId || null,
-        oportunidadId: oportunidadId || null,
-        metadata: destinatario ? { destinatario } : undefined,
-        lineas: {
-          create: lineas.map(l => {
-            const productoInfo = l.productoId ? plantillasDigital.get(l.productoId) : undefined;
-            const esLineaDigital = productoInfo?.tipo === "DIGITAL";
-            const codigoProducto = productoInfo?.entregaDigital?.codigo ?? null;
-            const hayEntregaLinea = esLineaDigital && hayDatosEntregaDigitalLinea(l.entregaDigital, !!codigoProducto);
-            return {
-              productoId: l.productoId || null,
-              descripcion: l.descripcion || null,
-              cantidad: l.cantidad,
-              precioUnitario: l.precioUnitario,
-              descuento: l.descuento,
-              subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
-              entregaDigital: hayEntregaLinea ? { create: datosEntregaDigitalLinea(l.entregaDigital, codigoProducto) } : undefined,
-            };
-          }),
-        },
-        entrega: hayEntrega ? {
-          create: {
-            metodoEntrega: entrega!.metodoEntrega || "COURIER_EXTERNO",
-            estadoEntrega: entrega!.estadoEntrega || "PENDIENTE",
-            transportistaId: entrega!.transportistaId || null,
-            fechaEstimada: entrega!.fechaEstimada || null,
-            observaciones: entrega!.observaciones || null,
-            // 019-cobertura-geografica-envios
-            paisId: entrega!.paisId || null,
-            estadoProvinciaId: entrega!.estadoProvinciaId || null,
-            ciudad: entrega!.ciudad || null,
-            // 022-transportistas-zonas-tarifas
-            corregimiento: entrega!.corregimiento || null,
-            sectorOCodigoPostal: entrega!.sectorOCodigoPostal || null,
-            zonaEntregaId: entrega!.zonaEntregaId || null,
-            zonaAsignadaManualmente: entrega!.zonaAsignadaManualmente ?? false,
-            servicioTransportistaId: entrega!.servicioTransportistaId || null,
-            tarifaTransportistaZonaId: entrega!.tarifaTransportistaZonaId || null,
-            costoInternoEnvio: resolucionEnvio.costoInternoEnvio,
-            costoEnvioConfirmado: resolucionEnvio.costoEnvioConfirmado,
-            costoManualAutorizadoPorId: resolucionEnvio.costoManualAutorizadoPorId,
-          },
-        } : undefined,
-        servicio: hayServicio ? {
-          create: {
-            modalidad: servicio!.modalidad || null,
-            fecha: servicio!.fecha || null,
-            hora: servicio!.hora || null,
-            duracion: servicio!.duracion || null,
-            ubicacion: servicio!.ubicacion || null,
-            direccion: servicio!.direccion || null,
-            responsable: servicio!.responsable || null,
-            instrucciones: servicio!.instrucciones || null,
-            observaciones: servicio!.observaciones || null,
-          },
-        } : undefined,
+    const datosCotizacion = {
+      ...resto,
+      instanciaId: sesion.instanciaId,
+      subtotal,
+      impuesto: impuestoMonto,
+      costoEnvio,
+      total,
+      tipoCumplimiento,
+      notas: notas || null,
+      contactoId, // requerido por el schema — la cotización siempre nace ligada a un contacto
+      empresaId: empresaId || null,
+      oportunidadId: oportunidadId || null,
+      metadata: destinatario ? { destinatario } : undefined,
+      lineas: {
+        create: lineas.map(l => {
+          const productoInfo = l.productoId ? plantillasDigital.get(l.productoId) : undefined;
+          const esLineaDigital = productoInfo?.tipo === "DIGITAL";
+          const codigoProducto = productoInfo?.entregaDigital?.codigo ?? null;
+          const hayEntregaLinea = esLineaDigital && hayDatosEntregaDigitalLinea(l.entregaDigital, !!codigoProducto);
+          return {
+            productoId: l.productoId || null,
+            descripcion: l.descripcion || null,
+            cantidad: l.cantidad,
+            precioUnitario: l.precioUnitario,
+            descuento: l.descuento,
+            subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
+            entregaDigital: hayEntregaLinea ? { create: datosEntregaDigitalLinea(l.entregaDigital, codigoProducto) } : undefined,
+          };
+        }),
       },
-      include: { contacto: { select: { id: true, nombre: true, apellido: true } }, empresa: { select: { id: true, nombre: true } }, entrega: { select: { id: true } } },
-    });
+      entrega: hayEntrega ? {
+        create: {
+          metodoEntrega: entrega!.metodoEntrega || "COURIER_EXTERNO",
+          estadoEntrega: entrega!.estadoEntrega || "PENDIENTE",
+          transportistaId: entrega!.transportistaId || null,
+          fechaEstimada: entrega!.fechaEstimada || null,
+          observaciones: entrega!.observaciones || null,
+          // 019-cobertura-geografica-envios
+          paisId: entrega!.paisId || null,
+          estadoProvinciaId: entrega!.estadoProvinciaId || null,
+          ciudad: entrega!.ciudad || null,
+          // 022-transportistas-zonas-tarifas
+          corregimiento: entrega!.corregimiento || null,
+          sectorOCodigoPostal: entrega!.sectorOCodigoPostal || null,
+          zonaEntregaId: entrega!.zonaEntregaId || null,
+          zonaAsignadaManualmente: entrega!.zonaAsignadaManualmente ?? false,
+          servicioTransportistaId: entrega!.servicioTransportistaId || null,
+          tarifaTransportistaZonaId: entrega!.tarifaTransportistaZonaId || null,
+          costoInternoEnvio: resolucionEnvio.costoInternoEnvio,
+          costoEnvioConfirmado: resolucionEnvio.costoEnvioConfirmado,
+          costoManualAutorizadoPorId: resolucionEnvio.costoManualAutorizadoPorId,
+        },
+      } : undefined,
+      servicio: hayServicio ? {
+        create: {
+          modalidad: servicio!.modalidad || null,
+          fecha: servicio!.fecha || null,
+          hora: servicio!.hora || null,
+          duracion: servicio!.duracion || null,
+          ubicacion: servicio!.ubicacion || null,
+          direccion: servicio!.direccion || null,
+          responsable: servicio!.responsable || null,
+          instrucciones: servicio!.instrucciones || null,
+          observaciones: servicio!.observaciones || null,
+        },
+      } : undefined,
+    };
+
+    // generarNumeroCotizacion se recalcula en cada intento: si dos
+    // creaciones concurrentes leyeran el mismo "último número" antes de que
+    // cualquiera termine su `create`, la segunda choca con el unique
+    // constraint (instanciaId, numero) — se reintenta con un número fresco
+    // en vez de devolver el error crudo de Prisma al usuario.
+    let cotizacion: Awaited<ReturnType<typeof prisma.cotizacion.create<{
+      data: typeof datosCotizacion & { numero: string };
+      include: { contacto: { select: { id: true; nombre: true; apellido: true } }; empresa: { select: { id: true; nombre: true } }; entrega: { select: { id: true } } };
+    }>>> | undefined;
+    for (let intento = 1; intento <= MAX_INTENTOS_NUMERO_COTIZACION; intento++) {
+      const numero = await generarNumeroCotizacion(sesion.instanciaId);
+      try {
+        cotizacion = await prisma.cotizacion.create({
+          data: { ...datosCotizacion, numero },
+          include: { contacto: { select: { id: true, nombre: true, apellido: true } }, empresa: { select: { id: true, nombre: true } }, entrega: { select: { id: true } } },
+        });
+        break;
+      } catch (e) {
+        if (!esErrorNumeroDuplicado(e) || intento === MAX_INTENTOS_NUMERO_COTIZACION) throw e;
+      }
+    }
+    if (!cotizacion) throw new Error("No se pudo generar un número de cotización único");
 
     if (cotizacion.entrega) {
       await registrarHistorialEnvioCotizacion({

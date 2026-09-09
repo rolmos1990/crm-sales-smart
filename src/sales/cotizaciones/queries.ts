@@ -80,8 +80,21 @@ export async function obtenerCotizacionesPorOportunidad(oportunidadId: string, i
   return obtenerCotizacionesPorContacto(contactoId, instanciaId);
 }
 
+/**
+ * Basado en el último `numero` emitido (no en `count`): con `count`, borrar
+ * una cotización en borrador (ver eliminarCotizacion) reduce el conteo y el
+ * próximo número generado vuelve a caer en uno que ya existe — dispara el
+ * unique constraint (instanciaId, numero) al crear. Usando el consecutivo
+ * más alto ya usado, un número emitido nunca se reutiliza aunque se borren
+ * cotizaciones intermedias.
+ */
 export async function generarNumeroCotizacion(instanciaId: string): Promise<string> {
-  const count = await prisma.cotizacion.count({ where: { instanciaId } });
+  const ultima = await prisma.cotizacion.findFirst({
+    where: { instanciaId },
+    orderBy: { numero: "desc" },
+    select: { numero: true },
+  });
+  const ultimoConsecutivo = ultima ? parseInt(ultima.numero.split("-").pop() ?? "0", 10) || 0 : 0;
   const año = new Date().getFullYear();
-  return `COT-${año}-${String(count + 1).padStart(4, "0")}`;
+  return `COT-${año}-${String(ultimoConsecutivo + 1).padStart(4, "0")}`;
 }

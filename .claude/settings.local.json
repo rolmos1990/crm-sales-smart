@@ -289,7 +289,9 @@
       "Bash(curl -s -D - -o /dev/null http://localhost:3000 --max-time 5)",
       "Bash(node --env-file=.env \"/private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check_import.mjs\")",
       "Bash(rm -f /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check-import.ts /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check_import.mjs)",
-      "Bash(rm -f /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check-import*.ts)"
+      "Bash(rm -f /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check-import*.ts)",
+      "Bash(git rev-list *)",
+      "Bash(echo \"EXIT: $?\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

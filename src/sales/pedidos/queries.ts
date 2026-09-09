@@ -295,8 +295,19 @@ export async function obtenerPedidoPorId(id: string, instanciaId: string) {
   };
 }
 
+/**
+ * Basado en el último `numero` emitido (no en `count`) — mismo motivo que
+ * generarNumeroCotizacion: con `count`, borrar un pedido (ver eliminarPedido)
+ * reduce el conteo y el próximo número generado puede volver a caer en uno
+ * que ya existe, disparando el unique constraint (instanciaId, numero).
+ */
 export async function generarNumeroPedido(instanciaId: string): Promise<string> {
-  const count = await prisma.pedido.count({ where: { instanciaId } });
+  const ultimo = await prisma.pedido.findFirst({
+    where: { instanciaId },
+    orderBy: { numero: "desc" },
+    select: { numero: true },
+  });
+  const ultimoConsecutivo = ultimo ? parseInt(ultimo.numero.split("-").pop() ?? "0", 10) || 0 : 0;
   const año = new Date().getFullYear();
-  return `PED-${año}-${String(count + 1).padStart(4, "0")}`;
+  return `PED-${año}-${String(ultimoConsecutivo + 1).padStart(4, "0")}`;
 }

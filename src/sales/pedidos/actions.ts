@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/shared/db/prisma";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { EventosSistema } from "@/eventos/catalogo";
@@ -37,6 +38,15 @@ async function resolverTipoCumplimiento(lineas: (LineaPedidoInput | LineaPedidoE
   return tipoPorId.get(primeraConProducto.productoId) as TipoProducto;
 }
 
+/** true si el error es el unique constraint (instanciaId, numero) — dos
+ *  creaciones concurrentes pueden generar el mismo número antes de que
+ *  cualquiera termine su `create` (ver generarNumeroPedido). */
+function esErrorNumeroDuplicado(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
+const MAX_INTENTOS_NUMERO_PEDIDO = 3;
+
 export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedido>> {
   const validado = CrearPedidoSchema.safeParse(datos);
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
@@ -51,7 +61,6 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
       nombre, apellido, telefono, email, ruc, empresaNombre,
       ...resto
     } = validado.data;
-    const numero = await generarNumeroPedido(sesion.instanciaId);
 
     // Cargar y validar stock de productos que lo manejan
     const idsProducto = lineas.map(l => l.productoId).filter(Boolean) as string[];
@@ -85,41 +94,59 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     const total = subtotal + impuestoMonto;
     const tipoCumplimiento = await resolverTipoCumplimiento(lineas);
 
-    const pedido = await prisma.pedido.create({
-      data: {
-        ...resto,
-        instanciaId: sesion.instanciaId,
-        numero,
-        subtotal,
-        impuesto: impuestoMonto,
-        total,
-        tipoCumplimiento,
-        notas: notas || null,
-        contactoId: contactoId || null,
-        empresaId: empresaId || null,
-        cotizacionId: cotizacionId || null,
-        nombre: nombre || null,
-        apellido: apellido || null,
-        telefono: telefono || null,
-        email: email || null,
-        ruc: ruc || null,
-        empresaNombre: empresaNombre || null,
-        lineas: {
-          create: lineas.map(l => ({
-            productoId: l.productoId || null,
-            descripcion: l.descripcion || null,
-            cantidad: l.cantidad,
-            precioUnitario: l.precioUnitario,
-            descuento: l.descuento,
-            subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
-          })),
-        },
+    const datosPedido = {
+      ...resto,
+      instanciaId: sesion.instanciaId,
+      subtotal,
+      impuesto: impuestoMonto,
+      total,
+      tipoCumplimiento,
+      notas: notas || null,
+      contactoId: contactoId || null,
+      empresaId: empresaId || null,
+      cotizacionId: cotizacionId || null,
+      nombre: nombre || null,
+      apellido: apellido || null,
+      telefono: telefono || null,
+      email: email || null,
+      ruc: ruc || null,
+      empresaNombre: empresaNombre || null,
+      lineas: {
+        create: lineas.map(l => ({
+          productoId: l.productoId || null,
+          descripcion: l.descripcion || null,
+          cantidad: l.cantidad,
+          precioUnitario: l.precioUnitario,
+          descuento: l.descuento,
+          subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
+        })),
       },
-      include: {
-        contacto: { select: { id: true, nombre: true, apellido: true } },
-        empresa: { select: { id: true, nombre: true } },
-      },
-    });
+    };
+
+    // generarNumeroPedido se recalcula en cada intento: si dos creaciones
+    // concurrentes leyeran el mismo "último número" antes de que cualquiera
+    // termine su `create`, la segunda choca con el unique constraint
+    // (instanciaId, numero) — se reintenta con un número fresco.
+    let pedido: Awaited<ReturnType<typeof prisma.pedido.create<{
+      data: typeof datosPedido & { numero: string };
+      include: { contacto: { select: { id: true; nombre: true; apellido: true } }; empresa: { select: { id: true; nombre: true } } };
+    }>>> | undefined;
+    for (let intento = 1; intento <= MAX_INTENTOS_NUMERO_PEDIDO; intento++) {
+      const numero = await generarNumeroPedido(sesion.instanciaId);
+      try {
+        pedido = await prisma.pedido.create({
+          data: { ...datosPedido, numero },
+          include: {
+            contacto: { select: { id: true, nombre: true, apellido: true } },
+            empresa: { select: { id: true, nombre: true } },
+          },
+        });
+        break;
+      } catch (e) {
+        if (!esErrorNumeroDuplicado(e) || intento === MAX_INTENTOS_NUMERO_PEDIDO) throw e;
+      }
+    }
+    if (!pedido) throw new Error("No se pudo generar un número de pedido único");
 
     // Descontar stock de los productos que lo manejan
     if (productosConStock.length > 0) {
