@@ -981,6 +981,24 @@ export function PipelineKanbanDinamico({
     });
   };
 
+  // Espejo de `cargarMas` siempre al día — igual que `activeCardRef` más
+  // arriba. `cargarMas` cierra sobre `searchParams` (cambia con CUALQUIER
+  // query param: filtros, "Ver ocultos", el propio `limite`), pero el efecto
+  // de más abajo solo se re-suscribe cuando cambia `hayMasPorCargar`,
+  // `cargandoMas` o `limitePorStage` — si un cambio de URL no toca ninguno de
+  // esos tres (ej. activar "Ver ocultos" cuando ya había más por cargar en
+  // otra etapa), el observer seguía llamando a la versión vieja de
+  // `cargarMas`, con el `searchParams` de ANTES del cambio: el siguiente
+  // "cargar más" reconstruía la URL sin `ocultos=1` (u otro filtro recién
+  // aplicado) y lo tiraba abajo apenas el centinela disparaba — exactamente
+  // cuando el usuario intentaba seguir viendo más tarjetas. Leer siempre
+  // `cargarMasRef.current` evita depender de que esas tres dependencias
+  // cambien para tener la versión fresca.
+  const cargarMasRef = useRef(cargarMas);
+  useEffect(() => {
+    cargarMasRef.current = cargarMas;
+  });
+
   // Dispara cargarMas cuando el centinela (al pie del tablero, debajo de las
   // columnas) entra en el viewport real del navegador — que es justo lo que
   // pasa al hacer scroll en el único contenedor vertical del Pipeline (ver
@@ -992,7 +1010,7 @@ export function PipelineKanbanDinamico({
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && !cargandoMas) cargarMas();
+        if (entries[0]?.isIntersecting && !cargandoMas) cargarMasRef.current();
       },
       // top/right/bottom/left — crece el margen inferior para disparar la
       // carga un poco antes de llegar literalmente al final (sin esto se
