@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock, RotateCcw, Check } from "lucide-react";
+import { Lock, RotateCcw, Check, ArrowRightLeft } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { MensajeConMeta } from "../types";
@@ -24,6 +24,12 @@ const CONFIG = {
     color: "text-muted-foreground",
     prefijo: "Respondida por",
   },
+  ETAPA_AUTOMATICA: {
+    Icon: ArrowRightLeft,
+    label: "Oportunidad movida automáticamente",
+    color: "text-lime-400",
+    prefijo: "Movida a",
+  },
 } as const;
 
 interface EventoSistemaProps {
@@ -31,7 +37,7 @@ interface EventoSistemaProps {
 }
 
 export function EventoSistema({ mensaje }: EventoSistemaProps) {
-  let evento: { tipo?: string; usuarioNombre?: string | null } = {};
+  let evento: { tipo?: string; usuarioNombre?: string | null; etapaNombre?: string | null } = {};
   try {
     evento = JSON.parse(mensaje.contenido ?? "{}");
   } catch {
@@ -45,7 +51,9 @@ export function EventoSistema({ mensaje }: EventoSistemaProps) {
   const fechaHora = format(new Date(mensaje.creadoEn), "d MMM yyyy, HH:mm", { locale: es });
 
   let subtitulo: string;
-  if (tipo === "REABIERTA") {
+  if (tipo === "ETAPA_AUTOMATICA" && evento.etapaNombre) {
+    subtitulo = `${cfg.prefijo} "${evento.etapaNombre}" · ${fechaHora}`;
+  } else if (tipo === "REABIERTA") {
     subtitulo = `${cfg.prefijo} · ${fechaHora}`;
   } else if (evento.usuarioNombre) {
     subtitulo = `${cfg.prefijo} ${evento.usuarioNombre} · ${fechaHora}`;

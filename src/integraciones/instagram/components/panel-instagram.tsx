@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import { Trash2, Loader2, CheckCircle2, AlertCircle, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { desconectarCuentaInstagram, eliminarCuentaInstagram } from "../actions";
+import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
+import { desconectarCuentaInstagram, eliminarCuentaInstagram, configurarStageRespuestaAutomaticaInstagram } from "../actions";
 
 interface CuentaIG {
   id: string;
@@ -18,6 +19,10 @@ interface CuentaIG {
    *  aprobada la extensión Human Agent (responder pasadas las 24h) — ver
    *  004-fix-instagram-human-agent. `undefined` si no se pudo calcular. */
   rechazosHumanAgent30d?: number;
+  /** "Al responder por primera vez, mover prospecto a:" — ver
+   *  procesarPrimeraRespuestaProspecto en conversaciones/actions.ts. */
+  stageIdRespuestaAutomatica: string | null;
+  stageRespuestaAutomatica: { nombre: string; color: string | null; pipelineId: string } | null;
 }
 
 interface PanelInstagramProps {
@@ -85,6 +90,12 @@ function TarjetaCuentaIG({
 }) {
   const [confirmando, setConfirmando] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // "Al responder por primera vez, mover prospecto a:" — estado local
+  // optimista, mismo patrón que tarjeta-numero.tsx (WhatsApp-lite).
+  const [localPipelineRespuestaId, setLocalPipelineRespuestaId] = useState(cuenta.stageRespuestaAutomatica?.pipelineId ?? null);
+  const [localStageRespuestaId, setLocalStageRespuestaId] = useState(cuenta.stageIdRespuestaAutomatica);
+  const [localStageRespuestaNombre, setLocalStageRespuestaNombre] = useState(cuenta.stageRespuestaAutomatica?.nombre ?? null);
+  const [localStageRespuestaColor, setLocalStageRespuestaColor] = useState(cuenta.stageRespuestaAutomatica?.color ?? null);
 
   const handleEliminar = () => {
     startTransition(async () => {
@@ -96,6 +107,17 @@ function TarjetaCuentaIG({
         toast.error(r.error ?? "Error al desconectar");
       }
       setConfirmando(false);
+    });
+  };
+
+  const handleRespuestaAutomaticaSelect = (stageId: string, pipelineId: string, nombre: string, color: string | null) => {
+    setLocalPipelineRespuestaId(pipelineId);
+    setLocalStageRespuestaId(stageId);
+    setLocalStageRespuestaNombre(nombre);
+    setLocalStageRespuestaColor(color);
+    startTransition(async () => {
+      const r = await configurarStageRespuestaAutomaticaInstagram(cuenta.id, stageId);
+      if (!r.exito) toast.error(r.error ?? "Error al configurar la etapa");
     });
   };
 
@@ -187,6 +209,19 @@ function TarjetaCuentaIG({
           </span>
         </div>
       )}
+
+      {/* Selector de etapa al responder por primera vez */}
+      <div className="flex items-center gap-2 pt-1 border-t border-white/6">
+        <span className="text-[11px] text-stone-500 shrink-0">Al responder por primera vez, mover a:</span>
+        <SelectorPipelineStage
+          pipelineId={localPipelineRespuestaId}
+          stageId={localStageRespuestaId}
+          stageNombre={localStageRespuestaNombre}
+          stageColor={localStageRespuestaColor}
+          onSelect={handleRespuestaAutomaticaSelect}
+          cargando={isPending}
+        />
+      </div>
     </div>
   );
 }

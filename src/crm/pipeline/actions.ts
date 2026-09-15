@@ -7,7 +7,7 @@ import { verificarAcceso } from "@/shared/auth/permisos";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { SchemaPipeline, SchemaStage, SchemaCampoPersonalizado } from "./schema";
 import { obtenerPipelines } from "./queries";
-import { procesarCambioStage } from "./disparadores/motor";
+import { ejecutarMovimientoAStage } from "./mover-stage";
 
 async function requireAdminPipeline() {
   const sesion = await requireSesion();
@@ -169,81 +169,7 @@ export async function reordenarStages(pipelineId: string, stageIds: string[]) {
 export async function moverAStage(oportunidadId: string, stageId: string, pipelineId: string) {
   const auth = await requirePermisoAction("oportunidades", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
-
-  try {
-    const [stage, todosCampos, oportunidad] = await Promise.all([
-      prisma.pipelineStage.findUnique({
-        where: { id: stageId },
-        select: { nombre: true, probabilidad: true, esGanado: true, esPerdido: true },
-      }),
-      prisma.campoPersonalizado.findMany({
-        where: { pipelineId, activo: true },
-        select: { nombre: true, clave: true, requeridoEn: true },
-      }),
-      prisma.oportunidad.findUnique({
-        where: { id: oportunidadId },
-        select: { metadata: true },
-      }),
-    ]);
-
-    // Validar campos requeridos para el stage destino
-    const camposRequeridos = todosCampos.filter(
-      (c) => Array.isArray(c.requeridoEn) && (c.requeridoEn as string[]).includes(stageId)
-    );
-    if (camposRequeridos.length > 0) {
-      const metadata = (oportunidad?.metadata as Record<string, unknown>) ?? {};
-      const faltantes = camposRequeridos
-        .filter((c) => {
-          const v = metadata[c.clave];
-          return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
-        })
-        .map((c) => c.nombre);
-      if (faltantes.length > 0) {
-        return {
-          exito: false as const,
-          error: `Para avanzar a "${stage?.nombre ?? stageId}" debes completar: ${faltantes.join(", ")}`,
-        };
-      }
-    }
-
-    const ahora = new Date();
-    await prisma.oportunidad.update({
-      where: { id: oportunidadId },
-      data: {
-        stageId,
-        pipelineId,
-        ...(stage != null && { probabilidad: stage.probabilidad }),
-        ...(stage?.esGanado && { etapa: "GANADO", fechaGanada: ahora }),
-        ...(stage?.esPerdido && { etapa: "PERDIDO", fechaPerdida: ahora }),
-      },
-    });
-
-    // Cerrar conversaciones asociadas si la etapa es terminal
-    if (stage?.esGanado || stage?.esPerdido) {
-      await cerrarConversacionesDeOportunidad(oportunidadId);
-    }
-
-    await procesarCambioStage(oportunidadId, stageId, pipelineId);
-    revalidatePath("/crm/pipeline");
-    revalidatePath("/crm/oportunidades");
-    revalidatePath("/crm/inbox");
-    return { exito: true as const };
-  } catch {
-    return { exito: false as const, error: "Error al mover la oportunidad" };
-  }
-}
-
-async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
-  const links = await prisma.oportunidadConversacion.findMany({
-    where: { oportunidadId },
-    select: { conversacionId: true },
-  });
-  const ids = links.map((l) => l.conversacionId);
-  if (ids.length === 0) return;
-  await prisma.conversacion.updateMany({
-    where: { id: { in: ids }, estado: { not: "CERRADA" } },
-    data: { estado: "CERRADA" },
-  });
+  return ejecutarMovimientoAStage(oportunidadId, stageId, pipelineId);
 }
 
 // ── Campos personalizados del Pipeline ──────────────────────────────

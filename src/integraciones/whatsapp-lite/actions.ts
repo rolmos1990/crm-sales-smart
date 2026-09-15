@@ -56,3 +56,10 @@ export async function configurarEtapaCuenta(id: string, pipelineId: string, stag
   await prisma.cuentaCanal.update({ where: { id }, data: { pipelineId, stageId } });
   revalidatePath("/integraciones/whatsapp-lite");
 }
+
+// "Al responder por primera vez, mover prospecto a:" — ver
+// procesarPrimeraRespuestaProspecto en conversaciones/actions.ts.
+export async function configurarStageRespuestaAutomatica(id: string, stageId: string | null) {
+  await prisma.cuentaCanal.update({ where: { id }, data: { stageIdRespuestaAutomatica: stageId } });
+  revalidatePath("/integraciones/whatsapp-lite");
+}

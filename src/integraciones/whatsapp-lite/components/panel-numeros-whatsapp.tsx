@@ -15,6 +15,8 @@ interface PanelNumerosWhatsAppProps {
     pipelineId: string | null;
     stageId: string | null;
     stage: { nombre: string; color: string | null } | null;
+    stageIdRespuestaAutomatica: string | null;
+    stageRespuestaAutomatica: { nombre: string; color: string | null; pipelineId: string } | null;
   }[];
 }
 

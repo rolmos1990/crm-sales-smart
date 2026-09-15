@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { Phone, Pencil, Trash2, Power, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
-import { actualizarNombreCuenta, activarCuenta, desactivarCuenta, eliminarCuenta, configurarEtapaCuenta } from "../actions";
+import {
+  actualizarNombreCuenta, activarCuenta, desactivarCuenta, eliminarCuenta,
+  configurarEtapaCuenta, configurarStageRespuestaAutomatica,
+} from "../actions";
 
 interface TarjetaNumeroProps {
   cuenta: {
@@ -15,6 +18,8 @@ interface TarjetaNumeroProps {
     pipelineId: string | null;
     stageId: string | null;
     stage: { nombre: string; color: string | null } | null;
+    stageIdRespuestaAutomatica: string | null;
+    stageRespuestaAutomatica: { nombre: string; color: string | null; pipelineId: string } | null;
   };
 }
 
@@ -25,6 +30,13 @@ export function TarjetaNumero({ cuenta }: TarjetaNumeroProps) {
   const [localStageId, setLocalStageId] = useState(cuenta.stageId);
   const [localStageNombre, setLocalStageNombre] = useState(cuenta.stage?.nombre ?? null);
   const [localStageColor, setLocalStageColor] = useState(cuenta.stage?.color ?? null);
+  // "Al responder por primera vez, mover prospecto a:" — campo independiente
+  // del anterior (etapa de entrada para leads nuevos), ver
+  // procesarPrimeraRespuestaProspecto en conversaciones/actions.ts.
+  const [localPipelineRespuestaId, setLocalPipelineRespuestaId] = useState(cuenta.stageRespuestaAutomatica?.pipelineId ?? null);
+  const [localStageRespuestaId, setLocalStageRespuestaId] = useState(cuenta.stageIdRespuestaAutomatica);
+  const [localStageRespuestaNombre, setLocalStageRespuestaNombre] = useState(cuenta.stageRespuestaAutomatica?.nombre ?? null);
+  const [localStageRespuestaColor, setLocalStageRespuestaColor] = useState(cuenta.stageRespuestaAutomatica?.color ?? null);
   const [isPending, startTransition] = useTransition();
 
   const guardarNombre = () => {
@@ -49,6 +61,16 @@ export function TarjetaNumero({ cuenta }: TarjetaNumeroProps) {
     setLocalStageColor(color);
     startTransition(async () => {
       await configurarEtapaCuenta(cuenta.id, pipelineId, stageId);
+    });
+  };
+
+  const handleRespuestaAutomaticaSelect = (stageId: string, pipelineId: string, nombre: string, color: string | null) => {
+    setLocalPipelineRespuestaId(pipelineId);
+    setLocalStageRespuestaId(stageId);
+    setLocalStageRespuestaNombre(nombre);
+    setLocalStageRespuestaColor(color);
+    startTransition(async () => {
+      await configurarStageRespuestaAutomatica(cuenta.id, stageId);
     });
   };
 
@@ -148,8 +170,8 @@ export function TarjetaNumero({ cuenta }: TarjetaNumeroProps) {
         </div>
       </div>
 
-      {/* Selector de etapa */}
-      <div className="px-4 pb-4 border-t border-white/5 pt-3 flex items-center gap-2">
+      {/* Selector de etapa de entrada (leads nuevos) */}
+      <div className="px-4 pb-3 border-t border-white/5 pt-3 flex items-center gap-2">
         <span className="text-[11px] text-stone-500 shrink-0">Etapa de entrada:</span>
         <SelectorPipelineStage
           pipelineId={localPipelineId}
@@ -157,6 +179,19 @@ export function TarjetaNumero({ cuenta }: TarjetaNumeroProps) {
           stageNombre={localStageNombre}
           stageColor={localStageColor}
           onSelect={handleEtapaSelect}
+          cargando={isPending}
+        />
+      </div>
+
+      {/* Selector de etapa al responder por primera vez */}
+      <div className="px-4 pb-4 flex items-center gap-2">
+        <span className="text-[11px] text-stone-500 shrink-0">Al responder por primera vez, mover a:</span>
+        <SelectorPipelineStage
+          pipelineId={localPipelineRespuestaId}
+          stageId={localStageRespuestaId}
+          stageNombre={localStageRespuestaNombre}
+          stageColor={localStageRespuestaColor}
+          onSelect={handleRespuestaAutomaticaSelect}
           cargando={isPending}
         />
       </div>

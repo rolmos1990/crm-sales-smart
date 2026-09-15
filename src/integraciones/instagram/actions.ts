@@ -45,3 +45,28 @@ export async function eliminarCuentaInstagram(id: string): Promise<{ exito: bool
     return { exito: false, error: "Error al eliminar la cuenta" };
   }
 }
+
+// "Al responder por primera vez, mover prospecto a:" — ver
+// procesarPrimeraRespuestaProspecto en conversaciones/actions.ts.
+export async function configurarStageRespuestaAutomaticaInstagram(
+  id: string,
+  stageId: string | null
+): Promise<{ exito: boolean; error?: string }> {
+  try {
+    const sesion = await requireSesion();
+    if (!verificarAcceso(sesion, "integraciones", "modificar").permitido) {
+      return { exito: false, error: "No tienes permisos para realizar esta acción" };
+    }
+
+    const { count } = await prisma.cuentaCanal.updateMany({
+      where: { id, instanciaId: sesion.instanciaId, canal: "instagram" },
+      data: { stageIdRespuestaAutomatica: stageId },
+    });
+    if (count === 0) return { exito: false, error: "Cuenta no encontrada" };
+
+    revalidatePath("/integraciones/instagram");
+    return { exito: true };
+  } catch {
+    return { exito: false, error: "Error al configurar la etapa" };
+  }
+}

@@ -291,7 +291,11 @@
       "Bash(rm -f /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check-import.ts /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check_import.mjs)",
       "Bash(rm -f /private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad/check-import*.ts)",
       "Bash(git rev-list *)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(tee /tmp/diff-stage-respuesta.sql)",
+      "Bash(tee /tmp/tsc-out.txt)",
+      "Bash(pkill -f \"_tmp-e2e\")",
+      "Bash(echo \"tsc exit: $?\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

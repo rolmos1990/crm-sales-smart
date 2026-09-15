@@ -18,6 +18,8 @@ async function obtenerCuentasWALite(instanciaId: string) {
       pipelineId: true,
       stageId: true,
       stage: { select: { nombre: true, color: true } },
+      stageIdRespuestaAutomatica: true,
+      stageRespuestaAutomatica: { select: { nombre: true, color: true, pipelineId: true } },
     },
   });
 }
@@ -31,6 +33,8 @@ export default async function WhatsAppLitePage() {
     pipelineId: string | null;
     stageId: string | null;
     stage: { nombre: string; color: string | null } | null;
+    stageIdRespuestaAutomatica: string | null;
+    stageRespuestaAutomatica: { nombre: string; color: string | null; pipelineId: string } | null;
   }[] = [];
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");

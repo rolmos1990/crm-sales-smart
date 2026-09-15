@@ -6,6 +6,10 @@ export interface CuentaFacebookMessenger {
   identificador: string;
   activa: boolean;
   estadoConexion: "ACTIVA" | "CON_PROBLEMA";
+  /** "Al responder por primera vez, mover prospecto a:" — ver
+   *  procesarPrimeraRespuestaProspecto en conversaciones/actions.ts. */
+  stageIdRespuestaAutomatica: string | null;
+  stageRespuestaAutomatica: { nombre: string; color: string | null; pipelineId: string } | null;
 }
 
 /**
@@ -26,6 +30,8 @@ export async function obtenerCuentasFacebookMessenger(instanciaId: string): Prom
       activa: true,
       tokenExpiraEn: true,
       configuracion: true,
+      stageIdRespuestaAutomatica: true,
+      stageRespuestaAutomatica: { select: { nombre: true, color: true, pipelineId: true } },
     },
   });
 
@@ -47,6 +53,8 @@ export async function obtenerCuentasFacebookMessenger(instanciaId: string): Prom
       identificador: c.identificador,
       activa: c.activa,
       estadoConexion,
+      stageIdRespuestaAutomatica: c.stageIdRespuestaAutomatica,
+      stageRespuestaAutomatica: c.stageRespuestaAutomatica,
     };
   });
 }

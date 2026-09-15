@@ -632,10 +632,11 @@ model PipelineStage {
   agenteIAConfigId      String?
   agenteIAConfig        AgenteIAConfig? @relation(fields: [agenteIAConfigId], references: [id], onDelete: SetNull)
 
-  oportunidades Oportunidad[]
-  campos        CampoPersonalizado[]
-  disparadores  Disparador[]
-  cuentasCanal  CuentaCanal[]
+  oportunidades             Oportunidad[]
+  campos                    CampoPersonalizado[]
+  disparadores              Disparador[]
+  cuentasCanal              CuentaCanal[] @relation("CuentaCanalStageEntrada")
+  cuentasCanalRespuestaAuto CuentaCanal[] @relation("CuentaCanalStageRespuesta")
 
   @@unique([pipelineId, orden])
   @@index([pipelineId])
@@ -2106,7 +2107,15 @@ model CuentaCanal {
   pipeline   Pipeline? @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
 
   stageId String?
-  stage   PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  stage   PipelineStage? @relation("CuentaCanalStageEntrada", fields: [stageId], references: [id], onDelete: SetNull)
+
+  // Etapa a la que se mueve automáticamente la oportunidad activa de una
+  // conversación cuando se responde por primera vez estando en la etapa
+  // inicial del pipeline (esInicial=true) — ver procesarPrimeraRespuestaProspecto
+  // en conversaciones/actions.ts. El pipeline destino se deriva de
+  // stageRespuestaAutomatica.pipelineId en runtime, no se duplica acá.
+  stageIdRespuestaAutomatica String?
+  stageRespuestaAutomatica   PipelineStage? @relation("CuentaCanalStageRespuesta", fields: [stageIdRespuestaAutomatica], references: [id], onDelete: SetNull)
 
   conversaciones Conversacion[]
 

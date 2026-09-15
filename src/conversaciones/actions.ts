@@ -10,6 +10,7 @@ import { obtenerProvider } from "./providers/registry";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import { obtenerConversacionPorId, obtenerConversacionesInbox } from "./queries";
 import { requireSesion } from "@/shared/auth/sesion";
+import { ejecutarMovimientoAStage } from "@/crm/pipeline/mover-stage";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 
 // ── Resolución compartida de contacto + conversación ────────────────────────
@@ -458,6 +459,10 @@ export async function registrarMensajeAppNativa(
     data: { actualizadoEn: new Date() },
   });
 
+  // Respuesta enviada desde fuera de Karia — también cuenta como "primera
+  // respuesta" para el auto-movimiento de etapa (ver procesarPrimeraRespuestaProspecto).
+  await procesarPrimeraRespuestaProspecto(conversacion.id, mensaje.id);
+
   // Reusa el contrato MensajeEnviado (sin cambios) — el frontend ya lo
   // escucha por SSE solo como señal de "volvé a pedir los mensajes"
   // (inbox-layout.tsx, panel-conversacion.tsx). No dispara IA: eso solo
@@ -593,6 +598,13 @@ export async function enviarMensaje(input: {
       data: { actualizadoEn: new Date() },
     });
 
+    // Cubre tanto una respuesta manual de un agente humano como una respuesta
+    // automática de IA (GenerarRespuestaIASuscriptor llama a esta misma
+    // función) — las notas internas no cuentan como "responder al contacto".
+    if (!validado.esNotaInterna) {
+      await procesarPrimeraRespuestaProspecto(validado.conversacionId, mensaje.id);
+    }
+
     // Notificar SSE de inmediato para que el panel lo muestre sin esperar al worker
     if (conversacion.instanciaId) {
       void publicadorEventos.publicar(EventosSistema.MensajeEnviado, conversacion.instanciaId, {
@@ -720,14 +732,89 @@ export async function vincularConversacionAContacto(
   }
 }
 
+// ── Primera respuesta a un prospecto → mover etapa automáticamente ─────────
+//
+// Config por CuentaCanal.stageIdRespuestaAutomatica (dropdown "Al responder
+// por primera vez, mover prospecto a:" en cada panel de integración). Se
+// llama desde AMBOS puntos donde nace un mensaje saliente hacia el contacto:
+// enviarMensaje (cubre tanto una respuesta manual de un agente humano como
+// una respuesta automática de IA — GenerarRespuestaIASuscriptor llama a esa
+// misma función) y registrarMensajeAppNativa (respuesta enviada desde la app
+// nativa del canal, fuera de Karia). Deliberadamente resiliente: un error acá
+// nunca debe impedir que el mensaje se termine de enviar/registrar.
+async function procesarPrimeraRespuestaProspecto(conversacionId: string, mensajeRecienCreadoId: string) {
+  try {
+    const conversacion = await prisma.conversacion.findUnique({
+      where: { id: conversacionId },
+      select: { cuentaCanalId: true },
+    });
+    if (!conversacion?.cuentaCanalId) return;
+
+    const cuentaCanal = await prisma.cuentaCanal.findUnique({
+      where: { id: conversacion.cuentaCanalId },
+      select: { stageIdRespuestaAutomatica: true },
+    });
+    if (!cuentaCanal?.stageIdRespuestaAutomatica) return;
+
+    // "Primera respuesta" = no hay otro mensaje saliente previo (agente
+    // humano o app nativa) en esta conversación. Las notas internas
+    // (remitente SISTEMA) y los mensajes del propio contacto no cuentan —
+    // el llamador ya filtra notas internas antes de invocar esto.
+    const respuestasPrevias = await prisma.mensajeConversacion.count({
+      where: {
+        conversacionId,
+        remitente: { in: ["AGENTE", "AGENTE_CANAL_NATIVO"] },
+        id: { not: mensajeRecienCreadoId },
+      },
+    });
+    if (respuestasPrevias > 0) return;
+
+    // Misma resolución de "oportunidad activa de la conversación" que usa
+    // el endpoint de contexto de IA (src/app/api/conversaciones/[id]/contexto/route.ts).
+    const oportunidadConv = await prisma.oportunidadConversacion.findFirst({
+      where: { conversacionId, esActiva: true },
+      orderBy: { creadoEn: "desc" },
+      include: { oportunidad: { select: { id: true, stageId: true } } },
+    });
+    const oportunidad = oportunidadConv?.oportunidad;
+    if (!oportunidad?.stageId) return;
+
+    const stageActual = await prisma.pipelineStage.findUnique({
+      where: { id: oportunidad.stageId },
+      select: { esInicial: true },
+    });
+    if (!stageActual?.esInicial) return; // ya no está en la etapa inicial — no tocar
+
+    const stageDestino = await prisma.pipelineStage.findUnique({
+      where: { id: cuentaCanal.stageIdRespuestaAutomatica },
+      select: { id: true, pipelineId: true, nombre: true },
+    });
+    if (!stageDestino || stageDestino.id === oportunidad.stageId) return;
+
+    const resultado = await ejecutarMovimientoAStage(oportunidad.id, stageDestino.id, stageDestino.pipelineId);
+    if (resultado.exito) {
+      await registrarEventoConversacion(conversacionId, "ETAPA_AUTOMATICA", { etapaNombre: stageDestino.nombre });
+    } else {
+      // Ej. el stage destino tiene campos personalizados requeridos sin
+      // completar — skip silencioso, una automatización no puede pedirle al
+      // usuario que los complete en este instante.
+      console.error(
+        `[procesarPrimeraRespuestaProspecto] No se pudo mover oportunidad ${oportunidad.id}: ${resultado.error}`
+      );
+    }
+  } catch (e) {
+    console.error("[procesarPrimeraRespuestaProspecto] Error inesperado:", e);
+  }
+}
+
 // ── Eventos de ciclo de vida ────────────────────────────────────────────────
 
-type TipoEvento = "CERRADA" | "REABIERTA" | "RESPONDIDA";
+type TipoEvento = "CERRADA" | "REABIERTA" | "RESPONDIDA" | "ETAPA_AUTOMATICA";
 
 async function registrarEventoConversacion(
   conversacionId: string,
   tipo: TipoEvento,
-  usuarioNombre?: string
+  detalle?: { usuarioNombre?: string; etapaNombre?: string }
 ) {
   await prisma.mensajeConversacion.create({
     data: {
@@ -736,7 +823,7 @@ async function registrarEventoConversacion(
       remitente: "SISTEMA",
       estado: "ENVIADO",
       esNotaInterna: false,
-      contenido: JSON.stringify({ tipo, usuarioNombre: usuarioNombre ?? null }),
+      contenido: JSON.stringify({ tipo, usuarioNombre: detalle?.usuarioNombre ?? null, etapaNombre: detalle?.etapaNombre ?? null }),
     },
   });
 }

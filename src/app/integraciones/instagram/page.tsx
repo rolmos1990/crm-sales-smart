@@ -11,7 +11,16 @@ async function obtenerCuentasIG(instanciaId: string) {
   const cuentas = await prisma.cuentaCanal.findMany({
     where: { instanciaId, canal: "instagram" },
     orderBy: { creadoEn: "asc" },
-    select: { id: true, nombre: true, identificador: true, activa: true, configuracion: true, proveedorAuth: true },
+    select: {
+      id: true,
+      nombre: true,
+      identificador: true,
+      activa: true,
+      configuracion: true,
+      proveedorAuth: true,
+      stageIdRespuestaAutomatica: true,
+      stageRespuestaAutomatica: { select: { nombre: true, color: true, pipelineId: true } },
+    },
   });
 
   // Estado de Human Agent por cuenta (004-fix-instagram-human-agent) — en
@@ -31,6 +40,8 @@ async function obtenerCuentasIG(instanciaId: string) {
       profilePicUrl: cfg?.profilePicUrl as string | null | undefined,
       proveedorAuth: c.proveedorAuth,
       rechazosHumanAgent30d: rechazosPorCuenta[i],
+      stageIdRespuestaAutomatica: c.stageIdRespuestaAutomatica,
+      stageRespuestaAutomatica: c.stageRespuestaAutomatica,
     };
   });
 }
