@@ -35,6 +35,9 @@ interface PipelineWrapperProps {
   /** Cuántas se pidieron por etapa en esta carga — punto de partida del
    *  "cargar más" al hacer scroll. */
   limitePorStage?: number;
+  /** Overrides puntuales por etapa (ver page.tsx y obtenerOportunidadesPorPipeline)
+   *  — cada columna del Kanban pagina de forma independiente. */
+  limitesPorStage?: Map<string, number>;
   oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
@@ -122,6 +125,7 @@ export function PipelineWrapper({
   totalesPorStage,
   conteoPorStage,
   limitePorStage = 30,
+  limitesPorStage,
   oportunidadesLegacy,
   empresas,
   contactos,
@@ -454,6 +458,7 @@ export function PipelineWrapper({
               totalesPorStage={totalesPorStage ?? new Map()}
               conteoPorStage={conteoPorStage ?? new Map()}
               limitePorStage={limitePorStage}
+              limitesPorStage={limitesPorStage ?? new Map()}
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}

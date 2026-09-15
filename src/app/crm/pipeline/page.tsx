@@ -28,11 +28,22 @@ export default async function PipelinePage(props: {
   const pipelineIdParam = searchParams.p ?? null;
 
   // Paginación por etapa del Kanban — "cargar más" (scroll infinito del
-  // tablero, ver pipeline-kanban-dinamico.tsx) sube este número en la URL en
-  // vez de mantenerlo en estado de cliente aislado: así sigue funcionando
+  // tablero, ver pipeline-kanban-dinamico.tsx) sube estos números en la URL en
+  // vez de mantenerlos en estado de cliente aislado: así sigue funcionando
   // igual con el auto-refresh, cambios de filtro, y F5 (ver obtenerOportunidadesPorPipeline).
   const limiteParsed = Number(searchParams.limite);
   const limitePorStage = Number.isFinite(limiteParsed) && limiteParsed > 0 ? Math.floor(limiteParsed) : 30;
+  // `?limites=stageId:40,stageId:70` — overrides puntuales por etapa: cada
+  // columna del Kanban pagina de forma independiente (ver
+  // pipeline-kanban-dinamico.tsx), así que una etapa que el usuario ya
+  // scrolleó más allá del default necesita su propio número, distinto al de
+  // las demás. Solo lleva las etapas que superaron `limitePorStage`.
+  const limitesPorStage = new Map<string, number>();
+  for (const par of (searchParams.limites ?? "").split(",")) {
+    const [stageId, valorRaw] = par.split(":");
+    const valor = Number(valorRaw);
+    if (stageId && Number.isFinite(valor) && valor > 0) limitesPorStage.set(stageId, Math.floor(valor));
+  }
 
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "pipeline", "ver").permitido) redirect("/acceso-denegado");
@@ -85,7 +96,7 @@ export default async function PipelinePage(props: {
 
     if (pipelineValido && pipelineId) {
       [oportunidadesDinamicas, totalesPorStage, conteoPorStage] = await Promise.all([
-        obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId, filtros, limitePorStage),
+        obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId, filtros, limitePorStage, limitesPorStage),
         obtenerTotalesPorStage(pipelineId, sesion.instanciaId, filtros),
         obtenerConteoPorStage(pipelineId, sesion.instanciaId, filtros),
       ]);
@@ -105,6 +116,7 @@ export default async function PipelinePage(props: {
       totalesPorStage={totalesPorStage}
       conteoPorStage={conteoPorStage}
       limitePorStage={limitePorStage}
+      limitesPorStage={limitesPorStage}
       oportunidadesLegacy={oportunidadesLegacy}
       empresas={empresasOpciones}
       contactos={contactosOpciones}

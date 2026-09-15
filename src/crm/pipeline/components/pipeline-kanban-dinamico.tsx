@@ -393,6 +393,53 @@ function TarjetaOverlay({ oportunidad }: { oportunidad: OportunidadEnStage }) {
   );
 }
 
+// ── Centinela de "cargar más" ────────────────────────────────────
+// Dispara `onCargarMas` cuando el div que devuelve (via ref) entra en el
+// viewport. Cada columna de escritorio (ColumnaStage) y el panel de la etapa
+// activa en móvil llaman a esto por SU CUENTA — cada uno con su propio
+// centinela — a propósito: antes había un único centinela compartido al pie
+// de TODAS las columnas, a la altura de la fila completa. Como las columnas
+// se estiran con `align-items: stretch` a la altura de la más alta (ver el
+// comentario sobre `h-full` más abajo), ese centinela vivía a la altura de la
+// etapa con MÁS oportunidades cargadas — una etapa corta (ej. 62 tarjetas)
+// nunca llegaba a esa altura si al lado había una etapa con cientos, así que
+// su "cargar más" nunca se disparaba aunque el usuario ya hubiera scrolleado
+// de sobra más allá de sus propias tarjetas. Con el centinela puesto DENTRO
+// de la lista de tarjetas de cada columna (ver más abajo, después del
+// `SortableContext`), su posición real en la página es la del final de ESAS
+// tarjetas, no la del final de la fila estirada.
+function useCentinelaCargarMas(hayMas: boolean, cargando: boolean, onCargarMas: () => void) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  // Espejo siempre al día de `onCargarMas` — mismo motivo que `activeCardRef`
+  // más abajo en el componente principal: el efecto solo se re-suscribe
+  // cuando cambian `hayMas`/`cargando`, así que sin esto el observer podía
+  // quedar cerrado sobre una versión vieja del callback.
+  const onCargarMasRef = useRef(onCargarMas);
+  useEffect(() => {
+    onCargarMasRef.current = onCargarMas;
+  });
+
+  useEffect(() => {
+    if (!hayMas) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !cargando) onCargarMasRef.current();
+      },
+      // top/right/bottom/left — crece el margen inferior para disparar la
+      // carga un poco antes de llegar literalmente al final (sin esto se
+      // siente un salto/parón justo al tocar el fondo).
+      { rootMargin: "0px 0px 600px 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayMas, cargando]);
+
+  return sentinelRef;
+}
+
 // ── Columna droppable ─────────────────────────────────────────────
 
 function ColumnaStage({
@@ -405,6 +452,9 @@ function ColumnaStage({
   puedeMod = true,
   resaltada = false,
   scrolled = false,
+  hayMas = false,
+  cargando = false,
+  onCargarMas,
 }: {
   stage: PipelineStage;
   items: OportunidadEnStage[];
@@ -427,10 +477,19 @@ function ColumnaStage({
    *  para sumarle una sombra muy leve al header sticky, así en reposo (tope
    *  del scroll) no queda flotando sobre nada. */
   scrolled?: boolean;
+  /** Esta etapa tiene más oportunidades sin cargar (conteo > items.length) —
+   *  ver useCentinelaCargarMas arriba. */
+  hayMas?: boolean;
+  /** Hay una petición de "cargar más" en curso (compartida entre columnas,
+   *  ver PipelineKanbanDinamico) — solo pausa el propio centinela mientras
+   *  dura, no bloquea nada más de la columna. */
+  cargando?: boolean;
+  onCargarMas?: () => void;
 }) {
   const { setNodeRef, isOver: isOverContenedor } = useDroppable({ id: stage.id });
   const isOver = isOverContenedor || resaltada;
   const color = stage.color ?? "#818cf8";
+  const sentinelRef = useCentinelaCargarMas(hayMas, cargando, onCargarMas ?? (() => {}));
 
   return (
     // Sin h-full acá a propósito: este div ES el flex item directo de la fila
@@ -554,6 +613,19 @@ function ColumnaStage({
                 />
               ))}
             </SortableContext>
+          )}
+
+          {/* Centinela propio de ESTA columna — ver useCentinelaCargarMas.
+              Va después de las tarjetas cargadas (no al pie del `flex-1`
+              estirado), así su posición real coincide con "el usuario ya vio
+              todas las tarjetas que tiene" sin importar cuánto más alta sea
+              la columna de al lado. */}
+          {hayMas && <div ref={sentinelRef} aria-hidden className="h-px" />}
+          {cargando && hayMas && (
+            <div className="flex items-center justify-center gap-1.5 pt-2 text-[10.5px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Cargando más…
+            </div>
           )}
         </div>
       </div>
@@ -826,6 +898,10 @@ interface PipelineKanbanDinamicoProps {
   /** Cuántas se pidieron por etapa en esta carga (?limite= en la URL) —
    *  punto de partida para "cargar más" al llegar al final del scroll. */
   limitePorStage?: number;
+  /** Overrides puntuales por etapa (?limites=stageId:40,... en la URL) — ver
+   *  page.tsx y obtenerOportunidadesPorPipeline. Una etapa sin entrada acá
+   *  usa `limitePorStage`. */
+  limitesPorStage?: Map<string, number>;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
@@ -842,6 +918,7 @@ export function PipelineKanbanDinamico({
   totalesPorStage = new Map(),
   conteoPorStage = new Map(),
   limitePorStage = 30,
+  limitesPorStage = new Map(),
   empresas,
   contactos,
   defaultCountryCode = "PA",
@@ -862,7 +939,6 @@ export function PipelineKanbanDinamico({
   const [activeOriginStageId, setActiveOriginStageId] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
   const [cargandoMas, startCargandoMas] = useTransition();
-  const sentinelRef = useRef<HTMLDivElement>(null);
   // Alimenta la sombra (muy leve) del header sticky de cada columna — solo
   // debe aparecer una vez que el tablero se movió de su posición inicial,
   // nunca en reposo. Se lee del contenedor de scroll único del Pipeline
@@ -961,66 +1037,44 @@ export function PipelineKanbanDinamico({
   // silencio.
   const stageIds = useMemo(() => new Set(pipeline.stages.map((s) => s.id)), [pipeline.stages]);
 
-  // Paginación por etapa: el servidor solo trae `limitePorStage` tarjetas de
-  // cada columna visible (ver obtenerOportunidadesPorPipeline) — si alguna
-  // etapa tiene más que eso sin cargar, sigue habiendo "más" que traer.
-  const hayMasPorCargar = stagesColumnas.some(
-    (s) => (localConteos.get(s.id) ?? 0) > (localOps.get(s.id)?.length ?? 0)
-  );
+  // Paginación por etapa: el servidor solo trae `limitePorStage` (o el
+  // override de `limitesPorStage`) tarjetas de cada columna visible (ver
+  // obtenerOportunidadesPorPipeline) — si alguna etapa tiene más que eso sin
+  // cargar, sigue habiendo "más" que traer PARA ESA ETAPA puntual. Antes esto
+  // era un único booleano global (cualquier etapa con más) + un único
+  // centinela compartido al pie de todas las columnas — con columnas de
+  // tamaños muy distintos (ej. "Finalizado" con 62 al lado de una etapa con
+  // cientos), ese centinela quedaba a la altura de la más alta y la corta
+  // nunca llegaba a dispararlo (ver useCentinelaCargarMas). Ahora cada etapa
+  // calcula lo suyo por separado.
+  const hayMasPorStage = useMemo(() => {
+    const mapa = new Map<string, boolean>();
+    for (const s of stagesColumnas) {
+      mapa.set(s.id, (localConteos.get(s.id) ?? 0) > (localOps.get(s.id)?.length ?? 0));
+    }
+    return mapa;
+  }, [stagesColumnas, localConteos, localOps]);
 
-  // "Cargar más" = subir ?limite= en la URL y dejar que Next vuelva a pedirle
-  // al Server Component los datos (misma ruta que ya usan los filtros y "Ver
-  // ocultos") — no un fetch aparte: así el resultado se resincroniza solo con
-  // el useEffect de arriba, sin duplicar lógica de merge ni arriesgar quedar
-  // desalineado con el auto-refresh o un cambio de filtro.
-  const cargarMas = () => {
+  // "Cargar más [etapa]" = subir el override de ESA etapa en `?limites=` (ver
+  // page.tsx) y dejar que Next vuelva a pedirle al Server Component los datos
+  // (misma ruta que ya usan los filtros y "Ver ocultos") — no un fetch
+  // aparte: así el resultado se resincroniza solo con el useEffect de arriba,
+  // sin duplicar lógica de merge ni arriesgar quedar desalineado con el
+  // auto-refresh o un cambio de filtro. Las demás etapas conservan su propio
+  // límite actual (`limitesPorStage`), no se tocan.
+  const cargarMasStage = (stageId: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("limite", String(limitePorStage + 10));
+    const actual = limitesPorStage.get(stageId) ?? limitePorStage;
+    const nuevosLimites = new Map(limitesPorStage);
+    nuevosLimites.set(stageId, actual + 10);
+    params.set(
+      "limites",
+      [...nuevosLimites.entries()].map(([id, n]) => `${id}:${n}`).join(",")
+    );
     startCargandoMas(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     });
   };
-
-  // Espejo de `cargarMas` siempre al día — igual que `activeCardRef` más
-  // arriba. `cargarMas` cierra sobre `searchParams` (cambia con CUALQUIER
-  // query param: filtros, "Ver ocultos", el propio `limite`), pero el efecto
-  // de más abajo solo se re-suscribe cuando cambia `hayMasPorCargar`,
-  // `cargandoMas` o `limitePorStage` — si un cambio de URL no toca ninguno de
-  // esos tres (ej. activar "Ver ocultos" cuando ya había más por cargar en
-  // otra etapa), el observer seguía llamando a la versión vieja de
-  // `cargarMas`, con el `searchParams` de ANTES del cambio: el siguiente
-  // "cargar más" reconstruía la URL sin `ocultos=1` (u otro filtro recién
-  // aplicado) y lo tiraba abajo apenas el centinela disparaba — exactamente
-  // cuando el usuario intentaba seguir viendo más tarjetas. Leer siempre
-  // `cargarMasRef.current` evita depender de que esas tres dependencias
-  // cambien para tener la versión fresca.
-  const cargarMasRef = useRef(cargarMas);
-  useEffect(() => {
-    cargarMasRef.current = cargarMas;
-  });
-
-  // Dispara cargarMas cuando el centinela (al pie del tablero, debajo de las
-  // columnas) entra en el viewport real del navegador — que es justo lo que
-  // pasa al hacer scroll en el único contenedor vertical del Pipeline (ver
-  // pipeline-wrapper.tsx). rootMargin adelanta la carga antes de llegar
-  // literalmente al fondo, para que no se sienta un salto.
-  useEffect(() => {
-    if (!hayMasPorCargar) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !cargandoMas) cargarMasRef.current();
-      },
-      // top/right/bottom/left — crece el margen inferior para disparar la
-      // carga un poco antes de llegar literalmente al final (sin esto se
-      // siente un salto/parón justo al tocar el fondo).
-      { rootMargin: "0px 0px 600px 0px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hayMasPorCargar, cargandoMas, limitePorStage]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -1400,6 +1454,16 @@ export function PipelineKanbanDinamico({
   const stageActiva = stagesColumnas.find((s) => s.id === selectedStageId) ?? null;
   const itemsEtapaActiva = selectedStageId ? localOps.get(selectedStageId) ?? [] : [];
 
+  // Vista móvil: una sola etapa visible a la vez (la de la tab activa), así
+  // que solo necesita el centinela de ESA etapa — mismo mecanismo que cada
+  // columna de escritorio (ver useCentinelaCargarMas / ColumnaStage).
+  const hayMasEtapaActiva = !!stageActiva && (hayMasPorStage.get(stageActiva.id) ?? false);
+  const sentinelMovilRef = useCentinelaCargarMas(
+    hayMasEtapaActiva,
+    cargandoMas,
+    () => stageActiva && cargarMasStage(stageActiva.id)
+  );
+
   return (
     <>
       {!montado ? (
@@ -1457,8 +1521,8 @@ export function PipelineKanbanDinamico({
                 </div>
               )}
 
-              {hayMasPorCargar && <div ref={sentinelRef} aria-hidden className="h-px" />}
-              {cargandoMas && (
+              {hayMasEtapaActiva && <div ref={sentinelMovilRef} aria-hidden className="h-px" />}
+              {cargandoMas && hayMasEtapaActiva && (
                 <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Cargando más oportunidades…
@@ -1495,22 +1559,20 @@ export function PipelineKanbanDinamico({
                   puedeMod={puedeMod}
                   resaltada={!!activeCard && items.some((o) => o.id === activeCard.id)}
                   scrolled={scrolled}
+                  hayMas={hayMasPorStage.get(stage.id) ?? false}
+                  cargando={cargandoMas}
+                  onCargarMas={() => cargarMasStage(stage.id)}
                 />
               );
             })}
           </KanbanScrollContainer>
 
-          {/* Centinela para "cargar más" — invisible, solo mientras falten
-              oportunidades por traer en alguna etapa. Vive fuera de
-              KanbanScrollContainer para no interferir con el scroll horizontal. */}
-          {hayMasPorCargar && <div ref={sentinelRef} aria-hidden className="h-px" />}
-
-          {cargandoMas && (
-            <div className="flex items-center justify-center gap-2 py-3 text-[11px] text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Cargando más oportunidades…
-            </div>
-          )}
+          {/* Centinela de "cargar más": ya no vive acá — cada columna tiene
+              el suyo, pegado al final de SUS tarjetas cargadas (ver
+              useCentinelaCargarMas y ColumnaStage). Un único centinela
+              compartido al pie de la fila quedaba a la altura de la columna
+              más alta (align-items: stretch) y las columnas cortas nunca
+              llegaban a dispararlo. */}
 
           {/* Zonas rápidas Ganado/Perdido — siempre presentes al pie del
               tablero (discretas en reposo), para soltar directo sin buscar la

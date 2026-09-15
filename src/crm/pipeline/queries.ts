@@ -165,12 +165,20 @@ function agruparPorStage(rows: OportunidadRow[]): Map<string, OportunidadEnStage
  * acotada por `take`) — el pipeline típico tiene pocas etapas, así que el
  * costo extra de N queries es mínimo comparado con traer todo sin límite.
  * Sin `limitePorStage` se mantiene el comportamiento original (todo de una).
+ *
+ * `limitesPorStage`: overrides puntuales por etapa (clave = stageId, o
+ * "__sin_stage__" para las oportunidades sin etapa) — el "cargar más" del
+ * Kanban pagina CADA columna por separado (ver pipeline-kanban-dinamico.tsx),
+ * así que una etapa que el usuario ya paginó más allá del default necesita su
+ * propio `take`, distinto al de las demás. Una etapa sin entrada acá cae a
+ * `limitePorStage`.
  */
 export async function obtenerOportunidadesPorPipeline(
   pipelineId: string,
   instanciaId: string,
   filtros?: FiltrosOportunidadParams,
   limitePorStage?: number,
+  limitesPorStage?: Map<string, number>,
 ) {
   const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, filtros);
 
@@ -197,7 +205,7 @@ export async function obtenerOportunidadesPorPipeline(
           where: { ...where, stageId },
           select: selectOportunidadEnStage,
           orderBy: { actualizadoEn: "desc" },
-          take: limitePorStage,
+          take: limitesPorStage?.get(stageId) ?? limitePorStage,
         })
       )
     ),
@@ -205,7 +213,7 @@ export async function obtenerOportunidadesPorPipeline(
       where: { ...where, stageId: null },
       select: selectOportunidadEnStage,
       orderBy: { actualizadoEn: "desc" },
-      take: limitePorStage,
+      take: limitesPorStage?.get("__sin_stage__") ?? limitePorStage,
     }),
   ]);
 
