@@ -198,15 +198,23 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
   {
     accessorKey: "empresa",
     header: "Cliente",
-    cell: ({ row }) => (
-      <div className="text-sm">
-        {row.original.empresa && <p className="font-medium">{row.original.empresa.nombre}</p>}
-        {row.original.contacto && (
-          <p className="text-muted-foreground">{row.original.contacto.nombre} {row.original.contacto.apellido}</p>
-        )}
-        {!row.original.empresa && !row.original.contacto && <span className="text-muted-foreground">—</span>}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const { empresa, contacto, nombre, apellido, empresaNombre } = row.original;
+      // Sin contacto/empresa del CRM, el pedido guarda los datos del comprador
+      // en sus propias columnas (pedido manual o generado por IA).
+      const razonSocial = empresa?.nombre ?? empresaNombre;
+      const persona = contacto
+        ? `${contacto.nombre} ${contacto.apellido}`
+        : [nombre, apellido].filter(Boolean).join(" ");
+
+      return (
+        <div className="text-sm">
+          {razonSocial && <p className="font-medium">{razonSocial}</p>}
+          {persona && <p className="text-muted-foreground">{persona}</p>}
+          {!razonSocial && !persona && <span className="text-muted-foreground">—</span>}
+        </div>
+      );
+    },
   },
   {
     accessorKey: "total",
