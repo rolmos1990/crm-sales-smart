@@ -205,7 +205,7 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
       const razonSocial = empresa?.nombre ?? empresaNombre;
       const persona = contacto
         ? `${contacto.nombre} ${contacto.apellido}`
-        : [nombre, apellido].filter(Boolean).join(" ");
+        : [nombre, apellido].map((v) => v?.trim()).filter(Boolean).join(" ");
 
       return (
         <div className="text-sm">

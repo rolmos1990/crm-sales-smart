@@ -75,7 +75,7 @@ export function FormPedido({
       ? {
           estado: "PENDIENTE",
           moneda: pedidoExistente.moneda ?? monedaDefault,
-          impuesto: pedidoExistente.impuesto ?? 18,
+          impuesto: pedidoExistente.impuesto ?? 0,
           notas: pedidoExistente.notas ?? "",
           fechaEntrega: pedidoExistente.fechaEntrega ?? undefined,
           fechaExpiracion: pedidoExistente.fechaExpiracion ?? undefined,
@@ -99,7 +99,9 @@ export function FormPedido({
       : {
           estado: "PENDIENTE" as const,
           moneda: monedaDefault,
-          impuesto: 18,
+          // Nuevo pedido siempre arranca en 0% — el IGV se agrega a mano solo
+          // cuando corresponde cobrarlo (mismo criterio que en cotizaciones).
+          impuesto: 0,
           notas: "",
           contactoId: "",
           empresaId: "",
@@ -116,7 +118,7 @@ export function FormPedido({
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "lineas" });
 
   const lineas = form.watch("lineas");
-  const impuesto = form.watch("impuesto") ?? 18;
+  const impuesto = form.watch("impuesto") ?? 0;
   const moneda = form.watch("moneda") ?? "PEN";
 
   const subtotal = lineas.reduce((acc, l) => {
