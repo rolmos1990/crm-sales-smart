@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import {
   User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X, Smartphone, Camera,
-  Trophy, XCircle, ShoppingBag, Headphones, TrendingUp, ChevronDown, History,
+  Trophy, XCircle, ShoppingBag, Headphones, TrendingUp, ChevronDown, History, StickyNote,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { esLid, formatearIdentificadorWA } from "@/lib/whatsapp-utils";
 import { actualizarContacto, buscarContactosAction } from "@/crm/contactos/actions";
 import { actualizarOportunidad, obtenerOportunidadesAnterioresContactoAction } from "@/crm/oportunidades/actions";
+import type { ActualizarOportunidadInput } from "@/crm/oportunidades/schema";
 import { obtenerTagsAction } from "@/crm/tags/actions";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import type { Tag } from "@/crm/tags/types";
@@ -119,6 +120,95 @@ function CampoEditable({
   );
 }
 
+/**
+ * Igual que `CampoEditable` pero multilínea, para textos que no caben en una
+ * línea (la nota de la oportunidad). Click para editar, se guarda al salir.
+ *
+ * A diferencia del campo de una línea, Enter NO guarda: en una nota hace falta
+ * poder saltar de línea. Se guarda al salir del campo (blur) o con Ctrl/⌘+Enter,
+ * y Escape descarta.
+ */
+function CampoEditableTexto({
+  label,
+  valor,
+  placeholder,
+  icono,
+  filas = 4,
+  onGuardar,
+}: {
+  label: string;
+  valor: string | null | undefined;
+  placeholder: string;
+  icono: React.ReactNode;
+  filas?: number;
+  onGuardar: (v: string) => Promise<void>;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [val, setVal] = useState(valor ?? "");
+  const [guardando, startGuardando] = useTransition();
+
+  useEffect(() => {
+    setVal(valor ?? "");
+  }, [valor]);
+
+  const guardar = () => {
+    if (val === (valor ?? "")) { setEditando(false); return; }
+    startGuardando(async () => {
+      await onGuardar(val);
+      setEditando(false);
+    });
+  };
+
+  if (editando) {
+    return (
+      <div className="rounded-xl border border-input-focus/50 bg-input-bg px-3 py-2">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="shrink-0 text-muted-foreground">{icono}</span>
+          <span className="flex-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+          {guardando
+            ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-inbox-accent" />
+            : <Check className="h-3 w-3 shrink-0 text-inbox-accent" />}
+        </div>
+        <textarea
+          autoFocus
+          rows={filas}
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={guardar}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); guardar(); }
+            if (e.key === "Escape") { setVal(valor ?? ""); setEditando(false); }
+          }}
+          placeholder={placeholder}
+          className="w-full resize-none bg-transparent text-xs leading-relaxed text-foreground outline-none placeholder:text-input-placeholder"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditando(true)}
+      className="group w-full rounded-xl px-3 py-2 text-left transition-colors hover:bg-muted"
+      title={`Editar ${label}`}
+    >
+      <span className="mb-1 flex items-center gap-2">
+        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-foreground">{icono}</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
+      </span>
+      <span
+        className={cn(
+          "block whitespace-pre-wrap text-xs leading-relaxed",
+          valor ? "text-text-secondary" : "italic text-muted-foreground",
+        )}
+      >
+        {valor || placeholder}
+      </span>
+    </button>
+  );
+}
+
 // ── Panel principal ───────────────────────────────────────────────────────────
 
 const CLASIFICACION_OPCIONES: {
@@ -168,7 +258,10 @@ function TarjetaOportunidadEditable({
   const [stageColor, setStageColor] = useState(oportunidad.stage?.color ?? null);
   const [fechaCierre, setFechaCierre] = useState<Date | undefined>(oportunidad.fechaCierre ?? undefined);
   const [nota, setNota] = useState(oportunidad.notas ?? "");
-  const [guardando, startGuardando] = useTransition();
+  // Sin botón de guardar: cada campo persiste solo. El indicador de estado
+  // reemplaza al botón como señal de que el cambio quedó guardado, y se avisa
+  // con toast únicamente cuando algo falla (un toast por cambio sería ruido).
+  const [estadoGuardado, setEstadoGuardado] = useState<"inactivo" | "guardando" | "guardado">("inactivo");
 
   // Re-sincronizar campos locales cuando cambia la oportunidad (otra
   // conversación seleccionada, o refresco tras guardar/clasificar).
@@ -186,28 +279,58 @@ function TarjetaOportunidadEditable({
     obtenerTagsAction().then(setTagsDisponibles);
   }, []);
 
-  const guardar = () => {
-    startGuardando(async () => {
-      const result = await actualizarOportunidad(oportunidad.id, {
-        stageId: stageId ?? undefined,
-        tagIds,
-        notas: nota,
-        ...(fechaCierre ? { fechaCierre } : {}),
-      });
-      if (!result.exito) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Oportunidad actualizada");
-      onGuardado();
-    });
+  /**
+   * Guarda un solo campo en el momento en que cambia.
+   *
+   * `actualizarOportunidad` aplica únicamente las claves definidas, así que
+   * mandar el campo suelto no pisa el resto. `revertir` devuelve la UI a su
+   * valor anterior si el servidor rechaza el cambio — sin botón de guardar, es
+   * la única forma de que la pantalla no quede mostrando algo que no se guardó.
+   */
+  const guardarCampo = async (
+    // Tipado con el input real del schema, no con el `unknown` que acepta la
+    // action: así un nombre de campo mal escrito o un valor que el schema
+    // rechaza se ve al compilar y no en runtime.
+    cambio: ActualizarOportunidadInput,
+    revertir?: () => void,
+  ) => {
+    setEstadoGuardado("guardando");
+    const result = await actualizarOportunidad(oportunidad.id, cambio);
+    if (!result.exito) {
+      setEstadoGuardado("inactivo");
+      revertir?.();
+      toast.error(result.error);
+      return;
+    }
+    setEstadoGuardado("guardado");
+    onGuardado();
   };
+
+  // El "Guardado" se apaga solo; no es un estado, es un acuse de recibo.
+  useEffect(() => {
+    if (estadoGuardado !== "guardado") return;
+    const t = setTimeout(() => setEstadoGuardado("inactivo"), 2000);
+    return () => clearTimeout(t);
+  }, [estadoGuardado]);
 
   return (
     <div className="mx-2 px-3 py-2.5 rounded-xl bg-card border border-card-border space-y-3">
       <div className="flex items-center gap-2">
         <TrendingUp className="h-3.5 w-3.5 text-inbox-accent shrink-0" />
         <p className="text-xs font-semibold text-foreground truncate flex-1">{oportunidad.titulo}</p>
+        {/* Reemplaza al botón de guardar: dice que el cambio ya quedó. */}
+        {estadoGuardado === "guardando" && (
+          <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Guardando
+          </span>
+        )}
+        {estadoGuardado === "guardado" && (
+          <span className="flex shrink-0 items-center gap-1 text-[10px] text-inbox-accent">
+            <Check className="h-3 w-3" />
+            Guardado
+          </span>
+        )}
       </div>
 
       <div className="space-y-1">
@@ -219,10 +342,17 @@ function TarjetaOportunidadEditable({
             stageNombre={stageNombre}
             stageColor={stageColor}
             onSelect={(nuevoStageId, nuevoPipelineId, nuevoStageNombre, nuevoStageColor) => {
+              const anterior = { stageId, pipelineId, stageNombre, stageColor };
               setStageId(nuevoStageId);
               setPipelineId(nuevoPipelineId);
               setStageNombre(nuevoStageNombre);
               setStageColor(nuevoStageColor);
+              void guardarCampo({ stageId: nuevoStageId ?? undefined, pipelineId: nuevoPipelineId ?? undefined }, () => {
+                setStageId(anterior.stageId);
+                setPipelineId(anterior.pipelineId);
+                setStageNombre(anterior.stageNombre);
+                setStageColor(anterior.stageColor);
+              });
             }}
           />
         </div>
@@ -230,34 +360,45 @@ function TarjetaOportunidadEditable({
 
       <div className="space-y-1">
         <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Etiquetas</p>
-        <SelectorTags tags={tagsDisponibles} seleccionados={tagIds} onChange={setTagIds} placeholder="Agregar etiqueta..." />
+        <SelectorTags
+          tags={tagsDisponibles}
+          seleccionados={tagIds}
+          onChange={(nuevos) => {
+            const anterior = tagIds;
+            setTagIds(nuevos);
+            void guardarCampo({ tagIds: nuevos }, () => setTagIds(anterior));
+          }}
+          placeholder="Agregar etiqueta..."
+        />
       </div>
 
       <div className="space-y-1">
         <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Fecha de cierre</p>
-        <SmartDatePicker value={fechaCierre} onChange={setFechaCierre} presets={[]} placeholder="Sin fecha" className="gap-2" />
-      </div>
-
-      <div className="space-y-1">
-        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Nota</p>
-        <textarea
-          rows={2}
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          placeholder="Agrega una nota..."
-          className="w-full resize-none rounded-xl border border-input bg-input-bg px-3 py-2 text-xs text-foreground placeholder:text-input-placeholder outline-none focus:border-input-focus/50 transition-colors"
+        <SmartDatePicker
+          value={fechaCierre}
+          onChange={(nueva) => {
+            const anterior = fechaCierre;
+            setFechaCierre(nueva);
+            void guardarCampo({ fechaCierre: nueva }, () => setFechaCierre(anterior));
+          }}
+          presets={[]}
+          placeholder="Sin fecha"
+          className="gap-2"
         />
       </div>
 
-      <button
-        type="button"
-        disabled={guardando}
-        onClick={guardar}
-        className="flex w-full items-center justify-center gap-1.5 text-[11px] font-semibold text-inbox-accent-foreground bg-inbox-accent hover:bg-inbox-accent-hover rounded-lg px-3 py-1.5 transition-all hover:scale-[1.02] disabled:opacity-50 shadow-sm"
-      >
-        {guardando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-        Guardar cambios
-      </button>
+      <CampoEditableTexto
+        label="Nota"
+        valor={nota}
+        placeholder="Agrega una nota..."
+        icono={<StickyNote className="h-3.5 w-3.5" />}
+        filas={4}
+        onGuardar={async (v) => {
+          const anterior = nota;
+          setNota(v);
+          await guardarCampo({ notas: v }, () => setNota(anterior));
+        }}
+      />
 
       <a
         href={`/crm/oportunidades/${oportunidad.id}`}
