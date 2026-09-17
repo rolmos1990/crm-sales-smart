@@ -33,7 +33,14 @@ export interface ConfiguracionPreparacion {
   rangoDefecto: RangoPreparacion;
   estados: EstadoPreparacionConUso[];
   etapasEntrada: EtapaEntrada[];
-  etapasDisponibles: Array<{ id: string; nombre: string; color: string | null }>;
+  etapasDisponibles: Array<{
+    id: string;
+    nombre: string;
+    color: string | null;
+    descripcion: string | null;
+    esFinal: boolean;
+    esCancelacion: boolean;
+  }>;
   /** Etapas configuradas como entrada que ya no existen o están inactivas —
    *  el tablero sigue funcionando y lo avisa en la configuración (FR-009). */
   entradasInvalidas: string[];

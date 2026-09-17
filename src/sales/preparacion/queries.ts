@@ -124,7 +124,10 @@ export async function obtenerConfiguracionPreparacion(instanciaId: string): Prom
     prisma.flujoVentaEtapa.findMany({
       where: { activo: true, flujoVenta: { instanciaId, activo: true } },
       orderBy: { orden: "asc" },
-      select: { id: true, nombre: true, color: true },
+      // `descripcion` y las marcas alimentan el subtítulo de cada tarjeta en
+      // el panel de configuración, para que se entienda qué se está eligiendo
+      // sin tener que abrir el flujo de venta en otra pestaña.
+      select: { id: true, nombre: true, color: true, descripcion: true, esFinal: true, esCancelacion: true },
     }),
   ]);
 
