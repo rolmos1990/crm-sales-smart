@@ -86,6 +86,12 @@ export interface TarjetaPreparacion {
 export interface ColumnaTablero {
   estado: EstadoPreparacion;
   tarjetas: TarjetaPreparacion[];
+  /** Total real de pedidos en la columna con los filtros activos — no cuántos
+   *  se cargaron. El encabezado muestra este número y de acá sale si queda
+   *  algo por traer. */
+  total: number;
+  /** Quedan pedidos sin cargar en esta columna. */
+  hayMas: boolean;
 }
 
 export interface Tablero {

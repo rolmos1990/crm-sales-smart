@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { moverPreparacionAction } from "../actions";
@@ -24,10 +25,15 @@ interface Props {
   columnas: ColumnaTablero[];
   puedeMod: boolean;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
+  /** Tamaño de página por columna vigente (viene de `?limite=`). */
+  limitePorEstado: number;
 }
 
-export function TableroKanban({ columnas, puedeMod, agrupacion }: Props) {
+export function TableroKanban({ columnas, puedeMod, agrupacion, limitePorEstado }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [cargandoMas, setCargandoMas] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   // Copia local para mover la tarjeta al instante; el servidor manda y si hay
   // conflicto se revierte desde las props.
@@ -50,6 +56,33 @@ export function TableroKanban({ columnas, puedeMod, agrupacion }: Props) {
     const encontrada = indice.get(String(e.active.id));
     setArrastrando(encontrada?.tarjeta ?? null);
   };
+
+  /**
+   * "Cargar más" de una columna = subir SU override en `?limites=` y dejar que
+   * el Server Component vuelva a resolver. No es un fetch aparte: así el
+   * resultado se resincroniza solo con los filtros, el rango y el refresh que
+   * dispara mover una tarjeta, sin duplicar lógica de merge. Las demás columnas
+   * conservan su propio límite.
+   */
+  const cargarMas = (estadoId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const limites = new Map<string, number>();
+    for (const par of (params.get("limites") ?? "").split(",")) {
+      const [id, valorRaw] = par.split(":");
+      const valor = Number(valorRaw);
+      if (id && Number.isFinite(valor) && valor > 0) limites.set(id, Math.floor(valor));
+    }
+    limites.set(estadoId, (limites.get(estadoId) ?? limitePorEstado) + limitePorEstado);
+    params.set("limites", [...limites.entries()].map(([id, n]) => `${id}:${n}`).join(","));
+
+    setCargandoMas(estadoId);
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    });
+  };
+
+  // El indicador se apaga cuando llegan las tarjetas nuevas, no antes.
+  useEffect(() => setCargandoMas(null), [columnas]);
 
   /**
    * Resuelve a qué columna pertenece el punto donde se soltó la tarjeta.
@@ -77,11 +110,21 @@ export function TableroKanban({ columnas, puedeMod, agrupacion }: Props) {
 
     setLocal((prev) =>
       prev.map((col) => {
+        // Se ajusta también el total: si no, el encabezado de una columna
+        // paginada seguiría mostrando el número viejo hasta el próximo refresh.
         if (col.estado.id === estadoEsperadoId) {
-          return { ...col, tarjetas: col.tarjetas.filter((t) => t.pedidoId !== pedidoId) };
+          return {
+            ...col,
+            tarjetas: col.tarjetas.filter((t) => t.pedidoId !== pedidoId),
+            total: Math.max(col.total - 1, 0),
+          };
         }
         if (col.estado.id === estadoDestinoId) {
-          return { ...col, tarjetas: [{ ...origen.tarjeta, estadoPreparacionId: estadoDestinoId }, ...col.tarjetas] };
+          return {
+            ...col,
+            tarjetas: [{ ...origen.tarjeta, estadoPreparacionId: estadoDestinoId }, ...col.tarjetas],
+            total: col.total + 1,
+          };
         }
         return col;
       }),
@@ -106,7 +149,15 @@ export function TableroKanban({ columnas, puedeMod, agrupacion }: Props) {
     >
       <div className="flex gap-3 overflow-x-auto pb-2">
         {local.map((col) => (
-          <ColumnaPreparacion key={col.estado.id} columna={col} puedeMod={puedeMod} agrupacion={agrupacion} />
+          <ColumnaPreparacion
+            key={col.estado.id}
+            columna={col}
+            puedeMod={puedeMod}
+            agrupacion={agrupacion}
+            tamanoPagina={limitePorEstado}
+            cargando={cargandoMas === col.estado.id}
+            onCargarMas={() => cargarMas(col.estado.id)}
+          />
         ))}
       </div>
 
@@ -123,12 +174,20 @@ function ColumnaPreparacion({
   columna,
   puedeMod,
   agrupacion,
+  tamanoPagina,
+  cargando,
+  onCargarMas,
 }: {
   columna: ColumnaTablero;
   puedeMod: boolean;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
+  tamanoPagina: number;
+  cargando: boolean;
+  onCargarMas: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columna.estado.id });
+  const cargadas = columna.tarjetas.length;
+  const faltan = Math.max(columna.total - cargadas, 0);
 
   return (
     <section
@@ -148,7 +207,11 @@ function ColumnaPreparacion({
           />
           {columna.estado.nombre}
         </span>
-        <span className="text-xs text-muted-foreground">{columna.tarjetas.length}</span>
+        {/* Se muestra el total real, y cuántas están cargadas solo cuando no
+            están todas — así el encabezado no miente en una columna paginada. */}
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {faltan > 0 ? `${cargadas} de ${columna.total}` : columna.total}
+        </span>
       </header>
 
       {agrupacion === "POR_PRODUCTO" ? (
@@ -159,6 +222,30 @@ function ColumnaPreparacion({
 
       {columna.tarjetas.length === 0 && (
         <p className="px-1 py-6 text-center text-xs text-muted-foreground">Sin pedidos en esta columna</p>
+      )}
+
+      {faltan > 0 && (
+        <button
+          type="button"
+          onClick={onCargarMas}
+          disabled={cargando}
+          className={cn(
+            "flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2 text-xs transition-colors",
+            cargando ? "text-muted-foreground" : "text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+          )}
+        >
+          {cargando ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" />
+              Cargando...
+            </>
+          ) : (
+            <>
+              <ChevronDown className="size-3.5" />
+              Cargar {Math.min(faltan, tamanoPagina)} más
+            </>
+          )}
+        </button>
       )}
     </section>
   );

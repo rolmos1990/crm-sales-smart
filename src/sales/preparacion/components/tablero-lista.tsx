@@ -19,7 +19,13 @@ export function TableroLista({ columnas }: Props) {
     return <p className="py-10 text-center text-sm text-muted-foreground">Sin pedidos para preparar en este rango.</p>;
   }
 
+  // La lista comparte los datos paginados del tablero, así que puede estar
+  // mostrando solo la primera tanda de cada columna. Decirlo explícitamente
+  // evita que alguien crea que ya vio todo.
+  const noMostrados = columnas.reduce((acc, c) => acc + Math.max(c.total - c.tarjetas.length, 0), 0);
+
   return (
+    <div className="space-y-2">
     <div className="overflow-x-auto rounded-2xl border border-border bg-card">
       <table className="w-full text-sm">
         <thead className="border-b border-border text-left text-xs text-muted-foreground">
@@ -65,6 +71,14 @@ export function TableroLista({ columnas }: Props) {
           })}
         </tbody>
       </table>
+    </div>
+
+    {noMostrados > 0 && (
+      <p className="px-1 text-xs text-muted-foreground">
+        Se muestran {filas.length} de {filas.length + noMostrados} pedidos. Cambiá a la vista Kanban para cargar el
+        resto por columna.
+      </p>
+    )}
     </div>
   );
 }

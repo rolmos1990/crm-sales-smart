@@ -6,6 +6,7 @@ import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import {
+  LIMITE_POR_ESTADO,
   obtenerActividadReciente,
   obtenerResumenPorProducto,
   obtenerTableroPreparacion,
@@ -29,6 +30,8 @@ interface PreparacionPageProps {
     hasta?: string;
     q?: string;
     vista?: string;
+    limite?: string;
+    limites?: string;
     agrupacion?: string;
   }>;
 }
@@ -60,8 +63,25 @@ export default async function PreparacionPage({ searchParams }: PreparacionPageP
     busqueda: sp.q,
   };
 
+  // Paginación por columna. Los límites viven en la URL y no en estado de
+  // cliente: así sobreviven al F5, a un cambio de filtro y al refresh que
+  // dispara mover una tarjeta, sin lógica de merge aparte (mismo criterio que
+  // el Kanban de pipeline).
+  const limiteParsed = Number(sp.limite);
+  const limitePorEstado =
+    Number.isFinite(limiteParsed) && limiteParsed > 0 ? Math.floor(limiteParsed) : LIMITE_POR_ESTADO;
+
+  // `?limites=estadoId:100,estadoId:150` — solo las columnas que el usuario ya
+  // expandió más allá del default.
+  const limitesPorEstado = new Map<string, number>();
+  for (const par of (sp.limites ?? "").split(",")) {
+    const [estadoId, valorRaw] = par.split(":");
+    const valor = Number(valorRaw);
+    if (estadoId && Number.isFinite(valor) && valor > 0) limitesPorEstado.set(estadoId, Math.floor(valor));
+  }
+
   const [tablero, resumen, actividad] = await Promise.all([
-    obtenerTableroPreparacion(sesion.instanciaId, zonaHoraria, filtros),
+    obtenerTableroPreparacion(sesion.instanciaId, zonaHoraria, filtros, limitePorEstado, limitesPorEstado),
     obtenerResumenPorProducto(sesion.instanciaId, zonaHoraria, filtros),
     obtenerActividadReciente(sesion.instanciaId),
   ]);
@@ -111,6 +131,7 @@ export default async function PreparacionPage({ searchParams }: PreparacionPageP
       ) : (
         <TableroCliente
           columnas={tablero.columnas}
+          limitePorEstado={limitePorEstado}
           puedeMod={puedeMod}
           agrupacion={agrupacion}
         />

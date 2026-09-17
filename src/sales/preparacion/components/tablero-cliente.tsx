@@ -26,6 +26,7 @@ const TableroKanban = dynamic(() => import("./tablero-kanban").then((m) => m.Tab
 export function TableroCliente(props: {
   columnas: ColumnaTablero[];
   puedeMod: boolean;
+  limitePorEstado: number;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
 }) {
   return <TableroKanban {...props} />;

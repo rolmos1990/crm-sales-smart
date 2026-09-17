@@ -167,10 +167,22 @@ export async function obtenerConfiguracionPreparacion(instanciaId: string): Prom
   };
 }
 
+/** Tarjetas por columna en la primera carga. El tablero de armado se trabaja
+ *  por tandas, así que 50 cubre una jornada sin traer cientos de tarjetas. */
+export const LIMITE_POR_ESTADO = 50;
+
+/**
+ * @param limitePorEstado  cuántas tarjetas traer por columna (default 50).
+ * @param limitesPorEstado overrides por columna: cada una pagina por separado,
+ *   así que la que el usuario ya expandió necesita su propio `take` (clave =
+ *   estadoId). Una columna sin entrada acá cae a `limitePorEstado`.
+ */
 export async function obtenerTableroPreparacion(
   instanciaId: string,
   zonaHoraria: string,
   filtros: FiltrosTableroInput,
+  limitePorEstado: number = LIMITE_POR_ESTADO,
+  limitesPorEstado?: Map<string, number>,
 ): Promise<Tablero> {
   const configuracion = await obtenerConfiguracionPreparacion(instanciaId);
 
@@ -214,42 +226,65 @@ export async function obtenerTableroPreparacion(
       }
     : whereBase;
 
-  const [visibles, livianos] = await Promise.all([
-    prisma.pedido.findMany({
-      where: whereVisible,
-      select: SELECT_PEDIDO_TABLERO,
-      orderBy: [{ fechaEntrega: "asc" }, { creadoEn: "asc" }],
-    }),
-    // Proyección mínima de TODOS los pedidos del tablero, solo para contar.
+  const estados = configuracion.estados.filter((e) => e.activo).sort((a, b) => a.orden - b.orden);
+  const estadoInicial = estados.find((e) => e.esInicial) ?? estados[0];
+  const estadoIdFallback = estadoInicial?.id ?? "";
+
+  /**
+   * Pertenencia a una columna. La inicial se lleva además los pedidos que
+   * todavía no tienen `PreparacionPedido` materializada: es donde van a caer,
+   * y si no se incluyeran acá desaparecerían del tablero en la primera carga.
+   */
+  const whereDeColumna = (estadoId: string, esInicial: boolean): Prisma.PedidoWhereInput => ({
+    AND: [
+      whereVisible,
+      esInicial
+        ? { OR: [{ preparacion: { is: { estadoId } } }, { preparacion: { is: null } }] }
+        : { preparacion: { is: { estadoId } } },
+    ],
+  });
+
+  // Una consulta por columna (acotada por `take`) más su conteo real: Prisma no
+  // sabe hacer "los primeros N de cada grupo" en una sola consulta, y son pocas
+  // columnas. Es el mismo enfoque del Kanban de pipeline.
+  const [porColumna, totales, livianos] = await Promise.all([
+    Promise.all(
+      estados.map((estado) =>
+        prisma.pedido.findMany({
+          where: whereDeColumna(estado.id, estado.esInicial),
+          select: SELECT_PEDIDO_TABLERO,
+          orderBy: [{ fechaEntrega: "asc" }, { creadoEn: "asc" }],
+          take: limitesPorEstado?.get(estado.id) ?? limitePorEstado,
+        }),
+      ),
+    ),
+    Promise.all(
+      estados.map((estado) => prisma.pedido.count({ where: whereDeColumna(estado.id, estado.esInicial) })),
+    ),
+    // Proyección mínima de TODOS los pedidos del tablero, solo para contar las
+    // pestañas — no participa de la paginación.
     prisma.pedido.findMany({ where: whereBase, select: { id: true, fechaEntrega: true } }),
   ]);
 
   const contadores = contarEnMemoria(livianos, zonaHoraria);
 
-  const estadoInicial = configuracion.estados.find((e) => e.esInicial) ?? configuracion.estados[0];
-  const estadoIdFallback = estadoInicial?.id ?? "";
-
   // Materializa las preparaciones que falten. No hace falta releer después: una
   // tarjeta sin preparación cae por defecto en la columna inicial, que es
   // exactamente donde la acaba de poner la materialización.
-  const faltantes = visibles.filter((p) => !p.preparacion).map((p) => p.id);
+  const faltantes = porColumna.flat().filter((p) => !p.preparacion).map((p) => p.id);
   if (faltantes.length > 0) {
     await asegurarPreparacionesPedidos(instanciaId, faltantes);
   }
 
-  const tarjetas = visibles.map((p) => aTarjeta(p, estadoIdFallback, zonaHoraria));
-
-  // Cada tarjeta va a su columna de estado, sin excepciones: las columnas son
-  // estados. Un pedido sin fecha o atrasado se distingue por su marca en la
-  // tarjeta, no sacándolo de su columna — si estuviera en un grupo aparte no se
-  // podría arrastrar, y el usuario tiene que poder moverlo libremente.
-  const columnas: ColumnaTablero[] = configuracion.estados
-    .filter((e) => e.activo)
-    .sort((a, b) => a.orden - b.orden)
-    .map((estado) => ({
+  const columnas: ColumnaTablero[] = estados.map((estado, i) => {
+    const tarjetas = porColumna[i].map((p) => aTarjeta(p, estadoIdFallback, zonaHoraria));
+    return {
       estado,
-      tarjetas: tarjetas.filter((t) => t.estadoPreparacionId === estado.id),
-    }));
+      tarjetas,
+      total: totales[i],
+      hayMas: tarjetas.length < totales[i],
+    };
+  });
 
   return {
     columnas,
