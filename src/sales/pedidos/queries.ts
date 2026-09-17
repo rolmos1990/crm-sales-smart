@@ -7,6 +7,17 @@ const incluirRelaciones = {
   contacto: { select: { id: true, nombre: true, apellido: true, email: true, telefonoPrincipal: true, telefonoSecundario: true, cargo: true } },
   empresa: { select: { id: true, nombre: true, ruc: true, industria: true, telefono: true, email: true, sitioWeb: true } },
   entrega: { select: { metodoEntrega: true } },
+  // 026-preparacion-pedidos — eje independiente del estado comercial. Es
+  // nullable a propósito: una instancia que no usa Preparación ve la lista y
+  // el detalle exactamente como antes (FR-026).
+  preparacion: {
+    select: {
+      iniciadaEn: true,
+      completadaEn: true,
+      estado: { select: { nombre: true, color: true, esFinal: true } },
+      asignadaA: { select: { nombre: true } },
+    },
+  },
 } as const;
 
 export interface PedidosFiltros {

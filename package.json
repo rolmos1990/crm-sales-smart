@@ -47,6 +47,7 @@
     "test:e2e:cotizaciones": "playwright test tests/e2e/sales/cotizaciones.spec.ts",
     "test:e2e:pedidos": "playwright test tests/e2e/sales/pedidos.spec.ts",
     "test:e2e:flujo-venta": "playwright test tests/e2e/sales/flujo-venta.spec.ts",
+    "test:e2e:preparacion": "playwright test tests/e2e/sales/preparacion.spec.ts",
     "test:e2e:transportistas": "playwright test tests/e2e/sales/transportistas.spec.ts",
     "test:e2e:sales": "playwright test tests/e2e/sales/",
     "test:e2e:productos": "playwright test tests/e2e/productos/productos.spec.ts",
@@ -126,5 +127,14 @@
     "tsx": "^4.22.3",
     "typescript": "^5",
     "vitest": "^4.1.11"
+  },
+  "allowScripts": {
+    "prisma@7.8.0": true,
+    "@prisma/engines@7.8.0": true,
+    "esbuild@0.28.0": true,
+    "sharp@0.34.5": true,
+    "protobufjs@7.6.1": true,
+    "msw@2.14.6": true,
+    "@whiskeysockets/baileys@7.0.0-rc13": true
   }
 }

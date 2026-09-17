@@ -449,6 +449,13 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
             precioUnitario: linea.precioUnitario,
             descuento: linea.descuento,
             subtotal: linea.cantidad * linea.precioUnitario * (1 - linea.descuento / 100),
+            // 026-preparacion-pedidos — el avance de preparación NO se toca al
+            // editar la línea; solo se acota si la cantidad bajó por debajo de
+            // lo ya preparado (ej. preparadas 3 y la cantidad pasa a 2), para
+            // que nunca quede "preparado más de lo pedido" en base.
+            ...(linea.cantidad < Number(pedidoActual.lineas.find(l => l.id === linea.id)?.cantidadPreparada ?? 0)
+              ? { cantidadPreparada: linea.cantidad }
+              : {}),
           },
         });
       }

@@ -273,6 +273,150 @@ async function crearPedidoConEntregaEditable(instanciaId: string, usuarioId: str
   return { pedidoId: pedido.id };
 }
 
+// ─── Preparación (026-preparacion-pedidos) ─────────────────────────────────
+
+// Pedido en una etapa NO final con fecha de entrega hoy y varias líneas, listo
+// para aparecer en el tablero de preparación.
+//
+// `crearDirecto: true` crea el pedido YA en la etapa de entrada, sin pasar por
+// el motor de etapas — es el caso que el tablero tiene que cubrir igual, porque
+// la pertenencia se deriva de la etapa, no de un hook del motor (research
+// Decisión 1). Si alguna vez se "optimiza" con una bandera escrita por el
+// motor, el test que usa este helper falla.
+async function crearPedidoParaPreparacion(
+  instanciaId: string,
+  usuarioId: string,
+  opciones?: { sinFechaEntrega?: boolean; lineas?: number },
+) {
+  const flujo = await prisma.flujoVenta.findFirst({ where: { instanciaId } });
+  if (!flujo) throw new Error("No existe flujo de venta para la instancia");
+
+  const etapa =
+    (await prisma.flujoVentaEtapa.findFirst({
+      where: { flujoVentaId: flujo.id, activo: true, esFinal: false, esCancelacion: false },
+      orderBy: { orden: "asc" },
+    })) ??
+    (await prisma.flujoVentaEtapa.create({
+      data: { flujoVentaId: flujo.id, nombre: `Entrada-${Date.now()}`, orden: 0, esInicial: true },
+    }));
+
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const cantidadLineas = opciones?.lineas ?? 3;
+
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero: `PED-PREP-${sufijo}`,
+      estado: "CONFIRMADO",
+      instanciaId,
+      usuarioId,
+      flujoVentaId: flujo.id,
+      flujoVentaEtapaId: etapa.id,
+      fechaEntrega: opciones?.sinFechaEntrega ? null : new Date(),
+      // Comprador sin contacto del CRM: el tablero debe mostrar su nombre igual.
+      nombre: "Cliente",
+      apellido: `Prep-${sufijo.slice(-4)}`,
+      lineas: {
+        create: Array.from({ length: cantidadLineas }, (_, i) => ({
+          descripcion: `Producto prueba ${i + 1}`,
+          cantidad: i + 1,
+          precioUnitario: 10,
+          descuento: 0,
+          subtotal: (i + 1) * 10,
+        })),
+      },
+    },
+    include: { lineas: { orderBy: { orden: "asc" } } },
+  });
+
+  return {
+    pedidoId: pedido.id,
+    numero: pedido.numero,
+    etapaId: etapa.id,
+    etapaNombre: etapa.nombre,
+    lineaIds: pedido.lineas.map((l) => l.id),
+  };
+}
+
+async function obtenerPreparacionPedido(pedidoId: string) {
+  const prep = await prisma.preparacionPedido.findUnique({
+    where: { pedidoId },
+    select: {
+      id: true,
+      iniciadaEn: true,
+      completadaEn: true,
+      estado: { select: { nombre: true, esFinal: true } },
+      asignadaA: { select: { nombre: true } },
+      _count: { select: { historial: true } },
+    },
+  });
+  if (!prep) return null;
+  return {
+    id: prep.id,
+    iniciadaEn: prep.iniciadaEn?.toISOString() ?? null,
+    completadaEn: prep.completadaEn?.toISOString() ?? null,
+    estadoNombre: prep.estado.nombre,
+    estadoEsFinal: prep.estado.esFinal,
+    responsable: prep.asignadaA?.nombre ?? null,
+    movimientos: prep._count.historial,
+  };
+}
+
+async function obtenerEstadosPreparacion(instanciaId: string) {
+  const flujo = await prisma.flujoPreparacion.findUnique({
+    where: { instanciaId },
+    include: { estados: { where: { activo: true }, orderBy: { orden: "asc" } } },
+  });
+  if (!flujo) return { flujoId: null, estados: [] };
+  return {
+    flujoId: flujo.id,
+    estados: flujo.estados.map((e) => ({
+      id: e.id,
+      nombre: e.nombre,
+      esInicial: e.esInicial,
+      marcaInicio: e.marcaInicio,
+      esFinal: e.esFinal,
+    })),
+  };
+}
+
+/** Deja el tablero sin configuración de entrada, que es el default del spec:
+ *  entran los pedidos que no están cerrados ni cancelados. */
+async function limpiarEntradasPreparacion(instanciaId: string) {
+  const flujo = await prisma.flujoPreparacion.findUnique({ where: { instanciaId } });
+  if (flujo) await prisma.flujoPreparacionEntrada.deleteMany({ where: { flujoPreparacionId: flujo.id } });
+  return { ok: true as const };
+}
+
+async function marcarAvanceLinea(pedidoLineaId: string, cantidadPreparada: number) {
+  const linea = await prisma.pedidoLinea.update({
+    where: { id: pedidoLineaId },
+    data: { cantidadPreparada, preparadaEn: cantidadPreparada > 0 ? new Date() : null },
+    select: { id: true, cantidad: true, cantidadPreparada: true },
+  });
+  return {
+    id: linea.id,
+    cantidad: Number(linea.cantidad),
+    cantidadPreparada: Number(linea.cantidadPreparada),
+  };
+}
+
+/** Un pedido que nunca entró al tablero — para la no-regresión de la lista. */
+async function crearPedidoFueraDePreparacion(instanciaId: string, usuarioId: string) {
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero: `PED-NOPREP-${sufijo}`,
+      estado: "ENTREGADO",
+      instanciaId,
+      usuarioId,
+      nombre: "SinPreparacion",
+      apellido: sufijo.slice(-4),
+    },
+  });
+  await prisma.preparacionPedido.deleteMany({ where: { pedidoId: pedido.id } });
+  return { pedidoId: pedido.id, numero: pedido.numero };
+}
+
 // Crea una etapa nueva (nombre único) con un pedido ya vinculado a ella, para
 // probar de forma determinística que eliminarEtapa rechaza etapas con
 // pedidos asociados (FV-06) — no depende de qué etapa haya quedado con
@@ -454,6 +598,13 @@ const OPERACIONES: Record<string, (...args: any[]) => Promise<unknown>> = {
   eliminarCuentaCanal,
   contarMensajesPorIdExterno,
   eliminarMensajesPorIdExterno,
+  // 026-preparacion-pedidos
+  crearPedidoParaPreparacion,
+  crearPedidoFueraDePreparacion,
+  obtenerPreparacionPedido,
+  obtenerEstadosPreparacion,
+  limpiarEntradasPreparacion,
+  marcarAvanceLinea,
 };
 
 const rl = readline.createInterface({ input: process.stdin });

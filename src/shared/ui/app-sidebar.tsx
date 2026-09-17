@@ -23,6 +23,7 @@ import {
   GitBranch,
   Database,
   Truck,
+  PackageCheck,
   Menu,
   X,
 } from "lucide-react";
@@ -65,6 +66,7 @@ const NAVEGACION = [
     items: [
       { href: "/sales/cotizaciones", etiqueta: "Cotizaciones", Icono: FileText, modulo: "cotizaciones" },
       { href: "/sales/pedidos", etiqueta: "Pedidos", Icono: ShoppingCart, modulo: "pedidos" },
+      { href: "/sales/preparacion", etiqueta: "Preparación", Icono: PackageCheck, modulo: "preparacion" },
       { href: "/sales/flujo-venta", etiqueta: "Flujo de venta", Icono: GitBranch, modulo: "flujo-venta" },
       { href: "/sales/transportistas", etiqueta: "Transportistas", Icono: Truck, modulo: "transportistas" },
     ],

@@ -39,6 +39,14 @@ export const EventosSistema = {
   PedidoActualizado:      "PEDIDO_ACTUALIZADO",
   PedidoEntregado:        "PEDIDO_ENTREGADO",
 
+  // Preparación (026-preparacion-pedidos)
+  // Solo inicio, fin y línea completa. Los movimientos entre estados
+  // intermedios quedan en PreparacionHistorial, no en la cola — un evento por
+  // arrastre de tarjeta sería puro ruido.
+  PreparacionIniciada:    "PREPARACION_INICIADA",
+  PreparacionCompletada:  "PREPARACION_COMPLETADA",
+  LineaPedidoPreparada:   "LINEA_PEDIDO_PREPARADA",
+
   // Mensajería
   MensajeRecibido:        "MENSAJE_RECIBIDO",
   MensajeEnviado:         "MENSAJE_ENVIADO",

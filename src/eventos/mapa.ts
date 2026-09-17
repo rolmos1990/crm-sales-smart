@@ -32,6 +32,9 @@ import type { CotizacionAprobadaPayload }   from "./contratos/cotizacion-aprobad
 import type { PedidoCreadoPayload }      from "./contratos/pedido-creado.event";
 import type { PedidoActualizadoPayload } from "./contratos/pedido-actualizado.event";
 import type { PedidoEntregadoPayload }   from "./contratos/pedido-entregado.event";
+import type { PreparacionIniciadaPayload }   from "./contratos/preparacion-iniciada.event";
+import type { PreparacionCompletadaPayload } from "./contratos/preparacion-completada.event";
+import type { LineaPedidoPreparadaPayload }  from "./contratos/linea-pedido-preparada.event";
 import type { MensajeRecibidoPayload }    from "./contratos/mensaje-recibido.event";
 import type { MensajeEnviadoPayload }     from "./contratos/mensaje-enviado.event";
 import type { ConversacionCreadaPayload } from "./contratos/conversacion-creada.event";
@@ -77,6 +80,11 @@ export interface MapaPayloads {
   PEDIDO_CREADO:           PedidoCreadoPayload;
   PEDIDO_ACTUALIZADO:      PedidoActualizadoPayload;
   PEDIDO_ENTREGADO:        PedidoEntregadoPayload;
+
+  // 026-preparacion-pedidos
+  PREPARACION_INICIADA:    PreparacionIniciadaPayload;
+  PREPARACION_COMPLETADA:  PreparacionCompletadaPayload;
+  LINEA_PEDIDO_PREPARADA:  LineaPedidoPreparadaPayload;
   // Mensajería
   MENSAJE_RECIBIDO:        MensajeRecibidoPayload;
   MENSAJE_ENVIADO:         MensajeEnviadoPayload;

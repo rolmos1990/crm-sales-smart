@@ -42,6 +42,14 @@ export interface Pedido {
   empresa: { id: string; nombre: string } | null;
   cotizacionId: string | null;
   entrega?: { metodoEntrega: string } | null;
+  // 026-preparacion-pedidos — nullable: los pedidos que nunca entraron al
+  // tablero no muestran nada distinto a como se veían antes.
+  preparacion?: {
+    iniciadaEn: Date | null;
+    completadaEn: Date | null;
+    estado: { nombre: string; color: string | null; esFinal: boolean } | null;
+    asignadaA: { nombre: string } | null;
+  } | null;
   generadoPorIA: boolean;
   confirmadoPorHumano: boolean;
   lineas?: PedidoLinea[];

@@ -15,6 +15,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
+import { ChipEstadoPreparacion } from "@/sales/preparacion/components/chip-estado-preparacion";
 import { eliminarPedido, confirmarPedidoGeneradoPorIA } from "../actions";
 import { moverPedidoAction } from "@/sales/flujo-venta/actions";
 import { calcularSiguientesEtapas } from "@/sales/flujo-venta/types";
@@ -227,10 +228,16 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
     accessorKey: "estado",
     header: "Estado",
     cell: ({ row }) => (
-      <EstadoBadge
-        estado={row.original.estado}
-        etapa={(row.original as any).flujoVentaEtapa ?? null}
-      />
+      // El badge de etapa manda; el chip de preparación va debajo y con menos
+      // peso visual, porque son dos ejes distintos y el comercial es el
+      // principal (026-preparacion-pedidos, FR-024).
+      <div className="flex flex-col items-start gap-1">
+        <EstadoBadge
+          estado={row.original.estado}
+          etapa={(row.original as any).flujoVentaEtapa ?? null}
+        />
+        <ChipEstadoPreparacion preparacion={row.original.preparacion} />
+      </div>
     ),
   },
   {

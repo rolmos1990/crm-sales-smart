@@ -98,6 +98,24 @@ enum EstadoEntrega {
   DEVUELTO
 }
 
+// 026-preparacion-pedidos — el tablero de Preparación es un eje propio,
+// independiente del Flujo de Venta y del EstadoEntrega de arriba (que sigue
+// significando lo mismo que siempre: la logística del envío). Un pedido puede
+// estar "Preparado" en el armado interno y todavía PENDIENTE de envío, o al
+// revés — son combinaciones válidas, no inconsistencias (ver research.md
+// Decisión 8 de la feature).
+enum AgrupacionPreparacion {
+  POR_PEDIDO
+  POR_PRODUCTO
+}
+
+enum RangoPreparacion {
+  HOY
+  MANANA
+  SEMANA
+  PERSONALIZADO
+}
+
 // Tipo de producto — determina qué bloque de cumplimiento usa una
 // Cotización/Pedido (ver TipoProducto en Cotizacion/Pedido más abajo).
 // Sin reglas de obligatoriedad acá — eso lo resuelve después el Flujo de
@@ -392,6 +410,8 @@ model Instancia {
   ejemplosPrompt                EjemploPrompt[]
   // 017-aprendizaje-supervisado-auditoria
   evaluacionesRespuestaIA       EvaluacionRespuestaIA[]
+  // 026-preparacion-pedidos
+  flujoPreparacion              FlujoPreparacion?
 
   @@index([slug])
   @@index([estado])
@@ -443,6 +463,9 @@ model Usuario {
   // 014-conversaciones-piloto-ejemplos-relevantes
   conversacionesPilotoCreadas            ConversacionPiloto[]          @relation("ConversacionesPilotoCreadas")
   recomendacionesComportamientoResueltas RecomendacionComportamiento[] @relation("RecomendacionesResueltas")
+  // 026-preparacion-pedidos
+  preparacionesAsignadas                 PreparacionPedido[]
+  lineasPreparadas                       PedidoLinea[]                 @relation("LineasPreparadasPorUsuario")
 }
 
 model UsuarioInstancia {
@@ -635,8 +658,8 @@ model PipelineStage {
   oportunidades             Oportunidad[]
   campos                    CampoPersonalizado[]
   disparadores              Disparador[]
-  cuentasCanal              CuentaCanal[] @relation("CuentaCanalStageEntrada")
-  cuentasCanalRespuestaAuto CuentaCanal[] @relation("CuentaCanalStageRespuesta")
+  cuentasCanal              CuentaCanal[]        @relation("CuentaCanalStageEntrada")
+  cuentasCanalRespuestaAuto CuentaCanal[]        @relation("CuentaCanalStageRespuesta")
 
   @@unique([pipelineId, orden])
   @@index([pipelineId])
@@ -1259,6 +1282,8 @@ model Pedido {
   // motivo que en Cotizacion — ver PedidoLinea.entregaDigital).
   entrega         EntregaPedido?
   servicio        ServicioPedido?
+  // 026-preparacion-pedidos — eje ortogonal al flujo de venta y a `entrega`.
+  preparacion     PreparacionPedido?
 
   @@unique([instanciaId, numero])
   @@index([instanciaId])
@@ -1287,6 +1312,15 @@ model PedidoLinea {
   producto   Producto? @relation(fields: [productoId], references: [id])
 
   entregaDigital EntregaDigitalPedido?
+
+  // 026-preparacion-pedidos — avance por ítem. Decimal (no Boolean) para
+  // admitir parciales ("preparé 2 de 3"). El avance del PEDIDO es derivado
+  // (todas las líneas completas), nunca persistido: un segundo lugar donde
+  // guardarlo sería un segundo lugar que se puede desincronizar.
+  cantidadPreparada Decimal   @default(0)
+  preparadaEn       DateTime?
+  preparadaPorId    String?
+  preparadaPor      Usuario?  @relation("LineasPreparadasPorUsuario", fields: [preparadaPorId], references: [id], onDelete: SetNull)
 }
 
 // =====================
@@ -1802,10 +1836,12 @@ model FlujoVentaEtapa {
   parent   FlujoVentaEtapa?  @relation("EtapaTree", fields: [parentId], references: [id])
   children FlujoVentaEtapa[] @relation("EtapaTree")
 
-  pedidos      Pedido[]
-  reglas       FlujoVentaRegla[]
-  historial    PedidoHistorialEtapa[]
-  disparadores Disparador[]
+  pedidos             Pedido[]
+  reglas              FlujoVentaRegla[]
+  historial           PedidoHistorialEtapa[]
+  disparadores        Disparador[]
+  // 026-preparacion-pedidos — etapas que hacen entrar pedidos al tablero
+  entradasPreparacion FlujoPreparacionEntrada[]
 
   @@index([flujoVentaId, orden])
   @@index([flujoVentaId])
@@ -1881,6 +1917,128 @@ model PedidoHistorialEtapa {
 
   @@index([pedidoId])
   @@index([etapaId])
+}
+
+// =====================
+// PREPARACIÓN DE PEDIDOS (026-preparacion-pedidos)
+// =====================
+// Eje propio, independiente del Flujo de Venta: mover un pedido acá NO cambia
+// su etapa comercial, y mover la etapa comercial NO cambia su preparación.
+// La pertenencia al tablero se DERIVA de la etapa del pedido (ver
+// FlujoPreparacionEntrada) y la fila de PreparacionPedido se materializa
+// perezosamente — `flujoVentaEtapaId` se escribe desde 4 lugares distintos
+// (motor de etapas, ejecutor de disparadores, conversión de cotización y
+// creación manual de pedido), así que engancharse a uno solo dejaría pedidos
+// fuera del tablero (research.md Decisión 1).
+
+model FlujoPreparacion {
+  id                String                @id @default(cuid())
+  nombre            String                @default("Preparación")
+  activo            Boolean               @default(true)
+  agrupacionDefecto AgrupacionPreparacion @default(POR_PEDIDO)
+  rangoDefecto      RangoPreparacion      @default(HOY)
+  creadoEn          DateTime              @default(now())
+  actualizadoEn     DateTime              @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  estados       EstadoPreparacion[]
+  etapasEntrada FlujoPreparacionEntrada[]
+
+  // Una sola configuración por instancia en esta versión. Quitar este unique
+  // es el único cambio necesario para tableros por equipo más adelante.
+  @@unique([instanciaId])
+  @@index([instanciaId])
+}
+
+// Qué etapas del Flujo de Venta hacen entrar un pedido al tablero. Sin filas,
+// el default es: entran los pedidos cuya etapa no es final ni de cancelación.
+model FlujoPreparacionEntrada {
+  id String @id @default(cuid())
+
+  flujoPreparacionId String
+  flujoPreparacion   FlujoPreparacion @relation(fields: [flujoPreparacionId], references: [id], onDelete: Cascade)
+
+  flujoVentaEtapaId String
+  flujoVentaEtapa   FlujoVentaEtapa @relation(fields: [flujoVentaEtapaId], references: [id], onDelete: Cascade)
+
+  @@unique([flujoPreparacionId, flujoVentaEtapaId])
+  @@index([flujoPreparacionId])
+}
+
+// Una columna del tablero.
+model EstadoPreparacion {
+  id            String   @id @default(cuid())
+  nombre        String
+  color         String?
+  orden         Int      @default(0)
+  esInicial     Boolean  @default(false)
+  // Al entrar a este estado se sella PreparacionPedido.iniciadaEn (solo la
+  // primera vez). Si ningún estado lo tiene, el inicio se sella al entrar al
+  // tablero — así iniciadaEn nunca queda vacía en flujos de 2 estados.
+  marcaInicio   Boolean  @default(false)
+  esFinal       Boolean  @default(false)
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  flujoPreparacionId String
+  flujoPreparacion   FlujoPreparacion @relation(fields: [flujoPreparacionId], references: [id], onDelete: Cascade)
+
+  preparaciones PreparacionPedido[]
+  historial     PreparacionHistorial[]
+
+  @@index([flujoPreparacionId, orden])
+}
+
+// El registro de preparación de un pedido. Bloque 1:1, mismo patrón que
+// EntregaPedido y ServicioPedido. Sobrevive a la salida del pedido del
+// tablero: es el registro de qué se preparó, cuándo y quién.
+model PreparacionPedido {
+  id            String    @id @default(cuid())
+  iniciadaEn    DateTime?
+  completadaEn  DateTime?
+  notas         String?
+  creadoEn      DateTime  @default(now())
+  actualizadoEn DateTime  @updatedAt
+
+  pedidoId String @unique
+  pedido   Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  estadoId String
+  estado   EstadoPreparacion @relation(fields: [estadoId], references: [id])
+
+  // Quien movió el pedido al estado final.
+  asignadaAId String?
+  asignadaA   Usuario? @relation(fields: [asignadaAId], references: [id], onDelete: SetNull)
+
+  historial PreparacionHistorial[]
+
+  @@index([estadoId])
+  @@index([completadaEn])
+}
+
+// Traza de cada cambio de estado. Guarda los nombres además de los ids
+// (snapshot), igual que PedidoHistorialEtapa, para que el historial siga
+// siendo legible si el estado se renombra o se desactiva.
+model PreparacionHistorial {
+  id                   String              @id @default(cuid())
+  estadoNombre         String
+  estadoAnteriorNombre String?
+  tipo                 TipoMovimientoEtapa @default(MANUAL)
+  usuarioId            String?
+  usuarioNombre        String?
+  creadoEn             DateTime            @default(now())
+
+  preparacionId String
+  preparacion   PreparacionPedido @relation(fields: [preparacionId], references: [id], onDelete: Cascade)
+
+  estadoId String
+  estado   EstadoPreparacion @relation(fields: [estadoId], references: [id])
+
+  @@index([preparacionId])
+  @@index([creadoEn])
 }
 
 model PedidoHistorial {

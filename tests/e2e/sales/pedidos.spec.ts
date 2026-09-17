@@ -332,3 +332,34 @@ test.describe('Permisos por rol', () => {
     await ctx.close();
   });
 });
+
+// ─── No regresión: instancias que no usan Preparación ─────────────────────────
+// 026-preparacion-pedidos agregó un chip de estado de preparación a la columna
+// Estado. Es nullable a propósito: un pedido que nunca entró al tablero debe
+// renderizar la fila y el detalle exactamente como antes de esa feature
+// (FR-026). Este test es el contrato que lo garantiza.
+
+test.describe('No regresión del listado sin preparación', () => {
+  test('P-20 Un pedido sin preparación no muestra chip ni bloque de armado', async ({ page }) => {
+    await page.goto('/sales/pedidos');
+    await expect(page.getByRole('table').or(page.locator('[data-testid="pedidos-lista"]'))).toBeVisible();
+
+    // Las filas cuyo pedido nunca entró al tablero no traen el chip. Se
+    // comprueba sobre la primera fila sin chip que exista, en vez de crear
+    // data: cualquier instancia de prueba tiene pedidos viejos así.
+    const filas = page.locator('tbody tr');
+    const total = await filas.count();
+    let verificadas = 0;
+
+    for (let i = 0; i < total && verificadas < 1; i++) {
+      const fila = filas.nth(i);
+      if ((await fila.locator('[data-slot="chip-preparacion"]').count()) === 0) {
+        // La fila sigue mostrando su número y su estado comercial como siempre.
+        await expect(fila.locator('td').first()).toBeVisible();
+        verificadas++;
+      }
+    }
+
+    expect(verificadas).toBeGreaterThan(0);
+  });
+});

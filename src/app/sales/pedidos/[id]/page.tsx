@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   ArrowLeft, ShoppingCart, Building2, User, FileText,
-  Mail, Phone, Hash, Briefcase, Globe, ExternalLink, Lock,
+  Mail, Phone, Hash, Briefcase, Globe, ExternalLink, Lock, PackageCheck,
 } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -394,6 +394,59 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Notas</CardTitle></CardHeader>
           <CardContent>
             <p className="text-sm whitespace-pre-wrap">{pedido.notas}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Preparación (armado interno) ───────────────────────────
+          026-preparacion-pedidos. Bloque propio y deliberadamente separado
+          del de Entrega: son dos ejes independientes y el estado de entrega
+          tiene su propio "Preparando", que significa otra cosa (logística).
+          Si el pedido nunca entró al tablero, no se renderiza nada. */}
+      {(pedido as any).preparacion?.estado && (
+        <Card>
+          <CardHeader className="pb-2 pt-4">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <PackageCheck className="h-4 w-4 text-muted-foreground" />
+              Preparación (armado)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Estado del armado</p>
+                <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: (pedido as any).preparacion.estado.color ?? undefined }}
+                  />
+                  {(pedido as any).preparacion.estado.nombre}
+                </span>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Inicio</p>
+                <p className="mt-1 text-sm text-foreground">
+                  {(pedido as any).preparacion.iniciadaEn
+                    ? format(new Date((pedido as any).preparacion.iniciadaEn), "dd MMM yyyy HH:mm", { locale: es })
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Finalización</p>
+                <p className="mt-1 text-sm text-foreground">
+                  {(pedido as any).preparacion.completadaEn
+                    ? format(new Date((pedido as any).preparacion.completadaEn), "dd MMM yyyy HH:mm", { locale: es })
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Responsable</p>
+                <p className="mt-1 text-sm text-foreground">
+                  {(pedido as any).preparacion.asignadaA?.nombre ?? "—"}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -195,6 +195,59 @@ export function vaciarActividades(instanciaId: string) {
   return llamar<{ ok: true }>("vaciarActividades", [instanciaId]);
 }
 
+// ─── Preparación (026-preparacion-pedidos) ─────────────────────────────────
+
+export function crearPedidoParaPreparacion(
+  instanciaId: string,
+  usuarioId: string,
+  opciones?: { sinFechaEntrega?: boolean; lineas?: number },
+) {
+  return llamar<{
+    pedidoId: string;
+    numero: string;
+    etapaId: string;
+    etapaNombre: string;
+    lineaIds: string[];
+  }>("crearPedidoParaPreparacion", [instanciaId, usuarioId, opciones]);
+}
+
+export function crearPedidoFueraDePreparacion(instanciaId: string, usuarioId: string) {
+  return llamar<{ pedidoId: string; numero: string }>("crearPedidoFueraDePreparacion", [
+    instanciaId,
+    usuarioId,
+  ]);
+}
+
+export function obtenerPreparacionPedido(pedidoId: string) {
+  return llamar<{
+    id: string;
+    iniciadaEn: string | null;
+    completadaEn: string | null;
+    estadoNombre: string;
+    estadoEsFinal: boolean;
+    responsable: string | null;
+    movimientos: number;
+  } | null>("obtenerPreparacionPedido", [pedidoId]);
+}
+
+export function obtenerEstadosPreparacion(instanciaId: string) {
+  return llamar<{
+    flujoId: string | null;
+    estados: { id: string; nombre: string; esInicial: boolean; marcaInicio: boolean; esFinal: boolean }[];
+  }>("obtenerEstadosPreparacion", [instanciaId]);
+}
+
+export function limpiarEntradasPreparacion(instanciaId: string) {
+  return llamar<{ ok: true }>("limpiarEntradasPreparacion", [instanciaId]);
+}
+
+export function marcarAvanceLinea(pedidoLineaId: string, cantidadPreparada: number) {
+  return llamar<{ id: string; cantidad: number; cantidadPreparada: number }>("marcarAvanceLinea", [
+    pedidoLineaId,
+    cantidadPreparada,
+  ]);
+}
+
 // ─── Instagram (CuentaCanal) ───────────────────────────────────────────────
 
 export function crearCuentaCanalInstagram(overrides: {

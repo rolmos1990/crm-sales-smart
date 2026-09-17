@@ -489,6 +489,95 @@ interface PedidoEntregadoPayload {
 
 ---
 
+## Preparación de pedidos
+
+Eje propio, independiente del Flujo de Venta y del estado de entrega. Solo se emiten tres eventos: inicio, fin
+y línea completa. Los movimientos entre estados intermedios **no** emiten evento — quedan en
+`PreparacionHistorial`, que es la fuente para auditoría y para el panel de actividad reciente. Un mensaje por
+cada arrastre de tarjeta sería puro ruido en la cola.
+
+### PreparacionIniciada
+
+**Descripción**: Se ejecuta la primera vez que se sella el inicio del armado de un pedido: al entrar a un
+estado marcado con `marcaInicio`, o al materializarse la preparación si ningún estado tiene esa marca (caso de
+los flujos de dos estados). Se emite **una sola vez** por preparación: retroceder y volver a avanzar no lo
+re-emite, porque `iniciadaEn` no se re-sella.
+
+**Publicado por**: `src/sales/preparacion/servicios/mover-preparacion.ts`
+
+**Contrato**: `src/eventos/contratos/preparacion-iniciada.event.ts`
+
+```ts
+interface PreparacionIniciadaPayload {
+  instanciaId: string;
+  pedidoId: string;
+  numero: string;
+  estadoId: string;
+  estadoNombre: string;
+  iniciadaEn: string;      // ISO 8601
+  usuarioId: string | null;
+}
+```
+
+**Versión**: v1
+
+---
+
+### PreparacionCompletada
+
+**Descripción**: Se ejecuta al mover el pedido al estado final del tablero de preparación. `asignadaAId` es el
+usuario que hizo ese movimiento. Salir del estado final (reabrir) **no** emite evento en esta versión.
+
+**Publicado por**: `src/sales/preparacion/servicios/mover-preparacion.ts`
+
+**Contrato**: `src/eventos/contratos/preparacion-completada.event.ts`
+
+```ts
+interface PreparacionCompletadaPayload {
+  instanciaId: string;
+  pedidoId: string;
+  numero: string;
+  estadoId: string;
+  estadoNombre: string;
+  iniciadaEn: string | null;   // ISO 8601
+  completadaEn: string;        // ISO 8601
+  asignadaAId: string | null;  // quien movió el pedido al estado final
+  avanceCompleto: boolean;     // si todas las líneas quedaron preparadas
+}
+```
+
+`avanceCompleto` viaja en el payload porque un suscriptor no podría derivarlo sin consultar todas las líneas,
+y porque marcar ítems no es requisito para cerrar la preparación.
+
+**Versión**: v1
+
+---
+
+### LineaPedidoPreparada
+
+**Descripción**: Se ejecuta cuando una línea del pedido alcanza su cantidad completa
+(`cantidadPreparada === cantidad`). Los avances parciales no emiten evento.
+
+**Publicado por**: `src/sales/preparacion/actions.ts`
+
+**Contrato**: `src/eventos/contratos/linea-pedido-preparada.event.ts`
+
+```ts
+interface LineaPedidoPreparadaPayload {
+  instanciaId: string;
+  pedidoId: string;
+  numero: string;
+  pedidoLineaId: string;
+  productoId: string | null;
+  cantidad: number;
+  preparadaPorId: string | null;
+}
+```
+
+**Versión**: v1
+
+---
+
 ### MensajeRecibido
 
 **Descripción**: Se ejecuta cuando un mensaje entrante es procesado y guardado.
