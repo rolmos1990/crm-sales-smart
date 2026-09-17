@@ -11,14 +11,28 @@ import { ESTADOS_PREPARACION_DEFECTO } from "../constantes";
  * el `@@unique([instanciaId])` — el segundo cae en el catch y vuelve a leer.
  */
 export async function asegurarFlujoPreparacion(instanciaId: string) {
-  const existente = await prisma.flujoPreparacion.findUnique({
-    where: { instanciaId },
-    include: {
-      estados: { where: { activo: true }, orderBy: { orden: "asc" } },
-      etapasEntrada: { include: { flujoVentaEtapa: { select: { id: true, nombre: true, color: true, activo: true } } } },
-    },
-  });
-  if (existente) return existente;
+  // Se leen las tres piezas en paralelo en vez de con `include` anidado: la
+  // base está en otra región (~200 ms por viaje) y Prisma resuelve cada
+  // relación anidada en una consulta aparte y en serie — con include, esta
+  // lectura tardaba más de un segundo por sí sola.
+  const [flujo, estados, entradas] = await Promise.all([
+    prisma.flujoPreparacion.findUnique({ where: { instanciaId } }),
+    prisma.estadoPreparacion.findMany({
+      where: { activo: true, flujoPreparacion: { instanciaId } },
+      orderBy: { orden: "asc" },
+    }),
+    prisma.flujoPreparacionEntrada.findMany({
+      where: { flujoPreparacion: { instanciaId } },
+      select: {
+        id: true,
+        flujoPreparacionId: true,
+        flujoVentaEtapaId: true,
+        flujoVentaEtapa: { select: { id: true, nombre: true, color: true, activo: true } },
+      },
+    }),
+  ]);
+
+  if (flujo) return { ...flujo, estados, etapasEntrada: entradas };
 
   try {
     return await prisma.flujoPreparacion.create({

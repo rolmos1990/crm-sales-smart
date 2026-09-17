@@ -3,7 +3,13 @@ import type { Prisma } from "@/generated/prisma/client";
 import { asegurarFlujoPreparacion } from "./servicios/asegurar-flujo-preparacion";
 import { asegurarPreparacionesPedidos } from "./servicios/asegurar-preparacion-pedido";
 import { construirWhereEntrada, detectarEntradasInvalidas } from "./utils/entrada";
-import { estaAtrasado, filtroAtrasados, filtroFechaEntrega, resolverRango } from "./utils/rangos";
+import {
+  estaAtrasado,
+  filtroAtrasados,
+  filtroFechaEntrega,
+  inicioDeHoyEnZona,
+  resolverRango,
+} from "./utils/rangos";
 import { lineaCompleta, pedidoCompleto, totalizarAvance } from "./utils/avance";
 import type {
   ColumnaTablero,
@@ -167,71 +173,71 @@ export async function obtenerTableroPreparacion(
   filtros: FiltrosTableroInput,
 ): Promise<Tablero> {
   const configuracion = await obtenerConfiguracionPreparacion(instanciaId);
-  const flujo = await asegurarFlujoPreparacion(instanciaId);
 
-  const whereEntrada = construirWhereEntrada(instanciaId, flujo.etapasEntrada);
+  // La base está en otra región: cada consulta cuesta ~200 ms de ida y vuelta,
+  // así que lo que importa es la CANTIDAD de consultas, no su tamaño. De ahí
+  // que acá se reutilice la configuración ya leída en vez de volver a pedir el
+  // flujo, se unifiquen las tres listas de tarjetas en una sola consulta, y los
+  // cinco contadores se calculen en memoria sobre una proyección liviana.
+  const entradas = configuracion.etapasEntrada.map((e) => ({
+    flujoVentaEtapaId: e.etapaId,
+    flujoVentaEtapa: { id: e.etapaId, nombre: e.nombre, color: e.color, activo: e.activa },
+  }));
+
+  const whereEntrada = construirWhereEntrada(instanciaId, entradas);
   const busqueda = condicionBusqueda(filtros.busqueda);
   const rango = resolverRango(filtros.rango, zonaHoraria, { desde: filtros.desde, hasta: filtros.hasta });
   const filtroFecha = filtroFechaEntrega(rango);
+
+  // Se compone con AND: tanto `whereEntrada` como la búsqueda pueden traer su
+  // propio OR, y mezclarlos al mismo nivel se pisaría uno con el otro.
+  const condiciones: Prisma.PedidoWhereInput[] = [whereEntrada];
+  if (busqueda.OR) condiciones.push(busqueda);
+  const whereBase: Prisma.PedidoWhereInput = { AND: condiciones };
 
   // Ni los pedidos sin fecha (FR-019) ni los atrasados se ocultan por el filtro
   // de rango. Los atrasados importan especialmente: los rangos miran hacia
   // adelante, así que un pedido abierto con entrega vencida no cae en ninguno y
   // quedaría invisible justo el que más urge — contradiciendo FR-007.
-  const whereBase: Prisma.PedidoWhereInput = { ...whereEntrada, ...busqueda };
-  const whereEnRango: Prisma.PedidoWhereInput = filtroFecha
-    ? { ...whereBase, fechaEntrega: filtroFecha }
+  const whereVisible: Prisma.PedidoWhereInput = filtroFecha
+    ? {
+        AND: [
+          ...condiciones,
+          {
+            OR: [
+              { fechaEntrega: filtroFecha },
+              { fechaEntrega: null },
+              { fechaEntrega: filtroAtrasados(zonaHoraria) },
+            ],
+          },
+        ],
+      }
     : whereBase;
-  const whereSinFecha: Prisma.PedidoWhereInput = { ...whereBase, fechaEntrega: null };
-  const whereAtrasados: Prisma.PedidoWhereInput = {
-    ...whereBase,
-    fechaEntrega: filtroAtrasados(zonaHoraria),
-  };
 
-  const [enRango, sinFecha, atrasados, contadores] = await Promise.all([
+  const [visibles, livianos] = await Promise.all([
     prisma.pedido.findMany({
-      where: whereEnRango,
+      where: whereVisible,
       select: SELECT_PEDIDO_TABLERO,
       orderBy: [{ fechaEntrega: "asc" }, { creadoEn: "asc" }],
     }),
-    filtroFecha
-      ? prisma.pedido.findMany({ where: whereSinFecha, select: SELECT_PEDIDO_TABLERO, orderBy: { creadoEn: "asc" } })
-      : Promise.resolve([] as PedidoTablero[]),
-    // Con rango PERSONALIZADO abierto (sin filtro) ya vienen incluidos arriba.
-    filtroFecha
-      ? prisma.pedido.findMany({
-          where: whereAtrasados,
-          select: SELECT_PEDIDO_TABLERO,
-          orderBy: { fechaEntrega: "asc" },
-        })
-      : Promise.resolve([] as PedidoTablero[]),
-    contarPorRangos(instanciaId, zonaHoraria, whereBase),
+    // Proyección mínima de TODOS los pedidos del tablero, solo para contar.
+    prisma.pedido.findMany({ where: whereBase, select: { id: true, fechaEntrega: true } }),
   ]);
 
-  // Materializa las preparaciones que falten antes de agrupar por columna.
-  // Dedup por id: con rangos que se solapan un pedido podría venir dos veces.
-  const porId = new Map<string, PedidoTablero>();
-  for (const p of [...atrasados, ...enRango, ...sinFecha]) porId.set(p.id, p);
-  const todos = [...porId.values()];
-  const faltantes = todos.filter((p) => !p.preparacion).map((p) => p.id);
-  if (faltantes.length > 0) {
-    await asegurarPreparacionesPedidos(instanciaId, faltantes);
-  }
+  const contadores = contarEnMemoria(livianos, zonaHoraria);
 
   const estadoInicial = configuracion.estados.find((e) => e.esInicial) ?? configuracion.estados[0];
   const estadoIdFallback = estadoInicial?.id ?? "";
 
-  // Releer solo si hubo materialización, para que las tarjetas nuevas queden
-  // en su columna real en el primer render.
-  const pedidosFinales = faltantes.length > 0
-    ? await prisma.pedido.findMany({
-        where: { id: { in: todos.map((p) => p.id) } },
-        select: SELECT_PEDIDO_TABLERO,
-        orderBy: [{ fechaEntrega: "asc" }, { creadoEn: "asc" }],
-      })
-    : todos;
+  // Materializa las preparaciones que falten. No hace falta releer después: una
+  // tarjeta sin preparación cae por defecto en la columna inicial, que es
+  // exactamente donde la acaba de poner la materialización.
+  const faltantes = visibles.filter((p) => !p.preparacion).map((p) => p.id);
+  if (faltantes.length > 0) {
+    await asegurarPreparacionesPedidos(instanciaId, faltantes);
+  }
 
-  const tarjetas = pedidosFinales.map((p) => aTarjeta(p, estadoIdFallback, zonaHoraria));
+  const tarjetas = visibles.map((p) => aTarjeta(p, estadoIdFallback, zonaHoraria));
 
   // Cada tarjeta va a su columna de estado, sin excepciones: las columnas son
   // estados. Un pedido sin fecha o atrasado se distingue por su marca en la
@@ -252,24 +258,36 @@ export async function obtenerTableroPreparacion(
   };
 }
 
-/** Contadores de las pestañas: se calculan sobre los tres rangos fijos, no
- *  sobre el filtro activo, para que cada pestaña muestre lo que anuncia. */
-async function contarPorRangos(
-  instanciaId: string,
+/**
+ * Contadores de las pestañas, calculados en memoria sobre la proyección
+ * liviana. Antes eran cinco `count` contra la base: cinco viajes de ~200 ms
+ * para contar como mucho un par de cientos de filas que ya se podían traer en
+ * uno solo.
+ *
+ * Se calculan sobre los rangos fijos, no sobre el filtro activo, para que cada
+ * pestaña muestre exactamente lo que anuncia.
+ */
+function contarEnMemoria(
+  pedidos: Array<{ fechaEntrega: Date | null }>,
   zonaHoraria: string,
-  whereBase: Prisma.PedidoWhereInput,
-): Promise<{ hoy: number; manana: number; semana: number; atrasados: number; sinFecha: number }> {
-  const [hoy, manana, semana, atrasados, sinFecha] = await Promise.all([
-    ...(["HOY", "MANANA", "SEMANA"] as const).map((r) => {
-      const rango = resolverRango(r, zonaHoraria);
-      return prisma.pedido.count({
-        where: { ...whereBase, ...(rango ? { fechaEntrega: { gte: rango.desde, lt: rango.hasta } } : {}) },
-      });
-    }),
-    prisma.pedido.count({ where: { ...whereBase, fechaEntrega: filtroAtrasados(zonaHoraria) } }),
-    prisma.pedido.count({ where: { ...whereBase, fechaEntrega: null } }),
-  ]);
-  return { hoy, manana, semana, atrasados, sinFecha };
+): { hoy: number; manana: number; semana: number; atrasados: number; sinFecha: number } {
+  const hoyR = resolverRango('HOY', zonaHoraria);
+  const mananaR = resolverRango('MANANA', zonaHoraria);
+  const semanaR = resolverRango('SEMANA', zonaHoraria);
+  const inicioHoy = inicioDeHoyEnZona(zonaHoraria);
+
+  const contadores = { hoy: 0, manana: 0, semana: 0, atrasados: 0, sinFecha: 0 };
+  const dentro = (f: Date, r: { desde: Date; hasta: Date } | null) => !!r && f >= r.desde && f < r.hasta;
+
+  for (const p of pedidos) {
+    const f = p.fechaEntrega;
+    if (!f) { contadores.sinFecha++; continue; }
+    if (f < inicioHoy) contadores.atrasados++;
+    if (dentro(f, hoyR)) contadores.hoy++;
+    if (dentro(f, mananaR)) contadores.manana++;
+    if (dentro(f, semanaR)) contadores.semana++;
+  }
+  return contadores;
 }
 
 export async function obtenerResumenPorProducto(

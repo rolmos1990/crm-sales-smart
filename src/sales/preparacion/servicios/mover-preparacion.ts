@@ -3,7 +3,6 @@ import { publicadorEventos } from "@/shared/rabbitmq";
 import { EventosSistema } from "@/eventos/catalogo";
 import { calcularSellado } from "./sellado";
 import { asegurarPreparacionPedido } from "./asegurar-preparacion-pedido";
-import { pedidoCompleto } from "../utils/avance";
 import type { ResultadoMovimiento } from "../types";
 
 /**
@@ -41,7 +40,6 @@ export async function moverPreparacion(params: {
       pedido: {
         select: {
           numero: true,
-          lineas: { select: { cantidad: true, cantidadPreparada: true } },
         },
       },
     },
@@ -107,6 +105,23 @@ export async function moverPreparacion(params: {
         usuarioNombre,
       },
     });
+
+    // Llegar al estado final da por preparado todo el pedido: se completan de
+    // una vez las líneas que quedaron a medias. Un UPDATE con referencia entre
+    // columnas (no se puede expresar con updateMany) y solo sobre las
+    // incompletas, para no repisar quién y cuándo preparó las que ya estaban.
+    // Retroceder después NO las desmarca: lo preparado, preparado queda.
+    if (sellado.completa) {
+      await tx.$executeRaw`
+        UPDATE "PedidoLinea"
+        SET "cantidadPreparada" = "cantidad",
+            "preparadaEn" = ${sellado.completadaEn},
+            "preparadaPorId" = ${usuarioId}
+        WHERE "pedidoId" = ${pedidoId}
+          AND "cantidadPreparada" < "cantidad"
+      `;
+    }
+
     return true;
   });
 
@@ -134,12 +149,11 @@ export async function moverPreparacion(params: {
       iniciadaEn: sellado.iniciadaEn?.toISOString() ?? null,
       completadaEn: sellado.completadaEn.toISOString(),
       asignadaAId: sellado.asignadaAId,
-      avanceCompleto: pedidoCompleto(
-        preparacion.pedido.lineas.map((l) => ({
-          cantidad: Number(l.cantidad),
-          cantidadPreparada: Number(l.cantidadPreparada),
-        })),
-      ),
+      // Siempre true: entrar al estado final acaba de completar las líneas que
+      // faltaban. Los eventos por línea NO se emiten acá a propósito — el hecho
+      // ya lo comunica este evento, y emitir uno por línea sería duplicar la
+      // misma señal en ráfaga.
+      avanceCompleto: true,
     });
   }
 

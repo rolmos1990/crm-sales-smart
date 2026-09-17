@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Check, Loader2, Package } from "lucide-react";
+import { Check, Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { registrarAvanceLineaAction } from "../actions";
+import { lineaCompleta, pedidoCompleto } from "../utils/avance";
 import type { TarjetaPreparacion as Tarjeta } from "../types";
 
 interface Props {
@@ -21,18 +22,58 @@ const MAX_LINEAS_VISIBLES = 3;
 
 export function TarjetaPreparacion({ tarjeta, puedeMod, interactiva = true, className }: Props) {
   const [expandida, setExpandida] = useState(false);
-  const [pendiente, startTransition] = useTransition();
 
-  const lineasVisibles = expandida ? tarjeta.lineas : tarjeta.lineas.slice(0, MAX_LINEAS_VISIBLES);
-  const ocultas = tarjeta.lineas.length - lineasVisibles.length;
+  // Avance local: el check se pinta en el mismo frame del clic y la escritura
+  // viaja al servidor por detrás. Esperar la Server Action (que además
+  // revalida el tablero entero) hacía que marcar un producto se sintiera
+  // lento, que es justo lo contrario de lo que tiene que pasar en un tablero
+  // de armado donde se marcan decenas de ítems seguidos.
+  const [avanceLocal, setAvanceLocal] = useState<Record<string, number>>({});
+  // Última cantidad enviada por línea: si llega el error de una petición vieja
+  // (porque el usuario siguió clickeando) no se revierte lo que ya se mostró.
+  const ultimoEnviado = useRef<Record<string, number>>({});
 
-  const alternarLinea = (lineaId: string, cantidad: number, cantidadPreparada: number) => {
+  // Reconciliación con el servidor: se descarta lo local SOLO de las líneas que
+  // el servidor ya refleja. Si se borrara todo de una, marcar varios ítems
+  // seguidos haría parpadear los checks — la revalidación de la primera marca
+  // llegaría sin las siguientes, que todavía están viajando.
+  useEffect(() => {
+    setAvanceLocal((prev) => {
+      const pendientes: Record<string, number> = {};
+      for (const l of tarjeta.lineas) {
+        const local = prev[l.id];
+        if (local !== undefined && local !== l.cantidadPreparada) pendientes[l.id] = local;
+      }
+      return pendientes;
+    });
+  }, [tarjeta.lineas]);
+
+  const lineas = useMemo(
+    () =>
+      tarjeta.lineas.map((l) => {
+        const cantidadPreparada = avanceLocal[l.id] ?? l.cantidadPreparada;
+        return { ...l, cantidadPreparada, completa: lineaCompleta({ cantidad: l.cantidad, cantidadPreparada }) };
+      }),
+    [tarjeta.lineas, avanceLocal],
+  );
+
+  const avanceCompleto = pedidoCompleto(lineas);
+  const lineasVisibles = expandida ? lineas : lineas.slice(0, MAX_LINEAS_VISIBLES);
+  const ocultas = lineas.length - lineasVisibles.length;
+
+  const alternarLinea = async (lineaId: string, cantidad: number, cantidadPreparada: number) => {
     if (!puedeMod || !interactiva) return;
     const objetivo = cantidadPreparada >= cantidad ? 0 : cantidad;
-    startTransition(async () => {
-      const r = await registrarAvanceLineaAction(lineaId, objetivo);
-      if (!r.exito) toast.error(r.error);
-    });
+    const previo = cantidadPreparada;
+
+    setAvanceLocal((prev) => ({ ...prev, [lineaId]: objetivo }));
+    ultimoEnviado.current[lineaId] = objetivo;
+
+    const r = await registrarAvanceLineaAction(lineaId, objetivo);
+    if (!r.exito && ultimoEnviado.current[lineaId] === objetivo) {
+      setAvanceLocal((prev) => ({ ...prev, [lineaId]: previo }));
+      toast.error(r.error);
+    }
   };
 
   return (
@@ -40,7 +81,7 @@ export function TarjetaPreparacion({ tarjeta, puedeMod, interactiva = true, clas
       data-slot="tarjeta-preparacion"
       className={cn(
         "rounded-xl border border-border bg-card p-3 shadow-sm transition-colors",
-        tarjeta.avanceCompleto && "border-emerald-500/30",
+        avanceCompleto && "border-emerald-500/30",
         className,
       )}
     >
@@ -74,7 +115,7 @@ export function TarjetaPreparacion({ tarjeta, puedeMod, interactiva = true, clas
           <li key={l.id} className="flex items-start gap-2">
             <button
               type="button"
-              disabled={!puedeMod || !interactiva || pendiente}
+              disabled={!puedeMod || !interactiva}
               onClick={() => alternarLinea(l.id, l.cantidad, l.cantidadPreparada)}
               aria-label={l.completa ? `Desmarcar ${l.descripcion}` : `Marcar ${l.descripcion} como preparado`}
               className={cn(
@@ -118,14 +159,10 @@ export function TarjetaPreparacion({ tarjeta, puedeMod, interactiva = true, clas
           {tarjeta.totalUnidades} unidad{tarjeta.totalUnidades === 1 ? "" : "es"} · {tarjeta.totalProductos} producto
           {tarjeta.totalProductos === 1 ? "" : "s"}
         </span>
-        {pendiente ? (
-          <Loader2 className="size-3 animate-spin text-muted-foreground" />
-        ) : (
-          tarjeta.fechaEntrega && (
-            <span className={cn("text-[11px]", tarjeta.atrasado ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
-              Entrega: {format(new Date(tarjeta.fechaEntrega), "dd MMM", { locale: es })}
-            </span>
-          )
+        {tarjeta.fechaEntrega && (
+          <span className={cn("text-[11px]", tarjeta.atrasado ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+            Entrega: {format(new Date(tarjeta.fechaEntrega), "dd MMM", { locale: es })}
+          </span>
         )}
       </footer>
     </article>

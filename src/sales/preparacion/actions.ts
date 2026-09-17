@@ -147,7 +147,11 @@ export async function registrarAvanceLineaAction(
     });
   }
 
-  revalidarTablero();
+  // A propósito NO se revalida el tablero acá. Marcar un ítem es la acción más
+  // repetida del módulo (decenas por sesión) y revalidar dispararía la consulta
+  // completa del tablero en cada clic. La tarjeta ya refleja el cambio de forma
+  // optimista en el cliente, y el resumen por producto se actualiza al cambiar
+  // de rango, buscar, mover una tarjeta o recargar.
   revalidatePath(`/sales/pedidos/${linea.pedido.id}`);
   return { exito: true, datos: { avanceCompleto } };
 }
