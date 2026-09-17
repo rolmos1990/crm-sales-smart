@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ColumnaTablero, TarjetaPreparacion as Tarjeta } from "../types";
+import type { ColumnaTablero } from "../types";
 
 /**
  * Frontera cliente del tablero.
@@ -25,7 +25,6 @@ const TableroKanban = dynamic(() => import("./tablero-kanban").then((m) => m.Tab
 
 export function TableroCliente(props: {
   columnas: ColumnaTablero[];
-  sinFecha: Tarjeta[];
   puedeMod: boolean;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
 }) {

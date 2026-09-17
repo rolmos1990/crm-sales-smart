@@ -10,10 +10,13 @@ import {
   Info,
   Lightbulb,
   Loader2,
+  Lock,
+  Pencil,
   Plus,
   Settings,
   Trash2,
   UtensilsCrossed,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,7 +29,7 @@ import {
   actualizarPreferenciasTableroAction,
   configurarEtapasEntradaAction,
   crearEstadoPreparacionAction,
-  desactivarEstadoPreparacionAction,
+  editarColumnaPreparacionAction,
   eliminarEstadoPreparacionAction,
   reordenarEstadosPreparacionAction,
 } from "../actions";
@@ -223,76 +226,17 @@ export function PanelConfigPreparacion({ configuracion }: { configuracion: Confi
           >
             <ul className="space-y-2">
               {estados.map((estado, i) => (
-                <li
+                <FilaColumna
                   key={estado.id}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5"
-                >
-                  <span
-                    aria-hidden
-                    className="size-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: estado.color ?? undefined }}
-                  />
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{estado.nombre}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{metaEstado(estado)}</p>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      disabled={i === 0 || ocupado}
-                      onClick={() => mover(i, -1)}
-                      aria-label={`Subir ${estado.nombre}`}
-                    >
-                      <ArrowUp className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      disabled={i === estados.length - 1 || ocupado}
-                      onClick={() => mover(i, 1)}
-                      aria-label={`Bajar ${estado.nombre}`}
-                    >
-                      <ArrowDown className="size-4" />
-                    </Button>
-
-                    {estado.pedidosAsignados === 0 ? (
-                      <ConfirmacionDialog
-                        trigger={
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-destructive"
-                            aria-label={`Eliminar ${estado.nombre}`}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        }
-                        titulo={`¿Eliminar "${estado.nombre}"?`}
-                        descripcion="No tiene pedidos asignados, así que se puede eliminar sin migrar nada."
-                        onConfirmar={async () => {
-                          const r = await eliminarEstadoPreparacionAction(estado.id);
-                          if (r.exito) {
-                            toast.success("Estado eliminado");
-                            router.refresh();
-                          } else {
-                            toast.error(r.error);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <DesactivarEstado
-                        estado={estado}
-                        destinos={estados.filter((e) => e.id !== estado.id && e.activo)}
-                        onHecho={() => router.refresh()}
-                      />
-                    )}
-                  </div>
-                </li>
+                  estado={estado}
+                  esPrimera={i === 0}
+                  esUltima={i === estados.length - 1}
+                  nombreInicial={estados.find((e) => e.esInicial)?.nombre ?? null}
+                  ocupado={ocupado}
+                  onSubir={() => mover(i, -1)}
+                  onBajar={() => mover(i, 1)}
+                  onCambio={() => router.refresh()}
+                />
               ))}
             </ul>
 
@@ -390,6 +334,208 @@ export function PanelConfigPreparacion({ configuracion }: { configuracion: Confi
   );
 }
 
+/**
+ * Una columna del tablero: se ve, se edita en el lugar (nombre y color), se
+ * reordena y se borra.
+ *
+ * El inicial y el final no se pueden borrar — son los extremos de la máquina de
+ * estados — así que su botón queda deshabilitado con el motivo a la vista, en
+ * vez de fallar recién al confirmar.
+ */
+function FilaColumna({
+  estado,
+  esPrimera,
+  esUltima,
+  nombreInicial,
+  ocupado,
+  onSubir,
+  onBajar,
+  onCambio,
+}: {
+  estado: EstadoPreparacionConUso;
+  esPrimera: boolean;
+  esUltima: boolean;
+  nombreInicial: string | null;
+  ocupado: boolean;
+  onSubir: () => void;
+  onBajar: () => void;
+  onCambio: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [nombre, setNombre] = useState(estado.nombre);
+  const [color, setColor] = useState(estado.color ?? COLORES[0]);
+  const [guardando, setGuardando] = useState(false);
+
+  const protegido = estado.esInicial || estado.esFinal;
+  const motivoProtegido = estado.esInicial
+    ? "No se puede eliminar: es donde entran los pedidos"
+    : "No se puede eliminar: es el estado que cierra la preparación";
+
+  const guardar = async () => {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setGuardando(true);
+    try {
+      const r = await editarColumnaPreparacionAction(estado.id, { nombre: limpio, color });
+      if (r.exito) {
+        toast.success("Columna actualizada");
+        setEditando(false);
+        onCambio();
+      } else {
+        toast.error(r.error);
+      }
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const cancelar = () => {
+    setNombre(estado.nombre);
+    setColor(estado.color ?? COLORES[0]);
+    setEditando(false);
+  };
+
+  if (editando) {
+    return (
+      <li className="rounded-xl border border-primary/50 bg-primary/5 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void guardar();
+              }
+              if (e.key === "Escape") cancelar();
+            }}
+            aria-label={`Nombre de ${estado.nombre}`}
+            className="h-8 flex-1"
+            autoFocus
+          />
+          <Button size="icon" className="size-8" disabled={guardando || !nombre.trim()} onClick={guardar} aria-label="Guardar columna">
+            {guardando ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" className="size-8" disabled={guardando} onClick={cancelar} aria-label="Cancelar edición">
+            <X className="size-4" />
+          </Button>
+        </div>
+
+        <div className="mt-2 flex items-center gap-1.5" role="radiogroup" aria-label="Color de la columna">
+          {COLORES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="radio"
+              aria-checked={color === c}
+              aria-label={`Color ${c}`}
+              onClick={() => setColor(c)}
+              className={cn(
+                "size-5 rounded-full transition-transform",
+                color === c ? "ring-2 ring-foreground ring-offset-2 ring-offset-background" : "hover:scale-110",
+              )}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
+      <span
+        aria-hidden
+        className="size-2.5 shrink-0 rounded-full"
+        style={{ backgroundColor: estado.color ?? undefined }}
+      />
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{estado.nombre}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{metaEstado(estado)}</p>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-0.5">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          disabled={ocupado}
+          onClick={() => setEditando(true)}
+          aria-label={`Editar ${estado.nombre}`}
+        >
+          <Pencil className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          disabled={esPrimera || ocupado}
+          onClick={onSubir}
+          aria-label={`Subir ${estado.nombre}`}
+        >
+          <ArrowUp className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          disabled={esUltima || ocupado}
+          onClick={onBajar}
+          aria-label={`Bajar ${estado.nombre}`}
+        >
+          <ArrowDown className="size-4" />
+        </Button>
+
+        {protegido ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            disabled
+            title={motivoProtegido}
+            aria-label={motivoProtegido}
+          >
+            <Lock className="size-4" />
+          </Button>
+        ) : (
+          <ConfirmacionDialog
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 text-destructive"
+                aria-label={`Eliminar ${estado.nombre}`}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            }
+            titulo={`¿Eliminar "${estado.nombre}"?`}
+            descripcion={
+              estado.pedidosAsignados > 0
+                ? `Tiene ${estado.pedidosAsignados} pedido(s). Se moverán a "${nombreInicial ?? "la columna inicial"}" y queda registrado en el historial.`
+                : "No tiene pedidos asignados. La columna se elimina del tablero."
+            }
+            onConfirmar={async () => {
+              const r = await eliminarEstadoPreparacionAction(estado.id);
+              if (r.exito) {
+                toast.success(
+                  r.datos.pedidosMovidos > 0
+                    ? `Columna eliminada · ${r.datos.pedidosMovidos} pedido(s) movidos a "${r.datos.estadoDestinoNombre}"`
+                    : "Columna eliminada",
+                );
+                onCambio();
+              } else {
+                toast.error(r.error);
+              }
+            }}
+          />
+        )}
+      </div>
+    </li>
+  );
+}
+
 /** Marcas del estado + cuántos pedidos tiene, en una sola línea legible. */
 function metaEstado(estado: EstadoPreparacionConUso): string {
   const partes: string[] = [];
@@ -479,70 +625,3 @@ function Opcion({
   );
 }
 
-/** Desactivar un estado con pedidos exige destino: sin eso, las tarjetas
- *  quedarían en una columna invisible (FR-004). */
-function DesactivarEstado({
-  estado,
-  destinos,
-  onHecho,
-}: {
-  estado: { id: string; nombre: string; pedidosAsignados: number };
-  destinos: Array<{ id: string; nombre: string }>;
-  onHecho: () => void;
-}) {
-  const [destinoId, setDestinoId] = useState(destinos[0]?.id ?? "");
-
-  return (
-    <ConfirmacionDialog
-      trigger={
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8 text-muted-foreground"
-          aria-label={`Desactivar ${estado.nombre}`}
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      }
-      titulo={`Desactivar "${estado.nombre}"`}
-      descripcion={
-        <span className="block">
-          <span className="block">
-            Tiene {estado.pedidosAsignados} pedido(s). Se moverán al estado que elijas y queda registrado en el
-            historial.
-          </span>
-          <span className="mt-3 block">
-            <Label htmlFor={`destino-${estado.id}`} className="text-xs">
-              Mover los pedidos a
-            </Label>
-            <select
-              id={`destino-${estado.id}`}
-              value={destinoId}
-              onChange={(e) => setDestinoId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-foreground"
-            >
-              {destinos.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.nombre}
-                </option>
-              ))}
-            </select>
-          </span>
-        </span>
-      }
-      onConfirmar={async () => {
-        if (!destinoId) {
-          toast.error("Elegí un estado destino para los pedidos");
-          return;
-        }
-        const r = await desactivarEstadoPreparacionAction(estado.id, destinoId);
-        if (r.exito) {
-          toast.success(`${r.datos.pedidosMigrados} pedido(s) migrados`);
-          onHecho();
-        } else {
-          toast.error(r.error);
-        }
-      }}
-    />
-  );
-}

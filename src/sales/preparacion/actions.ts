@@ -8,6 +8,7 @@ import { publicadorEventos } from "@/shared/rabbitmq";
 import { EventosSistema } from "@/eventos/catalogo";
 import {
   AvanceLineaSchema,
+  EditarColumnaSchema,
   EstadoPreparacionSchema,
   EtapasEntradaSchema,
   NotaPreparacionSchema,
@@ -243,6 +244,46 @@ export async function crearEstadoPreparacionAction(datos: unknown): Promise<Resu
   return { exito: true, datos: { id: creado.id } };
 }
 
+/** Edita nombre y color de una columna, sin tocar sus marcas. */
+export async function editarColumnaPreparacionAction(
+  estadoId: string,
+  datos: unknown,
+): Promise<ResultadoAccion<void>> {
+  const { sesion, acceso } = await requireModificar();
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
+  const validado = EditarColumnaSchema.safeParse(datos);
+  if (!validado.success) {
+    return { exito: false, error: validado.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const estado = await prisma.estadoPreparacion.findFirst({
+    where: { id: estadoId, flujoPreparacion: { instanciaId: sesion.instanciaId } },
+    select: { id: true, flujoPreparacionId: true },
+  });
+  if (!estado) return { exito: false, error: "Estado no encontrado" };
+
+  const nombre = validado.data.nombre.trim();
+  const duplicado = await prisma.estadoPreparacion.findFirst({
+    where: {
+      flujoPreparacionId: estado.flujoPreparacionId,
+      id: { not: estadoId },
+      nombre: { equals: nombre, mode: "insensitive" },
+      activo: true,
+    },
+    select: { id: true },
+  });
+  if (duplicado) return { exito: false, error: `Ya existe una columna llamada "${nombre}"` };
+
+  await prisma.estadoPreparacion.update({
+    where: { id: estadoId },
+    data: { nombre, color: validado.data.color || null },
+  });
+
+  revalidarTablero();
+  return { exito: true, datos: undefined };
+}
+
 export async function actualizarEstadoPreparacionAction(
   estadoId: string,
   datos: unknown,
@@ -291,9 +332,21 @@ export async function actualizarEstadoPreparacionAction(
   return { exito: true, datos: undefined };
 }
 
-/** Borrar está prohibido si el estado tiene pedidos: el historial y las
- *  tarjetas quedarían huérfanos (FR-004). */
-export async function eliminarEstadoPreparacionAction(estadoId: string): Promise<ResultadoAccion<void>> {
+/**
+ * Elimina una columna del tablero.
+ *
+ * El estado inicial y el final NO se pueden borrar: son los dos extremos de la
+ * máquina de estados (dónde entran los pedidos y dónde se sella la
+ * finalización), así que sin ellos el tablero no tiene a dónde mover nada.
+ *
+ * Cualquier otra columna sí se borra, y los pedidos que estén ahí se mueven a
+ * la columna inicial dejando traza en el historial. El historial de la columna
+ * borrada sobrevive: `estadoId` es nullable con SetNull y los nombres están
+ * guardados como snapshot.
+ */
+export async function eliminarEstadoPreparacionAction(
+  estadoId: string,
+): Promise<ResultadoAccion<{ pedidosMovidos: number; estadoDestinoNombre: string | null }>> {
   const { sesion, acceso } = await requireModificar();
   if (!acceso.permitido) return { exito: false, error: acceso.error! };
 
@@ -301,33 +354,73 @@ export async function eliminarEstadoPreparacionAction(estadoId: string): Promise
     where: { id: estadoId, flujoPreparacion: { instanciaId: sesion.instanciaId } },
     select: {
       id: true,
+      nombre: true,
+      esInicial: true,
+      esFinal: true,
       flujoPreparacionId: true,
-      _count: { select: { preparaciones: true, historial: true } },
+      _count: { select: { preparaciones: true } },
     },
   });
   if (!estado) return { exito: false, error: "Estado no encontrado" };
 
-  if (estado._count.preparaciones > 0) {
+  if (estado.esInicial) {
     return {
       exito: false,
-      error: `No se puede eliminar: ${estado._count.preparaciones} pedido(s) están en este estado. Desactivalo indicando un estado destino.`,
+      error: "No se puede eliminar el estado inicial: es donde entran los pedidos al tablero.",
     };
   }
-  if (estado._count.historial > 0) {
+  if (estado.esFinal) {
     return {
       exito: false,
-      error: "No se puede eliminar: el estado tiene historial. Desactivalo para sacarlo del tablero sin perder la traza.",
+      error: "No se puede eliminar el estado final: es el que sella la finalización de la preparación.",
     };
   }
 
-  const activos = await prisma.estadoPreparacion.count({
-    where: { flujoPreparacionId: estado.flujoPreparacionId, activo: true },
+  const inicial = await prisma.estadoPreparacion.findFirst({
+    where: { flujoPreparacionId: estado.flujoPreparacionId, esInicial: true, activo: true },
+    select: { id: true, nombre: true },
   });
-  if (activos <= 1) return { exito: false, error: "El tablero necesita al menos un estado" };
+  if (!inicial && estado._count.preparaciones > 0) {
+    return {
+      exito: false,
+      error: "No hay estado inicial donde mover los pedidos de esta columna. Marcá uno como inicial primero.",
+    };
+  }
 
-  await prisma.estadoPreparacion.delete({ where: { id: estadoId } });
+  const usuarioNombre = sesion.usuarioId
+    ? await prisma.usuario
+        .findFirst({ where: { id: sesion.usuarioId }, select: { nombre: true } })
+        .then((u) => u?.nombre ?? null)
+    : null;
+
+  const pedidosMovidos = await prisma.$transaction(async (tx) => {
+    let movidos = 0;
+
+    if (inicial) {
+      const afectadas = await tx.preparacionPedido.findMany({ where: { estadoId }, select: { id: true } });
+      if (afectadas.length > 0) {
+        await tx.preparacionPedido.updateMany({ where: { estadoId }, data: { estadoId: inicial.id } });
+        await tx.preparacionHistorial.createMany({
+          data: afectadas.map((p) => ({
+            preparacionId: p.id,
+            estadoId: inicial.id,
+            estadoNombre: inicial.nombre,
+            estadoAnteriorNombre: estado.nombre,
+            tipo: "AUTOMATICO" as const,
+            usuarioId: sesion.usuarioId ?? null,
+            usuarioNombre,
+          })),
+        });
+        movidos = afectadas.length;
+      }
+    }
+
+    await tx.estadoPreparacion.delete({ where: { id: estadoId } });
+    return movidos;
+  });
+
   revalidarTablero();
-  return { exito: true, datos: undefined };
+  return { exito: true, datos: { pedidosMovidos, estadoDestinoNombre: inicial?.nombre ?? null } };
 }
 
 /** Desactivar exige destino: los pedidos se migran en la misma transacción y

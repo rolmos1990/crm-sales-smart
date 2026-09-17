@@ -73,7 +73,7 @@ export default async function PreparacionPage({ searchParams }: PreparacionPageP
       : tablero.configuracion.agrupacionDefecto;
 
   const totalTarjetas =
-    tablero.columnas.reduce((acc, c) => acc + c.tarjetas.length, 0) + tablero.sinFecha.length;
+    tablero.columnas.reduce((acc, c) => acc + c.tarjetas.length, 0);
   const hayBusqueda = Boolean(filtros.busqueda);
 
   return (
@@ -107,11 +107,10 @@ export default async function PreparacionPage({ searchParams }: PreparacionPageP
           />
         )
       ) : vista === "lista" ? (
-        <TableroLista columnas={tablero.columnas} sinFecha={tablero.sinFecha} />
+        <TableroLista columnas={tablero.columnas} />
       ) : (
         <TableroCliente
           columnas={tablero.columnas}
-          sinFecha={tablero.sinFecha}
           puedeMod={puedeMod}
           agrupacion={agrupacion}
         />

@@ -54,6 +54,13 @@ export function TarjetaPreparacion({ tarjeta, puedeMod, interactiva = true, clas
               Atrasado
             </span>
           )}
+          {/* Sin fecha de entrega: también se muestra en cualquier rango, pero
+              vive en su columna de estado para poder arrastrarse. */}
+          {tarjeta.sinFechaEntrega && (
+            <span className="shrink-0 rounded-full border border-border px-1.5 text-[10px] font-medium text-muted-foreground">
+              Sin fecha
+            </span>
+          )}
         </span>
         <time className="shrink-0 text-xs text-muted-foreground" dateTime={tarjeta.fechaPedido.toISOString()}>
           {format(new Date(tarjeta.fechaPedido), "HH:mm", { locale: es })}

@@ -8,16 +8,12 @@ import type { ColumnaTablero, TarjetaPreparacion as Tarjeta } from "../types";
 
 interface Props {
   columnas: ColumnaTablero[];
-  sinFecha: Tarjeta[];
 }
 
 /** Misma información que el kanban, en tabla — para quien prefiere leer todo
  *  junto o trabaja con muchos pedidos por columna. */
-export function TableroLista({ columnas, sinFecha }: Props) {
-  const filas = [
-    ...columnas.flatMap((c) => c.tarjetas.map((t) => ({ tarjeta: t, estado: c.estado }))),
-    ...sinFecha.map((t) => ({ tarjeta: t, estado: null })),
-  ];
+export function TableroLista({ columnas }: Props) {
+  const filas = columnas.flatMap((c) => c.tarjetas.map((t) => ({ tarjeta: t, estado: c.estado })));
 
   if (filas.length === 0) {
     return <p className="py-10 text-center text-sm text-muted-foreground">Sin pedidos para preparar en este rango.</p>;

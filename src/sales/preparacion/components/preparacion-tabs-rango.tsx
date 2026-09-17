@@ -10,7 +10,7 @@ import type { RangoPreparacion } from "../types";
 
 interface Props {
   rangoActivo: RangoPreparacion;
-  contadores: { hoy: number; manana: number; semana: number; atrasados: number };
+  contadores: { hoy: number; manana: number; semana: number; atrasados: number; sinFecha: number };
   busqueda?: string;
   vista: "kanban" | "lista";
 }
@@ -48,6 +48,15 @@ export function PreparacionTabsRango({ rangoActivo, contadores, busqueda, vista 
           >
             Atrasados
             <span className="rounded-full bg-red-500/15 px-1.5 text-[11px] tabular-nums">{contadores.atrasados}</span>
+          </span>
+        )}
+        {contadores.sinFecha > 0 && (
+          <span
+            title="Pedidos sin fecha de entrega — se muestran en cualquier rango"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground"
+          >
+            Sin fecha
+            <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums">{contadores.sinFecha}</span>
           </span>
         )}
         {RANGOS.map((r) => {

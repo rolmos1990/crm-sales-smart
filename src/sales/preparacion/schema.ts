@@ -8,6 +8,14 @@ export const EstadoPreparacionSchema = z.object({
   esFinal: z.boolean().default(false),
 });
 
+/** Edición inline de una columna: solo nombre y color. Las marcas
+ *  (esInicial/marcaInicio/esFinal) NO viajan desde el cliente — así una
+ *  edición de nombre no puede desmarcar el estado inicial o final por accidente. */
+export const EditarColumnaSchema = z.object({
+  nombre: z.string().trim().min(1, "El nombre es obligatorio").max(60),
+  color: z.string().trim().max(30).optional().or(z.literal("")),
+});
+
 export const AvanceLineaSchema = z.object({
   pedidoLineaId: z.string().min(1),
   // El techo (<= cantidad de la línea) no se puede expresar acá: se valida en
@@ -42,6 +50,7 @@ export const FiltrosTableroSchema = z.object({
 });
 
 export type EstadoPreparacionInput = z.infer<typeof EstadoPreparacionSchema>;
+export type EditarColumnaInput = z.infer<typeof EditarColumnaSchema>;
 export type AvanceLineaInput = z.infer<typeof AvanceLineaSchema>;
 export type PreferenciasTableroInput = z.infer<typeof PreferenciasTableroSchema>;
 export type EtapasEntradaInput = z.infer<typeof EtapasEntradaSchema>;

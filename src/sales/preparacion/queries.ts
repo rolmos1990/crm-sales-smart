@@ -89,6 +89,7 @@ function aTarjeta(p: PedidoTablero, estadoIdFallback: string, zonaHoraria: strin
     totalProductos: lineas.length,
     avanceCompleto: pedidoCompleto(lineas),
     atrasado: estaAtrasado(p.fechaEntrega, zonaHoraria),
+    sinFechaEntrega: p.fechaEntrega === null,
   };
 }
 
@@ -230,20 +231,22 @@ export async function obtenerTableroPreparacion(
       })
     : todos;
 
-  const idsSinFecha = new Set(sinFecha.map((p) => p.id));
   const tarjetas = pedidosFinales.map((p) => aTarjeta(p, estadoIdFallback, zonaHoraria));
 
+  // Cada tarjeta va a su columna de estado, sin excepciones: las columnas son
+  // estados. Un pedido sin fecha o atrasado se distingue por su marca en la
+  // tarjeta, no sacándolo de su columna — si estuviera en un grupo aparte no se
+  // podría arrastrar, y el usuario tiene que poder moverlo libremente.
   const columnas: ColumnaTablero[] = configuracion.estados
     .filter((e) => e.activo)
     .sort((a, b) => a.orden - b.orden)
     .map((estado) => ({
       estado,
-      tarjetas: tarjetas.filter((t) => t.estadoPreparacionId === estado.id && !idsSinFecha.has(t.pedidoId)),
+      tarjetas: tarjetas.filter((t) => t.estadoPreparacionId === estado.id),
     }));
 
   return {
     columnas,
-    sinFecha: tarjetas.filter((t) => idsSinFecha.has(t.pedidoId)),
     contadores,
     configuracion,
   };
@@ -255,8 +258,8 @@ async function contarPorRangos(
   instanciaId: string,
   zonaHoraria: string,
   whereBase: Prisma.PedidoWhereInput,
-): Promise<{ hoy: number; manana: number; semana: number; atrasados: number }> {
-  const [hoy, manana, semana, atrasados] = await Promise.all([
+): Promise<{ hoy: number; manana: number; semana: number; atrasados: number; sinFecha: number }> {
+  const [hoy, manana, semana, atrasados, sinFecha] = await Promise.all([
     ...(["HOY", "MANANA", "SEMANA"] as const).map((r) => {
       const rango = resolverRango(r, zonaHoraria);
       return prisma.pedido.count({
@@ -264,8 +267,9 @@ async function contarPorRangos(
       });
     }),
     prisma.pedido.count({ where: { ...whereBase, fechaEntrega: filtroAtrasados(zonaHoraria) } }),
+    prisma.pedido.count({ where: { ...whereBase, fechaEntrega: null } }),
   ]);
-  return { hoy, manana, semana, atrasados };
+  return { hoy, manana, semana, atrasados, sinFecha };
 }
 
 export async function obtenerResumenPorProducto(
@@ -350,7 +354,9 @@ export async function obtenerActividadReciente(
     pedidoNumero: h.preparacion.pedido.numero,
     estadoAnteriorNombre: h.estadoAnteriorNombre,
     estadoNombre: h.estadoNombre,
-    estadoColor: h.estado.color,
+    // La columna puede haberse borrado después del movimiento: el nombre
+    // sobrevive por snapshot, el color no.
+    estadoColor: h.estado?.color ?? null,
     tipo: h.tipo,
     usuarioNombre: h.usuarioNombre,
     creadoEn: h.creadoEn,

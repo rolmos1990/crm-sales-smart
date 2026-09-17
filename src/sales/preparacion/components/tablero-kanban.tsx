@@ -18,17 +18,15 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { moverPreparacionAction } from "../actions";
 import { TarjetaPreparacion } from "./tarjeta-preparacion";
-import { GRUPO_SIN_FECHA } from "../constantes";
 import type { ColumnaTablero, TarjetaPreparacion as Tarjeta } from "../types";
 
 interface Props {
   columnas: ColumnaTablero[];
-  sinFecha: Tarjeta[];
   puedeMod: boolean;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
 }
 
-export function TableroKanban({ columnas, sinFecha, puedeMod, agrupacion }: Props) {
+export function TableroKanban({ columnas, puedeMod, agrupacion }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   // Copia local para mover la tarjeta al instante; el servidor manda y si hay
@@ -53,10 +51,23 @@ export function TableroKanban({ columnas, sinFecha, puedeMod, agrupacion }: Prop
     setArrastrando(encontrada?.tarjeta ?? null);
   };
 
+  /**
+   * Resuelve a qué columna pertenece el punto donde se soltó la tarjeta.
+   *
+   * Las tarjetas son `useSortable`, así que también son zonas de drop: soltar
+   * encima de otra tarjeta devuelve el id de ESE pedido, no el de la columna.
+   * Sin esta traducción, el servidor recibe un id de pedido como estado
+   * destino y responde "el estado de destino no existe".
+   */
+  const resolverColumnaDestino = (overId: string): string | null => {
+    if (local.some((c) => c.estado.id === overId)) return overId;
+    return indice.get(overId)?.estadoId ?? null;
+  };
+
   const handleDragEnd = (e: DragEndEvent) => {
     setArrastrando(null);
     const pedidoId = String(e.active.id);
-    const estadoDestinoId = e.over ? String(e.over.id) : null;
+    const estadoDestinoId = e.over ? resolverColumnaDestino(String(e.over.id)) : null;
     const origen = indice.get(pedidoId);
     if (!estadoDestinoId || !origen || origen.estadoId === estadoDestinoId) return;
 
@@ -97,7 +108,6 @@ export function TableroKanban({ columnas, sinFecha, puedeMod, agrupacion }: Prop
         {local.map((col) => (
           <ColumnaPreparacion key={col.estado.id} columna={col} puedeMod={puedeMod} agrupacion={agrupacion} />
         ))}
-        {sinFecha.length > 0 && <ColumnaSinFecha tarjetas={sinFecha} puedeMod={puedeMod} />}
       </div>
 
       <DragOverlay>
@@ -150,22 +160,6 @@ function ColumnaPreparacion({
       {columna.tarjetas.length === 0 && (
         <p className="px-1 py-6 text-center text-xs text-muted-foreground">Sin pedidos en esta columna</p>
       )}
-    </section>
-  );
-}
-
-/** Los pedidos sin fecha de entrega nunca se ocultan por el filtro de rango:
- *  van a su propia columna, no arrastrable (FR-019). */
-function ColumnaSinFecha({ tarjetas, puedeMod }: { tarjetas: Tarjeta[]; puedeMod: boolean }) {
-  return (
-    <section className="flex w-[19rem] shrink-0 flex-col gap-2 rounded-2xl border border-dashed border-border bg-muted/20 p-2.5">
-      <header className="flex items-center justify-between gap-2 px-1">
-        <span className="text-sm font-medium text-muted-foreground">{GRUPO_SIN_FECHA}</span>
-        <span className="text-xs text-muted-foreground">{tarjetas.length}</span>
-      </header>
-      {tarjetas.map((t) => (
-        <TarjetaPreparacion key={t.pedidoId} tarjeta={t} puedeMod={puedeMod} />
-      ))}
     </section>
   );
 }

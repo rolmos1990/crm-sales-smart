@@ -2034,8 +2034,12 @@ model PreparacionHistorial {
   preparacionId String
   preparacion   PreparacionPedido @relation(fields: [preparacionId], references: [id], onDelete: Cascade)
 
-  estadoId String
-  estado   EstadoPreparacion @relation(fields: [estadoId], references: [id])
+  // Nullable con SetNull: una columna que ya no se usa se puede borrar, y su
+  // historial sobrevive — `estadoNombre`/`estadoAnteriorNombre` son snapshots,
+  // así que la traza sigue siendo legible sin el estado original. Con la FK
+  // obligatoria (RESTRICT) borrar una columna con movimientos era imposible.
+  estadoId String?
+  estado   EstadoPreparacion? @relation(fields: [estadoId], references: [id], onDelete: SetNull)
 
   @@index([preparacionId])
   @@index([creadoEn])

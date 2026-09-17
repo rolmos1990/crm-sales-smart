@@ -77,6 +77,10 @@ export interface TarjetaPreparacion {
    *  rango: los rangos miran hacia adelante y un pedido atrasado quedaría
    *  invisible justo cuando más urge. */
   atrasado: boolean;
+  /** Sin fecha de entrega. Se muestra en cualquier rango, en su columna de
+   *  estado (no en un grupo aparte) para que se pueda arrastrar como cualquier
+   *  otra tarjeta. */
+  sinFechaEntrega: boolean;
 }
 
 export interface ColumnaTablero {
@@ -85,10 +89,12 @@ export interface ColumnaTablero {
 }
 
 export interface Tablero {
+  /** Todas las tarjetas viven en su columna de estado: las columnas del tablero
+   *  son estados, siempre. Los pedidos sin fecha y los atrasados se marcan en
+   *  la tarjeta (no se separan en grupos), así se pueden mover como cualquier
+   *  otra (FR-019). */
   columnas: ColumnaTablero[];
-  /** Pedidos sin fecha de entrega — visibles en cualquier rango (FR-019). */
-  sinFecha: TarjetaPreparacion[];
-  contadores: { hoy: number; manana: number; semana: number; atrasados: number };
+  contadores: { hoy: number; manana: number; semana: number; atrasados: number; sinFecha: number };
   configuracion: ConfiguracionPreparacion;
 }
 

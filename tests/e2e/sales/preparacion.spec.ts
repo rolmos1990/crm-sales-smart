@@ -98,17 +98,23 @@ test.describe('Tablero de preparación', () => {
     expect(prep?.movimientos).toBeGreaterThanOrEqual(1);
   });
 
-  test('PREP-04 Un pedido sin fecha de entrega sigue visible en "Sin fecha"', async ({ page }) => {
+  test('PREP-04 Un pedido sin fecha de entrega sigue visible y en su columna de estado', async ({ page }) => {
     const { id: instanciaId } = await obtenerInstanciaPruebas();
     const { id: usuarioId } = await obtenerUsuarioOwner(instanciaId);
     await asegurarFlujoConEtapas(instanciaId);
     await limpiarEntradasPreparacion(instanciaId);
     const pedido = await crearPedidoParaPreparacion(instanciaId, usuarioId, { sinFechaEntrega: true });
 
-    // En cualquier rango: el filtro de fecha no lo puede esconder.
+    // En cualquier rango: el filtro de fecha no lo puede esconder. Y vive en su
+    // columna de estado (no en un grupo aparte), así se puede arrastrar como
+    // cualquier otra tarjeta.
     await abrirTablero(page, '?rango=MANANA');
-    await expect(page.getByText('Sin fecha')).toBeVisible({ timeout: 10000 });
-    await expect(tarjeta(page, pedido.numero)).toBeVisible();
+    const suTarjeta = tarjeta(page, pedido.numero);
+    await expect(suTarjeta).toBeVisible({ timeout: 10000 });
+    await expect(suTarjeta.getByText('Sin fecha')).toBeVisible();
+    await expect(
+      page.locator('[data-slot="columna-preparacion"]').filter({ has: suTarjeta }),
+    ).toHaveCount(1);
   });
 
   test('PREP-05 El avance por ítem se refleja y el resumen por producto consolida', async ({ page }) => {
