@@ -96,9 +96,9 @@ export default async function PipelinePage(props: {
 
     if (pipelineValido && pipelineId) {
       [oportunidadesDinamicas, totalesPorStage, conteoPorStage] = await Promise.all([
-        obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId, filtros, limitePorStage, limitesPorStage),
-        obtenerTotalesPorStage(pipelineId, sesion.instanciaId, filtros),
-        obtenerConteoPorStage(pipelineId, sesion.instanciaId, filtros),
+        obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId, sesion.zonaNegocio, filtros, limitePorStage, limitesPorStage),
+        obtenerTotalesPorStage(pipelineId, sesion.instanciaId, sesion.zonaNegocio, filtros),
+        obtenerConteoPorStage(pipelineId, sesion.instanciaId, sesion.zonaNegocio, filtros),
       ]);
     } else {
       const datos = await obtenerOportunidadesPorEtapa(sesion.instanciaId);

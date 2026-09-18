@@ -12,6 +12,7 @@ import { resolverHechosPedido } from "./reglas/resolver-hechos";
 import { evaluarArbol } from "./reglas/evaluador";
 import type { ConditionTree, ResultadoEvaluacion } from "./reglas/tipos";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { ZONA_NEGOCIO_FALLBACK } from "@/shared/fechas/zona";
 import { obtenerPedidos } from "@/sales/pedidos/queries";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 
@@ -384,7 +385,7 @@ export async function probarReglaConPedidoAction(
     parsed.data as ConditionTree,
     hechos,
     catalogo,
-    configuracion?.zonaHoraria ?? "America/Lima"
+    configuracion?.zonaHoraria ?? ZONA_NEGOCIO_FALLBACK
   );
 
   return {

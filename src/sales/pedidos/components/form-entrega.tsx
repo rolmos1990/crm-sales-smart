@@ -10,6 +10,7 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { InputFecha } from "@/shared/fechas/components/input-fecha";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -306,10 +307,9 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
               <FormItem>
                 <FormLabel>Fecha estimada de entrega</FormLabel>
                 <FormControl>
-                  <Input
-                    type="date"
-                    value={field.value ? new Date(field.value).toISOString().slice(0, 10) : ""}
-                    onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
+                  <InputFecha
+                    value={field.value}
+                    onChange={(d) => field.onChange(d ? d.toISOString() : null)}
                   />
                 </FormControl>
                 <FormMessage />

@@ -6,11 +6,13 @@ import { ListaPedidos } from "@/sales/pedidos/components/lista-pedidos";
 import { PedidosKpiCards } from "@/sales/pedidos/components/pedidos-kpi-cards";
 import { PedidosFiltrosBar } from "@/sales/pedidos/components/pedidos-filtros";
 import { obtenerPedidos, obtenerPedidosKpis, type PedidosFiltros } from "@/sales/pedidos/queries";
-import { rangoDiaEnZona, rangoMesActualEnZona, etiquetaMesAnioEnZona, inicioDiaEnZona, parseYMD, sumarDias } from "@/sales/pedidos/utils/fechas-zona";
+import { etiquetaMesAnioEnZona } from "@/shared/fechas/zona";
+import { rangoHoy, rangoManana, rangoMesHastaAhora } from "@/shared/fechas/rangos";
+import { parsearExtremosDeSearchParams } from "@/shared/fechas/searchparams";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
-import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
@@ -42,30 +44,27 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
   if (!verificarAcceso(sesion, "pedidos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "pedidos");
 
-  let zonaHoraria = "America/Lima";
-  try {
-    const config = await obtenerConfiguracionEmpresa(sesion.instanciaId);
-    if (config?.zonaHoraria) zonaHoraria = config.zonaHoraria;
-  } catch {
-    // usa el default
-  }
+  // Zona de negocio: define qué día es "hoy" para filtros y KPIs. Viene ya
+  // resuelta en la sesión.
+  const zonaHoraria = sesion.zonaNegocio;
 
   // "Entrega estimada": hoy/mañana se resuelven server-side en la zona
-  // horaria de negocio (no en la del servidor ni la del navegador — ver
-  // utils/fechas-zona.ts). Personalizado usa el rango tal cual lo eligió el
-  // usuario, interpretado como día completo en esa misma zona.
+  // horaria de negocio (no en la del servidor ni la del navegador).
+  // Personalizado usa el rango tal cual lo eligió el usuario, interpretado
+  // como día completo en esa misma zona.
   let entregaDesde: Date | undefined;
   let entregaHasta: Date | undefined;
   if (sp.entrega === "hoy") {
-    ({ desde: entregaDesde, hasta: entregaHasta } = rangoDiaEnZona(zonaHoraria, 0));
+    ({ desde: entregaDesde, hasta: entregaHasta } = rangoHoy(zonaHoraria));
   } else if (sp.entrega === "manana") {
-    ({ desde: entregaDesde, hasta: entregaHasta } = rangoDiaEnZona(zonaHoraria, 1));
+    ({ desde: entregaDesde, hasta: entregaHasta } = rangoManana(zonaHoraria));
   } else if (sp.entrega === "personalizado") {
-    // "Hasta" es exclusivo (< inicio del día siguiente) para incluir el día
-    // completo elegido, sin depender de la hora guardada en fechaEntrega.
-    if (sp.entregaDesde) entregaDesde = inicioDiaEnZona(parseYMD(sp.entregaDesde), zonaHoraria);
-    if (sp.entregaHasta) entregaHasta = inicioDiaEnZona(sumarDias(parseYMD(sp.entregaHasta), 1), zonaHoraria);
+    ({ desde: entregaDesde, hasta: entregaHasta } = parsearExtremosDeSearchParams(sp, zonaHoraria, { prefijo: "entrega" }));
   }
+
+  // Rango sobre `fechaPedido` (?desde / ?hasta).
+  const { desde: fechaPedidoDesde, hasta: fechaPedidoHasta } =
+    parsearExtremosDeSearchParams(sp, zonaHoraria);
 
   // Se necesita antes de armar `filtros`: "Ver cerrados" oculta por default
   // las etapas esFinal/esCancelacion, y para eso hay que saber cuáles son.
@@ -82,8 +81,12 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
 
   const filtros: PedidosFiltros = {
     busqueda: sp.q || undefined,
-    desde: sp.desde ? new Date(`${sp.desde}T00:00:00`) : undefined,
-    hasta: sp.hasta ? new Date(`${sp.hasta}T23:59:59`) : undefined,
+    // Misma zona y mismo criterio que `entregaDesde`/`entregaHasta` de arriba.
+    // Antes estas dos líneas usaban `new Date(\`${sp.desde}T00:00:00\`)`, o sea
+    // la zona del proceso servidor, contradiciendo al resto del archivo; y el
+    // "T23:59:59" además perdía el último segundo del día.
+    desde: fechaPedidoDesde,
+    hasta: fechaPedidoHasta,
     // "estado" (enum legacy) y "etapa" (Flujo de Venta dinámico) son
     // mutuamente excluyentes en la práctica — la barra de filtros ofrece uno
     // u otro según si el tenant tiene un flujo dinámico activo.
@@ -100,7 +103,7 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
     etapaIdsCerradas,
   };
 
-  const rangoMesActual = rangoMesActualEnZona(zonaHoraria);
+  const rangoMesActual = rangoMesHastaAhora(zonaHoraria);
   const etiquetaMesActual = etiquetaMesAnioEnZona(rangoMesActual.hasta, zonaHoraria);
 
   let pedidos: Pedido[] = [];

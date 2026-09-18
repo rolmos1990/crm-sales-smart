@@ -11,6 +11,11 @@ export default defineConfig({
     // moverlo fuera de scripts/ (research.md Decisión 4).
     include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     environment: "node",
+    // Zona del proceso fijada a propósito: sin esto la suite heredaba la zona
+    // de la máquina de quien la corre, que es justamente cómo se colaron los
+    // bugs de fechas. Nada del código debe depender de este valor — las
+    // funciones de src/shared/fechas reciben la zona como parámetro explícito.
+    env: { TZ: "UTC" },
   },
   resolve: {
     alias: {

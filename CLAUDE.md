@@ -194,7 +194,27 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
 4. **Imports directos**: no usar barrel files (`index.ts`); importar directamente desde el archivo fuente
 5. **No inventar tokens de diseño**: usar exclusivamente los tokens semánticos de Tailwind definidos en el proyecto
 6. **Design tokens**: fuente de verdad en `src/app/globals.css`. Los colores intensos (purple/cyan/amber/orange/green/red) representan significado — etapas, estados, CTA — nunca superficies grandes. No hardcodear hex/rgb en componentes; usar el token semántico equivalente (`var(--card)`, `var(--text-primary)`, etc.)
-7. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
+7. **Fechas y zonas horarias**: todo timestamp interno se almacena, transmite y
+   procesa en **UTC**. Hay **dos zonas distintas** y confundirlas es el error
+   clásico:
+   - `obtenerZonaNegocio(instanciaId)` (`src/shared/fechas/negocio.ts`) — sale
+     solo de `ConfiguracionEmpresa.zonaHoraria`. Única fuente válida para rangos
+     de día, filtros, KPIs, cuotas y reglas. **Si un valor llega a un `where` de
+     Prisma, viene de acá.** Disponible también en el worker.
+   - `obtenerPreferenciasFechaEfectivas(...)` (`src/shared/fechas/presentacion.ts`)
+     — usuario → empresa → navegador (`x-time-zone`) → UTC. Solo para formatear
+     en pantalla; nunca entra en una query.
+
+   Filtros: siempre rangos semiabiertos `{ gte, lt }` sobre la columna cruda
+   (helpers en `src/shared/fechas/rangos.ts`). Nunca `lte` sobre un límite de
+   día, nunca `AT TIME ZONE`/`DATE_TRUNC` sobre la columna. Presentación: usar
+   `<FechaHora>` o `formatearFecha`, nunca `format()` de date-fns ni
+   `toLocaleDateString()`. Entradas: `<InputFecha>` / `<InputFechaHora>`, nunca
+   `.toISOString().slice(0,10)`. Identificadores IANA siempre, nunca `UTC-5`.
+   Detalle completo, tabla de trampas y justificación de por qué no se migró a
+   `@db.Date`: **`docs/fechas-y-zonas-horarias.md`** — leerlo antes de tocar
+   cualquier fecha.
+8. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
 
 ---
 

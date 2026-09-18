@@ -7,8 +7,12 @@ import type { AuthUsuario } from "@/shared/auth/provider/types";
 // firma que tendría cualquier otro proveedor.
 export async function refrescarSesionSupabase(
   request: NextRequest,
+  // Headers a propagar hacia los Server Components / Server Actions / Route
+  // Handlers. El middleware los usa para inyectar `x-time-zone`. Es opcional
+  // para que cualquier otro llamador siga compilando sin cambios.
+  headersEntrada: Headers = request.headers,
 ): Promise<{ response: NextResponse; usuario: AuthUsuario | null }> {
-  let response = NextResponse.next({ request });
+  let response = NextResponse.next({ request: { headers: headersEntrada } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,7 +24,7 @@ export async function refrescarSesionSupabase(
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = NextResponse.next({ request: { headers: headersEntrada } });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
           );

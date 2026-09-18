@@ -295,7 +295,16 @@
       "Bash(tee /tmp/diff-stage-respuesta.sql)",
       "Bash(tee /tmp/tsc-out.txt)",
       "Bash(pkill -f \"_tmp-e2e\")",
-      "Bash(echo \"tsc exit: $?\")"
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(node -e \"try{require.resolve\\('server-only'\\);console.log\\('resoluble'\\)}catch\\(e\\){console.log\\('no resoluble'\\)}\")",
+      "Bash(perl -0pi -e 's/obtenerKpis\\\\\\(sesion\\\\.instanciaId\\\\\\)/obtenerKpis\\(sesion.instanciaId, sesion.zonaNegocio\\)/; s/obtenerActividadesHoy\\\\\\(sesion\\\\.instanciaId\\\\\\)/obtenerActividadesHoy\\(sesion.instanciaId, sesion.zonaNegocio\\)/' src/app/crm/page.tsx)",
+      "Bash(perl -0pi -e ' *)",
+      "Bash(sed -i 's#import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from \"@/configuracion/empresa/queries\";#import { obtenerMonedaPrincipal } from \"@/configuracion/empresa/queries\";#' src/app/sales/pedidos/page.tsx)",
+      "Bash(sed -i 's#const rangoMesActual = rangoMesActualEnZona\\(zonaHoraria\\);#const rangoMesActual = rangoMesHastaAhora\\(zonaHoraria\\);#' src/app/sales/pedidos/page.tsx)",
+      "Bash(sed -i '/^import { obtenerConfiguracionEmpresa } from \"@\\\\/configuracion\\\\/empresa\\\\/queries\";$/d' src/app/sales/preparacion/page.tsx)",
+      "Bash(sed -i 's#^import { parseYMD, inicioDiaEnZona } from \"@/sales/pedidos/utils/fechas-zona\";$#import { parsearExtremosDeSearchParams } from \"@/shared/fechas/searchparams\";#' src/app/sales/preparacion/page.tsx)",
+      "Bash(python3 -)",
+      "Bash(awk 'NR<150 && /^\\(function|const\\) .*\\\\\\(/ {print NR\": \"$0}' src/sales/flujo-venta/components/constructor-condiciones.tsx)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

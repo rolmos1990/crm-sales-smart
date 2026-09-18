@@ -162,9 +162,12 @@ export function construirWhereBase(instanciaId: string, zonaHoraria: string, fil
     };
   }
   if (filtros.creadoDesde || filtros.creadoHasta) {
+    // `lt`, no `lte`: `creadoHasta` ya viene como el inicio del día siguiente
+    // (ver parsearExtremosDeSearchParams). Con `lte` se colaba una fila
+    // registrada exactamente a medianoche del día posterior al filtrado.
     where.creadoEn = {
       ...(filtros.creadoDesde ? { gte: filtros.creadoDesde } : {}),
-      ...(filtros.creadoHasta ? { lte: filtros.creadoHasta } : {}),
+      ...(filtros.creadoHasta ? { lt: filtros.creadoHasta } : {}),
     };
   }
   // Si productoIds ya dejó armado where.cotizaciones (arriba), "some" con

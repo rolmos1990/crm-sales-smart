@@ -14,6 +14,8 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useTimeZone } from "@/shared/fechas/contexto";
+import { aFechaCalendario, desdeFechaCalendario } from "@/shared/fechas/zona";
 import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { cn } from "@/lib/utils";
 import type { ConditionNode, GroupNode, OperadorCondicion } from "../reglas/tipos";
@@ -116,6 +118,12 @@ function EditorValor({
   onChange: (cambios: Partial<ConditionNode>) => void;
 }) {
   const [compararConCampo, setCompararConCampo] = useState(!!nodo.comparisonFieldKey);
+  // La condición guarda un "YYYY-MM-DD" pelado; la zona solo interviene para
+  // convertirlo al Date que consume SmartDatePicker y de vuelta. Usando la
+  // misma en ambos sentidos, el string sale idéntico al que entró — antes
+  // `new Date(ymd)` lo leía como medianoche UTC y `toISOString().slice(0,10)`
+  // lo devolvía corrido un día.
+  const zonaFecha = useTimeZone();
 
   if (!campo || OPERADORES_SIN_VALOR.has(nodo.operator)) return null;
 
@@ -153,14 +161,14 @@ function EditorValor({
           return (
             <div className="flex items-center gap-1.5 flex-1">
               <SmartDatePicker
-                value={arreglo[0] ? new Date(arreglo[0]) : undefined}
-                onChange={(d) => onChange({ value: [d.toISOString().slice(0, 10), arreglo[1] ?? ""] })}
+                value={arreglo[0] ? desdeFechaCalendario(arreglo[0], zonaFecha) : undefined}
+                onChange={(d) => onChange({ value: [aFechaCalendario(d, zonaFecha), arreglo[1] ?? ""] })}
                 presets={[]} placeholder="Desde" className="gap-0"
               />
               <span className="text-stone-400 text-xs">–</span>
               <SmartDatePicker
-                value={arreglo[1] ? new Date(arreglo[1]) : undefined}
-                onChange={(d) => onChange({ value: [arreglo[0] ?? "", d.toISOString().slice(0, 10)] })}
+                value={arreglo[1] ? desdeFechaCalendario(arreglo[1], zonaFecha) : undefined}
+                onChange={(d) => onChange({ value: [arreglo[0] ?? "", aFechaCalendario(d, zonaFecha)] })}
                 presets={[]} placeholder="Hasta" className="gap-0"
               />
             </div>
@@ -177,8 +185,8 @@ function EditorValor({
         }
         return (
           <SmartDatePicker
-            value={valorSimple ? new Date(valorSimple) : undefined}
-            onChange={(d) => onChange({ value: d.toISOString().slice(0, 10) })}
+            value={valorSimple ? desdeFechaCalendario(valorSimple, zonaFecha) : undefined}
+            onChange={(d) => onChange({ value: aFechaCalendario(d, zonaFecha) })}
             presets={[]} placeholder="Fecha" className="gap-0 flex-1"
           />
         );

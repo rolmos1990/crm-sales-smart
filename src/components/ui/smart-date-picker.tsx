@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { addDays, addMonths, format, isSameDay } from "date-fns"
 import { es } from "date-fns/locale"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -11,6 +10,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { usePreferenciasFecha } from "@/shared/fechas/contexto"
+import { formatearFechaLarga } from "@/shared/fechas/formato"
+import {
+  aFechaCalendario,
+  desdeFechaCalendario,
+  hoyEnZona,
+  parseYMD,
+  sumarDias,
+} from "@/shared/fechas/zona"
 
 type PresetId = "today" | "plus5" | "plus15" | "plus1m" | "plus2m" | "plus3m" | "custom"
 
@@ -24,29 +32,62 @@ const PRESETS: { id: PresetId; label: string }[] = [
   { id: "custom", label: "Personalizado" },
 ]
 
-function resolverFecha(preset: PresetId): Date | null {
-  const hoy = new Date()
-  switch (preset) {
-    case "today":  return hoy
-    case "plus5":  return addDays(hoy, 5)
-    case "plus15": return addDays(hoy, 15)
-    case "plus1m": return addMonths(hoy, 1)
-    case "plus2m": return addMonths(hoy, 2)
-    case "plus3m": return addMonths(hoy, 3)
-    default:       return null
+/**
+ * Días que suma cada preset. Los de "meses" se resuelven sobre componentes de
+ * calendario, no sumando 30 días.
+ */
+const PRESET_DIAS: Partial<Record<PresetId, number>> = { today: 0, plus5: 5, plus15: 15 }
+const PRESET_MESES: Partial<Record<PresetId, number>> = { plus1m: 1, plus2m: 2, plus3m: 3 }
+
+/**
+ * Fecha del preset como "YYYY-MM-DD" en la zona indicada.
+ *
+ * Antes esto era `addDays(new Date(), n)`, que resolvía "hoy" en la zona del
+ * navegador y además arrastraba la hora actual: por eso las columnas de fecha
+ * de calendario terminaron con horas arbitrarias pegadas.
+ */
+function ymdDePreset(preset: PresetId, zona: string): string | null {
+  const hoy = hoyEnZona(zona)
+
+  const dias = PRESET_DIAS[preset]
+  if (dias !== undefined) return formatearYMD(sumarDias(hoy, dias))
+
+  const meses = PRESET_MESES[preset]
+  if (meses !== undefined) {
+    // Date normaliza el desborde de mes (31 de enero + 1 mes → 3 de marzo),
+    // igual que hacía addMonths.
+    const d = new Date(Date.UTC(hoy.anio, hoy.mes - 1 + meses, hoy.dia))
+    return formatearYMD({ anio: d.getUTCFullYear(), mes: d.getUTCMonth() + 1, dia: d.getUTCDate() })
   }
+  return null
 }
 
-function detectarPreset(fecha: Date | undefined): PresetId | null {
+function formatearYMD({ anio, mes, dia }: { anio: number; mes: number; dia: number }): string {
+  return `${anio}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`
+}
+
+function detectarPreset(fecha: Date | undefined, zona: string): PresetId | null {
   if (!fecha) return null
-  const hoy = new Date()
-  if (isSameDay(fecha, hoy))                return "today"
-  if (isSameDay(fecha, addDays(hoy, 5)))    return "plus5"
-  if (isSameDay(fecha, addDays(hoy, 15)))   return "plus15"
-  if (isSameDay(fecha, addMonths(hoy, 1)))  return "plus1m"
-  if (isSameDay(fecha, addMonths(hoy, 2)))  return "plus2m"
-  if (isSameDay(fecha, addMonths(hoy, 3)))  return "plus3m"
+  const ymd = aFechaCalendario(fecha, zona)
+  for (const { id } of PRESETS) {
+    if (id === "custom") continue
+    if (ymdDePreset(id, zona) === ymd) return id
+  }
   return "custom"
+}
+
+/**
+ * react-day-picker razona en `Date` locales del navegador. Estos dos helpers
+ * traducen entre ese mundo y el día calendario de la zona de negocio, para que
+ * el día resaltado sea el correcto aunque el navegador esté en otra zona.
+ */
+function aProxyLocal(ymd: string): Date {
+  const { anio, mes, dia } = parseYMD(ymd)
+  return new Date(anio, mes - 1, dia)
+}
+
+function desdeProxyLocal(proxy: Date): string {
+  return formatearYMD({ anio: proxy.getFullYear(), mes: proxy.getMonth() + 1, dia: proxy.getDate() })
 }
 
 export interface SmartDatePickerProps {
@@ -73,7 +114,10 @@ export function SmartDatePicker({
   presets,
 }: SmartDatePickerProps) {
   const [open, setOpen] = React.useState(false)
-  const presetActivo = detectarPreset(value)
+  const preferencias = usePreferenciasFecha()
+  const zona = preferencias.zonaHoraria
+
+  const presetActivo = detectarPreset(value, zona)
   const presetsAMostrar = presets
     ? PRESETS.filter((p) => presets.includes(p.id))
     : PRESETS
@@ -83,17 +127,23 @@ export function SmartDatePicker({
       setOpen(true)
       return
     }
-    const fecha = resolverFecha(id)
-    if (fecha) onChange(fecha)
+    const ymd = ymdDePreset(id, zona)
+    // Medianoche en la zona de negocio, no "ahora mismo": esto es una fecha de
+    // calendario, no un instante.
+    if (ymd) onChange(desdeFechaCalendario(ymd, zona))
   }
 
-  const fechaFormateada = value
-    ? format(value, "d MMMM yyyy", { locale: es })
-    : null
+  const fechaFormateada = value ? formatearFechaLarga(value, preferencias) : null
+
+  // El calendario trabaja con Date locales del navegador, así que los límites
+  // también se traducen a ese mundo antes de comparar.
+  const proxySeleccionado = value ? aProxyLocal(aFechaCalendario(value, zona)) : undefined
+  const proxyMin = minDate ? aProxyLocal(aFechaCalendario(minDate, zona)) : undefined
+  const proxyMax = maxDate ? aProxyLocal(aFechaCalendario(maxDate, zona)) : undefined
 
   const estaDeshabilitada = (date: Date) => {
-    if (minDate && date < minDate) return true
-    if (maxDate && date > maxDate) return true
+    if (proxyMin && date < proxyMin) return true
+    if (proxyMax && date > proxyMax) return true
     return false
   }
 
@@ -139,15 +189,15 @@ export function SmartDatePicker({
         <PopoverContent align="start" className="w-auto p-0">
           <Calendar
             mode="single"
-            selected={value}
+            selected={proxySeleccionado}
             onSelect={(date) => {
               if (date) {
-                onChange(date)
+                onChange(desdeFechaCalendario(desdeProxyLocal(date), zona))
                 setOpen(false)
               }
             }}
             captionLayout="dropdown"
-            defaultMonth={value ?? new Date()}
+            defaultMonth={proxySeleccionado ?? new Date()}
             disabled={estaDeshabilitada}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             locale={es as any}

@@ -14,7 +14,8 @@ import { buscarProductos } from "@/shared/productos/queries";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { obtenerUsuariosInstancia } from "@/configuracion/usuarios/queries";
 import { obtenerTags } from "@/crm/tags/queries";
-import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
+import { parsearExtremosDeSearchParams } from "@/shared/fechas/searchparams";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
@@ -55,22 +56,18 @@ export default async function OportunidadesPage({ searchParams }: OportunidadesP
   if (!verificarAcceso(sesion, "oportunidades", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "oportunidades");
 
-  let zonaHoraria = "America/Lima";
-  try {
-    const config = await obtenerConfiguracionEmpresa(sesion.instanciaId);
-    if (config?.zonaHoraria) zonaHoraria = config.zonaHoraria;
-  } catch {
-    // usa el default
-  }
+  // Zona de negocio: define qué día es "hoy" para los filtros y los KPIs. Sale
+  // de la sesión, que ya la trae resuelta — antes este bloque de try/catch
+  // estaba copiado igual en tres páginas.
+  const zonaHoraria = sesion.zonaNegocio;
 
   const csvAArray = (v?: string) => (v ? v.split(",").filter(Boolean) : undefined);
-  const parseFecha = (v?: string) => (v ? new Date(`${v}T00:00:00`) : undefined);
-  const parseFechaExclusiva = (v?: string) => {
-    if (!v) return undefined;
-    const d = new Date(`${v}T00:00:00`);
-    d.setDate(d.getDate() + 1);
-    return d;
-  };
+
+  // Los "YYYY-MM-DD" de la URL se interpretan en la zona de negocio. Antes
+  // usaban `new Date(\`${v}T00:00:00\`)`, que los resolvía en la zona del
+  // proceso servidor — un día distinto según dónde estuviera desplegado.
+  const creado = parsearExtremosDeSearchParams(sp, zonaHoraria, { prefijo: "creado" });
+  const venc = parsearExtremosDeSearchParams(sp, zonaHoraria, { prefijo: "venc" });
 
   const filtros: OportunidadesFiltros = {
     busqueda: sp.q || undefined,
@@ -86,14 +83,14 @@ export default async function OportunidadesPage({ searchParams }: OportunidadesP
     valorMax: sp.valorMax ? Number(sp.valorMax) : undefined,
     probabilidadMin: sp.probMin ? Number(sp.probMin) : undefined,
     probabilidadMax: sp.probMax ? Number(sp.probMax) : undefined,
-    creadoDesde: parseFecha(sp.creadoDesde),
-    creadoHasta: parseFechaExclusiva(sp.creadoHasta),
+    creadoDesde: creado.desde,
+    creadoHasta: creado.hasta,
     conCotizacion: sp.cotizacion === "con" ? true : sp.cotizacion === "sin" ? false : undefined,
     conActividadesPendientes: sp.actividadPendiente === "1" || undefined,
     sinActividadReciente: sp.sinActividadReciente === "1" || undefined,
     vencimiento: (sp.vencimiento as OportunidadesFiltros["vencimiento"]) || undefined,
-    vencDesde: parseFecha(sp.vencDesde),
-    vencHasta: parseFechaExclusiva(sp.vencHasta),
+    vencDesde: venc.desde,
+    vencHasta: venc.hasta,
   };
 
   let oportunidades: Oportunidad[] = [];

@@ -86,9 +86,11 @@ function construirWhere(instanciaId: string, filtros?: PedidosFiltros): Prisma.P
   if (!filtros) return where;
 
   if (filtros.desde || filtros.hasta) {
+    // `lt`, igual que fechaEntrega abajo: `hasta` es el inicio del día
+    // siguiente, no el último instante del día elegido.
     where.fechaPedido = {
       ...(filtros.desde ? { gte: filtros.desde } : {}),
-      ...(filtros.hasta ? { lte: filtros.hasta } : {}),
+      ...(filtros.hasta ? { lt: filtros.hasta } : {}),
     };
   }
   if (filtros.entregaDesde || filtros.entregaHasta) {

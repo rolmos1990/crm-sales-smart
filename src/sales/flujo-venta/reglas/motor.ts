@@ -14,8 +14,9 @@ import { obtenerCatalogoCampos } from "./catalogo-campos";
 import { resolverHechosPedido } from "./resolver-hechos";
 import { construirArbolDesdeRegla, evaluarArbol } from "./evaluador";
 import type { ReglaEvaluada, ResultadoEvaluacion } from "./tipos";
-
-const ZONA_HORARIA_DEFECTO = "America/Lima";
+// Import relativo, igual que el resto de este módulo: también corre en el
+// worker (`tsx`, fuera de Next.js), que no resuelve el alias `@/`.
+import { ZONA_NEGOCIO_FALLBACK as ZONA_HORARIA_DEFECTO } from "../../../shared/fechas/zona";
 
 /**
  * `ValidateOrderForState` — evalúa, por prioridad, todas las Reglas de

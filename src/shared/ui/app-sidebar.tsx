@@ -40,6 +40,8 @@ import {
 import { cerrarSesion } from "@/shared/auth/auth-service";
 import { puedeVerModulo } from "@/shared/auth/permisos";
 import { SesionProvider } from "@/shared/auth/sesion-context";
+import { TimeZoneProvider } from "@/shared/fechas/contexto";
+import type { PreferenciasFecha } from "@/shared/fechas/formato";
 import type { Rol } from "@/generated/prisma/enums";
 
 // Breakpoint en el que el sidebar fijo de escritorio pasa a ser un drawer
@@ -323,10 +325,13 @@ export function AppLayout({
   children,
   usuario,
   rol,
+  preferenciasFecha,
 }: {
   children: ReactNode;
   usuario?: UsuarioMenu;
   rol?: Rol;
+  /** Resueltas en el servidor. Opcional para no romper llamadores existentes. */
+  preferenciasFecha?: PreferenciasFecha;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -478,9 +483,11 @@ export function AppLayout({
           </div>
         </header>
         <main ref={mainRef} className="flex-1 overflow-y-auto bg-background">
-          <SesionProvider rol={rol ?? "INVITADO"}>
-            {children}
-          </SesionProvider>
+          <TimeZoneProvider valor={preferenciasFecha}>
+            <SesionProvider rol={rol ?? "INVITADO"}>
+              {children}
+            </SesionProvider>
+          </TimeZoneProvider>
         </main>
       </div>
 

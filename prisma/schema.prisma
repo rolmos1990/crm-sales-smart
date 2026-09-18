@@ -434,6 +434,14 @@ model Usuario {
   telefono String?
   cargo    String?
 
+  // Zona horaria IANA de preferencia del usuario — SOLO presentación: decide
+  // con qué reloj se renderiza un instante en pantalla. Nunca entra en un
+  // `where` ni en el cálculo de un rango de día: eso siempre usa la zona de
+  // negocio (ConfiguracionEmpresa.zonaHoraria). Si esta zona decidiera los
+  // filtros, dos usuarios del mismo tenant verían totales distintos para
+  // "ventas de hoy" sin poder reconciliarlos. Null = heredar la de la empresa.
+  zonaHoraria String?
+
   // Autenticación (proveedor externo, ej. Supabase)
   authUserId       String?       @unique
   estado           EstadoUsuario @default(INVITADO)

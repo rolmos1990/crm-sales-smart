@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { parsearFechaImportada } from "@/shared/fechas/zona";
 import {
   SchemaCrearCampoImport,
   SchemaImportarRegistros,
@@ -107,6 +108,7 @@ async function insertar(
   entidad: EntidadImportable,
   datos: Record<string, unknown>,
   instanciaId: string,
+  zonaNegocio: string,
 ) {
   switch (entidad) {
     case "CONTACTO":
@@ -247,7 +249,7 @@ async function insertar(
           titulo: String(datos.titulo ?? ""),
           valor: Number(datos.valor ?? 0),
           probabilidad: Number(datos.probabilidad ?? 20),
-          fechaCierre: datos.fechaCierre ? new Date(String(datos.fechaCierre)) : null,
+          fechaCierre: parsearFechaImportada(datos.fechaCierre, zonaNegocio),
           notas: datos.notas ? String(datos.notas) : null,
           empresaId,
           instanciaId,
@@ -340,7 +342,7 @@ async function insertar(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           tipo: (datos.tipo as any) ?? "TAREA",
           titulo: String(datos.titulo ?? ""),
-          fecha: new Date(String(datos.fecha ?? new Date().toISOString())),
+          fecha: parsearFechaImportada(datos.fecha, zonaNegocio) ?? new Date(),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           prioridad: (datos.prioridad as any) ?? "MEDIA",
           descripcion: datos.descripcion ? String(datos.descripcion) : null,
@@ -359,6 +361,7 @@ async function insertarPedidosAgrupados(
   filas: Record<string, unknown>[],
   instanciaId: string,
   contadorBase: number,
+  zonaNegocio: string,
 ): Promise<number> {
   const año = new Date().getFullYear();
 
@@ -498,7 +501,7 @@ async function insertarPedidosAgrupados(
         email: header.email ? String(header.email) : null,
         telefono: header.telefono ? String(header.telefono) : null,
         empresaNombre: eNombre,
-        fechaEntrega: header.fechaEntrega ? new Date(String(header.fechaEntrega)) : null,
+        fechaEntrega: parsearFechaImportada(header.fechaEntrega, zonaNegocio),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         estado: (header.estado as any) ?? "PENDIENTE",
         subtotal: pedidoSubtotal,
@@ -584,6 +587,7 @@ export async function importarRegistrosAction(datos: unknown) {
           registros as Record<string, unknown>[],
           sesion.instanciaId,
           contadorBase,
+          sesion.zonaNegocio,
         );
       });
     } catch (e) {
@@ -605,6 +609,7 @@ export async function importarRegistrosAction(datos: unknown) {
               entidad as EntidadImportable,
               chunk[j] as Record<string, unknown>,
               sesion.instanciaId,
+              sesion.zonaNegocio,
             );
             exitosos++;
           }

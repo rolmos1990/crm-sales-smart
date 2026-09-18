@@ -26,6 +26,8 @@ import { guardarConfiguracionEmpresa } from "@/configuracion/empresa/actions";
 import { SeccionModoGeografico } from "@/configuracion/empresa/components/seccion-modo-geografico";
 import type { ConfigEmpresa } from "@/configuracion/empresa/types";
 import { MONEDAS } from "@/shared/moneda/constants";
+import { ZONAS_HORARIAS, ZONAS_HORARIAS_ITEMS } from "@/shared/fechas/zonas-catalogo";
+import { ZONA_NEGOCIO_FALLBACK } from "@/shared/fechas/zona";
 
 interface TabEmpresaProps {
   instanciaId: string;
@@ -43,19 +45,6 @@ const PAISES = [
   "Panamá", "Perú", "Colombia", "México", "Argentina",
   "Chile", "Ecuador", "Bolivia", "Venezuela", "Paraguay",
   "Uruguay", "Costa Rica", "Guatemala", "Otro",
-];
-
-const ZONAS_HORARIAS = [
-  { valor: "America/Panama",              etiqueta: "Panamá (UTC-5)" },
-  { valor: "America/Lima",                etiqueta: "Lima / Bogotá (UTC-5)" },
-  { valor: "America/Bogota",              etiqueta: "Bogotá (UTC-5)" },
-  { valor: "America/Mexico_City",         etiqueta: "Ciudad de México (UTC-6)" },
-  { valor: "America/Argentina/Buenos_Aires", etiqueta: "Buenos Aires (UTC-3)" },
-  { valor: "America/Santiago",            etiqueta: "Santiago (UTC-4/-3)" },
-  { valor: "America/Guayaquil",           etiqueta: "Guayaquil (UTC-5)" },
-  { valor: "America/La_Paz",              etiqueta: "La Paz (UTC-4)" },
-  { valor: "America/Caracas",             etiqueta: "Caracas (UTC-4)" },
-  { valor: "UTC",                         etiqueta: "UTC (UTC+0)" },
 ];
 
 
@@ -108,7 +97,7 @@ export function TabEmpresa({ instanciaId, inicial }: TabEmpresaProps) {
       provincia:         inicial?.provincia         ?? "",
       ciudad:            inicial?.ciudad            ?? "",
       direccion:         inicial?.direccion         ?? "",
-      zonaHoraria:       inicial?.zonaHoraria       ?? "America/Panama",
+      zonaHoraria:       inicial?.zonaHoraria       ?? ZONA_NEGOCIO_FALLBACK,
       monedaPrincipal:   inicial?.monedaPrincipal   ?? "USD",
       idiomaPrincipal:   inicial?.idiomaPrincipal   ?? "es",
       formatoFecha:      inicial?.formatoFecha      ?? "DD/MM/YYYY",
@@ -322,7 +311,11 @@ export function TabEmpresa({ instanciaId, inicial }: TabEmpresaProps) {
             <FormField control={form.control} name="zonaHoraria" render={({ field }) => (
               <FormItem>
                 <FormLabel>Zona horaria</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                {/* `items` es obligatorio acá: el valor ("America/Panama") no
+                    coincide con la etiqueta, y sin el mapa el trigger muestra
+                    el valor crudo hasta que el usuario abre el popup una vez.
+                    Ver docs/selects.md. */}
+                <Select onValueChange={field.onChange} value={field.value} items={ZONAS_HORARIAS_ITEMS}>
                   <FormControl>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                   </FormControl>

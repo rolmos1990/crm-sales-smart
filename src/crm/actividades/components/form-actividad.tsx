@@ -13,6 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { InputFechaHora } from "@/shared/fechas/components/input-fecha-hora";
 import { useCrearActividadMutation } from "../hooks";
 import { CrearActividadSchema, type CrearActividadInput } from "../schema";
 
@@ -95,11 +96,7 @@ export function FormActividad({ contactos, empresas, oportunidades, pedidos = []
             <FormItem>
               <FormLabel>Fecha y hora *</FormLabel>
               <FormControl>
-                <Input
-                  type="datetime-local"
-                  value={field.value ? new Date(field.value).toISOString().slice(0, 16) : ""}
-                  onChange={(e) => field.onChange(new Date(e.target.value))}
-                />
+                <InputFechaHora value={field.value} onChange={field.onChange} />
               </FormControl>
               <FormMessage />
             </FormItem>

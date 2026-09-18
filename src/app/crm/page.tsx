@@ -18,16 +18,21 @@ import { requireSesion } from "@/shared/auth/sesion";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import { MONEDA_DEFAULT } from "@/shared/moneda/constants";
 import { EtapaBadge } from "@/crm/oportunidades/components/etapa-badge";
+import { rangoEsteMes, rangoHoy } from "@/shared/fechas/rangos";
+import { formatearHora } from "@/shared/fechas/formato";
+import { obtenerPreferenciasFechaEfectivas } from "@/shared/fechas/presentacion";
 import { cn } from "@/lib/utils";
 
 // ---- KPI data ----
 
-async function obtenerKpis(instanciaId: string) {
+async function obtenerKpis(instanciaId: string, zonaNegocio: string) {
   try {
-    const ahora = new Date();
-    const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-    const inicioDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-    const finDia = new Date(inicioDia.getTime() + 86400000);
+    // "Hoy" y "este mes" en la zona de negocio, no en la del proceso servidor.
+    // Antes este archivo resolvía "hoy" de dos maneras distintas — acá con
+    // `new Date(y, m, d)` y en obtenerActividadesHoy con `setHours(0,0,0,0)` —
+    // así que los dos widgets podían discrepar cerca de medianoche.
+    const mes = rangoEsteMes(zonaNegocio);
+    const hoy = rangoHoy(zonaNegocio);
 
     const [
       totalContactos,
@@ -41,11 +46,15 @@ async function obtenerKpis(instanciaId: string) {
         select: { valor: true },
       }),
       prisma.oportunidad.findMany({
-        where: { instanciaId, etapa: "GANADO", actualizadoEn: { gte: inicioMes } },
+        // Se sigue usando `actualizadoEn` y no `fechaGanada` a propósito:
+        // cambiarEtapa (la vía legacy del enum) no setea fechaGanada, así que
+        // el campo no es fiable todavía. Corregirlo es una decisión funcional
+        // aparte, con backfill — no parte del cambio de zonas horarias.
+        where: { instanciaId, etapa: "GANADO", actualizadoEn: { gte: mes.desde, lt: mes.hasta } },
         select: { valor: true },
       }),
       prisma.actividad.count({
-        where: { instanciaId, completada: false, fecha: { gte: inicioDia, lt: finDia } },
+        where: { instanciaId, completada: false, fecha: { gte: hoy.desde, lt: hoy.hasta } },
       }),
     ]);
 
@@ -98,14 +107,14 @@ async function obtenerUltimasOportunidades(instanciaId: string) {
   }
 }
 
-async function obtenerActividadesHoy(instanciaId: string) {
+async function obtenerActividadesHoy(instanciaId: string, zonaNegocio: string) {
   try {
-    const inicioDia = new Date();
-    inicioDia.setHours(0, 0, 0, 0);
-    const finDia = new Date(inicioDia.getTime() + 86400000);
+    // Misma fuente de "hoy" que el KPI de arriba — antes cada uno lo calculaba
+    // por su cuenta y podían no coincidir.
+    const hoy = rangoHoy(zonaNegocio);
 
     return prisma.actividad.findMany({
-      where: { instanciaId, completada: false, fecha: { gte: inicioDia, lt: finDia } },
+      where: { instanciaId, completada: false, fecha: { gte: hoy.desde, lt: hoy.hasta } },
       orderBy: { fecha: "asc" },
       take: 8,
       include: {
@@ -138,7 +147,7 @@ const TIPO_LABELS: Record<string, string> = {
 async function KpiCards() {
   const sesion = await requireSesion();
   const [kpis, moneda] = await Promise.all([
-    obtenerKpis(sesion.instanciaId),
+    obtenerKpis(sesion.instanciaId, sesion.zonaNegocio),
     obtenerMonedaPrincipal(sesion.instanciaId),
   ]);
 
@@ -272,7 +281,13 @@ async function UltimasOportunidades() {
 
 async function ActividadesHoy() {
   const sesion = await requireSesion();
-  const actividades = await obtenerActividadesHoy(sesion.instanciaId);
+  const [actividades, preferencias] = await Promise.all([
+    obtenerActividadesHoy(sesion.instanciaId, sesion.zonaNegocio),
+    obtenerPreferenciasFechaEfectivas({
+      instanciaId: sesion.instanciaId,
+      zonaUsuario: sesion.zonaHoraria,
+    }),
+  ]);
 
   if (actividades.length === 0) {
     return (
@@ -307,7 +322,7 @@ async function ActividadesHoy() {
             </div>
             <span className="text-xs font-medium text-stone-500 dark:text-stone-400 flex-shrink-0 flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {new Date(act.fecha).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}
+              {formatearHora(act.fecha, preferencias)}
             </span>
           </div>
         );

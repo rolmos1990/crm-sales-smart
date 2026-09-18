@@ -1,15 +1,9 @@
-import { endOfDay } from "date-fns";
 import { prisma } from "@/shared/db/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { rangoEntreFechas } from "@/shared/fechas/rangos";
 import type { CampoPersonalizadoModel as CampoPersonalizado } from "@/generated/prisma/models/CampoPersonalizado";
 import type { CampoPersonalizadoPipeline, OportunidadEnStage } from "./types";
 import type { FiltrosOportunidadParams } from "./schema";
-
-/** Interpreta "yyyy-MM-dd" como fecha local (evita el corrimiento de UTC). */
-function parsearFechaLocal(valor: string): Date | null {
-  const fecha = new Date(`${valor}T00:00:00`);
-  return Number.isNaN(fecha.getTime()) ? null : fecha;
-}
 
 function normalizarCampo(raw: CampoPersonalizado): CampoPersonalizadoPipeline {
   return {
@@ -66,27 +60,31 @@ export async function obtenerCamposPorPipeline(pipelineId: string, instanciaId: 
 function construirWhereOportunidadesPipeline(
   pipelineId: string,
   instanciaId: string,
+  zonaHoraria: string,
   filtros?: FiltrosOportunidadParams,
 ): Prisma.OportunidadWhereInput {
   // instanciaId siempre va en el where: es el límite multi-tenant y nunca
   // debe quedar a merced de los filtros que arma el usuario.
   const where: Prisma.OportunidadWhereInput = { pipelineId, instanciaId };
 
-  const creadoDesde = filtros?.creadoDesde ? parsearFechaLocal(filtros.creadoDesde) : null;
-  const creadoHasta = filtros?.creadoHasta ? parsearFechaLocal(filtros.creadoHasta) : null;
-  if (creadoDesde || creadoHasta) {
+  // Los "YYYY-MM-DD" de la URL se interpretan en la zona de negocio, y el
+  // límite superior es semiabierto (inicio del día siguiente). Antes esto
+  // usaba `new Date(\`${v}T00:00:00\`)` — la zona del proceso servidor — más
+  // `endOfDay()` con `lte`, el único borde inclusivo del código: devuelve
+  // .999 y perdía filas guardadas en .9995 de una columna timestamp(3).
+  const creado = rangoEntreFechas(filtros?.creadoDesde, filtros?.creadoHasta, zonaHoraria);
+  if (creado) {
     where.creadoEn = {
-      ...(creadoDesde && { gte: creadoDesde }),
-      ...(creadoHasta && { lte: endOfDay(creadoHasta) }),
+      ...(filtros?.creadoDesde && { gte: creado.desde }),
+      ...(filtros?.creadoHasta && { lt: creado.hasta }),
     };
   }
 
-  const cierreDesde = filtros?.cierreDesde ? parsearFechaLocal(filtros.cierreDesde) : null;
-  const cierreHasta = filtros?.cierreHasta ? parsearFechaLocal(filtros.cierreHasta) : null;
-  if (cierreDesde || cierreHasta) {
+  const cierre = rangoEntreFechas(filtros?.cierreDesde, filtros?.cierreHasta, zonaHoraria);
+  if (cierre) {
     where.fechaCierre = {
-      ...(cierreDesde && { gte: cierreDesde }),
-      ...(cierreHasta && { lte: endOfDay(cierreHasta) }),
+      ...(filtros?.cierreDesde && { gte: cierre.desde }),
+      ...(filtros?.cierreHasta && { lt: cierre.hasta }),
     };
   }
 
@@ -176,11 +174,12 @@ function agruparPorStage(rows: OportunidadRow[]): Map<string, OportunidadEnStage
 export async function obtenerOportunidadesPorPipeline(
   pipelineId: string,
   instanciaId: string,
+  zonaHoraria: string,
   filtros?: FiltrosOportunidadParams,
   limitePorStage?: number,
   limitesPorStage?: Map<string, number>,
 ) {
-  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, filtros);
+  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, zonaHoraria, filtros);
 
   if (!limitePorStage) {
     const rows = await prisma.oportunidad.findMany({
@@ -230,9 +229,10 @@ export async function obtenerOportunidadesPorPipeline(
 export async function obtenerConteoPorStage(
   pipelineId: string,
   instanciaId: string,
+  zonaHoraria: string,
   filtros?: FiltrosOportunidadParams,
 ): Promise<Map<string, number>> {
-  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, filtros);
+  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, zonaHoraria, filtros);
 
   const conteos = await prisma.oportunidad.groupBy({
     by: ["stageId"],
@@ -259,9 +259,10 @@ export async function obtenerConteoPorStage(
 export async function obtenerTotalesPorStage(
   pipelineId: string,
   instanciaId: string,
+  zonaHoraria: string,
   filtros?: FiltrosOportunidadParams,
 ): Promise<Map<string, number>> {
-  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, filtros);
+  const where = construirWhereOportunidadesPipeline(pipelineId, instanciaId, zonaHoraria, filtros);
 
   const totales = await prisma.oportunidad.groupBy({
     by: ["stageId"],

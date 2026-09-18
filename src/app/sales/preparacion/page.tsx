@@ -4,7 +4,6 @@ import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
-import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import {
   LIMITE_POR_ESTADO,
   obtenerActividadReciente,
@@ -17,7 +16,7 @@ import { PreparacionTabsRango } from "@/sales/preparacion/components/preparacion
 import { ResumenPorProducto } from "@/sales/preparacion/components/resumen-por-producto";
 import { TableroLista } from "@/sales/preparacion/components/tablero-lista";
 import { TableroCliente } from "@/sales/preparacion/components/tablero-cliente";
-import { parseYMD, inicioDiaEnZona } from "@/sales/pedidos/utils/fechas-zona";
+import { parsearExtremosDeSearchParams } from "@/shared/fechas/searchparams";
 import type { FiltrosTableroInput } from "@/sales/preparacion/schema";
 import type { RangoPreparacion } from "@/sales/preparacion/types";
 
@@ -44,22 +43,23 @@ export default async function PreparacionPage({ searchParams }: PreparacionPageP
   if (!verificarAcceso(sesion, "preparacion", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "preparacion");
 
-  let zonaHoraria = "America/Lima";
-  try {
-    const config = await obtenerConfiguracionEmpresa(sesion.instanciaId);
-    if (config?.zonaHoraria) zonaHoraria = config.zonaHoraria;
-  } catch {
-    // usa el default
-  }
+  // Zona de negocio: define qué día es "hoy" para el tablero. Viene ya
+  // resuelta en la sesión.
+  const zonaHoraria = sesion.zonaNegocio;
 
   const rango = RANGOS_VALIDOS.includes(sp.rango as RangoPreparacion)
     ? (sp.rango as RangoPreparacion)
     : "HOY";
 
+  // `hasta` pasa a ser inclusivo por día, igual que en Pedidos: antes era el
+  // inicio del día elegido y `resolverRango` lo usa como límite exclusivo, así
+  // que elegir "hasta el 17" dejaba el 17 fuera del tablero.
+  const { desde, hasta } = parsearExtremosDeSearchParams(sp, zonaHoraria);
+
   const filtros: FiltrosTableroInput = {
     rango,
-    desde: sp.desde ? inicioDiaEnZona(parseYMD(sp.desde), zonaHoraria) : undefined,
-    hasta: sp.hasta ? inicioDiaEnZona(parseYMD(sp.hasta), zonaHoraria) : undefined,
+    desde,
+    hasta,
     busqueda: sp.q,
   };
 

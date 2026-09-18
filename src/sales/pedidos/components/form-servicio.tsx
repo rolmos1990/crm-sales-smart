@@ -10,6 +10,7 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { InputFecha } from "@/shared/fechas/components/input-fecha";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -100,10 +101,9 @@ export function FormServicio({ pedidoId, servicio }: FormServicioProps) {
               <FormItem>
                 <FormLabel>Fecha</FormLabel>
                 <FormControl>
-                  <Input
-                    type="date"
-                    value={field.value ? new Date(field.value).toISOString().slice(0, 10) : ""}
-                    onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
+                  <InputFecha
+                    value={field.value}
+                    onChange={(d) => field.onChange(d ? d.toISOString() : null)}
                   />
                 </FormControl>
                 <FormMessage />

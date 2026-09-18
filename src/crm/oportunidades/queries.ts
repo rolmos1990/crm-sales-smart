@@ -1,6 +1,6 @@
 import { prisma } from "@/shared/db/prisma";
 import type { Etapa } from "@/generated/prisma/enums";
-import { rangoDiaEnZona } from "@/sales/pedidos/utils/fechas-zona";
+import { rangoDiaEnZona, ZONA_NEGOCIO_FALLBACK } from "@/shared/fechas/zona";
 import {
   construirWhere, construirWhereBase, condicionActiva,
   type OportunidadesFiltros,
@@ -8,7 +8,7 @@ import {
 
 export type { OportunidadesFiltros } from "./filtros-oportunidades";
 
-export async function obtenerOportunidades(instanciaId: string, filtros?: OportunidadesFiltros, zonaHoraria = "America/Lima") {
+export async function obtenerOportunidades(instanciaId: string, filtros?: OportunidadesFiltros, zonaHoraria = ZONA_NEGOCIO_FALLBACK) {
   const where = construirWhere(instanciaId, zonaHoraria, filtros);
   return prisma.oportunidad.findMany({
     where,

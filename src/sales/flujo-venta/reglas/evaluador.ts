@@ -1,4 +1,4 @@
-import { fechaYMDEnZona, hoyEnZona, inicioDiaEnZona, sumarDias } from "../../pedidos/utils/fechas-zona";
+import { fechaYMDEnZona, hoyEnZona, inicioDiaEnZona, sumarDias } from "../../../shared/fechas/zona";
 import type {
   CampoRegla,
   CondicionEvaluada,
