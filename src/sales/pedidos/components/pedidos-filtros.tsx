@@ -1,14 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
-import type { DateRange } from "react-day-picker";
-import { Search, Calendar as CalendarIcon, SlidersHorizontal, RotateCcw, Download, HelpCircle } from "lucide-react";
+import { Search, SlidersHorizontal, RotateCcw, Download, HelpCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -19,6 +15,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import {
+  FiltroRangoFechas,
+  PRESETS_RANGO_FUTURO,
+  PRESETS_RANGO_PASADO,
+  type RangoFechasYmd,
+} from "@/shared/fechas/components/filtro-rango-fechas";
 import { cn } from "@/lib/utils";
 import { ESTADO_PEDIDO_CONFIG } from "../types";
 import { METODO_ENTREGA_LABELS } from "../constantes";
@@ -41,13 +43,18 @@ interface PedidosFiltrosProps {
    *  que con flujo dinámico activo queda congelado y no representa el
    *  estado real del pedido. */
   etapasFlujo: EtapaFlujoResumen[];
+  /** Zona de negocio de la instancia. Define qué día es "hoy" para los atajos
+   *  de los filtros de fecha — ver docs/fechas-y-zonas-horarias.md. */
+  zonaNegocio: string;
 }
 
+/** Las tres opciones "vivas": se resuelven en el servidor en cada request, así
+ *  que una URL guardada sigue significando "hoy". El rango personalizado, en
+ *  cambio, congela dos días concretos y vive en <FiltroRangoFechas>. */
 const ENTREGA_OPCIONES = [
   { valor: "todos", etiqueta: "Todos" },
   { valor: "hoy", etiqueta: "Hoy" },
   { valor: "manana", etiqueta: "Mañana" },
-  { valor: "personalizado", etiqueta: "Personalizado" },
 ] as const;
 
 function parametroActivo(searchParams: URLSearchParams): boolean {
@@ -55,32 +62,24 @@ function parametroActivo(searchParams: URLSearchParams): boolean {
   return claves.some((k) => searchParams.get(k));
 }
 
-export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etapasFlujo }: PedidosFiltrosProps) {
+export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etapasFlujo, zonaNegocio }: PedidosFiltrosProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [busqueda, setBusqueda] = useState(searchParams.get("q") ?? "");
   const [masFiltrosAbierto, setMasFiltrosAbierto] = useState(false);
-  const [rangoAbierto, setRangoAbierto] = useState(false);
-  const [entregaPersonalizadaAbierta, setEntregaPersonalizadaAbierta] = useState(false);
 
-  const desde = searchParams.get("desde");
-  const hasta = searchParams.get("hasta");
-  const rango: DateRange | undefined = useMemo(
-    () => (desde || hasta ? { from: desde ? new Date(desde) : undefined, to: hasta ? new Date(hasta) : undefined } : undefined),
-    [desde, hasta]
-  );
+  const rangoPedido: RangoFechasYmd = {
+    desde: searchParams.get("desde"),
+    hasta: searchParams.get("hasta"),
+  };
 
   const entregaActiva = searchParams.get("entrega") ?? "todos";
-  const entregaDesdeStr = searchParams.get("entregaDesde");
-  const entregaHastaStr = searchParams.get("entregaHasta");
-  const rangoEntrega: DateRange | undefined = useMemo(
-    () => (entregaDesdeStr || entregaHastaStr
-      ? { from: entregaDesdeStr ? new Date(`${entregaDesdeStr}T00:00:00`) : undefined, to: entregaHastaStr ? new Date(`${entregaHastaStr}T00:00:00`) : undefined }
-      : undefined),
-    [entregaDesdeStr, entregaHastaStr]
-  );
+  const rangoEntrega: RangoFechasYmd = {
+    desde: searchParams.get("entregaDesde"),
+    hasta: searchParams.get("entregaHasta"),
+  };
 
   const hayFiltros = parametroActivo(searchParams);
   const hayFlujoDinamico = etapasFlujo.length > 0;
@@ -108,12 +107,11 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
     actualizarParam("q", busqueda || null);
   };
 
-  const handleRango = (r: DateRange | undefined) => {
+  const handleRangoPedido = (r: RangoFechasYmd) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (r?.from) params.set("desde", format(r.from, "yyyy-MM-dd")); else params.delete("desde");
-    if (r?.to) params.set("hasta", format(r.to, "yyyy-MM-dd")); else params.delete("hasta");
+    if (r.desde) params.set("desde", r.desde); else params.delete("desde");
+    if (r.hasta) params.set("hasta", r.hasta); else params.delete("hasta");
     navegarConParams(params);
-    if (r?.from && r?.to) setRangoAbierto(false);
   };
 
   const seleccionarEntrega = (valor: string) => {
@@ -132,31 +130,22 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
     navegarConParams(params);
   };
 
-  const handleRangoEntrega = (r: DateRange | undefined) => {
+  const handleRangoEntrega = (r: RangoFechasYmd) => {
     const params = new URLSearchParams(searchParams.toString());
+    // Sin ningún extremo el modo "personalizado" no filtraría nada y además
+    // dejaría el segmented control sin ninguna opción marcada: equivale a
+    // volver a "Todos".
+    if (!r.desde && !r.hasta) return seleccionarEntrega("todos");
     params.set("entrega", "personalizado");
-    if (r?.from) params.set("entregaDesde", format(r.from, "yyyy-MM-dd")); else params.delete("entregaDesde");
-    if (r?.to) params.set("entregaHasta", format(r.to, "yyyy-MM-dd")); else params.delete("entregaHasta");
+    if (r.desde) params.set("entregaDesde", r.desde); else params.delete("entregaDesde");
+    if (r.hasta) params.set("entregaHasta", r.hasta); else params.delete("entregaHasta");
     navegarConParams(params);
-    if (r?.from && r?.to) setEntregaPersonalizadaAbierta(false);
   };
 
   const limpiarFiltros = () => {
     setBusqueda("");
     router.push(pathname);
   };
-
-  const etiquetaRango = rango?.from
-    ? rango.to
-      ? `${format(rango.from, "dd MMM yyyy", { locale: es })} - ${format(rango.to, "dd MMM yyyy", { locale: es })}`
-      : format(rango.from, "dd MMM yyyy", { locale: es })
-    : "Todas las fechas";
-
-  const etiquetaEntregaPersonalizada = rangoEntrega?.from
-    ? rangoEntrega.to && rangoEntrega.to.getTime() !== rangoEntrega.from.getTime()
-      ? `${format(rangoEntrega.from, "dd MMM", { locale: es })} - ${format(rangoEntrega.to, "dd MMM", { locale: es })}`
-      : format(rangoEntrega.from, "dd MMM yyyy", { locale: es })
-    : "Personalizado";
 
   return (
     <div className="flex flex-col gap-3">
@@ -172,23 +161,14 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
           />
         </form>
 
-        <Popover open={rangoAbierto} onOpenChange={setRangoAbierto}>
-          <PopoverTrigger className={cn(buttonVariants({ variant: "outline" }), "rounded-xl gap-2 justify-start font-normal")}>
-            <CalendarIcon className="h-4 w-4 text-stone-400" />
-            {etiquetaRango}
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-0">
-            <Calendar
-              mode="range"
-              selected={rango}
-              onSelect={handleRango}
-              defaultMonth={rango?.from ?? new Date()}
-              numberOfMonths={2}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              locale={es as any}
-            />
-          </PopoverContent>
-        </Popover>
+        <FiltroRangoFechas
+          valor={rangoPedido}
+          onChange={handleRangoPedido}
+          zonaNegocio={zonaNegocio}
+          placeholder="Todas las fechas"
+          presets={PRESETS_RANGO_PASADO}
+          align="start"
+        />
 
         {hayFlujoDinamico ? (
           <Select value={searchParams.get("etapa") ?? "todos"} onValueChange={(v) => actualizarParam("etapa", v === "todos" ? null : v)}>
@@ -248,33 +228,6 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
           <span className="hidden lg:inline pl-1.5 pr-0.5 text-xs text-stone-400 dark:text-stone-500">Entrega estimada</span>
           {ENTREGA_OPCIONES.map((op) => {
             const activo = entregaActiva === op.valor;
-            if (op.valor === "personalizado") {
-              return (
-                <Popover key={op.valor} open={entregaPersonalizadaAbierta} onOpenChange={setEntregaPersonalizadaAbierta}>
-                  <PopoverTrigger
-                    className={cn(
-                      "px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap",
-                      activo
-                        ? "bg-lime-500/15 text-lime-700 dark:text-lime-400"
-                        : "text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5"
-                    )}
-                  >
-                    {activo ? etiquetaEntregaPersonalizada : op.etiqueta}
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-auto p-0">
-                    <Calendar
-                      mode="range"
-                      selected={rangoEntrega}
-                      onSelect={handleRangoEntrega}
-                      defaultMonth={rangoEntrega?.from ?? new Date()}
-                      numberOfMonths={2}
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      locale={es as any}
-                    />
-                  </PopoverContent>
-                </Popover>
-              );
-            }
             return (
               <button
                 key={op.valor}
@@ -284,15 +237,25 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
                   "px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap",
                   activo
                     ? op.valor === "todos"
-                      ? "bg-stone-100 dark:bg-white/10 text-stone-700 dark:text-stone-200"
-                      : "bg-lime-500/15 text-lime-700 dark:text-lime-400"
-                    : "text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-white/5"
+                      ? "bg-muted text-foreground"
+                      : "bg-primary-muted text-primary"
+                    : "text-muted-foreground hover:bg-muted"
                 )}
               >
                 {op.etiqueta}
               </button>
             );
           })}
+          <FiltroRangoFechas
+            valor={rangoEntrega}
+            onChange={handleRangoEntrega}
+            onLimpiar={() => seleccionarEntrega("todos")}
+            zonaNegocio={zonaNegocio}
+            placeholder="Personalizado"
+            presets={PRESETS_RANGO_FUTURO}
+            align="end"
+            compacto
+          />
         </div>
 
         <Popover open={masFiltrosAbierto} onOpenChange={setMasFiltrosAbierto}>

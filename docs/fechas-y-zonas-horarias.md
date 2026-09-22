@@ -145,6 +145,27 @@ Reglas que no se negocian:
 próximos 7 días incluyendo hoy", **no** la semana calendario. Es otro concepto
 que `rangoEstaSemana`; el tablero de preparación depende de él.
 
+### El selector de rango en la UI
+
+La barra de filtros no arma su propio `<Calendar mode="range">`: usa
+`<FiltroRangoFechas>` (`src/shared/fechas/components/filtro-rango-fechas.tsx`),
+que emite el par `"YYYY-MM-DD"` que después lee
+`parsearExtremosDeSearchParams`. Recibe `zonaNegocio` como prop —los atajos
+("Hoy", "Próximos 7 días") tienen que resolver el día en la zona de negocio,
+igual que el `where` al que alimentan— y la lógica pura vive aparte en
+`src/shared/fechas/rango-ymd.ts` para poder testearla sin DOM.
+
+Dos comportamientos de react-day-picker que el componente corrige y que
+conviene no reintroducir:
+
+- **`addToRange` con `min = 0` devuelve `{ from, to }` completo en el primer
+  clic.** Cerrar el popover "cuando el rango está completo" lo cierra después
+  de elegir el primer día, y elegir un rango de varios días se vuelve
+  imposible sin reabrirlo.
+- **Un segundo clic sobre el mismo día deselecciona todo**, así que un rango de
+  un solo día (`de X a X`) no se puede confirmar. El componente maneja los dos
+  clics él mismo (`cerrarRango`) en vez de delegar en `addToRange`.
+
 ---
 
 ## Presentación

@@ -159,3 +159,31 @@ export function formatearFechaRelativa(
   if (Math.abs(dias) < 365) return rtf.format(Math.trunc(dias / 30), "month");
   return rtf.format(Math.trunc(dias / 365), "year");
 }
+
+/**
+ * Rango de dos fechas colapsando las partes repetidas: "12 sep – 18 sep 2026",
+ * "28 sep – 03 oct 2026", y un solo día como "12 sep 2026".
+ *
+ * Se usa `Intl.DateTimeFormat.formatRange`, que sabe qué partes comparten las
+ * dos fechas según el locale — concatenar dos `formatearFechaCorta` con un
+ * guion repetiría el año en el 99% de los rangos, que es justo lo que hace
+ * ilegible una barra de filtros.
+ *
+ * Ojo: `formatRange` con dos fechas del mismo día devuelve el día repetido en
+ * algunos runtimes, así que ese caso se atiende antes de llegar a ICU.
+ */
+export function formatearRangoFechasCorto(
+  inicio: Date | string | number | null | undefined,
+  fin: Date | string | number | null | undefined,
+  p: PreferenciasFecha,
+): string {
+  const a = normalizar(inicio);
+  const b = normalizar(fin);
+  if (!a && !b) return "";
+  if (!a) return formatearFechaCorta(b, p);
+  if (!b) return formatearFechaCorta(a, p);
+
+  const fmt = formateador(p.locale, p.zonaHoraria, { day: "2-digit", month: "short", year: "numeric" });
+  if (fmt.format(a) === fmt.format(b)) return fmt.format(a);
+  return fmt.formatRange(a, b);
+}
