@@ -35,16 +35,24 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
 
+# su-exec: permite arrancar el contenedor como root (necesario para arreglar
+# el dueño de /app/data, volumen persistente montado en runtime por Coolify,
+# ver docker-entrypoint.sh) y recién ahí bajar privilegios a `nextjs` para
+# ejecutar el proceso real — nunca corre nada de la app como root.
+RUN apk add --no-cache su-exec
+
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder /app/package.json         ./package.json
 COPY --from=builder /app/node_modules         ./node_modules
 COPY --from=builder /app/src/generated        ./src/generated
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 
-USER nextjs
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["npm", "run", "start"]
