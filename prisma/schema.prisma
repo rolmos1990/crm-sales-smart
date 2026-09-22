@@ -1299,6 +1299,13 @@ model Pedido {
   @@index([flujoVentaEtapaId])
   @@index([telefono])
   @@index([email])
+  // Filtros de fecha del listado (?desde/?hasta sobre fechaPedido,
+  // ?entregaDesde/?entregaHasta sobre fechaEntrega). Compuestos y con
+  // instanciaId primero porque todo `where` arranca por la instancia, y los
+  // rangos son semiabiertos sobre la columna cruda —nunca AT TIME ZONE—, que
+  // es justo lo que un B-tree puede aprovechar.
+  @@index([instanciaId, fechaPedido])
+  @@index([instanciaId, fechaEntrega])
 }
 
 model PedidoLinea {

@@ -155,6 +155,18 @@ que emite el par `"YYYY-MM-DD"` que después lee
 igual que el `where` al que alimentan— y la lógica pura vive aparte en
 `src/shared/fechas/rango-ymd.ts` para poder testearla sin DOM.
 
+**Elegir y luego aplicar**: clickear días solo modifica un borrador local; el
+único commit es el botón "Aplicar" (los atajos sí aplican de un clic, porque la
+intención ahí es inequívoca). Auto-aplicar en el segundo clic disparaba la
+navegación antes de que el usuario pudiera corregir la selección, y como además
+cerraba el popover había que reabrirlo para ajustar un extremo.
+
+Quien consume `onChange` navega, así que la navegación va envuelta en una
+transición vía `<ProveedorNavegacionFiltros>`
+(`src/shared/ui/navegacion-filtros.tsx`). Sin transición, Next monta el
+`loading.tsx` del segmento y reemplaza la pantalla entera —incluida la barra de
+filtros— por un esqueleto en cada cambio de filtro.
+
 Dos comportamientos de react-day-picker que el componente corrige y que
 conviene no reintroducir:
 

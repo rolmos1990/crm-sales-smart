@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal, RotateCcw, Download, HelpCircle } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Search, SlidersHorizontal, RotateCcw, Download, HelpCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,6 +21,7 @@ import {
   PRESETS_RANGO_PASADO,
   type RangoFechasYmd,
 } from "@/shared/fechas/components/filtro-rango-fechas";
+import { useNavegacionFiltros } from "@/shared/ui/navegacion-filtros";
 import { cn } from "@/lib/utils";
 import { ESTADO_PEDIDO_CONFIG } from "../types";
 import { METODO_ENTREGA_LABELS } from "../constantes";
@@ -46,6 +47,10 @@ interface PedidosFiltrosProps {
   /** Zona de negocio de la instancia. Define qué día es "hoy" para los atajos
    *  de los filtros de fecha — ver docs/fechas-y-zonas-horarias.md. */
   zonaNegocio: string;
+  /** Hay un rango de fechas activo, que obliga a mostrar también los pedidos
+   *  cerrados aunque el usuario no haya marcado "Ver cerrados" (ver
+   *  `hayFiltroFecha` en la página). El checkbox lo refleja en vez de mentir. */
+  cerradosForzados: boolean;
 }
 
 /** Las tres opciones "vivas": se resuelven en el servidor en cada request, así
@@ -62,9 +67,8 @@ function parametroActivo(searchParams: URLSearchParams): boolean {
   return claves.some((k) => searchParams.get(k));
 }
 
-export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etapasFlujo, zonaNegocio }: PedidosFiltrosProps) {
-  const router = useRouter();
-  const pathname = usePathname();
+export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etapasFlujo, zonaNegocio, cerradosForzados }: PedidosFiltrosProps) {
+  const { navegar, pendiente } = useNavegacionFiltros();
   const searchParams = useSearchParams();
 
   const [busqueda, setBusqueda] = useState(searchParams.get("q") ?? "");
@@ -86,20 +90,14 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
   const verCerrados = searchParams.get("cerrados") === "1";
   const etapaSeleccionada = etapasFlujo.find((e) => e.id === searchParams.get("etapa"));
 
-  // Importante: si `params` queda vacío, hay que pushear el pathname solo
-  // (sin "?" colgante) — un "?" vacío al final produce la misma URL visible
-  // que el navegador ya normaliza, y el router puede no disparar la
-  // navegación (ej. limpiar el único filtro activo no hacía nada).
-  const navegarConParams = (params: URLSearchParams) => {
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
-  };
-
+  // `navegar` viene de <ProveedorNavegacionFiltros>: envuelve el router en una
+  // transición, así que la barra no se reemplaza por el loading.tsx del
+  // segmento y la tabla solo se atenúa mientras el servidor responde.
   const actualizarParam = (clave: string, valor: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (valor) params.set(clave, valor);
     else params.delete(clave);
-    navegarConParams(params);
+    navegar(params);
   };
 
   const handleBuscarSubmit = (e: React.FormEvent) => {
@@ -111,7 +109,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
     const params = new URLSearchParams(searchParams.toString());
     if (r.desde) params.set("desde", r.desde); else params.delete("desde");
     if (r.hasta) params.set("hasta", r.hasta); else params.delete("hasta");
-    navegarConParams(params);
+    navegar(params);
   };
 
   const seleccionarEntrega = (valor: string) => {
@@ -127,7 +125,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
         params.delete("entregaHasta");
       }
     }
-    navegarConParams(params);
+    navegar(params);
   };
 
   const handleRangoEntrega = (r: RangoFechasYmd) => {
@@ -139,12 +137,12 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
     params.set("entrega", "personalizado");
     if (r.desde) params.set("entregaDesde", r.desde); else params.delete("entregaDesde");
     if (r.hasta) params.set("entregaHasta", r.hasta); else params.delete("entregaHasta");
-    navegarConParams(params);
+    navegar(params);
   };
 
   const limpiarFiltros = () => {
     setBusqueda("");
-    router.push(pathname);
+    navegar(new URLSearchParams());
   };
 
   return (
@@ -300,6 +298,15 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
             Limpiar filtros
           </Button>
         )}
+
+        {/* Los controles siguen habilitados mientras carga, para poder
+            encadenar cambios sin esperar cada round-trip. */}
+        {pendiente && (
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Actualizando…
+          </span>
+        )}
       </div>
 
       <div className="flex items-center justify-between rounded-xl border border-dashed border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/[0.03] px-4 py-2.5">
@@ -310,15 +317,20 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger
-                className="flex items-center gap-2 cursor-pointer select-none"
-                onClick={() => actualizarParam("cerrados", verCerrados ? null : "1")}
+                className={cn(
+                  "flex items-center gap-2 select-none",
+                  cerradosForzados ? "cursor-default opacity-70" : "cursor-pointer"
+                )}
+                onClick={cerradosForzados ? undefined : () => actualizarParam("cerrados", verCerrados ? null : "1")}
               >
-                <Checkbox checked={verCerrados} className="pointer-events-none" />
+                <Checkbox checked={verCerrados || cerradosForzados} className="pointer-events-none" />
                 <span className="text-xs font-medium text-stone-600 dark:text-stone-300">Ver cerrados</span>
                 <HelpCircle className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-xs">
-                Muestra los pedidos en etapa final o cancelados (cerrados) para ver el historial completo.
+                {cerradosForzados
+                  ? "Con un rango de fechas activo se muestran todos los pedidos del rango, incluidos los cerrados — así la lista coincide con los montos de arriba."
+                  : "Muestra los pedidos en etapa final o cancelados (cerrados) para ver el historial completo."}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

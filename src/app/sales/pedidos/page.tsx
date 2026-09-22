@@ -5,6 +5,7 @@ import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaPedidos } from "@/sales/pedidos/components/lista-pedidos";
 import { PedidosKpiCards } from "@/sales/pedidos/components/pedidos-kpi-cards";
 import { PedidosFiltrosBar } from "@/sales/pedidos/components/pedidos-filtros";
+import { ProveedorNavegacionFiltros, ZonaResultados } from "@/shared/ui/navegacion-filtros";
 import { obtenerPedidos, obtenerPedidosKpis, type PedidosFiltros } from "@/sales/pedidos/queries";
 import { etiquetaMesAnioEnZona } from "@/shared/fechas/zona";
 import { rangoHoy, rangoManana, rangoMesHastaAhora } from "@/shared/fechas/rangos";
@@ -79,6 +80,15 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
     ? etapasFlujo.filter((e) => e.esFinal || e.esCancelacion).map((e) => e.id)
     : undefined;
 
+  // Un rango de fechas es una consulta sobre el histórico, y ahí casi todo ya
+  // está entregado o cancelado. Ocultar los cerrados vaciaba la tabla mientras
+  // los KPIs del mismo rango seguían sumándolos (obtenerPedidosKpis no aplica
+  // ocultarCerrados, sus totales son históricos por diseño), lo que se leía
+  // como que el filtro de fecha no funcionaba. Con un rango activo, el rango
+  // manda: lista y montos miran la misma población.
+  const hayFiltroFecha = Boolean(fechaPedidoDesde || fechaPedidoHasta || entregaDesde || entregaHasta);
+  const cerradosForzados = hayFiltroFecha && sp.cerrados !== "1";
+
   const filtros: PedidosFiltros = {
     busqueda: sp.q || undefined,
     // Misma zona y mismo criterio que `entregaDesde`/`entregaHasta` de arriba.
@@ -98,8 +108,9 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
     entregaDesde,
     entregaHasta,
     // "Ver cerrados" — desmarcado por default (ver checkbox en la barra de
-    // filtros); ?cerrados=1 lo activa y muestra también los cerrados.
-    ocultarCerrados: sp.cerrados !== "1",
+    // filtros); ?cerrados=1 lo activa y muestra también los cerrados. Un rango
+    // de fechas activo lo desactiva igual (ver hayFiltroFecha).
+    ocultarCerrados: sp.cerrados !== "1" && !hayFiltroFecha,
     etapaIdsCerradas,
   };
 
@@ -182,33 +193,35 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
           ) : undefined}
         />
       ) : (
-        <>
-          <PedidosFiltrosBar contactos={opcionesContactos} productos={opcionesProductos} pedidosFiltrados={pedidos} etapasFlujo={etapasFlujo} zonaNegocio={zonaHoraria} />
-          <PedidosKpiCards kpis={kpis} moneda={moneda} hayRangoFecha={!!(filtros.desde || filtros.hasta)} etiquetaMesActual={etiquetaMesActual} />
-          {pedidos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-stone-200 dark:border-white/10 py-16">
-              <div className="h-12 w-12 rounded-2xl bg-stone-100 dark:bg-white/5 flex items-center justify-center">
-                <SearchX className="h-5 w-5 text-stone-300 dark:text-stone-600" />
+        <ProveedorNavegacionFiltros>
+          <PedidosFiltrosBar contactos={opcionesContactos} productos={opcionesProductos} pedidosFiltrados={pedidos} etapasFlujo={etapasFlujo} zonaNegocio={zonaHoraria} cerradosForzados={cerradosForzados} />
+          <ZonaResultados>
+            <PedidosKpiCards kpis={kpis} moneda={moneda} hayRangoFecha={!!(filtros.desde || filtros.hasta)} etiquetaMesActual={etiquetaMesActual} />
+            {pedidos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-stone-200 dark:border-white/10 py-16">
+                <div className="h-12 w-12 rounded-2xl bg-stone-100 dark:bg-white/5 flex items-center justify-center">
+                  <SearchX className="h-5 w-5 text-stone-300 dark:text-stone-600" />
+                </div>
+                <p className="text-sm font-medium text-stone-500 dark:text-stone-400">
+                  {hayFiltrosActivos
+                    ? "No encontramos pedidos con estos filtros."
+                    : "Todos tus pedidos están cerrados (entregados o cancelados)."}
+                </p>
+                {hayFiltrosActivos ? (
+                  <ButtonLink href="/sales/pedidos" variant="outline" size="sm">
+                    Limpiar filtros
+                  </ButtonLink>
+                ) : (
+                  <ButtonLink href="/sales/pedidos?cerrados=1" variant="outline" size="sm">
+                    Ver cerrados
+                  </ButtonLink>
+                )}
               </div>
-              <p className="text-sm font-medium text-stone-500 dark:text-stone-400">
-                {hayFiltrosActivos
-                  ? "No encontramos pedidos con estos filtros."
-                  : "Todos tus pedidos están cerrados (entregados o cancelados)."}
-              </p>
-              {hayFiltrosActivos ? (
-                <ButtonLink href="/sales/pedidos" variant="outline" size="sm">
-                  Limpiar filtros
-                </ButtonLink>
-              ) : (
-                <ButtonLink href="/sales/pedidos?cerrados=1" variant="outline" size="sm">
-                  Ver cerrados
-                </ButtonLink>
-              )}
-            </div>
-          ) : (
-            <ListaPedidos pedidos={pedidos} etapasFlujo={etapasFlujo} zonaHoraria={zonaHoraria} />
-          )}
-        </>
+            ) : (
+              <ListaPedidos pedidos={pedidos} etapasFlujo={etapasFlujo} zonaHoraria={zonaHoraria} />
+            )}
+          </ZonaResultados>
+        </ProveedorNavegacionFiltros>
       )}
     </div>
   );

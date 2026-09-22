@@ -5,8 +5,7 @@ import { MoreHorizontal, Trash2, ArrowUpDown, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { FechaHora } from "@/shared/fechas/fecha-hora";
 import { DataTable } from "@/shared/ui/data-table";
 import { useSesion } from "@/shared/auth/sesion-context";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +42,6 @@ function EntregaEstimadaCell({ pedido, zonaHoraria }: { pedido: Pedido; zonaHora
   const ymdManana = fechaYMDEnZona(rangoDiaEnZona(zonaHoraria, 1).desde, zonaHoraria);
   const esHoy = ymd === ymdHoy;
   const esManana = ymd === ymdManana;
-  const fechaFormateada = format(fecha, "dd MMM yyyy", { locale: es });
 
   return (
     <span
@@ -54,7 +52,8 @@ function EntregaEstimadaCell({ pedido, zonaHoraria }: { pedido: Pedido; zonaHora
         !esHoy && !esManana && "text-stone-600 dark:text-stone-400"
       )}
     >
-      {esHoy ? `Hoy · ${fechaFormateada}` : esManana ? `Mañana · ${fechaFormateada}` : fechaFormateada}
+      {esHoy ? "Hoy · " : esManana ? "Mañana · " : ""}
+      <FechaHora valor={fecha} modo="fecha" />
     </span>
   );
 }
@@ -76,7 +75,7 @@ function ExpiracionCell({ pedido }: { pedido: Pedido }) {
         (cerrado || (!vencido && !porVencer)) && "text-emerald-600 dark:text-emerald-400"
       )}
     >
-      {format(fecha, "dd MMM yyyy", { locale: es })}
+      <FechaHora valor={fecha} modo="fecha" />
     </span>
   );
 }
@@ -257,7 +256,7 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
     header: "Fecha pedido",
     cell: ({ getValue }) => (
       <span className="text-sm text-muted-foreground">
-        {format(new Date(getValue<Date>()), "dd MMM yyyy", { locale: es })}
+        <FechaHora valor={getValue<Date>()} modo="fecha" />
       </span>
     ),
   },

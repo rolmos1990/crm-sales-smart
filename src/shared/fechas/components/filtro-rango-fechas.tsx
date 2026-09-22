@@ -157,8 +157,11 @@ export function FiltroRangoFechas({
   };
 
   const aplicar = (rango: RangoFechasYmd) => {
-    onChange(rango);
     setAbierto(false);
+    // Aplicar sin haber cambiado nada solo cierra: el caller navega en cada
+    // `onChange` y una navegación a la misma URL igual cuesta un round-trip.
+    if (rango.desde === valor.desde && rango.hasta === valor.hasta) return;
+    onChange(rango);
   };
 
   const limpiar = () => {
@@ -184,10 +187,13 @@ export function FiltroRangoFechas({
     // Segundo clic: cierra el rango. Volver a clicar el día inicial confirma
     // el rango de un día en vez de deseleccionar (que es lo que haría
     // react-day-picker por su cuenta).
-    const rango = cerrarRango(borrador.desde, ymd);
-    setBorrador(rango);
+    //
+    // No se aplica acá a propósito: elegir días solo pinta el borrador, y el
+    // único commit es el botón "Aplicar". Auto-aplicar en este clic disparaba
+    // la navegación antes de que el usuario pudiera corregir la selección, y
+    // como cerraba el popover había que reabrirlo para ajustar un extremo.
+    setBorrador(cerrarRango(borrador.desde, ymd));
     setEditando("desde");
-    aplicar(rango);
   };
 
   const aplicarPreset = (preset: PresetRangoFechas) => {
@@ -206,7 +212,7 @@ export function FiltroRangoFechas({
   const pista = editando === "hasta"
     ? "Elige la fecha final. Vuelve a hacer clic en el mismo día para un rango de un solo día."
     : total > 0
-      ? total === 1 ? "1 día seleccionado" : `${total} días seleccionados`
+      ? `${total === 1 ? "1 día seleccionado" : `${total} días seleccionados`} · presiona Aplicar`
       : "Haz clic en el día inicial y luego en el final.";
 
   const textoExtremo = (ymd: string | null) =>
