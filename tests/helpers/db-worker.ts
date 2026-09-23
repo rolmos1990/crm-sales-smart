@@ -243,6 +243,34 @@ async function crearPedidoEnEtapaFinal(instanciaId: string, usuarioId: string) {
   return { pedidoId: pedido.id, etapaNombre: etapaFinal.nombre };
 }
 
+// Crea SIEMPRE una etapa esFinal nueva (no reutiliza) con
+// permiteEditarPedido:false explícito — replica el estado real en el que
+// quedaban las etapas Final configuradas desde la UI antes del fix de
+// 027-fix-permitir-editar-pedidos-etapa-final, que forzaba ese valor sin
+// dejar elegir. Usado como baseline "bloqueado" para probar que activar el
+// toggle en el diálogo de configuración efectivamente desbloquea el pedido.
+async function crearPedidoEnEtapaFinalBloqueada(instanciaId: string, usuarioId: string) {
+  const flujo = await prisma.flujoVenta.findFirst({ where: { instanciaId } });
+  if (!flujo) throw new Error("No existe flujo de venta para la instancia");
+
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const etapaFinal = await prisma.flujoVentaEtapa.create({
+    data: {
+      flujoVentaId: flujo.id, nombre: `FinalBloqueada-${sufijo}`, orden: 999,
+      esFinal: true, color: "#4ade80", permiteEditarPedido: false,
+    },
+  });
+
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero: `PED-TEST-${sufijo}`, estado: "PENDIENTE", instanciaId, usuarioId,
+      flujoVentaId: flujo.id, flujoVentaEtapaId: etapaFinal.id,
+    },
+  });
+
+  return { pedidoId: pedido.id, etapaId: etapaFinal.id, etapaNombre: etapaFinal.nombre };
+}
+
 // Crea (o reutiliza) una etapa con permiteEditarEntrega:true y un pedido ya
 // ubicado en ella — la sección "Entrega y seguimiento" del pedido está
 // bloqueada por defecto (requiere una etapa que explícitamente lo permita),
@@ -589,6 +617,7 @@ const OPERACIONES: Record<string, (...args: any[]) => Promise<unknown>> = {
   asegurarFlujoConEtapas,
   crearEtapaConPedido,
   crearPedidoEnEtapaFinal,
+  crearPedidoEnEtapaFinalBloqueada,
   crearPedidoConReglaBloqueante,
   crearPedidoConEntregaEditable,
   vaciarActividades,

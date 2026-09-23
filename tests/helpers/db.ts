@@ -178,6 +178,13 @@ export function crearPedidoEnEtapaFinal(instanciaId: string, usuarioId: string) 
   );
 }
 
+export function crearPedidoEnEtapaFinalBloqueada(instanciaId: string, usuarioId: string) {
+  return llamar<{ pedidoId: string; etapaId: string; etapaNombre: string }>(
+    "crearPedidoEnEtapaFinalBloqueada",
+    [instanciaId, usuarioId],
+  );
+}
+
 export function crearPedidoConEntregaEditable(instanciaId: string, usuarioId: string) {
   return llamar<{ pedidoId: string }>("crearPedidoConEntregaEditable", [instanciaId, usuarioId]);
 }

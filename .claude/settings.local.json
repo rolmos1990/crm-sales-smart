@@ -305,7 +305,22 @@
       "Bash(sed -i 's#^import { parseYMD, inicioDiaEnZona } from \"@/sales/pedidos/utils/fechas-zona\";$#import { parsearExtremosDeSearchParams } from \"@/shared/fechas/searchparams\";#' src/app/sales/preparacion/page.tsx)",
       "Bash(python3 -)",
       "Bash(awk 'NR<150 && /^\\(function|const\\) .*\\\\\\(/ {print NR\": \"$0}' src/sales/flujo-venta/components/constructor-condiciones.tsx)",
-      "Bash(echo \"exit=$? \\(1 = sin errores en archivos tocados\\)\")"
+      "Bash(echo \"exit=$? \\(1 = sin errores en archivos tocados\\)\")",
+      "Bash(chmod +x /Users/ramonolmos/Repositories/crm-sales-smart/docker-entrypoint.sh)",
+      "Bash(docker version *)",
+      "Bash(docker build *)",
+      "Bash(docker volume *)",
+      "Bash(docker run *)",
+      "Bash(docker exec *)",
+      "Bash(docker stop *)",
+      "Bash(docker rm *)",
+      "Bash(docker rmi *)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\(process.env.DATABASE_URL ? 'OK cargado' : 'NO cargado'\\)\")",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('.claude/settings.local.json','utf8'\\)\\); console.log\\('JSON OK'\\)\")",
+      "Bash(git branch *)",
+      "Bash(curl -s -o /tmp/pedido-page.html -w \"HTTP %{http_code}\\\\n\" http://localhost:3000/sales/pedidos/cmudlj0pu0001jfw1pajj88nx)",
+      "Bash(grep -n \"FinalBloqueada\\\\|1790138461659\\\\|status\\\\|Añadir etapa\\\\|etapas$\" \"/Users/ramonolmos/Repositories/crm-sales-smart/test-results/sales-flujo-venta-Uso-del--08eb0--Final-desbloquea-el-pedido-chromium/error-context.md\")",
+      "Bash(pkill -f \"next dev\" 2>/dev/null *)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
@@ -315,7 +330,8 @@
       "/Users/ramonolmos/Repositories/crm-sales-smart/scripts",
       "/Users/ramonolmos/Repositories/crm-sales-smart",
       "/Users/ramonolmos/Repositories/crm-sales-smart/specs/024-alias-ubicaciones-transportistas",
-      "/private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad"
+      "/private/tmp/claude-501/-Users-ramonolmos-Repositories-crm-sales-smart/532796f7-1d8d-4aeb-9867-959ce668ec8f/scratchpad",
+      "/tmp"
     ]
   }
 }
