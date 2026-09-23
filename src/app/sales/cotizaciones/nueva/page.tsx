@@ -2,6 +2,7 @@ import { FormCotizacion } from "@/sales/cotizaciones/components/form-cotizacion"
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import type { FiltroCatalogo } from "@/shared/productos/types";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
@@ -22,6 +23,7 @@ export default async function NuevaCotizacionPage({
   let empresas: { id: string; nombre: string }[] = [];
   let contactos: Awaited<ReturnType<typeof buscarContactos>> = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
+  let filtroCatalogoInicial: FiltroCatalogo = "TODOS";
   let transportistas: Awaited<ReturnType<typeof obtenerTransportistas>> = [];
   let monedaDefault = "PEN";
   let defaultCountryCode = "PA";
@@ -37,6 +39,7 @@ export default async function NuevaCotizacionPage({
       obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
     defaultCountryCode = isoDesdePais(config?.pais);
+    filtroCatalogoInicial = config?.filtroProductosPedido ?? "TODOS";
   } catch {
     // DB not configured
   }
@@ -83,6 +86,7 @@ export default async function NuevaCotizacionPage({
         contactos={opcionesContactos}
         contactosDetalle={contactos}
         productos={productos}
+        filtroCatalogoInicial={filtroCatalogoInicial}
         transportistas={transportistas}
         oportunidadId={params.oportunidadId}
         defaultValues={defaultValues}

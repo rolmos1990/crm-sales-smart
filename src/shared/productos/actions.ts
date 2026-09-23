@@ -7,7 +7,7 @@ import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { resolverCodigoEfectivo, ocultarCodigo } from "@/shared/lib/codigo-sensible";
-import { CrearProductoSchema, ActualizarProductoSchema } from "./schema";
+import { CrearProductoSchema, ActualizarProductoSchema, type ComponenteComboInput } from "./schema";
 import type { ResultadoAccion, Producto } from "./types";
 
 /** true si el usuario tocó algún campo de la plantilla — evita crear una
@@ -29,6 +29,47 @@ export async function buscarProductosAction(query: string) {
   return buscarProductos(query, sesion.instanciaId);
 }
 
+/** Une repetidos sumando cantidades: agregar dos veces el mismo producto
+ *  equivale a subir su cantidad, nunca a duplicarlo. */
+function normalizarComponentes(componentes: ComponenteComboInput[]): ComponenteComboInput[] {
+  const porId = new Map<string, number>();
+  for (const c of componentes) porId.set(c.productoId, (porId.get(c.productoId) ?? 0) + c.cantidad);
+  return [...porId].map(([productoId, cantidad]) => ({ productoId, cantidad }));
+}
+
+/**
+ * 029-combos-productos-compuestos — reglas de composición. Solo un nivel: un
+ * componente nunca es combo y un producto que ya es componente no puede
+ * volverse combo, así que un combo no puede contenerse a sí mismo ni directa
+ * ni indirectamente (sin necesidad de recorrer un grafo).
+ */
+async function validarComposicion(params: {
+  instanciaId: string;
+  comboId?: string;
+  componentes: ComponenteComboInput[];
+}): Promise<string | null> {
+  const { instanciaId, comboId, componentes } = params;
+  if (componentes.length === 0) return "Un combo necesita al menos un componente";
+  if (comboId && componentes.some((c) => c.productoId === comboId)) return "Un combo no puede incluirse a sí mismo";
+
+  const ids = componentes.map((c) => c.productoId);
+  const encontrados = await prisma.producto.findMany({
+    where: { id: { in: ids }, instanciaId },
+    select: { id: true, esCombo: true },
+  });
+  if (encontrados.length !== ids.length) return "Componente no encontrado";
+  if (encontrados.some((p) => p.esCombo)) return "Un combo solo puede tener productos simples como componentes";
+
+  if (comboId) {
+    const usadoEn = await prisma.productoComponente.findFirst({
+      where: { componenteId: comboId, combo: { instanciaId } },
+      select: { combo: { select: { nombre: true } } },
+    });
+    if (usadoEn) return `Este producto es componente de «${usadoEn.combo.nombre}» y no puede convertirse en combo`;
+  }
+  return null;
+}
+
 export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Producto>> {
   const auth = await requirePermisoAction("productos", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
@@ -37,11 +78,21 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, ...resto } = validado.data;
+    const { descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, componentes, ...resto } = validado.data;
+    const esCombo = resto.esCombo ?? false;
+    const componentesCombo = esCombo ? normalizarComponentes(componentes ?? []) : [];
+    if (esCombo) {
+      const error = await validarComposicion({ instanciaId: sesion.instanciaId, componentes: componentesCombo });
+      if (error) return { exito: false, error };
+    }
     const debeCrearEntregaDigital = resto.tipo === "DIGITAL" && hayEntregaDigital(entregaDigital);
     const producto = await prisma.producto.create({
       data: {
         ...resto,
+        esCombo,
+        componentes: esCombo
+          ? { create: componentesCombo.map((c) => ({ componenteId: c.productoId, cantidad: c.cantidad })) }
+          : undefined,
         instanciaId: sesion.instanciaId,
         moneda: resto.moneda ?? "PEN",
         activo: resto.activo ?? true,
@@ -50,7 +101,8 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
         unidad: unidad || undefined,
         sku: sku || null,
         imagenUrl: imagenUrl || null,
-        manejaStock: manejaStock ?? false,
+        // Un combo no tiene stock propio: su disponibilidad sale de los componentes.
+        manejaStock: esCombo ? false : (manejaStock ?? false),
         cantidadDisponible: cantidadDisponible ?? 0,
         entregaDigital: debeCrearEntregaDigital ? {
           create: {
@@ -95,11 +147,27 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, ...resto } = validado.data;
+    const { descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, componentes, ...resto } = validado.data;
     const productoAntes = await prisma.producto.findUnique({
       where: { id, instanciaId: sesion.instanciaId },
-      select: { precio: true, tipo: true, entregaDigital: { select: { codigo: true } } },
+      select: {
+        precio: true, tipo: true, esCombo: true, entregaDigital: { select: { codigo: true } },
+        componentes: { select: { componenteId: true, cantidad: true } },
+      },
     });
+
+    // 029 — sin `componentes` en el payload se conservan los guardados.
+    const esCombo = resto.esCombo ?? productoAntes?.esCombo ?? false;
+    const componentesCombo = esCombo
+      ? normalizarComponentes(
+          componentes ?? (productoAntes?.componentes ?? []).map((c) => ({ productoId: c.componenteId, cantidad: c.cantidad })),
+        )
+      : [];
+    if (esCombo) {
+      const error = await validarComposicion({ instanciaId: sesion.instanciaId, comboId: id, componentes: componentesCombo });
+      if (error) return { exito: false, error };
+    }
+    const tocaComponentes = esCombo ? componentes !== undefined || resto.esCombo !== undefined : productoAntes?.esCombo === true;
     const tipoEfectivo = resto.tipo ?? productoAntes?.tipo ?? "FISICO";
     const debeTocarEntregaDigital = tipoEfectivo === "DIGITAL" && entregaDigital !== undefined;
     const datosEntregaDigital = debeTocarEntregaDigital ? {
@@ -124,7 +192,17 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
         ...(sku !== undefined && { sku: sku || null }),
         ...(imagenUrl !== undefined && { imagenUrl: imagenUrl || null }),
         ...(manejaStock !== undefined && { manejaStock }),
+        ...(esCombo && { manejaStock: false }),
         ...(cantidadDisponible !== undefined && { cantidadDisponible }),
+        // Reemplazo completo dentro del mismo update (atómico). Dejar de ser
+        // combo borra la composición; los pedidos ya creados no se ven
+        // afectados porque cada línea guardó la suya (composicionCombo).
+        componentes: tocaComponentes
+          ? {
+              deleteMany: {},
+              ...(esCombo && { create: componentesCombo.map((c) => ({ componenteId: c.productoId, cantidad: c.cantidad })) }),
+            }
+          : undefined,
         entregaDigital: datosEntregaDigital ? {
           upsert: { create: datosEntregaDigital, update: datosEntregaDigital },
         } : undefined,

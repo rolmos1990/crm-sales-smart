@@ -156,7 +156,10 @@ test.describe('Tablero de preparación', () => {
     const buscado = await crearPedidoParaPreparacion(instanciaId, usuarioId);
     const otro = await crearPedidoParaPreparacion(instanciaId, usuarioId);
 
-    await abrirTablero(page, `?q=${encodeURIComponent(buscado.numero)}`);
+    await abrirTablero(page);
+    const buscador = page.getByRole('textbox', { name: /buscar en el tablero/i });
+    await buscador.fill(buscado.numero);
+    await buscador.press('Enter');
 
     await expect(tarjeta(page, buscado.numero)).toBeVisible({ timeout: 10000 });
     await expect(tarjeta(page, otro.numero)).toHaveCount(0);
@@ -170,7 +173,8 @@ test.describe('Tablero de preparación', () => {
     await limpiarEntradasPreparacion(instanciaId);
     const pedido = await crearPedidoParaPreparacion(instanciaId, usuarioId);
 
-    await abrirTablero(page, '?vista=lista');
+    await abrirTablero(page);
+    await page.getByRole('button', { name: /^lista$/i }).click();
 
     await expect(page.getByRole('columnheader', { name: /estado de preparación/i })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('cell', { name: pedido.numero })).toBeVisible();

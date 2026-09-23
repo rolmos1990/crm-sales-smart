@@ -21,7 +21,8 @@ export async function producirCapaCatalogo({ instanciaId, activo, limite }: Insu
   try {
     // `limite + 1` dice si hay más productos sin un `count` aparte.
     const productos = await prisma.producto.findMany({
-      where: { instanciaId, activo: true, precio: { gt: 0 } },
+      // 029 — sin piezas que solo se venden dentro de un combo.
+      where: { instanciaId, activo: true, ventaDirecta: true, precio: { gt: 0 } },
       orderBy: [{ actualizadoEn: "desc" }],
       take: limite + 1,
       select: { nombre: true, sku: true, precio: true, moneda: true, unidad: true, categoria: true },

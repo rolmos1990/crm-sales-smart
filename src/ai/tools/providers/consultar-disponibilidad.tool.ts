@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { registroHerramientas } from "@/ai/tools/registry";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
+import { calcularDisponibilidadCombo } from "@/shared/productos/inventario";
 
 const ArgsSchema = z.object({ productoId: z.string().min(1) });
 
@@ -24,10 +25,34 @@ const ConsultarDisponibilidadTool: IProveedorTool = {
     const { prisma } = await import("@/shared/db/prisma");
     const producto = await prisma.producto.findFirst({
       where: { id: parsed.data.productoId, instanciaId: ctx.instanciaId },
-      select: { manejaStock: true, cantidadDisponible: true },
+      select: {
+        manejaStock: true,
+        cantidadDisponible: true,
+        esCombo: true,
+        componentes: { select: { cantidad: true, componente: { select: { manejaStock: true, cantidadDisponible: true, activo: true } } } },
+      },
     });
 
     if (!producto) return { ok: false, error: "Producto no encontrado" };
+
+    // 029-combos-productos-compuestos — un combo no tiene stock propio: se
+    // puede vender tantas veces como alcancen sus componentes.
+    if (producto.esCombo) {
+      const disponibilidad = calcularDisponibilidadCombo(
+        (producto.componentes ?? []).map((c) => ({
+          cantidad: c.cantidad,
+          manejaStock: c.componente.manejaStock,
+          cantidadDisponible: Number(c.componente.cantidadDisponible),
+          activo: c.componente.activo,
+        })),
+      );
+      return {
+        ok: true,
+        data: disponibilidad === null
+          ? { disponible: true, cantidadDisponible: null, manejaStock: false, esCombo: true }
+          : { disponible: disponibilidad > 0, cantidadDisponible: disponibilidad, manejaStock: true, esCombo: true },
+      };
+    }
 
     if (!producto.manejaStock) {
       return { ok: true, data: { disponible: true, cantidadDisponible: null, manejaStock: false } };

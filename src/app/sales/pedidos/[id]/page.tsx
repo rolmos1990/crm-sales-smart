@@ -27,6 +27,7 @@ import { SeccionEntregaDigital } from "@/sales/pedidos/components/seccion-entreg
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import type { FiltroCatalogo } from "@/shared/productos/types";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import { isoDesdePais } from "@/shared/lib/pais-iso";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
   let opcionesEmpresas: { valor: string; etiqueta: string }[] = [];
   let opcionesContactos: { valor: string; etiqueta: string }[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
+  let filtroCatalogoInicial: FiltroCatalogo = "TODOS";
   let defaultCountryCode = "PA";
 
   try {
@@ -74,6 +76,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
       obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
     defaultCountryCode = isoDesdePais(config?.pais);
+    filtroCatalogoInicial = config?.filtroProductosPedido ?? "TODOS";
   } catch {
     // DB not configured
   }
@@ -215,6 +218,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
               contactos={opcionesContactos}
               empresas={opcionesEmpresas}
               productos={productos}
+              filtroCatalogoInicial={filtroCatalogoInicial}
               defaultCountryCode={defaultCountryCode}
             />
           )}

@@ -5,7 +5,7 @@ import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "./queries";
-import { ConfiguracionEmpresaSchema, ConfiguracionGeograficaSchema, ConfiguracionEnvioSchema } from "./schema";
+import { ConfiguracionEmpresaSchema, ConfiguracionGeograficaSchema, ConfiguracionEnvioSchema, PreferenciaCatalogoVentaSchema } from "./schema";
 import type { ResultadoAccion, ConfigEmpresa } from "./types";
 
 // 019-cobertura-geografica-envios — entrypoint client-callable liviano
@@ -124,5 +124,30 @@ export async function guardarConfiguracionEnvio(datos: unknown): Promise<Resulta
     return { exito: true, datos: config as ConfigEmpresa };
   } catch {
     return { exito: false, error: "Error al guardar la configuración de envío" };
+  }
+}
+
+// 029-combos-productos-compuestos — "Productos mostrados al crear pedidos".
+export async function guardarPreferenciaCatalogoVenta(datos: unknown): Promise<ResultadoAccion<ConfigEmpresa>> {
+  const sesion = await requireSesion();
+  const acceso = verificarAcceso(sesion, "configuracion", "modificar");
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
+  const validado = PreferenciaCatalogoVentaSchema.safeParse(datos);
+  if (!validado.success) {
+    return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
+  }
+
+  try {
+    const config = await prisma.configuracionEmpresa.upsert({
+      where: { instanciaId: sesion.instanciaId },
+      create: { instanciaId: sesion.instanciaId, ...validado.data },
+      update: validado.data,
+    });
+
+    revalidatePath("/configuracion");
+    return { exito: true, datos: config as ConfigEmpresa };
+  } catch {
+    return { exito: false, error: "Error al guardar la preferencia" };
   }
 }

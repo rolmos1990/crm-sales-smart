@@ -15,3 +15,11 @@ export async function obtenerMonedaPrincipal(instanciaId: string): Promise<strin
   });
   return config?.monedaPrincipal ?? MONEDA_DEFAULT;
 }
+
+/** 029-combos-productos-compuestos — pestaña inicial del selector de productos. */
+export async function obtenerFiltroProductosPedido(instanciaId: string): Promise<"TODOS" | "PRODUCTOS" | "COMBOS"> {
+  const config = await prisma.configuracionEmpresa
+    .findUnique({ where: { instanciaId }, select: { filtroProductosPedido: true } })
+    .catch(() => null);
+  return config?.filtroProductosPedido ?? "TODOS";
+}

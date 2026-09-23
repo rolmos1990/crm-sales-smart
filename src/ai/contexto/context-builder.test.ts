@@ -169,7 +169,7 @@ describe("construirContextoCompuesto — capa 8: catálogo (028)", () => {
     expect(resultado.systemPrompt).toContain("Catálogo vigente de la empresa");
     expect(resultado.systemPrompt).toContain("- Cojín bordado — 45.00 PEN / unidad");
     const args = productoFindManyMock.mock.calls[0][0];
-    expect(args.where).toEqual({ instanciaId: "instancia-1", activo: true, precio: { gt: 0 } });
+    expect(args.where).toEqual({ instanciaId: "instancia-1", activo: true, ventaDirecta: true, precio: { gt: 0 } });
     expect(args.take).toBe(11);
   });
 

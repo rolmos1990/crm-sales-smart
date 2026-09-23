@@ -68,6 +68,30 @@ export interface ProductoCatalogo {
   cantidadDisponible: number;
   tipo: TipoProducto;
   entregaDigital: EntregaDigitalProductoInfo | null;
+  // 029-combos-productos-compuestos
+  esCombo: boolean;
+  /** false = no aparece en el selector de pedidos/cotizaciones, pero puede
+   *  usarse como componente de un combo. */
+  ventaDirecta: boolean;
+  /** Unidades vendibles: stock propio o, en un combo, las que alcanzan a
+   *  armarse con sus componentes. null = sin control de stock. */
+  disponibilidad: number | null;
+}
+
+/** Filtro del selector de productos (mismo enum que
+ *  ConfiguracionEmpresa.filtroProductosPedido). */
+export type FiltroCatalogo = "TODOS" | "PRODUCTOS" | "COMBOS";
+
+export const FILTRO_CATALOGO_LABELS: Record<FiltroCatalogo, string> = {
+  TODOS: "Todos",
+  PRODUCTOS: "Productos",
+  COMBOS: "Combos",
+};
+
+/** Componente de un combo tal como lo edita el formulario de producto. */
+export interface ComponenteCombo {
+  productoId: string;
+  cantidad: number;
 }
 
 export type ResultadoAccion<T = void> =

@@ -62,7 +62,7 @@ export default async function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="preferencias">
-            <TabPreferencias />
+            <TabPreferencias filtroProductosPedidoInicial={configEmpresa?.filtroProductosPedido ?? "TODOS"} />
           </TabsContent>
 
           <TabsContent value="usuarios">

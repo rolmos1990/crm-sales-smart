@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { CampoCodigoLicencia } from "@/shared/ui/campo-codigo-licencia";
-import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
+import type { FiltroCatalogo, ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
 import { buscarContactosAction } from "@/crm/contactos/actions";
 import { crearCotizacion, actualizarCotizacion } from "../actions";
 import { CrearCotizacionSchema, type CrearCotizacionInput, type DestinatarioCotizacionInput } from "../schema";
@@ -67,6 +67,8 @@ interface FormCotizacionProps {
   contactosDetalle?: ContactoResumen[];
   empresas: OpcionCombobox[];
   productos?: ProductoCatalogo[];
+  /** 029 — pestaña inicial del selector de productos (preferencia de la empresa). */
+  filtroCatalogoInicial?: FiltroCatalogo;
   transportistas?: TransportistaResumen[];
   oportunidadId?: string;
   cotizacionId?: string;
@@ -138,6 +140,7 @@ export function FormCotizacion({
   contactosDetalle = [],
   empresas,
   productos = [],
+  filtroCatalogoInicial,
   transportistas = [],
   oportunidadId,
   cotizacionId,
@@ -645,6 +648,7 @@ export function FormCotizacion({
                           {productos.length > 0 && (
                             <SelectorProductoLinea
                               productos={productos}
+                              filtroInicial={filtroCatalogoInicial}
                               productoId={lineas[idx]?.productoId ?? ""}
                               onSeleccionar={(p) => {
                                 form.setValue(`lineas.${idx}.productoId`, p.id);

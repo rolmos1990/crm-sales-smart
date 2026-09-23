@@ -47,7 +47,7 @@ describe("producirCapaCatalogo (028)", () => {
     findManyMock.mockResolvedValue([]);
     await producirCapaCatalogo({ instanciaId: "instancia-x", activo: true, limite: 30 });
 
-    expect(findManyMock.mock.calls[0][0].where).toEqual({ instanciaId: "instancia-x", activo: true, precio: { gt: 0 } });
+    expect(findManyMock.mock.calls[0][0].where).toEqual({ instanciaId: "instancia-x", activo: true, ventaDirecta: true, precio: { gt: 0 } });
   });
 
   it("incluye sku y categoría cuando existen", async () => {

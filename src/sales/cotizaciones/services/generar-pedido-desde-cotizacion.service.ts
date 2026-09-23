@@ -4,6 +4,13 @@ import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { generarNumeroPedido } from "@/sales/pedidos/queries";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
+import {
+  aplicarDeltas,
+  cargarComposiciones,
+  lineasConComposicionActual,
+  planificarStock,
+  snapshotComposicion,
+} from "@/shared/productos/stock";
 
 export interface GenerarPedidoDesdeCotizacionResult {
   pedidoId: string;
@@ -64,15 +71,12 @@ export async function generarPedidoDesdeCotizacion(
   // Revalidación defensiva de stock: la acción de aprobar ya lo valida antes
   // de publicar el evento, pero entre ese chequeo y este puede haber pasado
   // stock vendido por otra cotización/pedido procesado mientras tanto.
-  const erroresStock: string[] = [];
-  for (const linea of cotizacion.lineas) {
-    if (!linea.producto?.manejaStock) continue;
-    const disponible = Number(linea.producto.cantidadDisponible);
-    const solicitado = Number(linea.cantidad);
-    if (disponible < solicitado) {
-      erroresStock.push(`"${linea.producto.nombre}": disponible ${disponible}, solicitado ${solicitado}`);
-    }
-  }
+  // Un combo se valida y descuenta por sus componentes, con la composición
+  // vigente al generar el pedido (029-combos-productos-compuestos).
+  const lineasStock = cotizacion.lineas.map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad) }));
+  const composiciones = await cargarComposiciones(lineasStock.map((l) => l.productoId), instanciaId, prisma);
+  const consumo = lineasConComposicionActual(lineasStock, composiciones);
+  const erroresStock = (await planificarStock([], consumo, prisma)).errores;
   if (erroresStock.length > 0) {
     // Lanzar (no devolver un ResultadoAccion) a propósito: el suscriptor que
     // llama a este servicio necesita que la excepción se propague para que
@@ -192,6 +196,7 @@ export async function generarPedidoDesdeCotizacion(
           impuesto:       l.impuesto,
           subtotal:       l.subtotal,
           total:          l.total,
+          composicionCombo: snapshotComposicion(l.productoId, composiciones),
           entregaDigital: l.entregaDigital ? {
             create: {
               metodo:          l.entregaDigital.metodo,
@@ -222,18 +227,9 @@ export async function generarPedidoDesdeCotizacion(
       });
     }
 
-    // Descontar stock de productos que lo manejan
-    const lineasConStock = cotizacion.lineas.filter((l) => l.producto?.manejaStock && l.productoId);
-    if (lineasConStock.length > 0) {
-      await Promise.all(
-        lineasConStock.map((l) =>
-          tx.producto.update({
-            where: { id: l.productoId! },
-            data: { cantidadDisponible: { decrement: l.cantidad } },
-          })
-        )
-      );
-    }
+    // Descontar stock dentro de la transacción, como siempre. Se recalcula
+    // con `tx` para no descontar sobre una lectura previa a la transacción.
+    await aplicarDeltas(await planificarStock([], consumo, tx), tx);
 
     return nuevoPedido;
   });

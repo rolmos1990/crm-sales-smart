@@ -40,3 +40,10 @@ export const ConfiguracionEnvioSchema = z.object({
   permiteConvertirSinConfirmarCostoEnvio: z.boolean(),
 });
 export type ConfiguracionEnvioInput = z.infer<typeof ConfiguracionEnvioSchema>;
+
+// 029-combos-productos-compuestos — solo define la pestaña con la que abre el
+// selector de productos en pedidos y cotizaciones; nunca restringe.
+export const PreferenciaCatalogoVentaSchema = z.object({
+  filtroProductosPedido: z.enum(["TODOS", "PRODUCTOS", "COMBOS"]),
+});
+export type PreferenciaCatalogoVentaInput = z.infer<typeof PreferenciaCatalogoVentaSchema>;

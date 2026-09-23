@@ -25,6 +25,8 @@ export interface ConfigEmpresa {
   paisOperacionId: string | null;
   // 022-transportistas-zonas-tarifas — FR-040
   permiteConvertirSinConfirmarCostoEnvio: boolean;
+  // 029-combos-productos-compuestos — filtro inicial del selector de productos
+  filtroProductosPedido: "TODOS" | "PRODUCTOS" | "COMBOS";
   instanciaId: string;
   creadoEn: Date;
   actualizadoEn: Date;

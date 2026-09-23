@@ -111,6 +111,7 @@ export function SheetEditarCotizacion({ cotizacionId, onActualizada }: SheetEdit
             contactos={datos.contactos}
             contactosDetalle={datos.contactosDetalle}
             productos={datos.productos}
+            filtroCatalogoInicial={datos.filtroCatalogoInicial}
             transportistas={datos.transportistas}
             monedaDefault={datos.monedaDefault}
             defaultCountryCode={datos.defaultCountryCode}

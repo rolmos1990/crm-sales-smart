@@ -34,6 +34,8 @@ const BuscarProductosTool: IProveedorTool = {
       where: {
         instanciaId: ctx.instanciaId, // tenant isolation garantizado — nunca del LLM
         activo: true,
+        // 029 — la IA no ofrece piezas que solo se venden dentro de un combo.
+        ventaDirecta: true,
         OR: [
           { nombre: { contains: parsed.data.query, mode: "insensitive" } },
           { descripcion: { contains: parsed.data.query, mode: "insensitive" } },

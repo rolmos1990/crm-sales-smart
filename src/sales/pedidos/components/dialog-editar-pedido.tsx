@@ -26,7 +26,7 @@ import {
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
 import { PhoneInput } from "@/components/ui/phone-input";
-import type { ProductoCatalogo } from "@/shared/productos/types";
+import type { FiltroCatalogo, ProductoCatalogo } from "@/shared/productos/types";
 import { editarPedido } from "../actions";
 import { EditarPedidoSchema, type EditarPedidoInput } from "../schema";
 import type { PedidoParaEdicion } from "./form-pedido";
@@ -36,6 +36,8 @@ interface SheetEditarPedidoProps {
   contactos: OpcionCombobox[];
   empresas: OpcionCombobox[];
   productos?: ProductoCatalogo[];
+  /** 029 — pestaña inicial del selector de productos (preferencia de la empresa). */
+  filtroCatalogoInicial?: FiltroCatalogo;
   /** ISO alpha-2 del país configurado en Configuración → Empresa — el
    *  <PhoneInput> de "Datos de facturación" lo usa como prefijo por defecto
    *  en vez de +51 (Perú), su fallback interno. */
@@ -47,6 +49,7 @@ function FormEditarPedido({
   contactos,
   empresas,
   productos = [],
+  filtroCatalogoInicial,
   defaultCountryCode = "PA",
   onGuardado,
 }: SheetEditarPedidoProps & { onGuardado: () => void }) {
@@ -292,6 +295,7 @@ function FormEditarPedido({
                         {productos.length > 0 && (
                           <SelectorProductoLinea
                             productos={productos}
+                            filtroInicial={filtroCatalogoInicial}
                             productoId={lineas[idx]?.productoId ?? ""}
                             onSeleccionar={(p) => {
                               form.setValue(`lineas.${idx}.productoId`, p.id);
@@ -399,7 +403,7 @@ function FormEditarPedido({
   );
 }
 
-export function DialogEditarPedido({ pedido, contactos, empresas, productos = [], defaultCountryCode = "PA" }: SheetEditarPedidoProps) {
+export function DialogEditarPedido({ pedido, contactos, empresas, productos = [], filtroCatalogoInicial, defaultCountryCode = "PA" }: SheetEditarPedidoProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -438,6 +442,7 @@ export function DialogEditarPedido({ pedido, contactos, empresas, productos = []
                 contactos={contactos}
                 empresas={empresas}
                 productos={productos}
+                filtroCatalogoInicial={filtroCatalogoInicial}
                 defaultCountryCode={defaultCountryCode}
                 onGuardado={() => setOpen(false)}
               />

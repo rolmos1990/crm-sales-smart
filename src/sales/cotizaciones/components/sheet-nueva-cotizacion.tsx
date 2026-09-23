@@ -103,6 +103,7 @@ export function SheetNuevaCotizacion({
             contactos={datos.contactos}
             contactosDetalle={datos.contactosDetalle}
             productos={datos.productos}
+            filtroCatalogoInicial={datos.filtroCatalogoInicial}
             transportistas={datos.transportistas}
             oportunidadId={oportunidadId}
             monedaDefault={datos.monedaDefault}

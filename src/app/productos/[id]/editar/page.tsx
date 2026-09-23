@@ -3,7 +3,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/shared/ui/page-header";
 import { FormProducto } from "@/shared/productos/components/form-producto";
-import { obtenerProductoPorId } from "@/shared/productos/queries";
+import { obtenerProductoPorId, obtenerProductosParaComponentes } from "@/shared/productos/queries";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 
@@ -12,7 +12,11 @@ export default async function EditarProductoPage({ params }: { params: Promise<{
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "productos", "modificar").permitido) redirect("/acceso-denegado");
 
-  const producto = await obtenerProductoPorId(id, sesion.instanciaId).catch(() => null);
+  // Sin el propio producto: un combo no puede ser componente de sí mismo.
+  const [producto, productosComponentes] = await Promise.all([
+    obtenerProductoPorId(id, sesion.instanciaId).catch(() => null),
+    obtenerProductosParaComponentes(sesion.instanciaId, id).catch(() => []),
+  ]);
 
   if (!producto && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
     notFound();
@@ -28,6 +32,7 @@ export default async function EditarProductoPage({ params }: { params: Promise<{
         instanciaId={sesion.instanciaId}
         inicial={producto ? { ...producto, precio: Number(producto.precio), cantidadDisponible: Number(producto.cantidadDisponible) } : undefined}
         modo="editar"
+        productosComponentes={productosComponentes}
       />
     </div>
   );

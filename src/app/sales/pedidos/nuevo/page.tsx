@@ -6,6 +6,7 @@ import { FormPedido } from "@/sales/pedidos/components/form-pedido";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import type { FiltroCatalogo } from "@/shared/productos/types";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
@@ -18,6 +19,7 @@ export default async function NuevoPedidoPage() {
   let empresas: { id: string; nombre: string }[] = [];
   let contactos: any[] = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
+  let filtroCatalogoInicial: FiltroCatalogo = "TODOS";
   let monedaDefault = "PEN";
   let defaultCountryCode = "PA";
 
@@ -31,6 +33,7 @@ export default async function NuevoPedidoPage() {
       obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
     defaultCountryCode = isoDesdePais(config?.pais);
+    filtroCatalogoInicial = config?.filtroProductosPedido ?? "TODOS";
   } catch {
     // DB not configured
   }
@@ -44,7 +47,7 @@ export default async function NuevoPedidoPage() {
         <ButtonLink variant="ghost" size="icon-sm" href="/sales/pedidos"><ArrowLeft className="h-4 w-4" /></ButtonLink>
       </div>
       <PageHeader titulo="Nuevo pedido" descripcion="Crea un pedido con líneas de productos" />
-      <FormPedido empresas={opcionesEmpresas} contactos={opcionesContactos} productos={productos} monedaDefault={monedaDefault} defaultCountryCode={defaultCountryCode} />
+      <FormPedido empresas={opcionesEmpresas} contactos={opcionesContactos} productos={productos} filtroCatalogoInicial={filtroCatalogoInicial} monedaDefault={monedaDefault} defaultCountryCode={defaultCountryCode} />
     </div>
   );
 }

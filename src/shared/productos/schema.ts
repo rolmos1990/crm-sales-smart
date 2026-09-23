@@ -17,6 +17,11 @@ export const EntregaDigitalProductoSchema = z.object({
   codigoNuevo: z.string().max(200).optional().or(z.literal("")),
 });
 
+export const ComponenteComboSchema = z.object({
+  productoId: z.string().min(1),
+  cantidad: z.number().int("La cantidad debe ser un número entero").min(1, "La cantidad mínima es 1"),
+});
+
 export const CrearProductoSchema = z.object({
   sku: z.string().max(100).optional().or(z.literal("")),
   nombre: z.string().min(1, "El nombre es requerido").max(200),
@@ -42,6 +47,13 @@ export const CrearProductoSchema = z.object({
     .optional(),
   // Solo se persiste cuando tipo = DIGITAL (ver actions.ts).
   entregaDigital: EntregaDigitalProductoSchema.optional(),
+
+  // 029-combos-productos-compuestos. Las reglas que dependen de otros
+  // productos (existe, misma instancia, no es combo, no es componente de
+  // otro) se validan en el servidor contra la base, no acá.
+  esCombo: z.boolean().optional(),
+  ventaDirecta: z.boolean().optional(),
+  componentes: z.array(ComponenteComboSchema).max(50).optional(),
 });
 
 export const ActualizarProductoSchema = CrearProductoSchema.partial();
@@ -49,3 +61,4 @@ export const ActualizarProductoSchema = CrearProductoSchema.partial();
 export type CrearProductoInput = z.infer<typeof CrearProductoSchema>;
 export type ActualizarProductoInput = z.infer<typeof ActualizarProductoSchema>;
 export type EntregaDigitalProductoInput = z.infer<typeof EntregaDigitalProductoSchema>;
+export type ComponenteComboInput = z.infer<typeof ComponenteComboSchema>;

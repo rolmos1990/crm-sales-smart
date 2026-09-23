@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Package } from "lucide-react";
+import { Layers, Package, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -20,6 +20,9 @@ import { crearProducto, actualizarProducto } from "../actions";
 import { CrearProductoSchema, type CrearProductoInput } from "../schema";
 import { TIPO_PRODUCTO_LABELS, type Producto, type TipoProducto } from "../types";
 import { MediaUploader } from "@/components/media/media-uploader";
+import { EditorComponentesCombo } from "./editor-componentes-combo";
+import type { ProductoParaComponente } from "../queries";
+import type { ComponenteCombo } from "../types";
 import { vincularMediaArchivo } from "@/lib/media/server-actions";
 
 const METODO_ENTREGA_DIGITAL_LABELS: Record<string, string> = {
@@ -34,12 +37,32 @@ const METODO_ENTREGA_DIGITAL_LABELS: Record<string, string> = {
 
 interface FormProductoProps {
   instanciaId: string;
-  inicial?: Partial<Producto>;
+  inicial?: Partial<Producto> & { esCombo?: boolean; ventaDirecta?: boolean; componentes?: ComponenteCombo[] };
   modo?: "crear" | "editar";
   monedaDefault?: string;
+  /** 029 — productos simples que pueden ser componentes de un combo. */
+  productosComponentes?: ProductoParaComponente[];
 }
 
-export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefault = "PEN" }: FormProductoProps) {
+// Mismo switch artesanal que el de "Control de inventario" (patrón del form).
+function Interruptor({ activo, onCambiar, etiqueta }: { activo: boolean; onCambiar: (v: boolean) => void; etiqueta: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={activo}
+      aria-label={etiqueta}
+      onClick={() => onCambiar(!activo)}
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+        activo ? "bg-lime-500 dark:bg-lime-500" : "bg-stone-300 dark:bg-white/20"
+      }`}
+    >
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${activo ? "translate-x-6" : "translate-x-1"}`} />
+    </button>
+  );
+}
+
+export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefault = "PEN", productosComponentes = [] }: FormProductoProps) {
   const router = useRouter();
   const [productoId, setProductoId] = useState<string | null>(inicial?.id ?? null);
   const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
@@ -59,6 +82,9 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
       activo: inicial?.activo ?? true,
       manejaStock: inicial?.manejaStock ?? false,
       cantidadDisponible: inicial?.cantidadDisponible ?? 0,
+      esCombo: inicial?.esCombo ?? false,
+      ventaDirecta: inicial?.ventaDirecta ?? true,
+      componentes: inicial?.componentes ?? [],
       entregaDigital: {
         metodo: inicial?.entregaDigital?.metodo ?? undefined,
         url: inicial?.entregaDigital?.url ?? "",
@@ -76,10 +102,17 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
   });
 
   const tipo = form.watch("tipo") ?? "FISICO";
+  const esCombo = form.watch("esCombo") ?? false;
+  const componentes = form.watch("componentes") ?? [];
   const codigoAccion = form.watch("entregaDigital.codigoAccion") ?? "CONSERVAR";
   const codigoNuevo = form.watch("entregaDigital.codigoNuevo") ?? "";
 
   const onSubmit = async (datos: CrearProductoInput) => {
+    // El servidor valida lo mismo; esto evita el viaje para el caso obvio.
+    if (datos.esCombo && (datos.componentes ?? []).length === 0) {
+      toast.error("Un combo necesita al menos un componente");
+      return;
+    }
     if (modo === "crear") {
       const resultado = await crearProducto(datos);
       if (!resultado.exito) { toast.error(resultado.error); return; }
@@ -364,7 +397,67 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
           </div>
         )}
 
+        {/* 029 — Venta directa */}
+        <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4 text-stone-400" />
+                Disponible para venta directa
+              </p>
+              <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+                Aparece al agregar productos a pedidos y cotizaciones. Desactívalo para piezas que solo se venden dentro de un combo.
+              </p>
+            </div>
+            <FormField control={form.control} name="ventaDirecta" render={({ field }) => (
+              <Interruptor activo={field.value ?? true} onCambiar={field.onChange} etiqueta="Disponible para venta directa" />
+            )} />
+          </div>
+        </div>
+
+        {/* 029 — Combo */}
+        <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Layers className="h-4 w-4 text-stone-400" />
+                Este producto es un combo
+              </p>
+              <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+                Se vende como un solo producto con su propio precio; al venderlo se descuenta el stock de sus componentes.
+              </p>
+            </div>
+            <FormField control={form.control} name="esCombo" render={({ field }) => (
+              <Interruptor activo={field.value ?? false} onCambiar={field.onChange} etiqueta="Este producto es un combo" />
+            )} />
+          </div>
+
+          {esCombo && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">Componentes del combo</p>
+              <EditorComponentesCombo
+                valores={componentes}
+                onChange={(v) => form.setValue("componentes", v, { shouldDirty: true })}
+                disponibles={productosComponentes}
+                precioCombo={form.watch("precio") ?? 0}
+                moneda={form.watch("moneda") ?? monedaDefault}
+              />
+            </div>
+          )}
+        </div>
+
         {/* Control de stock */}
+        {esCombo ? (
+          <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Package className="h-4 w-4 text-stone-400" />
+              Control de inventario
+            </p>
+            <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+              Un combo no tiene stock propio: su disponibilidad se calcula desde el stock de sus componentes.
+            </p>
+          </div>
+        ) : (
         <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -417,6 +510,7 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
             )} />
           )}
         </div>
+        )}
 
         <div className="flex gap-3 justify-end pt-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancelar</Button>

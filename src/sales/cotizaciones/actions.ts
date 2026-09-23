@@ -24,6 +24,7 @@ import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
 import type { ResultadoAccion, Cotizacion } from "./types";
 import type { LineaCotizacionInput, EntregaDigitalCotizacionInput, EntregaCotizacionInput } from "./schema";
+import { cargarComposiciones, lineasConComposicionActual, planificarStock } from "@/shared/productos/stock";
 
 /**
  * Determina qué bloque de cumplimiento corresponde (Físico/Servicio/
@@ -641,20 +642,13 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<voi
       }
     }
 
-    // Validar stock antes de hacer cualquier cambio
-    const erroresStock: string[] = [];
-    for (const linea of cotizacion.lineas) {
-      if (!linea.producto?.manejaStock) continue;
-      const disponible = Number(linea.producto.cantidadDisponible);
-      const solicitado = Number(linea.cantidad);
-      if (disponible < solicitado) {
-        erroresStock.push(
-          `"${linea.producto.nombre}": disponible ${disponible}, solicitado ${solicitado}`
-        );
-      }
-    }
-    if (erroresStock.length > 0) {
-      return { exito: false, error: `Stock insuficiente — ${erroresStock.join(" · ")}` };
+    // Validar stock antes de hacer cualquier cambio. Un combo se valida contra
+    // sus componentes (029-combos-productos-compuestos).
+    const lineasStock = cotizacion.lineas.map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad) }));
+    const composiciones = await cargarComposiciones(lineasStock.map((l) => l.productoId), sesion.instanciaId, prisma);
+    const planStock = await planificarStock([], lineasConComposicionActual(lineasStock, composiciones), prisma);
+    if (planStock.errores.length > 0) {
+      return { exito: false, error: planStock.errores.join(" · ") };
     }
 
     await prisma.cotizacion.update({ where: { id }, data: { estado: "APROBADA" } });
@@ -742,6 +736,8 @@ export async function obtenerDatosFormularioCotizacion(): Promise<{
   /** ISO alpha-2 del país configurado en Configuración → Empresa — para que
    *  <PhoneInput> preseleccione el prefijo correcto en vez de +51 (Perú). */
   defaultCountryCode: string;
+  /** 029 — pestaña inicial del selector de productos. */
+  filtroCatalogoInicial: "TODOS" | "PRODUCTOS" | "COMBOS";
 }> {
   const sesion = await requireSesion();
   const [empresas, contactos, productos, monedaDefault, transportistas, config] = await Promise.all([
@@ -760,6 +756,7 @@ export async function obtenerDatosFormularioCotizacion(): Promise<{
     monedaDefault,
     transportistas,
     defaultCountryCode: isoDesdePais(config?.pais),
+    filtroCatalogoInicial: config?.filtroProductosPedido ?? "TODOS",
   };
 }
 
@@ -811,6 +808,7 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
   monedaDefault: string;
   transportistas: Awaited<ReturnType<typeof obtenerTransportistas>>;
   defaultCountryCode: string;
+  filtroCatalogoInicial: "TODOS" | "PRODUCTOS" | "COMBOS";
 } | null> {
   const auth = await requirePermisoAction("cotizaciones", "modificar");
   if (!auth.ok) return null;

@@ -20,6 +20,15 @@ import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { FiltrosVistaPedidosSchema, type FiltrosVistaPedidos } from "./schema";
 import { cargarVistaPedidos, type VistaPedidos } from "./vista";
+import {
+  aplicarDeltas,
+  cargarComposiciones,
+  lineasConComposicionActual,
+  parsearComposicion,
+  planificarStock,
+  snapshotComposicion,
+} from "@/shared/productos/stock";
+import type { LineaConsumo } from "@/shared/productos/inventario";
 
 /**
  * Igual que resolverTipoCumplimiento en cotizaciones/actions.ts: primera
@@ -66,30 +75,11 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
       ...resto
     } = validado.data;
 
-    // Cargar y validar stock de productos que lo manejan
-    const idsProducto = lineas.map(l => l.productoId).filter(Boolean) as string[];
-    const productosConStock: { id: string; nombre: string; cantidadDisponible: number }[] = [];
-
-    if (idsProducto.length > 0) {
-      const productosDB = await prisma.producto.findMany({
-        where: { id: { in: idsProducto }, manejaStock: true },
-        select: { id: true, nombre: true, cantidadDisponible: true },
-      });
-
-      for (const linea of lineas) {
-        if (!linea.productoId) continue;
-        const prod = productosDB.find(p => p.id === linea.productoId);
-        if (!prod) continue;
-        const disponible = Number(prod.cantidadDisponible);
-        if (disponible < linea.cantidad) {
-          return {
-            exito: false,
-            error: `Stock insuficiente para "${prod.nombre}". Disponible: ${disponible} — solicitado: ${linea.cantidad}`,
-          };
-        }
-        productosConStock.push({ id: prod.id, nombre: prod.nombre, cantidadDisponible: disponible });
-      }
-    }
+    // Validar stock de lo que se consume: un combo consume sus componentes
+    // (029-combos-productos-compuestos, ver src/shared/productos/inventario.ts).
+    const composiciones = await cargarComposiciones(lineas.map(l => l.productoId), sesion.instanciaId, prisma);
+    const planStock = await planificarStock([], lineasConComposicionActual(lineas, composiciones), prisma);
+    if (planStock.errores.length > 0) return { exito: false, error: planStock.errores[0] };
 
     const subtotal = lineas.reduce((acc, l) => {
       return acc + l.cantidad * l.precioUnitario * (1 - l.descuento / 100);
@@ -123,6 +113,7 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
           precioUnitario: l.precioUnitario,
           descuento: l.descuento,
           subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
+          composicionCombo: snapshotComposicion(l.productoId, composiciones),
         })),
       },
     };
@@ -152,19 +143,8 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     }
     if (!pedido) throw new Error("No se pudo generar un número de pedido único");
 
-    // Descontar stock de los productos que lo manejan
-    if (productosConStock.length > 0) {
-      await Promise.all(
-        lineas
-          .filter(l => l.productoId && productosConStock.some(p => p.id === l.productoId))
-          .map(l =>
-            prisma.producto.update({
-              where: { id: l.productoId! },
-              data: { cantidadDisponible: { decrement: l.cantidad } },
-            })
-          )
-      );
-    }
+    // Descontar stock (después del create, igual que antes de 029)
+    await aplicarDeltas(planStock, prisma);
 
     // Vincular al FlujoVenta del tenant si existe
     const flujoTenant = await obtenerFlujoVenta(sesion.instanciaId);
@@ -298,36 +278,33 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     const lineasConId = lineasNuevas.filter(l => l.id);
     const lineasSinId = lineasNuevas.filter(l => !l.id);
 
-    // Stock reconciliation: restaurar stock de eliminadas
-    const productosManejanStock = await prisma.producto.findMany({
-      where: { id: { in: [...new Set([...lineasActuales.map(l => l.productoId), ...lineasNuevas.map(l => l.productoId)].filter(Boolean) as string[])] }, manejaStock: true },
-      select: { id: true, nombre: true, cantidadDisponible: true },
-    });
-    const stockMap = new Map(productosManejanStock.map(p => [p.id, p]));
+    // Stock: diferencia entre lo que el pedido consumía y lo que consumirá.
+    // Las líneas que ya existían usan la composición guardada al crearlas
+    // (composicionCombo), nunca la vigente del combo; las nuevas — o una
+    // existente a la que se le cambió el producto — usan la vigente
+    // (029-combos-productos-compuestos).
+    const composiciones = await cargarComposiciones(lineasNuevas.map(l => l.productoId), sesion.instanciaId, prisma);
+    const lineaPrevia = new Map(lineasActuales.map(l => [l.id, l]));
+    const mismoProducto = (l: { id?: string; productoId?: string }) =>
+      (lineaPrevia.get(l.id!)?.productoId ?? "") === (l.productoId ?? "");
 
-    // Verificar stock para líneas nuevas
-    for (const linea of lineasSinId) {
-      if (!linea.productoId) continue;
-      const prod = stockMap.get(linea.productoId);
-      if (!prod) continue;
-      const disponible = Number(prod.cantidadDisponible);
-      if (disponible < linea.cantidad) {
-        return { exito: false, error: `Stock insuficiente para "${prod.nombre}". Disponible: ${disponible} — solicitado: ${linea.cantidad}` };
-      }
-    }
-
-    // Verificar stock para líneas modificadas (diferencia de cantidad)
-    for (const linea of lineasConId) {
-      if (!linea.productoId) continue;
-      const prod = stockMap.get(linea.productoId);
-      if (!prod) continue;
-      const lineaActual = lineasActuales.find(l => l.id === linea.id);
-      const cantidadAnterior = lineaActual ? Number(lineaActual.cantidad) : 0;
-      const diferencia = linea.cantidad - cantidadAnterior;
-      if (diferencia > 0 && Number(prod.cantidadDisponible) < diferencia) {
-        return { exito: false, error: `Stock insuficiente para "${prod.nombre}". Disponible: ${Number(prod.cantidadDisponible)} — adicional requerido: ${diferencia}` };
-      }
-    }
+    const consumoAnterior: LineaConsumo[] = lineasActuales.map(l => ({
+      productoId: l.productoId,
+      cantidad: Number(l.cantidad),
+      composicion: parsearComposicion(l.composicionCombo),
+      nombre: l.producto?.nombre,
+    }));
+    const consumoNuevo: LineaConsumo[] = [
+      ...lineasConId.filter(mismoProducto).map(l => ({
+        productoId: l.productoId || null,
+        cantidad: l.cantidad,
+        composicion: parsearComposicion(lineaPrevia.get(l.id!)?.composicionCombo),
+        nombre: lineaPrevia.get(l.id!)?.producto?.nombre,
+      })),
+      ...lineasConComposicionActual([...lineasConId.filter(l => !mismoProducto(l)), ...lineasSinId], composiciones),
+    ];
+    const planStock = await planificarStock(consumoAnterior, consumoNuevo, prisma);
+    if (planStock.errores.length > 0) return { exito: false, error: planStock.errores[0] };
 
     const subtotal = lineasNuevas.reduce((acc, l) => acc + l.cantidad * l.precioUnitario * (1 - l.descuento / 100), 0);
     const impuestoMonto = subtotal * (impuesto / 100);
@@ -439,6 +416,7 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
             precioUnitario: linea.precioUnitario,
             descuento: linea.descuento,
             subtotal: linea.cantidad * linea.precioUnitario * (1 - linea.descuento / 100),
+            composicionCombo: snapshotComposicion(linea.productoId, composiciones),
           },
         });
       }
@@ -453,6 +431,10 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
             precioUnitario: linea.precioUnitario,
             descuento: linea.descuento,
             subtotal: linea.cantidad * linea.precioUnitario * (1 - linea.descuento / 100),
+            // El snapshot solo se reescribe si cambió el producto de la línea.
+            ...(!mismoProducto(linea) && {
+              composicionCombo: snapshotComposicion(linea.productoId, composiciones) ?? Prisma.JsonNull,
+            }),
             // 026-preparacion-pedidos — el avance de preparación NO se toca al
             // editar la línea; solo se acota si la cantidad bajó por debajo de
             // lo ya preparado (ej. preparadas 3 y la cantidad pasa a 2), para
@@ -466,32 +448,8 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
 
     });
 
-    // Ajustar stock fuera de la transacción principal
-    const ajustesStock: Promise<unknown>[] = [];
-    for (const linea of lineasEliminadas) {
-      if (linea.productoId && stockMap.has(linea.productoId)) {
-        ajustesStock.push(prisma.producto.update({ where: { id: linea.productoId }, data: { cantidadDisponible: { increment: Number(linea.cantidad) } } }));
-      }
-    }
-    for (const linea of lineasSinId) {
-      if (linea.productoId && stockMap.has(linea.productoId)) {
-        ajustesStock.push(prisma.producto.update({ where: { id: linea.productoId }, data: { cantidadDisponible: { decrement: linea.cantidad } } }));
-      }
-    }
-    for (const linea of lineasConId) {
-      if (linea.productoId && stockMap.has(linea.productoId)) {
-        const lineaActual = lineasActuales.find(l => l.id === linea.id);
-        if (lineaActual && Number(lineaActual.cantidad) !== linea.cantidad) {
-          const diferencia = linea.cantidad - Number(lineaActual.cantidad);
-          if (diferencia > 0) {
-            ajustesStock.push(prisma.producto.update({ where: { id: linea.productoId }, data: { cantidadDisponible: { decrement: diferencia } } }));
-          } else if (diferencia < 0) {
-            ajustesStock.push(prisma.producto.update({ where: { id: linea.productoId }, data: { cantidadDisponible: { increment: -diferencia } } }));
-          }
-        }
-      }
-    }
-    if (ajustesStock.length > 0) await Promise.all(ajustesStock);
+    // Ajustar stock fuera de la transacción principal (igual que antes de 029)
+    await aplicarDeltas(planStock, prisma);
 
     await publicadorEventos.publicar(EventosSistema.PedidoActualizado, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,

@@ -20,7 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
 import { PhoneInput } from "@/components/ui/phone-input";
-import type { ProductoCatalogo } from "@/shared/productos/types";
+import type { FiltroCatalogo, ProductoCatalogo } from "@/shared/productos/types";
 import { crearPedido, editarPedido } from "../actions";
 import { EditarPedidoSchema, type EditarPedidoInput } from "../schema";
 
@@ -53,6 +53,8 @@ interface FormPedidoProps {
   contactos: OpcionCombobox[];
   empresas: OpcionCombobox[];
   productos?: ProductoCatalogo[];
+  /** 029 — pestaña inicial del selector de productos (preferencia de la empresa). */
+  filtroCatalogoInicial?: FiltroCatalogo;
   monedaDefault?: string;
   /** ISO alpha-2 del país configurado en Configuración → Empresa — el
    *  <PhoneInput> de "Datos del comprador" lo usa como prefijo por defecto
@@ -63,7 +65,7 @@ interface FormPedidoProps {
 }
 
 export function FormPedido({
-  contactos, empresas, productos = [], monedaDefault = "PEN", defaultCountryCode = "PA",
+  contactos, empresas, productos = [], filtroCatalogoInicial, monedaDefault = "PEN", defaultCountryCode = "PA",
   pedidoExistente, onGuardado,
 }: FormPedidoProps) {
   const router = useRouter();
@@ -319,6 +321,7 @@ export function FormPedido({
                         {productos.length > 0 && (
                           <SelectorProductoLinea
                             productos={productos}
+                            filtroInicial={filtroCatalogoInicial}
                             productoId={lineas[idx]?.productoId ?? ""}
                             onSeleccionar={(p) => {
                               form.setValue(`lineas.${idx}.productoId`, p.id);

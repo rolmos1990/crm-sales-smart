@@ -120,6 +120,13 @@ enum RangoPreparacion {
 // Cotización/Pedido (ver TipoProducto en Cotizacion/Pedido más abajo).
 // Sin reglas de obligatoriedad acá — eso lo resuelve después el Flujo de
 // Venta con sus propias reglas de validación.
+// 029-combos-productos-compuestos — filtro del selector de productos.
+enum FiltroCatalogoVenta {
+  TODOS
+  PRODUCTOS
+  COMBOS
+}
+
 enum TipoProducto {
   FISICO
   SERVICIO
@@ -896,6 +903,12 @@ model Producto {
   activo             Boolean      @default(true)
   manejaStock        Boolean      @default(false)
   cantidadDisponible Decimal      @default(0)
+  // 029-combos-productos-compuestos — un combo no tiene stock propio (se
+  // fuerza manejaStock=false): su disponibilidad se deriva de los
+  // componentes. "Venta directa" es independiente de "es combo": un
+  // componente puede ocultarse del selector de pedidos y seguir usándose.
+  esCombo            Boolean      @default(false)
+  ventaDirecta       Boolean      @default(true)
   metadata           Json?
   creadoEn           DateTime     @default(now())
   actualizadoEn      DateTime     @updatedAt
@@ -918,6 +931,10 @@ model Producto {
   // 017-aprendizaje-supervisado-auditoria
   respuestasIdentificadoEn RespuestaPendienteRevision[] @relation("RespuestasProductoIdentificado")
 
+  // 029-combos-productos-compuestos
+  componentes   ProductoComponente[] @relation("ComboComponentes")
+  usadoEnCombos ProductoComponente[] @relation("ComponenteDeCombos")
+
   @@index([instanciaId])
   @@index([sku])
   @@index([nombre])
@@ -928,6 +945,25 @@ model Producto {
 // Producto.entregaDigital. Todos los campos abiertos/opcionales, igual
 // criterio que EntregaDigitalCotizacion/Pedido. Sin `email` a propósito: el
 // email es del comprador, no del producto.
+// 029-combos-productos-compuestos — un nivel: el componente nunca es combo
+// (se valida en el servidor), así que un ciclo es imposible por construcción.
+// Restrict sobre el componente: los productos se desactivan (activo=false),
+// no se borran; un borrado físico no debe dejar combos rotos en silencio.
+model ProductoComponente {
+  id       String @id @default(cuid())
+  cantidad Int
+
+  comboId      String
+  combo        Producto @relation("ComboComponentes", fields: [comboId], references: [id], onDelete: Cascade)
+  componenteId String
+  componente   Producto @relation("ComponenteDeCombos", fields: [componenteId], references: [id], onDelete: Restrict)
+
+  creadoEn DateTime @default(now())
+
+  @@unique([comboId, componenteId])
+  @@index([componenteId])
+}
+
 model ProductoEntregaDigital {
   id                  String                @id @default(cuid())
   metodo              MetodoEntregaDigital?
@@ -1327,6 +1363,12 @@ model PedidoLinea {
   producto   Producto? @relation(fields: [productoId], references: [id])
 
   entregaDigital EntregaDigitalPedido?
+
+  // 029-combos-productos-compuestos — composición del combo al crear la línea
+  // ([{ productoId, nombre, cantidad }]). Inmutable: las ediciones del pedido
+  // devuelven/descuentan stock con esto, nunca con la composición vigente
+  // del combo. null = la línea consume su propio productoId (como siempre).
+  composicionCombo Json?
 
   // 026-preparacion-pedidos — avance por ítem. Decimal (no Boolean) para
   // admitir parciales ("preparé 2 de 3"). El avance del PEDIDO es derivado
@@ -2138,6 +2180,10 @@ model ConfiguracionEmpresa {
   // 022-transportistas-zonas-tarifas — permite convertir una cotización con
   // costoEnvioConfirmado=false en pedido sin exigir la confirmación (FR-040).
   permiteConvertirSinConfirmarCostoEnvio Boolean @default(false)
+  // 029-combos-productos-compuestos — filtro inicial del selector de
+  // productos en pedidos y cotizaciones. Solo el inicial: el usuario puede
+  // cambiarlo a mano.
+  filtroProductosPedido FiltroCatalogoVenta @default(TODOS)
 
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)

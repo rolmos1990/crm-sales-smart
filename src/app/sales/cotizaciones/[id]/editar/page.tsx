@@ -3,6 +3,7 @@ import { FormCotizacion } from "@/sales/cotizaciones/components/form-cotizacion"
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
+import type { FiltroCatalogo } from "@/shared/productos/types";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { obtenerCotizacionPorId } from "@/sales/cotizaciones/queries";
 import { asegurarContactoIncluido } from "@/sales/cotizaciones/actions";
@@ -21,6 +22,7 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
   let empresas: { id: string; nombre: string }[] = [];
   let contactos: Awaited<ReturnType<typeof buscarContactos>> = [];
   let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
+  let filtroCatalogoInicial: FiltroCatalogo = "TODOS";
   let transportistas: Awaited<ReturnType<typeof obtenerTransportistas>> = [];
   let defaultCountryCode = "PA";
 
@@ -35,6 +37,7 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
       obtenerConfiguracionEmpresa(sesion.instanciaId),
     ]);
     defaultCountryCode = isoDesdePais(config?.pais);
+    filtroCatalogoInicial = config?.filtroProductosPedido ?? "TODOS";
   } catch {
     // DB not configured
   }
@@ -134,6 +137,7 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
         contactos={opcionesContactos}
         contactosDetalle={contactosDetalle}
         productos={productos}
+        filtroCatalogoInicial={filtroCatalogoInicial}
         transportistas={transportistas}
         cotizacionId={id}
         numero={cotizacion.numero}
