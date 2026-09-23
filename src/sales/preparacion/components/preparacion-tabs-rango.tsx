@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -9,29 +8,22 @@ import {
   PRESETS_RANGO_FUTURO,
   type RangoFechasYmd,
 } from "@/shared/fechas/components/filtro-rango-fechas";
-import { useNavegacionFiltros } from "@/shared/ui/navegacion-filtros";
 import { cn } from "@/lib/utils";
 import { RANGO_PREPARACION_LABELS } from "../constantes";
+import type { FiltrosVistaPreparacion } from "../schema";
 import type { RangoPreparacion } from "../types";
 
-type Vista = "kanban" | "lista";
+export type VistaTablero = "kanban" | "lista";
 
 interface Props {
-  rangoActivo: RangoPreparacion;
-  /** Extremos crudos "YYYY-MM-DD" de la URL, solo relevantes en PERSONALIZADO. */
-  desde: string | null;
-  hasta: string | null;
+  filtros: FiltrosVistaPreparacion;
+  onCambiar: (cambios: Partial<FiltrosVistaPreparacion>) => void;
+  vista: VistaTablero;
+  onVista: (vista: VistaTablero) => void;
   contadores: { hoy: number; manana: number; semana: number; atrasados: number; sinFecha: number };
-  busqueda?: string;
-  vista: Vista;
+  /** Hay una consulta en vuelo para los filtros recién elegidos. */
+  actualizando: boolean;
   zonaNegocio: string;
-}
-
-interface Seleccion {
-  rango: RangoPreparacion;
-  desde: string | null;
-  hasta: string | null;
-  vista: Vista;
 }
 
 const RANGOS_FIJOS: RangoPreparacion[] = ["HOY", "MANANA", "SEMANA"];
@@ -40,67 +32,28 @@ const RANGOS_FIJOS: RangoPreparacion[] = ["HOY", "MANANA", "SEMANA"];
 // y `resolverRango` no soporta un PERSONALIZADO abierto por la izquierda.
 const PRESETS = PRESETS_RANGO_FUTURO.filter((p) => p.etiqueta !== "Atrasados");
 
-/** El rango, la vista y la búsqueda viven en la URL: así el estado sobrevive al
- *  refresh y el link se puede compartir con el equipo.
- *
- *  La selección se pinta localmente antes de que responda el servidor: el tab
- *  queda marcado en el clic y el tablero se atenúa mientras carga, en vez de
- *  esperar el round-trip para dar feedback. */
-export function PreparacionTabsRango({ rangoActivo, desde, hasta, contadores, busqueda, vista, zonaNegocio }: Props) {
-  const { navegar, pendiente } = useNavegacionFiltros();
-  const searchParams = useSearchParams();
-  const [texto, setTexto] = useState(busqueda ?? "");
+/** El rango y la búsqueda son estado del padre (nunca la URL): el tab queda
+ *  marcado en el clic y el tablero se atenúa mientras llega la consulta. La
+ *  vista kanban/lista es solo presentación y no vuelve a consultar. */
+export function PreparacionTabsRango({ filtros, onCambiar, vista, onVista, contadores, actualizando, zonaNegocio }: Props) {
+  const [texto, setTexto] = useState(filtros.q ?? "");
 
-  const delServidor: Seleccion = {
-    rango: rangoActivo,
-    desde: rangoActivo === "PERSONALIZADO" ? desde : null,
-    hasta: rangoActivo === "PERSONALIZADO" ? hasta : null,
-    vista,
-  };
-  const claveServidor = `${delServidor.rango}|${delServidor.desde}|${delServidor.hasta}|${delServidor.vista}`;
-  const [seleccion, setSeleccion] = useState<Seleccion>(delServidor);
-  const [claveSincronizada, setClaveSincronizada] = useState(claveServidor);
-  // Solo se resincroniza con las props cuando no hay navegación en vuelo: si
-  // el usuario encadena clics, una respuesta intermedia no debe pisar la
-  // selección más reciente.
-  if (!pendiente && claveSincronizada !== claveServidor) {
-    setClaveSincronizada(claveServidor);
-    setSeleccion(delServidor);
-  }
-
-  // Se parte de la selección local y no solo de la URL: con clics encadenados
-  // la URL todavía no refleja el cambio anterior y se perdería.
-  const aplicar = (nueva: Seleccion, extra: Record<string, string | null> = {}) => {
-    setSeleccion(nueva);
-    const params = new URLSearchParams(searchParams.toString());
-    const valores: Record<string, string | null> = {
-      rango: nueva.rango,
-      desde: nueva.desde,
-      hasta: nueva.hasta,
-      vista: nueva.vista,
-      ...extra,
-    };
-    for (const [clave, valor] of Object.entries(valores)) {
-      if (valor === null || valor === "") params.delete(clave);
-      else params.set(clave, valor);
-    }
-    navegar(params);
-  };
-
+  // Cambiar de rango reinicia la paginación: los límites expandidos eran de
+  // otro conjunto de tarjetas.
   const seleccionarRango = (rango: RangoPreparacion) =>
-    aplicar({ ...seleccion, rango, desde: null, hasta: null });
+    onCambiar({ rango, desde: null, hasta: null, limites: {} });
 
   const aplicarPersonalizado = (r: RangoFechasYmd) => {
     if (!r.desde && !r.hasta) return seleccionarRango("HOY");
-    aplicar({ ...seleccion, rango: "PERSONALIZADO", desde: r.desde, hasta: r.hasta });
+    onCambiar({ rango: "PERSONALIZADO", desde: r.desde, hasta: r.hasta, limites: {} });
   };
 
   const contadorDe = (r: RangoPreparacion) =>
     r === "HOY" ? contadores.hoy : r === "MANANA" ? contadores.manana : contadores.semana;
 
   const rangoPersonalizado: RangoFechasYmd =
-    seleccion.rango === "PERSONALIZADO"
-      ? { desde: seleccion.desde, hasta: seleccion.hasta }
+    filtros.rango === "PERSONALIZADO"
+      ? { desde: filtros.desde, hasta: filtros.hasta }
       : { desde: null, hasta: null };
 
   return (
@@ -128,7 +81,7 @@ export function PreparacionTabsRango({ rangoActivo, desde, hasta, contadores, bu
             </span>
           )}
           {RANGOS_FIJOS.map((r) => {
-            const activo = r === seleccion.rango;
+            const activo = r === filtros.rango;
             return (
               <button
                 key={r}
@@ -160,7 +113,7 @@ export function PreparacionTabsRango({ rangoActivo, desde, hasta, contadores, bu
 
         {/* Los controles siguen habilitados mientras carga, para poder
             encadenar cambios sin esperar cada round-trip. */}
-        {pendiente && (
+        {actualizando && (
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Actualizando…
@@ -172,7 +125,7 @@ export function PreparacionTabsRango({ rangoActivo, desde, hasta, contadores, bu
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            aplicar(seleccion, { q: texto || null });
+            onCambiar({ q: texto || null, limites: {} });
           }}
           className="relative"
         >
@@ -191,10 +144,10 @@ export function PreparacionTabsRango({ rangoActivo, desde, hasta, contadores, bu
             <button
               key={v}
               type="button"
-              onClick={() => seleccion.vista !== v && aplicar({ ...seleccion, vista: v })}
+              onClick={() => onVista(v)}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-sm capitalize transition-colors",
-                seleccion.vista === v ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                vista === v ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
               {v}

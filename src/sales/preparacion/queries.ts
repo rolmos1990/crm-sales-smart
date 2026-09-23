@@ -20,6 +20,7 @@ import type {
   TarjetaPreparacion,
 } from "./types";
 import type { FiltrosTableroInput } from "./schema";
+import { LIMITE_POR_ESTADO } from "./constantes";
 
 const SELECT_PEDIDO_TABLERO = {
   id: true,
@@ -169,7 +170,7 @@ export async function obtenerConfiguracionPreparacion(instanciaId: string): Prom
 
 /** Tarjetas por columna en la primera carga. El tablero de armado se trabaja
  *  por tandas, así que 50 cubre una jornada sin traer cientos de tarjetas. */
-export const LIMITE_POR_ESTADO = 50;
+export { LIMITE_POR_ESTADO };
 
 /**
  * @param limitePorEstado  cuántas tarjetas traer por columna (default 50).

@@ -19,6 +19,8 @@ import { asegurarFlujoPreparacion } from "./servicios/asegurar-flujo-preparacion
 import { moverPreparacion } from "./servicios/mover-preparacion";
 import { pedidoCompleto, validarCantidadPreparada } from "./utils/avance";
 import type { ResultadoAccion } from "./types";
+import { FiltrosVistaPreparacionSchema, type FiltrosVistaPreparacion } from "./schema";
+import { cargarVistaPreparacion, type VistaPreparacion } from "./vista";
 
 async function requireModificar() {
   const sesion = await requireSesion();
@@ -579,4 +581,21 @@ export async function actualizarPreferenciasTableroAction(datos: unknown): Promi
 
   revalidarTablero();
   return { exito: true, datos: undefined };
+}
+
+/**
+ * Consulta del tablero para la barra de filtros. Los filtros viajan en el
+ * cuerpo de la acción y no en la URL (ver FiltrosVistaPreparacionSchema).
+ */
+export async function consultarVistaPreparacionAction(entrada: FiltrosVistaPreparacion): Promise<VistaPreparacion> {
+  const filtros = FiltrosVistaPreparacionSchema.parse(entrada);
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "preparacion", "ver").permitido) throw new Error("Acceso denegado");
+
+  try {
+    return await cargarVistaPreparacion(sesion.instanciaId, sesion.zonaNegocio, filtros);
+  } catch (err) {
+    console.error("[consultarVistaPreparacionAction]", err);
+    throw new Error("No se pudo cargar el tablero");
+  }
 }

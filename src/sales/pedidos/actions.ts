@@ -16,6 +16,10 @@ import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { resolverCodigoEfectivo } from "@/shared/lib/codigo-sensible";
 import type { ResultadoAccion, Pedido } from "./types";
 import type { TipoProducto } from "@/shared/productos/types";
+import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
+import { FiltrosVistaPedidosSchema, type FiltrosVistaPedidos } from "./schema";
+import { cargarVistaPedidos, type VistaPedidos } from "./vista";
 
 /**
  * Igual que resolverTipoCumplimiento en cotizaciones/actions.ts: primera
@@ -791,4 +795,22 @@ export async function confirmarPedidoGeneradoPorIA(id: string): Promise<Resultad
   revalidatePath("/sales/pedidos");
   revalidatePath(`/sales/pedidos/${id}`);
   return { exito: true, datos: undefined };
+}
+
+/**
+ * Consulta de la lista de Pedidos para la barra de filtros. Los filtros viajan
+ * en el cuerpo de la acción y no en la URL (ver FiltrosVistaPedidosSchema).
+ */
+export async function consultarVistaPedidosAction(entrada: FiltrosVistaPedidos): Promise<VistaPedidos> {
+  const filtros = FiltrosVistaPedidosSchema.parse(entrada);
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "pedidos", "ver").permitido) throw new Error("Acceso denegado");
+
+  try {
+    const flujo = await obtenerFlujoVenta(sesion.instanciaId);
+    return await cargarVistaPedidos(sesion.instanciaId, sesion.zonaNegocio, filtros, flujo?.etapas ?? []);
+  } catch (err) {
+    console.error("[consultarVistaPedidosAction]", err);
+    throw new Error("No se pudieron cargar los pedidos");
+  }
 }

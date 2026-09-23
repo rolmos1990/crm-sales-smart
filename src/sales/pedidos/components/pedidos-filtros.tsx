@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, RotateCcw, Download, HelpCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -21,7 +20,7 @@ import {
   PRESETS_RANGO_PASADO,
   type RangoFechasYmd,
 } from "@/shared/fechas/components/filtro-rango-fechas";
-import { useNavegacionFiltros } from "@/shared/ui/navegacion-filtros";
+import { FILTROS_VISTA_PEDIDOS_DEFECTO, type FiltrosVistaPedidos } from "../schema";
 import { cn } from "@/lib/utils";
 import { ESTADO_PEDIDO_CONFIG } from "../types";
 import { METODO_ENTREGA_LABELS } from "../constantes";
@@ -35,6 +34,10 @@ interface EtapaFlujoResumen {
 }
 
 interface PedidosFiltrosProps {
+  filtros: FiltrosVistaPedidos;
+  onCambiar: (cambios: Partial<FiltrosVistaPedidos>) => void;
+  /** Hay una consulta en vuelo para los filtros recién elegidos. */
+  actualizando: boolean;
   contactos: OpcionCombobox[];
   productos: OpcionCombobox[];
   pedidosFiltrados: Pedido[];
@@ -53,96 +56,62 @@ interface PedidosFiltrosProps {
   cerradosForzados: boolean;
 }
 
-/** Las tres opciones "vivas": se resuelven en el servidor en cada request, así
- *  que una URL guardada sigue significando "hoy". El rango personalizado, en
- *  cambio, congela dos días concretos y vive en <FiltroRangoFechas>. */
+/** Las tres opciones "vivas": se resuelven en el servidor en cada consulta, en
+ *  la zona de negocio. El rango personalizado, en cambio, congela dos días
+ *  concretos y vive en <FiltroRangoFechas>. */
 const ENTREGA_OPCIONES = [
   { valor: "todos", etiqueta: "Todos" },
   { valor: "hoy", etiqueta: "Hoy" },
   { valor: "manana", etiqueta: "Mañana" },
 ] as const;
 
-function parametroActivo(searchParams: URLSearchParams): boolean {
-  const claves = ["q", "desde", "hasta", "estado", "etapa", "metodo", "contactoId", "productoId", "entrega", "cerrados"];
-  return claves.some((k) => searchParams.get(k));
-}
-
-export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etapasFlujo, zonaNegocio, cerradosForzados }: PedidosFiltrosProps) {
-  const { navegar, pendiente } = useNavegacionFiltros();
-  const searchParams = useSearchParams();
-
-  const [busqueda, setBusqueda] = useState(searchParams.get("q") ?? "");
+export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos, productos, pedidosFiltrados, etapasFlujo, zonaNegocio, cerradosForzados }: PedidosFiltrosProps) {
+  const [busqueda, setBusqueda] = useState(filtros.q ?? "");
+  const [qPrevia, setQPrevia] = useState(filtros.q);
+  // "Limpiar filtros" también existe fuera de la barra (estado vacío).
+  if (qPrevia !== filtros.q) {
+    setQPrevia(filtros.q);
+    setBusqueda(filtros.q ?? "");
+  }
   const [masFiltrosAbierto, setMasFiltrosAbierto] = useState(false);
 
-  const rangoPedido: RangoFechasYmd = {
-    desde: searchParams.get("desde"),
-    hasta: searchParams.get("hasta"),
-  };
+  const rangoPedido: RangoFechasYmd = { desde: filtros.desde, hasta: filtros.hasta };
+  const entregaActiva = filtros.entrega;
+  const rangoEntrega: RangoFechasYmd = entregaActiva === "personalizado"
+    ? { desde: filtros.entregaDesde, hasta: filtros.entregaHasta }
+    : { desde: null, hasta: null };
 
-  const entregaActiva = searchParams.get("entrega") ?? "todos";
-  const rangoEntrega: RangoFechasYmd = {
-    desde: searchParams.get("entregaDesde"),
-    hasta: searchParams.get("entregaHasta"),
-  };
-
-  const hayFiltros = parametroActivo(searchParams);
+  const hayFiltros = JSON.stringify({ ...filtros, q: filtros.q || null }) !== JSON.stringify(FILTROS_VISTA_PEDIDOS_DEFECTO);
   const hayFlujoDinamico = etapasFlujo.length > 0;
-  const verCerrados = searchParams.get("cerrados") === "1";
-  const etapaSeleccionada = etapasFlujo.find((e) => e.id === searchParams.get("etapa"));
+  const verCerrados = filtros.cerrados;
+  const etapaSeleccionada = etapasFlujo.find((e) => e.id === filtros.etapa);
 
-  // `navegar` viene de <ProveedorNavegacionFiltros>: envuelve el router en una
-  // transición, así que la barra no se reemplaza por el loading.tsx del
-  // segmento y la tabla solo se atenúa mientras el servidor responde.
-  const actualizarParam = (clave: string, valor: string | null) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (valor) params.set(clave, valor);
-    else params.delete(clave);
-    navegar(params);
-  };
+  // El filtro cambia en el acto (estado local del padre) y la tabla solo se
+  // atenúa mientras llega la consulta — ver useVistaFiltrada.
+  type ClaveTexto = "q" | "estado" | "etapa" | "metodo" | "contactoId" | "productoId";
+  const actualizarParam = (clave: ClaveTexto, valor: string | null) => onCambiar({ [clave]: valor || null });
 
   const handleBuscarSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     actualizarParam("q", busqueda || null);
   };
 
-  const handleRangoPedido = (r: RangoFechasYmd) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (r.desde) params.set("desde", r.desde); else params.delete("desde");
-    if (r.hasta) params.set("hasta", r.hasta); else params.delete("hasta");
-    navegar(params);
-  };
+  const handleRangoPedido = (r: RangoFechasYmd) => onCambiar({ desde: r.desde, hasta: r.hasta });
 
-  const seleccionarEntrega = (valor: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (valor === "todos") {
-      params.delete("entrega");
-      params.delete("entregaDesde");
-      params.delete("entregaHasta");
-    } else {
-      params.set("entrega", valor);
-      if (valor !== "personalizado") {
-        params.delete("entregaDesde");
-        params.delete("entregaHasta");
-      }
-    }
-    navegar(params);
-  };
+  const seleccionarEntrega = (valor: FiltrosVistaPedidos["entrega"]) =>
+    onCambiar({ entrega: valor, entregaDesde: null, entregaHasta: null });
 
   const handleRangoEntrega = (r: RangoFechasYmd) => {
-    const params = new URLSearchParams(searchParams.toString());
     // Sin ningún extremo el modo "personalizado" no filtraría nada y además
     // dejaría el segmented control sin ninguna opción marcada: equivale a
     // volver a "Todos".
     if (!r.desde && !r.hasta) return seleccionarEntrega("todos");
-    params.set("entrega", "personalizado");
-    if (r.desde) params.set("entregaDesde", r.desde); else params.delete("entregaDesde");
-    if (r.hasta) params.set("entregaHasta", r.hasta); else params.delete("entregaHasta");
-    navegar(params);
+    onCambiar({ entrega: "personalizado", entregaDesde: r.desde, entregaHasta: r.hasta });
   };
 
   const limpiarFiltros = () => {
     setBusqueda("");
-    navegar(new URLSearchParams());
+    onCambiar(FILTROS_VISTA_PEDIDOS_DEFECTO);
   };
 
   return (
@@ -169,7 +138,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
         />
 
         {hayFlujoDinamico ? (
-          <Select value={searchParams.get("etapa") ?? "todos"} onValueChange={(v) => actualizarParam("etapa", v === "todos" ? null : v)}>
+          <Select value={filtros.etapa ?? "todos"} onValueChange={(v) => actualizarParam("etapa", v === "todos" ? null : v)}>
             <SelectTrigger className="w-[180px] rounded-xl">
               <SelectValue>
                 {etapaSeleccionada ? etapaSeleccionada.nombre : "Estado: Todos"}
@@ -188,11 +157,11 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
             </SelectContent>
           </Select>
         ) : (
-          <Select value={searchParams.get("estado") ?? "todos"} onValueChange={(v) => actualizarParam("estado", v === "todos" ? null : v)}>
+          <Select value={filtros.estado ?? "todos"} onValueChange={(v) => actualizarParam("estado", v === "todos" ? null : v)}>
             <SelectTrigger className="w-[170px] rounded-xl">
               <SelectValue>
-                {searchParams.get("estado")
-                  ? (ESTADO_PEDIDO_CONFIG[searchParams.get("estado") as EstadoPedido]?.etiqueta ?? searchParams.get("estado"))
+                {filtros.estado
+                  ? (ESTADO_PEDIDO_CONFIG[filtros.estado as EstadoPedido]?.etiqueta ?? filtros.estado)
                   : "Estado: Todos"}
               </SelectValue>
             </SelectTrigger>
@@ -205,11 +174,11 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
           </Select>
         )}
 
-        <Select value={searchParams.get("metodo") ?? "todos"} onValueChange={(v) => actualizarParam("metodo", v === "todos" ? null : v)}>
+        <Select value={filtros.metodo ?? "todos"} onValueChange={(v) => actualizarParam("metodo", v === "todos" ? null : v)}>
           <SelectTrigger className="w-[190px] rounded-xl">
             <SelectValue>
-              {searchParams.get("metodo")
-                ? (METODO_ENTREGA_LABELS[searchParams.get("metodo")!] ?? searchParams.get("metodo"))
+              {filtros.metodo
+                ? (METODO_ENTREGA_LABELS[filtros.metodo] ?? filtros.metodo)
                 : "Método de envío: Todos"}
             </SelectValue>
           </SelectTrigger>
@@ -260,7 +229,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
           <PopoverTrigger className={cn(buttonVariants({ variant: "outline" }), "rounded-xl gap-2")}>
             <SlidersHorizontal className="h-4 w-4" />
             Más filtros
-            {(searchParams.get("contactoId") || searchParams.get("productoId")) && (
+            {(filtros.contactoId || filtros.productoId) && (
               <span className="h-1.5 w-1.5 rounded-full bg-lime-500" />
             )}
           </PopoverTrigger>
@@ -271,7 +240,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
               </label>
               <Combobox
                 opciones={contactos}
-                valor={searchParams.get("contactoId") ?? undefined}
+                valor={filtros.contactoId ?? undefined}
                 onChange={(v) => actualizarParam("contactoId", v || null)}
                 placeholder="Cualquier contacto"
                 placeholderBusqueda="Buscar contacto..."
@@ -283,7 +252,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
               </label>
               <Combobox
                 opciones={productos}
-                valor={searchParams.get("productoId") ?? undefined}
+                valor={filtros.productoId ?? undefined}
                 onChange={(v) => actualizarParam("productoId", v || null)}
                 placeholder="Cualquier producto"
                 placeholderBusqueda="Buscar producto..."
@@ -301,7 +270,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
 
         {/* Los controles siguen habilitados mientras carga, para poder
             encadenar cambios sin esperar cada round-trip. */}
-        {pendiente && (
+        {actualizando && (
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Actualizando…
@@ -321,7 +290,7 @@ export function PedidosFiltrosBar({ contactos, productos, pedidosFiltrados, etap
                   "flex items-center gap-2 select-none",
                   cerradosForzados ? "cursor-default opacity-70" : "cursor-pointer"
                 )}
-                onClick={cerradosForzados ? undefined : () => actualizarParam("cerrados", verCerrados ? null : "1")}
+                onClick={cerradosForzados ? undefined : () => onCambiar({ cerrados: !verCerrados })}
               >
                 <Checkbox checked={verCerrados || cerradosForzados} className="pointer-events-none" />
                 <span className="text-xs font-medium text-stone-600 dark:text-stone-300">Ver cerrados</span>

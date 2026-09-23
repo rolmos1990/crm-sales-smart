@@ -143,3 +143,47 @@ export type ActualizarServicioPedidoInput = z.infer<typeof ActualizarServicioPed
 export type ActualizarEntregaDigitalPedidoInput = z.infer<typeof ActualizarEntregaDigitalPedidoSchema>;
 export type LineaPedidoInput = z.infer<typeof LineaPedidoSchema>;
 export type LineaPedidoEditInput = z.infer<typeof LineaPedidoEditSchema>;
+
+// ── Filtros de la vista de lista ─────────────────────────────────────────────
+
+const fechaYmd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
+const opcional = z.string().trim().max(200).nullable();
+
+/**
+ * Filtros tal como los elige el usuario en la barra de Pedidos. Viven en
+ * estado de cliente, no en la URL: al entrar al módulo siempre se arranca de
+ * `FILTROS_VISTA_PEDIDOS_DEFECTO` (solo pedidos activos). Las fechas viajan
+ * como día de calendario "YYYY-MM-DD" y el servidor las resuelve en la zona
+ * de negocio — ver docs/fechas-y-zonas-horarias.md.
+ */
+export const FiltrosVistaPedidosSchema = z.object({
+  q: opcional,
+  desde: fechaYmd,
+  hasta: fechaYmd,
+  estado: opcional,
+  etapa: opcional,
+  metodo: opcional,
+  contactoId: opcional,
+  productoId: opcional,
+  entrega: z.enum(["todos", "hoy", "manana", "personalizado"]),
+  entregaDesde: fechaYmd,
+  entregaHasta: fechaYmd,
+  cerrados: z.boolean(),
+});
+
+export type FiltrosVistaPedidos = z.infer<typeof FiltrosVistaPedidosSchema>;
+
+export const FILTROS_VISTA_PEDIDOS_DEFECTO: FiltrosVistaPedidos = {
+  q: null,
+  desde: null,
+  hasta: null,
+  estado: null,
+  etapa: null,
+  metodo: null,
+  contactoId: null,
+  productoId: null,
+  entrega: "todos",
+  entregaDesde: null,
+  entregaHasta: null,
+  cerrados: false,
+};

@@ -22,3 +22,6 @@ export const ESTADOS_PREPARACION_DEFECTO = [
 /** Etiqueta de la agrupación de pedidos sin fecha de entrega — nunca se
  *  ocultan por el filtro de rango (FR-019). */
 export const GRUPO_SIN_FECHA = "Sin fecha";
+
+/** Tarjetas por columna en cada página del tablero. */
+export const LIMITE_POR_ESTADO = 50;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -18,6 +18,7 @@ import { ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { moverPreparacionAction } from "../actions";
+import { LIMITE_POR_ESTADO } from "../constantes";
 import { TarjetaPreparacion } from "./tarjeta-preparacion";
 import type { ColumnaTablero, TarjetaPreparacion as Tarjeta } from "../types";
 
@@ -25,14 +26,11 @@ interface Props {
   columnas: ColumnaTablero[];
   puedeMod: boolean;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
-  /** Tamaño de página por columna vigente (viene de `?limite=`). */
-  limitePorEstado: number;
+  onCargarMas: (estadoId: string) => void;
 }
 
-export function TableroKanban({ columnas, puedeMod, agrupacion, limitePorEstado }: Props) {
+export function TableroKanban({ columnas, puedeMod, agrupacion, onCargarMas }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [cargandoMas, setCargandoMas] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   // Copia local para mover la tarjeta al instante; el servidor manda y si hay
@@ -58,27 +56,15 @@ export function TableroKanban({ columnas, puedeMod, agrupacion, limitePorEstado 
   };
 
   /**
-   * "Cargar más" de una columna = subir SU override en `?limites=` y dejar que
-   * el Server Component vuelva a resolver. No es un fetch aparte: así el
-   * resultado se resincroniza solo con los filtros, el rango y el refresh que
-   * dispara mover una tarjeta, sin duplicar lógica de merge. Las demás columnas
-   * conservan su propio límite.
+   * "Cargar más" de una columna = subir SU límite en el estado de filtros del
+   * padre, que vuelve a consultar el tablero entero. Así el resultado se
+   * resincroniza solo con el rango, la búsqueda y el refresh que dispara mover
+   * una tarjeta, sin duplicar lógica de merge. Las demás columnas conservan su
+   * propio límite.
    */
   const cargarMas = (estadoId: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    const limites = new Map<string, number>();
-    for (const par of (params.get("limites") ?? "").split(",")) {
-      const [id, valorRaw] = par.split(":");
-      const valor = Number(valorRaw);
-      if (id && Number.isFinite(valor) && valor > 0) limites.set(id, Math.floor(valor));
-    }
-    limites.set(estadoId, (limites.get(estadoId) ?? limitePorEstado) + limitePorEstado);
-    params.set("limites", [...limites.entries()].map(([id, n]) => `${id}:${n}`).join(","));
-
     setCargandoMas(estadoId);
-    startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    });
+    onCargarMas(estadoId);
   };
 
   // El indicador se apaga cuando llegan las tarjetas nuevas, no antes.
@@ -154,7 +140,7 @@ export function TableroKanban({ columnas, puedeMod, agrupacion, limitePorEstado 
             columna={col}
             puedeMod={puedeMod}
             agrupacion={agrupacion}
-            tamanoPagina={limitePorEstado}
+            tamanoPagina={LIMITE_POR_ESTADO}
             cargando={cargandoMas === col.estado.id}
             onCargarMas={() => cargarMas(col.estado.id)}
           />

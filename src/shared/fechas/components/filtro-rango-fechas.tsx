@@ -126,7 +126,7 @@ function useCabenDosMeses(): boolean {
 // ── Componente ──────────────────────────────────────────────────────────────
 
 export function FiltroRangoFechas({
-  valor,
+  valor: valorProp,
   onChange,
   zonaNegocio,
   placeholder = "Todas las fechas",
@@ -140,10 +140,22 @@ export function FiltroRangoFechas({
   const dosMeses = useCabenDosMeses();
 
   const [abierto, setAbierto] = useState(false);
-  const [borrador, setBorrador] = useState<RangoFechasYmd>(valor);
+  const [borrador, setBorrador] = useState<RangoFechasYmd>(valorProp);
   // Qué extremo edita el próximo clic del calendario. Es lo que convierte dos
   // clics sueltos en "de X a X" de forma predecible.
   const [editando, setEditando] = useState<"desde" | "hasta">("desde");
+
+  // Lo último que eligió el usuario, pintado antes de que el caller termine de
+  // navegar: sin esto el tag seguía visible con su X hasta que respondía el
+  // servidor, y parecía que el clic no había hecho nada. Se descarta en cuanto
+  // llega un `valor` nuevo del caller.
+  const [optimista, setOptimista] = useState<RangoFechasYmd | null>(null);
+  const [valorPrevio, setValorPrevio] = useState(valorProp);
+  if (valorPrevio.desde !== valorProp.desde || valorPrevio.hasta !== valorProp.hasta) {
+    setValorPrevio(valorProp);
+    setOptimista(null);
+  }
+  const valor = optimista ?? valorProp;
 
   const activo = Boolean(valor.desde || valor.hasta);
   const etiqueta = etiquetaRangoFechas(valor, preferencias, placeholder);
@@ -161,6 +173,7 @@ export function FiltroRangoFechas({
     // Aplicar sin haber cambiado nada solo cierra: el caller navega en cada
     // `onChange` y una navegación a la misma URL igual cuesta un round-trip.
     if (rango.desde === valor.desde && rango.hasta === valor.hasta) return;
+    setOptimista(rango);
     onChange(rango);
   };
 
@@ -168,6 +181,7 @@ export function FiltroRangoFechas({
     setBorrador({ desde: null, hasta: null });
     setEditando("desde");
     setAbierto(false);
+    setOptimista({ desde: null, hasta: null });
     if (onLimpiar) onLimpiar();
     else onChange({ desde: null, hasta: null });
   };

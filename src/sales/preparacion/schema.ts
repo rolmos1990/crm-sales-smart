@@ -57,3 +57,31 @@ export type EtapasEntradaInput = z.infer<typeof EtapasEntradaSchema>;
 export type NotaPreparacionInput = z.infer<typeof NotaPreparacionSchema>;
 export type OrdenEstadosInput = z.infer<typeof OrdenEstadosSchema>;
 export type FiltrosTableroInput = z.infer<typeof FiltrosTableroSchema>;
+
+const fechaYmd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
+
+/**
+ * Filtros del tablero tal como los elige el usuario. Viven en estado de
+ * cliente, no en la URL: al entrar al módulo siempre se arranca de
+ * `FILTROS_VISTA_PREPARACION_DEFECTO`. Las fechas viajan como día de
+ * calendario "YYYY-MM-DD" y el servidor las resuelve en la zona de negocio.
+ */
+export const FiltrosVistaPreparacionSchema = z.object({
+  rango: z.enum(["HOY", "MANANA", "SEMANA", "PERSONALIZADO"]),
+  desde: fechaYmd,
+  hasta: fechaYmd,
+  q: z.string().trim().max(200).nullable(),
+  /** Paginación por columna: solo las que el usuario expandió más allá del
+   *  default (clave = estadoId). */
+  limites: z.record(z.string(), z.number().int().positive().max(10_000)),
+});
+
+export type FiltrosVistaPreparacion = z.infer<typeof FiltrosVistaPreparacionSchema>;
+
+export const FILTROS_VISTA_PREPARACION_DEFECTO: FiltrosVistaPreparacion = {
+  rango: "HOY",
+  desde: null,
+  hasta: null,
+  q: null,
+  limites: {},
+};

@@ -20,9 +20,18 @@ import {
 // El kanban se carga con next/dynamic (ssr: false), así que los tests esperan
 // a que las columnas aparezcan en vez de asumirlas en el primer paint.
 
-async function abrirTablero(page: Page, query = '') {
-  await page.goto(`/sales/preparacion${query}`);
+async function abrirTablero(page: Page) {
+  await page.goto('/sales/preparacion');
   await expect(page.getByRole('heading', { name: /preparación de pedidos/i })).toBeVisible({ timeout: 10000 });
+}
+
+// Los filtros de Pedidos viven en estado de cliente, no en la URL: se buscan
+// escribiendo en la barra, igual que lo haría el usuario.
+async function buscarEnPedidos(page: Page, numero: string) {
+  await page.goto('/sales/pedidos');
+  const buscador = page.getByPlaceholder(/buscar pedido, cliente o número/i);
+  await buscador.fill(numero);
+  await buscador.press('Enter');
 }
 
 function tarjeta(page: Page, numero: string) {
@@ -108,7 +117,8 @@ test.describe('Tablero de preparación', () => {
     // En cualquier rango: el filtro de fecha no lo puede esconder. Y vive en su
     // columna de estado (no en un grupo aparte), así se puede arrastrar como
     // cualquier otra tarjeta.
-    await abrirTablero(page, '?rango=MANANA');
+    await abrirTablero(page);
+    await page.getByRole('button', { name: /^mañana/i }).click();
     const suTarjeta = tarjeta(page, pedido.numero);
     await expect(suTarjeta).toBeVisible({ timeout: 10000 });
     await expect(suTarjeta.getByText('Sin fecha')).toBeVisible();
@@ -179,7 +189,7 @@ test.describe('Visibilidad del estado de preparación en Pedidos', () => {
     await abrirTablero(page);
     await expect(tarjeta(page, pedido.numero)).toBeVisible({ timeout: 10000 });
 
-    await page.goto(`/sales/pedidos?q=${encodeURIComponent(pedido.numero)}`);
+    await buscarEnPedidos(page, pedido.numero);
     const fila = page.locator('tr').filter({ hasText: pedido.numero });
     await expect(fila).toBeVisible({ timeout: 10000 });
     await expect(fila.locator('[data-slot="chip-preparacion"]')).toBeVisible();
@@ -209,7 +219,7 @@ test.describe('Visibilidad del estado de preparación en Pedidos', () => {
     const { id: usuarioId } = await obtenerUsuarioOwner(instanciaId);
     const pedido = await crearPedidoFueraDePreparacion(instanciaId, usuarioId);
 
-    await page.goto(`/sales/pedidos?q=${encodeURIComponent(pedido.numero)}`);
+    await buscarEnPedidos(page, pedido.numero);
     const fila = page.locator('tr').filter({ hasText: pedido.numero });
     await expect(fila).toBeVisible({ timeout: 10000 });
     await expect(fila.locator('[data-slot="chip-preparacion"]')).toHaveCount(0);
