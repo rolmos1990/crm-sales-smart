@@ -219,9 +219,11 @@ function DialogEditarEtapa({
   const [isPending, startTransition] = useTransition();
 
   const tipoFlujoLocked = esInicial || esFinal || esCancelacion;
-  const permiteLocked = esInicial || esFinal || esCancelacion;
-  const permiteEfectivo = (esFinal || esCancelacion) ? false : esInicial ? true : permiteEditar;
-  const permiteEntregaEfectivo = (esFinal || esCancelacion) ? false : permiteEntrega;
+  // Final/Cancelación ya no fuerzan "bloqueado": el Flujo de Venta decide por
+  // etapa si un pedido cerrado puede editarse (ver specs/027-fix-permitir-editar-pedidos-etapa-final).
+  const permiteLocked = esInicial;
+  const permiteEfectivo = esInicial ? true : permiteEditar;
+  const permiteEntregaEfectivo = permiteEntrega;
 
   const handleGuardar = () => {
     if (!etapa || !nombre.trim()) return;
@@ -377,63 +379,44 @@ function DialogEditarEtapa({
               </TooltipTrigger>
               {permiteLocked && (
                 <TooltipContent side="bottom" className="max-w-xs text-xs">
-                  {(esFinal || esCancelacion)
-                    ? "Los pedidos en etapas finales o canceladas no pueden ser editados."
-                    : "Las etapas iniciales siempre permiten editar pedidos."}
+                  Las etapas iniciales siempre permiten editar pedidos.
                 </TooltipContent>
               )}
             </Tooltip>
           </TooltipProvider>
 
           {/* Permitir edición de entrega */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger className="w-full text-left">
-                <div className={cn(
-                  "rounded-xl border p-3 transition-all",
-                  (esFinal || esCancelacion)
-                    ? "opacity-50 cursor-not-allowed border-stone-200 dark:border-white/10"
-                    : "border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20"
-                )}>
-                  <button
-                    type="button"
-                    disabled={esFinal || esCancelacion}
-                    onClick={() => !(esFinal || esCancelacion) && setPermiteEntrega(!permiteEntrega)}
-                    className="w-full flex items-center justify-between gap-3 disabled:cursor-not-allowed"
-                  >
-                    <div className="text-left flex items-start gap-2">
-                      <Truck className="h-3.5 w-3.5 mt-0.5 text-stone-400 flex-shrink-0" />
-                      <div>
-                        <p className={cn(
-                          "text-xs font-medium",
-                          permiteEntregaEfectivo ? "text-stone-800 dark:text-stone-200" : "text-stone-500 dark:text-stone-400"
-                        )}>
-                          {permiteEntregaEfectivo ? "Entrega editable" : "Entrega bloqueada"}
-                        </p>
-                        <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
-                          Owner/Admin pueden actualizar datos de entrega y tracking.
-                        </p>
-                      </div>
-                    </div>
-                    <div className={cn(
-                      "relative flex-shrink-0 h-5 w-9 rounded-full transition-colors",
-                      permiteEntregaEfectivo ? "bg-lime-500" : "bg-stone-300 dark:bg-white/20"
-                    )}>
-                      <span className={cn(
-                        "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
-                        permiteEntregaEfectivo ? "translate-x-4" : "translate-x-0"
-                      )} />
-                    </div>
-                  </button>
+          <div className="rounded-xl border p-3 border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20 transition-all">
+            <button
+              type="button"
+              onClick={() => setPermiteEntrega(!permiteEntrega)}
+              className="w-full flex items-center justify-between gap-3"
+            >
+              <div className="text-left flex items-start gap-2">
+                <Truck className="h-3.5 w-3.5 mt-0.5 text-stone-400 flex-shrink-0" />
+                <div>
+                  <p className={cn(
+                    "text-xs font-medium",
+                    permiteEntregaEfectivo ? "text-stone-800 dark:text-stone-200" : "text-stone-500 dark:text-stone-400"
+                  )}>
+                    {permiteEntregaEfectivo ? "Entrega editable" : "Entrega bloqueada"}
+                  </p>
+                  <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+                    Owner/Admin pueden actualizar datos de entrega y tracking.
+                  </p>
                 </div>
-              </TooltipTrigger>
-              {(esFinal || esCancelacion) && (
-                <TooltipContent side="bottom" className="max-w-xs text-xs">
-                  Las etapas finales o canceladas no permiten editar la entrega.
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+              </div>
+              <div className={cn(
+                "relative flex-shrink-0 h-5 w-9 rounded-full transition-colors",
+                permiteEntregaEfectivo ? "bg-lime-500" : "bg-stone-300 dark:bg-white/20"
+              )}>
+                <span className={cn(
+                  "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                  permiteEntregaEfectivo ? "translate-x-4" : "translate-x-0"
+                )} />
+              </div>
+            </button>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl">Cancelar</Button>

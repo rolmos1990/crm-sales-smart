@@ -74,15 +74,12 @@ export async function crearEtapa(flujoVentaId: string, datos: unknown): Promise<
     const esInicial = validado.data.esInicial ?? false;
     const esFinal = validado.data.esFinal ?? false;
     const esCancelacion = validado.data.esCancelacion ?? false;
-    const permiteEditarPedido = (esFinal || esCancelacion)
-      ? false
-      : esInicial
-        ? true
-        : (validado.data.permiteEditarPedido ?? true);
-
-    const permiteEditarEntrega = (esFinal || esCancelacion)
-      ? false
-      : (validado.data.permiteEditarEntrega ?? false);
+    // Final/Cancelación ya no fuerzan false: el Flujo de Venta decide por
+    // etapa si un pedido cerrado puede editarse (ver
+    // specs/027-fix-permitir-editar-pedidos-etapa-final). Inicial sigue
+    // forzando true — edición siempre permitida ahí, fuera de alcance del fix.
+    const permiteEditarPedido = esInicial ? true : (validado.data.permiteEditarPedido ?? true);
+    const permiteEditarEntrega = validado.data.permiteEditarEntrega ?? false;
 
     const etapa = await prisma.flujoVentaEtapa.create({
       data: {
@@ -119,17 +116,12 @@ export async function actualizarEtapa(etapaId: string, datos: unknown): Promise<
 
   try {
     const esInicial = validado.data.esInicial ?? etapa.esInicial;
-    const esFinal = validado.data.esFinal ?? etapa.esFinal;
-    const esCancelacion = validado.data.esCancelacion ?? etapa.esCancelacion;
-    const permiteEditarPedido = (esFinal || esCancelacion)
-      ? false
-      : esInicial
-        ? true
-        : (validado.data.permiteEditarPedido ?? etapa.permiteEditarPedido);
-
-    const permiteEditarEntrega = (esFinal || esCancelacion)
-      ? false
-      : (validado.data.permiteEditarEntrega ?? etapa.permiteEditarEntrega);
+    // Final/Cancelación ya no fuerzan false: el Flujo de Venta decide por
+    // etapa si un pedido cerrado puede editarse (ver
+    // specs/027-fix-permitir-editar-pedidos-etapa-final). Inicial sigue
+    // forzando true — edición siempre permitida ahí, fuera de alcance del fix.
+    const permiteEditarPedido = esInicial ? true : (validado.data.permiteEditarPedido ?? etapa.permiteEditarPedido);
+    const permiteEditarEntrega = validado.data.permiteEditarEntrega ?? etapa.permiteEditarEntrega;
 
     await prisma.flujoVentaEtapa.update({
       where: { id: etapaId },

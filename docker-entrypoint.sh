@@ -10,5 +10,5 @@ set -e
 # ya existe y el flujo de reconexión solo hace fs.existsSync, nunca mkdir.
 mkdir -p /app/data/wa-sessions
 chown -R nextjs:nodejs /app/data
-
+clear
 exec su-exec nextjs "$@"

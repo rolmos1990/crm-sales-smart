@@ -5,6 +5,7 @@ import {
   asegurarFlujoConEtapas,
   crearEtapaConPedido,
   crearPedidoEnEtapaFinal,
+  crearPedidoEnEtapaFinalBloqueada,
   crearPedidoConReglaBloqueante,
 } from '../../helpers/db';
 
@@ -18,7 +19,14 @@ import {
 // dentro de la fila: [grip, editar, eliminar].
 
 function filaEtapa(page: Page, nombre: string) {
-  return page.locator(`text="${nombre}"`).locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]');
+  // Substring, no texto exacto: las filas de etapas Inicial/Final/Cancelación/
+  // Manual muestran un badge ("Final", "Inicial", "Manual") pegado al nombre
+  // dentro del mismo nodo de texto accesible (ej. "FinalBloqueada-123 Final"),
+  // así que un match exacto nunca matchea esas filas.
+  // El wrapper real de cada fila usa "rounded-lg" (ver SortableEtapaItem en
+  // panel-config-etapas.tsx), no "rounded-xl" — con "rounded-xl" el ancestor
+  // nunca matchea ninguna fila, sea cual sea su badge.
+  return page.locator(`text=${nombre}`).first().locator('xpath=ancestor::div[contains(@class,"rounded-lg")][1]');
 }
 
 async function agregarEtapa(page: Page, nombre: string) {
@@ -200,5 +208,45 @@ test.describe('Uso del flujo en pedidos', () => {
     // el botón hacia esa misma etapa ya no tendría sentido mostrarse).
     await expect(page.locator(`text=${mensajeFallo}`).first()).toBeVisible({ timeout: 8000 });
     await expect(page).toHaveURL(new RegExp(`/sales/pedidos/${pedidoId}$`));
+  });
+
+  // 027-fix-permitir-editar-pedidos-etapa-final: antes de este fix, el
+  // diálogo "Editar etapa" forzaba "Edición permitida" a bloqueado (sin
+  // poder cambiarlo) para cualquier etapa Final/Cancelación. Este test
+  // reproduce el estado real que quedaba bloqueado y confirma que activar
+  // el toggle desde el Flujo de Venta efectivamente desbloquea el pedido.
+  test('FV-10 Activar "Edición permitida" en una etapa Final desbloquea el pedido', async ({ page }) => {
+    const instancia = await obtenerInstanciaPruebas();
+    const owner = await obtenerUsuarioOwner(instancia.id);
+    const { pedidoId, etapaNombre } = await crearPedidoEnEtapaFinalBloqueada(instancia.id, owner.id);
+
+    // Baseline: el pedido arranca bloqueado (mismo estado que hoy en producción).
+    await page.goto(`/sales/pedidos/${pedidoId}`);
+    await expect(page.locator('text=/no se permiten modificaciones/i')).toBeVisible({ timeout: 8000 });
+    await expect(page.getByRole('button', { name: /editar pedido/i })).toHaveCount(0);
+
+    // El control ya no debe estar deshabilitado para una etapa Final.
+    // La etapa se creó por Prisma directo (sin pasar por el Server Action
+    // que hace revalidatePath), así que la primera carga de esta página
+    // puede servir el Router Cache de Next todavía sin la fila nueva — un
+    // networkidle antes de buscarla evita esa carrera.
+    await page.goto('/sales/flujo-venta');
+    await page.waitForLoadState('networkidle');
+    const fila = filaEtapa(page, etapaNombre);
+    await expect(fila).toBeVisible({ timeout: 15000 });
+    await fila.getByRole('button').nth(1).click();
+    await expect(page.getByText('Editar etapa', { exact: true })).toBeVisible();
+
+    const btnEdicion = page.getByRole('button', { name: /edición bloqueada/i }).last();
+    await expect(btnEdicion).toBeEnabled();
+    await btnEdicion.click();
+    await expect(page.getByRole('button', { name: /edición permitida/i }).last()).toBeVisible();
+    await page.getByRole('button', { name: /^guardar$/i }).click();
+    await expect(page.locator('text=/etapa actualizada/i').first()).toBeVisible({ timeout: 5000 });
+
+    // El pedido en esa etapa ahora se puede editar.
+    await page.goto(`/sales/pedidos/${pedidoId}`);
+    await expect(page.locator('text=/no se permiten modificaciones/i')).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /editar pedido/i })).toBeVisible({ timeout: 8000 });
   });
 });
