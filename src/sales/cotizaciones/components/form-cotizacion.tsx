@@ -650,10 +650,13 @@ export function FormCotizacion({
                               productos={productos}
                               filtroInicial={filtroCatalogoInicial}
                               productoId={lineas[idx]?.productoId ?? ""}
-                              onSeleccionar={(p) => {
+                              varianteId={lineas[idx]?.varianteId ?? ""}
+                              onSeleccionar={(p, v) => {
                                 form.setValue(`lineas.${idx}.productoId`, p.id);
-                                form.setValue(`lineas.${idx}.descripcion`, p.nombre);
-                                form.setValue(`lineas.${idx}.precioUnitario`, p.precio);
+                                // 030 — con variante: su id, "Producto — Variante" y su precio.
+                                form.setValue(`lineas.${idx}.varianteId`, v?.id ?? "");
+                                form.setValue(`lineas.${idx}.descripcion`, v ? `${p.nombre} — ${v.nombre}` : p.nombre);
+                                form.setValue(`lineas.${idx}.precioUnitario`, v ? v.precio : p.precio);
                                 // Producto = plantilla: precarga los valores por
                                 // defecto de entrega digital en esta línea (snapshot
                                 // editable — no una referencia viva al producto).
@@ -671,7 +674,10 @@ export function FormCotizacion({
                                   });
                                 }
                               }}
-                              onLimpiar={() => form.setValue(`lineas.${idx}.productoId`, "")}
+                              onLimpiar={() => {
+                              form.setValue(`lineas.${idx}.productoId`, "");
+                              form.setValue(`lineas.${idx}.varianteId`, "");
+                            }}
                             />
                           )}
                           <Input

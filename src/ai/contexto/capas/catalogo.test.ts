@@ -70,3 +70,20 @@ describe("producirCapaCatalogo (028)", () => {
     expect(await producirCapaCatalogo({ instanciaId: "i1", activo: true, limite: 30 })).toBeNull();
   });
 });
+
+describe("producirCapaCatalogo — variantes (030)", () => {
+  beforeEach(() => {
+    findManyMock.mockReset();
+  });
+
+  it("un producto con variantes se lista con el precio efectivo de cada variante activa", async () => {
+    findManyMock.mockResolvedValue([
+      {
+        nombre: "Base Luminaria", sku: null, precio: 15, moneda: "USD", unidad: "unidad", categoria: null,
+        tieneVariantes: true, variantes: [{ nombre: "Amarilla", precio: null }, { nombre: "Multicolor", precio: 18 }],
+      },
+    ]);
+    const texto = await producirCapaCatalogo({ instanciaId: "i1", activo: true, limite: 30 });
+    expect(texto).toContain("- Base Luminaria — variantes: Amarilla: 15.00 USD; Multicolor: 18.00 USD / unidad");
+  });
+});

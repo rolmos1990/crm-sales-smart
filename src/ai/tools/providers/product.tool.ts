@@ -50,6 +50,9 @@ const BuscarProductosTool: IProveedorTool = {
         unidad: true,
         descripcion: true,
         sku: true,
+        // 030 — variantes activas, para que la IA ofrezca la correcta.
+        tieneVariantes: true,
+        variantes: { where: { activo: true }, select: { id: true, nombre: true, precio: true, sku: true }, orderBy: { orden: "asc" } },
       },
       take: Math.min(parsed.data.limite ?? 5, 10),
     });
@@ -70,6 +73,14 @@ const BuscarProductosTool: IProveedorTool = {
           unidad: p.unidad,
           descripcion: p.descripcion,
           sku: p.sku,
+          ...(p.tieneVariantes && {
+            variantes: (p.variantes ?? []).map((v) => ({
+              id: v.id,
+              nombre: v.nombre,
+              precio: v.precio !== null ? Number(v.precio) : (p.precio ? Number(p.precio) : null),
+              sku: v.sku,
+            })),
+          }),
         })),
       },
     };

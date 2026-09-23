@@ -24,7 +24,13 @@ import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
 import type { ResultadoAccion, Cotizacion } from "./types";
 import type { LineaCotizacionInput, EntregaDigitalCotizacionInput, EntregaCotizacionInput } from "./schema";
-import { cargarComposiciones, lineasConComposicionActual, planificarStock } from "@/shared/productos/stock";
+import {
+  cargarComposiciones,
+  lineasConComposicionActual,
+  parLinea,
+  planificarStock,
+  validarVariantesLineas,
+} from "@/shared/productos/stock";
 
 /**
  * Determina qué bloque de cumplimiento corresponde (Físico/Servicio/
@@ -225,6 +231,10 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
 
     const tipoCumplimiento = await resolverTipoCumplimiento(lineas);
 
+    // 030-variantes-producto — variante del producto, activa y de la instancia.
+    const variantesLineas = await validarVariantesLineas(lineas, { instanciaId: sesion.instanciaId }, prisma);
+    if (variantesLineas.error) return { exito: false, error: variantesLineas.error };
+
     // Solo se registra el bloque de cumplimiento si el usuario realmente
     // tocó algo de esa sección Y coincide con el tipo resuelto — evita crear
     // una fila vacía por defecto, o de un bloque que no corresponde.
@@ -268,6 +278,8 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
             precioUnitario: l.precioUnitario,
             descuento: l.descuento,
             subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
+            varianteId: l.varianteId || null,
+            varianteNombre: l.varianteId ? (variantesLineas.nombres.get(l.varianteId) ?? null) : null,
             entregaDigital: hayEntregaLinea ? { create: datosEntregaDigitalLinea(l.entregaDigital, codigoProducto) } : undefined,
           };
         }),
@@ -378,6 +390,32 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
     const tipoCumplimiento = lineas
       ? await resolverTipoCumplimiento(lineas as LineaCotizacionInput[])
       : (cotizacionExistente.tipoCumplimiento as TipoProducto);
+
+    // 030-variantes-producto — las líneas se recrean enteras al editar: las
+    // que ya estaban (mismo producto+variante) conservan su snapshot y pasan
+    // aunque la variante esté hoy inactiva; las demás se validan como nuevas.
+    const snapshotVariantePrevio = new Map<string, string | null>();
+    let nombresVariante = new Map<string, string>();
+    if (lineas) {
+      const previas = await prisma.cotizacionLinea.findMany({
+        where: { cotizacionId: id },
+        select: { productoId: true, varianteId: true, varianteNombre: true },
+      });
+      for (const p of previas) if (p.varianteId) snapshotVariantePrevio.set(parLinea(p), p.varianteNombre);
+      const validacion = await validarVariantesLineas(
+        lineas as LineaCotizacionInput[],
+        { instanciaId: sesion.instanciaId, existentes: new Set(previas.map(parLinea)) },
+        prisma,
+      );
+      if (validacion.error) return { exito: false, error: validacion.error };
+      nombresVariante = validacion.nombres;
+    }
+    const varianteNombreDe = (l: { productoId?: string; varianteId?: string }) =>
+      !l.varianteId
+        ? null
+        : snapshotVariantePrevio.has(parLinea(l))
+          ? snapshotVariantePrevio.get(parLinea(l))!
+          : (nombresVariante.get(l.varianteId) ?? null);
 
     let updateData: Record<string, unknown> = {
       ...resto,
@@ -516,6 +554,8 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
                   precioUnitario: l.precioUnitario ?? 0,
                   descuento: l.descuento ?? 0,
                   subtotal: (l.cantidad ?? 1) * (l.precioUnitario ?? 0) * (1 - (l.descuento ?? 0) / 100),
+                  varianteId: l.varianteId || null,
+                  varianteNombre: varianteNombreDe(l),
                   entregaDigital: hayEntregaLinea ? { create: datosEntregaDigitalLinea(l.entregaDigital, codigoExistente) } : undefined,
                 };
               }),
@@ -644,7 +684,7 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<voi
 
     // Validar stock antes de hacer cualquier cambio. Un combo se valida contra
     // sus componentes (029-combos-productos-compuestos).
-    const lineasStock = cotizacion.lineas.map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad) }));
+    const lineasStock = cotizacion.lineas.map((l) => ({ productoId: l.productoId, varianteId: l.varianteId, cantidad: Number(l.cantidad) }));
     const composiciones = await cargarComposiciones(lineasStock.map((l) => l.productoId), sesion.instanciaId, prisma);
     const planStock = await planificarStock([], lineasConComposicionActual(lineasStock, composiciones), prisma);
     if (planStock.errores.length > 0) {
@@ -829,6 +869,7 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lineasParaForm = ((cotizacion as any).lineas ?? []).map((l: any) => ({
     productoId: l.productoId ?? "",
+    varianteId: l.varianteId ?? "",
     descripcion: l.descripcion ?? "",
     cantidad: Number(l.cantidad),
     precioUnitario: Number(l.precioUnitario),

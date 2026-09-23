@@ -8,6 +8,7 @@ import { publicadorEventos } from "@/shared/rabbitmq";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { resolverCodigoEfectivo, ocultarCodigo } from "@/shared/lib/codigo-sensible";
 import { CrearProductoSchema, ActualizarProductoSchema, type ComponenteComboInput } from "./schema";
+import { prepararVariantes } from "./variantes-server";
 import type { ResultadoAccion, Producto } from "./types";
 
 /** true si el usuario tocó algún campo de la plantilla — evita crear una
@@ -55,10 +56,12 @@ async function validarComposicion(params: {
   const ids = componentes.map((c) => c.productoId);
   const encontrados = await prisma.producto.findMany({
     where: { id: { in: ids }, instanciaId },
-    select: { id: true, esCombo: true },
+    select: { id: true, esCombo: true, tieneVariantes: true },
   });
   if (encontrados.length !== ids.length) return "Componente no encontrado";
   if (encontrados.some((p) => p.esCombo)) return "Un combo solo puede tener productos simples como componentes";
+  // 030 — todavía no se elige de qué variante descontar un componente.
+  if (encontrados.some((p) => p.tieneVariantes)) return "Un producto con variantes todavía no puede ser componente de un combo";
 
   if (comboId) {
     const usadoEn = await prisma.productoComponente.findFirst({
@@ -78,17 +81,28 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, componentes, ...resto } = validado.data;
+    const {
+      descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, componentes,
+      tieneVariantes, atributosVariantes, variantes, ...resto
+    } = validado.data;
     const esCombo = resto.esCombo ?? false;
     const componentesCombo = esCombo ? normalizarComponentes(componentes ?? []) : [];
     if (esCombo) {
       const error = await validarComposicion({ instanciaId: sesion.instanciaId, componentes: componentesCombo });
       if (error) return { exito: false, error };
     }
+    // 030 — un producto puede nacer con variantes: su stock vive en ellas.
+    const planVariantes = await prepararVariantes({
+      instanciaId: sesion.instanciaId, antes: null, esCombo, manejaStock: manejaStock ?? false,
+      tieneVariantes, atributosVariantes, variantes,
+    });
+    if ("error" in planVariantes) return { exito: false, error: planVariantes.error };
     const debeCrearEntregaDigital = resto.tipo === "DIGITAL" && hayEntregaDigital(entregaDigital);
-    const producto = await prisma.producto.create({
+    const producto = await prisma.$transaction(async (tx) => {
+     const creado = await tx.producto.create({
       data: {
         ...resto,
+        ...planVariantes.datosProducto,
         esCombo,
         componentes: esCombo
           ? { create: componentesCombo.map((c) => ({ componenteId: c.productoId, cantidad: c.cantidad })) }
@@ -103,7 +117,7 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
         imagenUrl: imagenUrl || null,
         // Un combo no tiene stock propio: su disponibilidad sale de los componentes.
         manejaStock: esCombo ? false : (manejaStock ?? false),
-        cantidadDisponible: cantidadDisponible ?? 0,
+        cantidadDisponible: planVariantes.datosProducto.cantidadDisponible ?? cantidadDisponible ?? 0,
         entregaDigital: debeCrearEntregaDigital ? {
           create: {
             metodo: entregaDigital!.metodo || null,
@@ -120,6 +134,9 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
         } : undefined,
       },
       include: { entregaDigital: { select: { metodo: true, url: true, archivo: true, codigo: true, usuarioAcceso: true, instrucciones: true, observaciones: true, requiereSeguimiento: true, tipoSeguimiento: true } } },
+     });
+     await planVariantes.sincronizar?.(tx, creado.id);
+     return creado;
     });
 
     await publicadorEventos.publicar(EventosSistema.ProductoCreado, sesion.instanciaId, {
@@ -147,11 +164,15 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
   if (!validado.success) return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
 
   try {
-    const { descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, componentes, ...resto } = validado.data;
+    const {
+      descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, componentes,
+      tieneVariantes, atributosVariantes, variantes, ...resto
+    } = validado.data;
     const productoAntes = await prisma.producto.findUnique({
       where: { id, instanciaId: sesion.instanciaId },
       select: {
         precio: true, tipo: true, esCombo: true, entregaDigital: { select: { codigo: true } },
+        tieneVariantes: true, atributosVariantes: true, manejaStock: true, cantidadDisponible: true,
         componentes: { select: { componenteId: true, cantidad: true } },
       },
     });
@@ -168,6 +189,25 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
       if (error) return { exito: false, error };
     }
     const tocaComponentes = esCombo ? componentes !== undefined || resto.esCombo !== undefined : productoAntes?.esCombo === true;
+
+    // 030 — conversión a variantes (reparto del stock), edición de variantes
+    // o vuelta atrás, siempre en la misma transacción que el producto.
+    const planVariantes = await prepararVariantes({
+      instanciaId: sesion.instanciaId,
+      antes: productoAntes
+        ? {
+            id,
+            tieneVariantes: productoAntes.tieneVariantes,
+            atributosVariantes: productoAntes.atributosVariantes,
+            manejaStock: productoAntes.manejaStock,
+            cantidadDisponible: Number(productoAntes.cantidadDisponible),
+          }
+        : null,
+      esCombo,
+      manejaStock: manejaStock ?? productoAntes?.manejaStock ?? false,
+      tieneVariantes, atributosVariantes, variantes,
+    });
+    if ("error" in planVariantes) return { exito: false, error: planVariantes.error };
     const tipoEfectivo = resto.tipo ?? productoAntes?.tipo ?? "FISICO";
     const debeTocarEntregaDigital = tipoEfectivo === "DIGITAL" && entregaDigital !== undefined;
     const datosEntregaDigital = debeTocarEntregaDigital ? {
@@ -182,7 +222,8 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
       codigo: resolverCodigoEfectivo(entregaDigital!, productoAntes?.entregaDigital?.codigo ?? null),
     } : null;
 
-    const producto = await prisma.producto.update({
+    const producto = await prisma.$transaction(async (tx) => {
+     const actualizado = await tx.producto.update({
       where: { id, instanciaId: sesion.instanciaId },
       data: {
         ...resto,
@@ -194,6 +235,9 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
         ...(manejaStock !== undefined && { manejaStock }),
         ...(esCombo && { manejaStock: false }),
         ...(cantidadDisponible !== undefined && { cantidadDisponible }),
+        // Va después de cantidadDisponible: con variantes el stock del
+        // producto queda en 0, y al apagarlas recibe la suma de las variantes.
+        ...planVariantes.datosProducto,
         // Reemplazo completo dentro del mismo update (atómico). Dejar de ser
         // combo borra la composición; los pedidos ya creados no se ven
         // afectados porque cada línea guardó la suya (composicionCombo).
@@ -208,6 +252,9 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
         } : undefined,
       },
       include: { entregaDigital: { select: { metodo: true, url: true, archivo: true, codigo: true, usuarioAcceso: true, instrucciones: true, observaciones: true, requiereSeguimiento: true, tipoSeguimiento: true } } },
+     });
+     await planVariantes.sincronizar?.(tx, id);
+     return actualizado;
     });
 
     if (productoAntes && validado.data.precio !== undefined && Number(productoAntes.precio) !== validado.data.precio) {

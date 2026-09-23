@@ -24,9 +24,11 @@ import {
   aplicarDeltas,
   cargarComposiciones,
   lineasConComposicionActual,
+  parLinea,
   parsearComposicion,
   planificarStock,
   snapshotComposicion,
+  validarVariantesLineas,
 } from "@/shared/productos/stock";
 import type { LineaConsumo } from "@/shared/productos/inventario";
 
@@ -75,8 +77,14 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
       ...resto
     } = validado.data;
 
+    // 030 — una variante tiene que ser de ese producto, estar activa, y un
+    // producto con variantes no se vende sin elegir una.
+    const variantesLineas = await validarVariantesLineas(lineas, { instanciaId: sesion.instanciaId }, prisma);
+    if (variantesLineas.error) return { exito: false, error: variantesLineas.error };
+
     // Validar stock de lo que se consume: un combo consume sus componentes
-    // (029-combos-productos-compuestos, ver src/shared/productos/inventario.ts).
+    // (029-combos-productos-compuestos, ver src/shared/productos/inventario.ts)
+    // y una línea con variante, el stock de esa variante (030).
     const composiciones = await cargarComposiciones(lineas.map(l => l.productoId), sesion.instanciaId, prisma);
     const planStock = await planificarStock([], lineasConComposicionActual(lineas, composiciones), prisma);
     if (planStock.errores.length > 0) return { exito: false, error: planStock.errores[0] };
@@ -114,6 +122,8 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
           descuento: l.descuento,
           subtotal: l.cantidad * l.precioUnitario * (1 - l.descuento / 100),
           composicionCombo: snapshotComposicion(l.productoId, composiciones),
+          varianteId: l.varianteId || null,
+          varianteNombre: l.varianteId ? (variantesLineas.nombres.get(l.varianteId) ?? null) : null,
         })),
       },
     };
@@ -285,11 +295,26 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     // (029-combos-productos-compuestos).
     const composiciones = await cargarComposiciones(lineasNuevas.map(l => l.productoId), sesion.instanciaId, prisma);
     const lineaPrevia = new Map(lineasActuales.map(l => [l.id, l]));
-    const mismoProducto = (l: { id?: string; productoId?: string }) =>
-      (lineaPrevia.get(l.id!)?.productoId ?? "") === (l.productoId ?? "");
+    // 030 — "misma línea" = mismo producto Y misma variante: cambiar la
+    // variante de una línea la trata como nueva (stock y snapshot).
+    const mismoProducto = (l: { id?: string; productoId?: string; varianteId?: string }) => {
+      const previa = lineaPrevia.get(l.id!);
+      return !!previa && parLinea(previa) === parLinea(l);
+    };
+
+    // Las líneas que ya existían con su producto+variante pasan aunque la
+    // variante esté hoy inactiva o el producto haya activado variantes después.
+    const variantesLineas = await validarVariantesLineas(
+      [...lineasConId.filter(l => !mismoProducto(l)), ...lineasSinId],
+      { instanciaId: sesion.instanciaId },
+      prisma,
+    );
+    if (variantesLineas.error) return { exito: false, error: variantesLineas.error };
+    const nombreVarianteDe = (varianteId?: string) => (varianteId ? (variantesLineas.nombres.get(varianteId) ?? null) : null);
 
     const consumoAnterior: LineaConsumo[] = lineasActuales.map(l => ({
       productoId: l.productoId,
+      varianteId: l.varianteId,
       cantidad: Number(l.cantidad),
       composicion: parsearComposicion(l.composicionCombo),
       nombre: l.producto?.nombre,
@@ -297,6 +322,7 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     const consumoNuevo: LineaConsumo[] = [
       ...lineasConId.filter(mismoProducto).map(l => ({
         productoId: l.productoId || null,
+        varianteId: l.varianteId || null,
         cantidad: l.cantidad,
         composicion: parsearComposicion(lineaPrevia.get(l.id!)?.composicionCombo),
         nombre: lineaPrevia.get(l.id!)?.producto?.nombre,
@@ -417,6 +443,8 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
             descuento: linea.descuento,
             subtotal: linea.cantidad * linea.precioUnitario * (1 - linea.descuento / 100),
             composicionCombo: snapshotComposicion(linea.productoId, composiciones),
+            varianteId: linea.varianteId || null,
+            varianteNombre: nombreVarianteDe(linea.varianteId),
           },
         });
       }
@@ -431,9 +459,11 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
             precioUnitario: linea.precioUnitario,
             descuento: linea.descuento,
             subtotal: linea.cantidad * linea.precioUnitario * (1 - linea.descuento / 100),
-            // El snapshot solo se reescribe si cambió el producto de la línea.
+            // Los snapshots solo se reescriben si cambió el producto o la variante.
             ...(!mismoProducto(linea) && {
               composicionCombo: snapshotComposicion(linea.productoId, composiciones) ?? Prisma.JsonNull,
+              varianteId: linea.varianteId || null,
+              varianteNombre: nombreVarianteDe(linea.varianteId),
             }),
             // 026-preparacion-pedidos — el avance de preparación NO se toca al
             // editar la línea; solo se acota si la cantidad bajó por debajo de

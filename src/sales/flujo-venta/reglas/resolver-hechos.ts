@@ -23,7 +23,13 @@ export async function resolverHechosPedido(
   const pedido = await db.pedido.findFirst({
     where: { id: pedidoId, instanciaId },
     include: {
-      lineas: { include: { producto: { select: { id: true, sku: true, categoria: true, manejaStock: true, cantidadDisponible: true } } } },
+      lineas: {
+        include: {
+          producto: { select: { id: true, sku: true, categoria: true, manejaStock: true, cantidadDisponible: true, tieneVariantes: true } },
+          // 030 — con variante, el stock que cuenta es el de la variante.
+          variante: { select: { cantidadDisponible: true } },
+        },
+      },
       entrega: { include: { transportista: { select: { nombre: true } } } },
       contacto: { select: { nombre: true, apellido: true, telefonoPrincipal: true, email: true, tags: { include: { tag: { select: { nombre: true } } } } } },
       empresa: { select: { nombre: true, ruc: true } },
@@ -81,9 +87,14 @@ export async function resolverHechosPedido(
     "productos.ids": pedido.lineas.map((l) => l.productoId).filter((id): id is string => !!id),
     "productos.categorias": [...new Set(pedido.lineas.map((l) => l.producto?.categoria).filter((c): c is string => !!c))],
     "productos.skus": pedido.lineas.map((l) => l.producto?.sku).filter((s): s is string => !!s),
-    "productos.todosConInventario": pedido.lineas.every(
-      (l) => !l.producto?.manejaStock || Number(l.producto.cantidadDisponible) >= Number(l.cantidad)
-    ),
+    "productos.todosConInventario": pedido.lineas.every((l) => {
+      if (!l.producto?.manejaStock) return true;
+      if (l.variante) return Number(l.variante.cantidadDisponible) >= Number(l.cantidad);
+      // Línea anterior a las variantes: el stock del producto ya no es la
+      // fuente de verdad (se repartió), así que no puede decir que falta.
+      if (l.producto.tieneVariantes) return true;
+      return Number(l.producto.cantidadDisponible) >= Number(l.cantidad);
+    }),
 
     // Contacto y empresa
     "contacto.asignado": !!pedido.contactoId,

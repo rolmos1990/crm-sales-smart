@@ -15,8 +15,8 @@ const productoCreate = vi.fn();
 const productoUpdate = vi.fn();
 const componenteFindFirst = vi.fn();
 
-vi.mock("@/shared/db/prisma", () => ({
-  prisma: {
+vi.mock("@/shared/db/prisma", () => {
+  const db = {
     producto: {
       findMany: (...a: unknown[]) => productoFindMany(...a),
       findUnique: (...a: unknown[]) => productoFindUnique(...a),
@@ -24,8 +24,10 @@ vi.mock("@/shared/db/prisma", () => ({
       update: (...a: unknown[]) => productoUpdate(...a),
     },
     productoComponente: { findFirst: (...a: unknown[]) => componenteFindFirst(...a) },
-  },
-}));
+    productoVariante: { findMany: () => Promise.resolve([]) },
+  };
+  return { prisma: { ...db, $transaction: (cb: (tx: typeof db) => unknown) => cb(db) } };
+});
 
 const { crearProducto, actualizarProducto } = await import("./actions");
 

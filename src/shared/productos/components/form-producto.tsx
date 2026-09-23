@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Layers, Package, ShoppingBag } from "lucide-react";
+import { Layers, Package, ShoppingBag, SwatchBook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -21,8 +21,10 @@ import { CrearProductoSchema, type CrearProductoInput } from "../schema";
 import { TIPO_PRODUCTO_LABELS, type Producto, type TipoProducto } from "../types";
 import { MediaUploader } from "@/components/media/media-uploader";
 import { EditorComponentesCombo } from "./editor-componentes-combo";
+import { EditorVariantes } from "./editor-variantes";
+import type { AtributoVariante } from "../variantes";
 import type { ProductoParaComponente } from "../queries";
-import type { ComponenteCombo } from "../types";
+import type { ComponenteCombo, VarianteEditable } from "../types";
 import { vincularMediaArchivo } from "@/lib/media/server-actions";
 
 const METODO_ENTREGA_DIGITAL_LABELS: Record<string, string> = {
@@ -37,7 +39,14 @@ const METODO_ENTREGA_DIGITAL_LABELS: Record<string, string> = {
 
 interface FormProductoProps {
   instanciaId: string;
-  inicial?: Partial<Producto> & { esCombo?: boolean; ventaDirecta?: boolean; componentes?: ComponenteCombo[] };
+  inicial?: Partial<Producto> & {
+    esCombo?: boolean;
+    ventaDirecta?: boolean;
+    componentes?: ComponenteCombo[];
+    tieneVariantes?: boolean;
+    atributosVariantes?: unknown;
+    variantes?: VarianteEditable[];
+  };
   modo?: "crear" | "editar";
   monedaDefault?: string;
   /** 029 — productos simples que pueden ser componentes de un combo. */
@@ -85,6 +94,9 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
       esCombo: inicial?.esCombo ?? false,
       ventaDirecta: inicial?.ventaDirecta ?? true,
       componentes: inicial?.componentes ?? [],
+      tieneVariantes: inicial?.tieneVariantes ?? false,
+      atributosVariantes: (Array.isArray(inicial?.atributosVariantes) ? inicial.atributosVariantes : []) as AtributoVariante[],
+      variantes: inicial?.variantes ?? [],
       entregaDigital: {
         metodo: inicial?.entregaDigital?.metodo ?? undefined,
         url: inicial?.entregaDigital?.url ?? "",
@@ -104,6 +116,15 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
   const tipo = form.watch("tipo") ?? "FISICO";
   const esCombo = form.watch("esCombo") ?? false;
   const componentes = form.watch("componentes") ?? [];
+  const tieneVariantes = form.watch("tieneVariantes") ?? false;
+  const atributosVariantes = (form.watch("atributosVariantes") ?? []) as AtributoVariante[];
+  const variantes = (form.watch("variantes") ?? []) as VarianteEditable[];
+  const manejaStock = form.watch("manejaStock") ?? false;
+  // 030 — convertir un producto que ya tiene stock obliga a repartirlo entre
+  // las variantes (el servidor valida que la suma coincida).
+  const convirtiendo = modo === "editar" && !inicial?.tieneVariantes && tieneVariantes;
+  const stockPorDistribuir =
+    convirtiendo && inicial?.manejaStock && (inicial?.cantidadDisponible ?? 0) > 0 ? inicial.cantidadDisponible : undefined;
   const codigoAccion = form.watch("entregaDigital.codigoAccion") ?? "CONSERVAR";
   const codigoNuevo = form.watch("entregaDigital.codigoNuevo") ?? "";
 
@@ -112,6 +133,15 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
     if (datos.esCombo && (datos.componentes ?? []).length === 0) {
       toast.error("Un combo necesita al menos un componente");
       return;
+    }
+    if (datos.tieneVariantes && (datos.variantes ?? []).length === 0) {
+      toast.error("Agrega al menos un atributo con valores para generar las variantes");
+      return;
+    }
+    // Sin variantes no se mandan (el servidor conservaría o borraría según
+    // corresponda); con variantes sí, para sincronizarlas.
+    if (!datos.tieneVariantes) {
+      datos = { ...datos, atributosVariantes: undefined, variantes: undefined };
     }
     if (modo === "crear") {
       const resultado = await crearProducto(datos);
@@ -428,7 +458,14 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
               </p>
             </div>
             <FormField control={form.control} name="esCombo" render={({ field }) => (
-              <Interruptor activo={field.value ?? false} onCambiar={field.onChange} etiqueta="Este producto es un combo" />
+              <Interruptor
+                activo={field.value ?? false}
+                onCambiar={(v) => {
+                  if (v && tieneVariantes) { toast.error("Un combo no puede tener variantes"); return; }
+                  field.onChange(v);
+                }}
+                etiqueta="Este producto es un combo"
+              />
             )} />
           </div>
 
@@ -445,6 +482,53 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
             </div>
           )}
         </div>
+
+        {/* 030 — Variantes */}
+        {!esCombo && (
+          <div className="rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 p-4 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <SwatchBook className="h-4 w-4 text-stone-400" />
+                  Este producto tiene variantes
+                </p>
+                <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+                  Mismo producto con opciones (color, talla…); cada variante tiene su propio SKU, precio y stock.
+                </p>
+              </div>
+              <FormField control={form.control} name="tieneVariantes" render={({ field }) => (
+                <Interruptor
+                  activo={field.value ?? false}
+                  onCambiar={(v) => {
+                    field.onChange(v);
+                    if (v && atributosVariantes.length === 0) form.setValue("atributosVariantes", [{ nombre: "", valores: [] }]);
+                  }}
+                  etiqueta="Este producto tiene variantes"
+                />
+              )} />
+            </div>
+
+            {tieneVariantes && (
+              <EditorVariantes
+                atributos={atributosVariantes}
+                variantes={variantes}
+                onChange={(atributos, nuevas) => {
+                  form.setValue("atributosVariantes", atributos, { shouldDirty: true });
+                  form.setValue("variantes", nuevas, { shouldDirty: true });
+                }}
+                manejaStock={manejaStock}
+                precioBase={form.watch("precio") ?? 0}
+                moneda={form.watch("moneda") ?? monedaDefault}
+                stockPorDistribuir={stockPorDistribuir}
+              />
+            )}
+            {!tieneVariantes && inicial?.tieneVariantes && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Al guardar, el stock de las variantes vuelve al producto. Solo es posible si ninguna variante se vendió todavía.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Control de stock */}
         {esCombo ? (
@@ -488,7 +572,13 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
             )} />
           </div>
 
-          {form.watch("manejaStock") && (
+          {form.watch("manejaStock") && tieneVariantes && (
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              Stock total: <strong className="tabular-nums">{variantes.filter((v) => v.activo).reduce((a, v) => a + (v.cantidadDisponible || 0), 0)}</strong>{" "}
+              — se calcula sumando las variantes activas; el stock se edita en cada variante.
+            </p>
+          )}
+          {form.watch("manejaStock") && !tieneVariantes && (
             <FormField control={form.control} name="cantidadDisponible" render={({ field }) => (
               <FormItem>
                 <FormLabel>Cantidad disponible en stock</FormLabel>

@@ -78,6 +78,7 @@ function FormEditarPedido({
       lineas: pedido.lineas.map(l => ({
         id: l.id,
         productoId: l.productoId ?? "",
+        varianteId: l.varianteId ?? "",
         descripcion: l.descripcion ?? "",
         cantidad: l.cantidad,
         precioUnitario: l.precioUnitario,
@@ -297,12 +298,18 @@ function FormEditarPedido({
                             productos={productos}
                             filtroInicial={filtroCatalogoInicial}
                             productoId={lineas[idx]?.productoId ?? ""}
-                            onSeleccionar={(p) => {
+                            varianteId={lineas[idx]?.varianteId ?? ""}
+                            onSeleccionar={(p, v) => {
                               form.setValue(`lineas.${idx}.productoId`, p.id);
-                              form.setValue(`lineas.${idx}.descripcion`, p.nombre);
-                              form.setValue(`lineas.${idx}.precioUnitario`, p.precio);
+                              // 030 — con variante: su id, "Producto — Variante" y su precio.
+                              form.setValue(`lineas.${idx}.varianteId`, v?.id ?? "");
+                              form.setValue(`lineas.${idx}.descripcion`, v ? `${p.nombre} — ${v.nombre}` : p.nombre);
+                              form.setValue(`lineas.${idx}.precioUnitario`, v ? v.precio : p.precio);
                             }}
-                            onLimpiar={() => form.setValue(`lineas.${idx}.productoId`, "")}
+                            onLimpiar={() => {
+                              form.setValue(`lineas.${idx}.productoId`, "");
+                              form.setValue(`lineas.${idx}.varianteId`, "");
+                            }}
                           />
                         )}
                         <Input

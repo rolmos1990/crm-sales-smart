@@ -76,6 +76,32 @@ export interface ProductoCatalogo {
   /** Unidades vendibles: stock propio o, en un combo, las que alcanzan a
    *  armarse con sus componentes. null = sin control de stock. */
   disponibilidad: number | null;
+  // 030-variantes-producto
+  tieneVariantes: boolean;
+  /** Todas las variantes (también inactivas, para mostrar el nombre de una
+   *  línea ya guardada); el selector solo ofrece las activas. */
+  variantes: VarianteCatalogo[];
+}
+
+export interface VarianteCatalogo {
+  id: string;
+  nombre: string;
+  sku: string | null;
+  /** Precio efectivo: el de la variante o, si no tiene, el del producto. */
+  precio: number;
+  /** null = sin control de stock. */
+  disponibilidad: number | null;
+  activo: boolean;
+}
+
+/** Variante tal como la edita el formulario de producto. */
+export interface VarianteEditable {
+  id?: string;
+  valores: Record<string, string>;
+  sku: string;
+  precio: number | null;
+  cantidadDisponible: number;
+  activo: boolean;
 }
 
 /** Filtro del selector de productos (mismo enum que

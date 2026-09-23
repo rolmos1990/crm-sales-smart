@@ -51,6 +51,7 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
 
   const lineasParaForm = ((cotizacion as any).lineas ?? []).map((l: any) => ({
     productoId: l.productoId ?? "",
+    varianteId: l.varianteId ?? "",
     descripcion: l.descripcion ?? "",
     cantidad: Number(l.cantidad),
     precioUnitario: Number(l.precioUnitario),

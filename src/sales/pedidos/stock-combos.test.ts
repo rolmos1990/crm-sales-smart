@@ -23,9 +23,19 @@ interface ProductoFake {
   cantidadDisponible: number;
   esCombo: boolean;
   componentes: { componenteId: string; cantidad: number }[];
+  tieneVariantes?: boolean;
+}
+
+interface VarianteFake {
+  id: string;
+  productoId: string;
+  nombre: string;
+  activo: boolean;
+  cantidadDisponible: number;
 }
 
 let productos: Map<string, ProductoFake>;
+let variantes: Map<string, VarianteFake>;
 let lineasCreadas: Record<string, unknown>[];
 let lineasActualizadas: Record<string, unknown>[];
 let pedidoActual: unknown;
@@ -56,9 +66,25 @@ const productoDb = {
   },
 };
 
+const varianteDb = {
+  findMany: ({ where }: { where: { id: { in: string[] } } }) =>
+    Promise.resolve(
+      where.id.in
+        .map((id) => variantes.get(id))
+        .filter((v): v is VarianteFake => !!v)
+        .map((v) => ({ ...v, producto: { nombre: productos.get(v.productoId)!.nombre, manejaStock: productos.get(v.productoId)!.manejaStock } })),
+    ),
+  update: ({ where, data }: { where: { id: string }; data: { cantidadDisponible: { increment?: number; decrement?: number } } }) => {
+    const v = variantes.get(where.id)!;
+    v.cantidadDisponible += (data.cantidadDisponible.increment ?? 0) - (data.cantidadDisponible.decrement ?? 0);
+    return Promise.resolve(v);
+  },
+};
+
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
     producto: productoDb,
+    productoVariante: varianteDb,
     usuario: { findFirst: () => Promise.resolve({ nombre: "Admin" }) },
     pedido: {
       create: ({ data }: { data: { lineas: { create: Record<string, unknown>[] } } }) => {
@@ -134,7 +160,16 @@ describe("029 — pedidos con combos", () => {
           componentes: [{ componenteId: "base", cantidad: 1 }, { componenteId: "esfera", cantidad: 1 }],
         }),
         producto({ id: "cojin", nombre: "Cojín", manejaStock: true, cantidadDisponible: 10 }),
+        // 030 — convertido a variantes: su stock vive en ellas (producto en 0).
+        producto({ id: "lampara", nombre: "Base Luminaria", manejaStock: true, cantidadDisponible: 0, tieneVariantes: true }),
       ].map((p) => [p.id, p]),
+    );
+    variantes = new Map(
+      [
+        { id: "amarilla", productoId: "lampara", nombre: "Amarilla", activo: true, cantidadDisponible: 6 },
+        { id: "multicolor", productoId: "lampara", nombre: "Multicolor", activo: true, cantidadDisponible: 4 },
+        { id: "retirada", productoId: "lampara", nombre: "Retirada", activo: false, cantidadDisponible: 3 },
+      ].map((v) => [v.id, v]),
     );
   });
 
@@ -234,5 +269,78 @@ describe("029 — pedidos con combos", () => {
     const r = await editarPedido("ped-1", datosPedido([lineaPedido("cojin", 6, { id: "l1" })]));
 
     expect(r).toEqual({ exito: false, error: 'Stock insuficiente para "Cojín". Disponible: 1 — adicional requerido: 3' });
+  });
+});
+
+describe("030 — pedidos con variantes", () => {
+  const vstock = (id: string) => variantes.get(id)!.cantidadDisponible;
+
+  beforeEach(() => {
+    lineasCreadas = [];
+    lineasActualizadas = [];
+    productos.set("lampara", producto({ id: "lampara", nombre: "Base Luminaria", manejaStock: true, cantidadDisponible: 0, tieneVariantes: true }));
+    productos.set("cojin", producto({ id: "cojin", nombre: "Cojín", manejaStock: true, cantidadDisponible: 10 }));
+    variantes = new Map(
+      [
+        { id: "amarilla", productoId: "lampara", nombre: "Amarilla", activo: true, cantidadDisponible: 6 },
+        { id: "multicolor", productoId: "lampara", nombre: "Multicolor", activo: true, cantidadDisponible: 4 },
+        { id: "retirada", productoId: "lampara", nombre: "Retirada", activo: false, cantidadDisponible: 3 },
+      ].map((v) => [v.id, v]),
+    );
+  });
+
+  it("pedido con producto + variante: descuenta esa variante y guarda la variante vendida", async () => {
+    const r = await crearPedido(datosPedido([lineaPedido("lampara", 2, { varianteId: "amarilla" })]));
+
+    expect(r.exito).toBe(true);
+    expect(lineasCreadas[0]).toMatchObject({ productoId: "lampara", varianteId: "amarilla", varianteNombre: "Amarilla" });
+    expect(vstock("amarilla")).toBe(4);
+    expect(vstock("multicolor")).toBe(4);
+    expect(stock("lampara")).toBe(0);
+  });
+
+  it("producto con variantes sin elegir variante se rechaza sin tocar stock", async () => {
+    const r = await crearPedido(datosPedido([lineaPedido("lampara", 1)]));
+    expect(r).toEqual({ exito: false, error: "Selecciona una variante de «Base Luminaria»" });
+    expect(vstock("amarilla")).toBe(6);
+  });
+
+  it("una variante inactiva no se puede usar en una línea nueva", async () => {
+    const r = await crearPedido(datosPedido([lineaPedido("lampara", 1, { varianteId: "retirada" })]));
+    expect(r.exito).toBe(false);
+  });
+
+  it("falta de stock de la variante nombra producto y variante", async () => {
+    const r = await crearPedido(datosPedido([lineaPedido("lampara", 7, { varianteId: "amarilla" })]));
+    expect(r).toEqual({ exito: false, error: 'Stock insuficiente para "Base Luminaria — Amarilla". Disponible: 6 — solicitado: 7' });
+  });
+
+  it("editar la cantidad de una línea con variante mueve solo esa variante", async () => {
+    pedidoActual = pedidoGuardado([{ id: "l1", productoId: "lampara", cantidad: 2, varianteId: "amarilla" } as never]);
+    variantes.get("amarilla")!.cantidadDisponible = 4;
+
+    await editarPedido("ped-1", datosPedido([lineaPedido("lampara", 1, { id: "l1", varianteId: "amarilla" })]));
+
+    expect(vstock("amarilla")).toBe(5);
+    expect(vstock("multicolor")).toBe(4);
+  });
+
+  it("una línea histórica con una variante hoy inactiva se puede editar (historial)", async () => {
+    pedidoActual = pedidoGuardado([{ id: "l1", productoId: "lampara", cantidad: 2, varianteId: "retirada" } as never]);
+
+    const r = await editarPedido("ped-1", datosPedido([lineaPedido("lampara", 1, { id: "l1", varianteId: "retirada" })]));
+
+    expect(r.exito).toBe(true);
+    expect(vstock("retirada")).toBe(4);
+  });
+
+  it("una línea anterior a las variantes (sin variante) no mueve el stock del producto al quitarla", async () => {
+    // Ese stock ya se repartió entre las variantes al convertir el producto.
+    pedidoActual = pedidoGuardado([{ id: "l1", productoId: "lampara", cantidad: 2 }]);
+
+    await editarPedido("ped-1", datosPedido([lineaPedido("cojin", 1)]));
+
+    expect(stock("lampara")).toBe(0);
+    expect(vstock("amarilla")).toBe(6);
   });
 });

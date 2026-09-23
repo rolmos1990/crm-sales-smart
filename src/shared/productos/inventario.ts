@@ -14,6 +14,8 @@ export interface ComponenteSnapshot {
 
 export interface LineaConsumo {
   productoId: string | null;
+  /** 030 — si la línea vendió una variante, el stock que se mueve es el suyo. */
+  varianteId?: string | null;
   cantidad: number;
   /** Composición del combo de esta línea. null = consume su propio producto. */
   composicion: ComponenteSnapshot[] | null;
@@ -33,6 +35,10 @@ export interface StockProducto {
   cantidadDisponible: number;
 }
 
+/** 030 — clave de stock de una variante (las de producto son su id, como siempre). */
+export const PREFIJO_VARIANTE = "variante:";
+export const claveStockVariante = (varianteId: string) => `${PREFIJO_VARIANTE}${varianteId}`;
+
 export function expandirConsumo(lineas: LineaConsumo[]): Map<string, Consumo> {
   const consumo = new Map<string, Consumo>();
   const sumar = (productoId: string, cantidad: number, origen?: string) => {
@@ -45,6 +51,8 @@ export function expandirConsumo(lineas: LineaConsumo[]): Map<string, Consumo> {
   for (const linea of lineas) {
     if (linea.composicion && linea.composicion.length > 0) {
       for (const c of linea.composicion) sumar(c.productoId, linea.cantidad * c.cantidad, linea.nombre);
+    } else if (linea.varianteId) {
+      sumar(claveStockVariante(linea.varianteId), linea.cantidad);
     } else if (linea.productoId) {
       sumar(linea.productoId, linea.cantidad);
     }

@@ -30,6 +30,8 @@ const ConsultarDisponibilidadTool: IProveedorTool = {
         cantidadDisponible: true,
         esCombo: true,
         componentes: { select: { cantidad: true, componente: { select: { manejaStock: true, cantidadDisponible: true, activo: true } } } },
+        tieneVariantes: true,
+        variantes: { where: { activo: true }, select: { id: true, nombre: true, cantidadDisponible: true }, orderBy: { orden: "asc" } },
       },
     });
 
@@ -52,6 +54,21 @@ const ConsultarDisponibilidadTool: IProveedorTool = {
           ? { disponible: true, cantidadDisponible: null, manejaStock: false, esCombo: true }
           : { disponible: disponibilidad > 0, cantidadDisponible: disponibilidad, manejaStock: true, esCombo: true },
       };
+    }
+
+    // 030-variantes-producto — el stock vive en cada variante; el total es la
+    // suma de las activas (nunca el stock propio del producto, que queda en 0).
+    if (producto.tieneVariantes) {
+      const variantes = (producto.variantes ?? []).map((v) => ({
+        id: v.id,
+        nombre: v.nombre,
+        cantidadDisponible: producto.manejaStock ? Number(v.cantidadDisponible) : null,
+      }));
+      if (!producto.manejaStock) {
+        return { ok: true, data: { disponible: variantes.length > 0, cantidadDisponible: null, manejaStock: false, variantes } };
+      }
+      const total = variantes.reduce((acc, v) => acc + Math.max(0, v.cantidadDisponible ?? 0), 0);
+      return { ok: true, data: { disponible: total > 0, cantidadDisponible: total, manejaStock: true, variantes } };
     }
 
     if (!producto.manejaStock) {

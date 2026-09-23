@@ -22,6 +22,20 @@ export const ComponenteComboSchema = z.object({
   cantidad: z.number().int("La cantidad debe ser un número entero").min(1, "La cantidad mínima es 1"),
 });
 
+export const AtributoVarianteSchema = z.object({
+  nombre: z.string().trim().max(60),
+  valores: z.array(z.string().trim().max(60)).max(50),
+});
+
+export const VarianteEditableSchema = z.object({
+  id: z.string().optional(),
+  valores: z.record(z.string().max(60), z.string().max(60)),
+  sku: z.string().trim().max(100).optional().or(z.literal("")),
+  precio: z.number().min(0, "El precio debe ser mayor o igual a 0").nullable().optional(),
+  cantidadDisponible: z.number().min(0, "El stock debe ser mayor o igual a 0").optional(),
+  activo: z.boolean().optional(),
+});
+
 export const CrearProductoSchema = z.object({
   sku: z.string().max(100).optional().or(z.literal("")),
   nombre: z.string().min(1, "El nombre es requerido").max(200),
@@ -54,6 +68,13 @@ export const CrearProductoSchema = z.object({
   esCombo: z.boolean().optional(),
   ventaDirecta: z.boolean().optional(),
   componentes: z.array(ComponenteComboSchema).max(50).optional(),
+
+  // 030-variantes-producto. Las reglas de combinación (duplicados, SKU,
+  // límites, que cada variante coincida con los atributos) y la conversión
+  // de stock se validan en el servidor con src/shared/productos/variantes.ts.
+  tieneVariantes: z.boolean().optional(),
+  atributosVariantes: z.array(AtributoVarianteSchema).max(10).optional(),
+  variantes: z.array(VarianteEditableSchema).max(200).optional(),
 });
 
 export const ActualizarProductoSchema = CrearProductoSchema.partial();
@@ -62,3 +83,4 @@ export type CrearProductoInput = z.infer<typeof CrearProductoSchema>;
 export type ActualizarProductoInput = z.infer<typeof ActualizarProductoSchema>;
 export type EntregaDigitalProductoInput = z.infer<typeof EntregaDigitalProductoSchema>;
 export type ComponenteComboInput = z.infer<typeof ComponenteComboSchema>;
+export type VarianteEditableInput = z.infer<typeof VarianteEditableSchema>;

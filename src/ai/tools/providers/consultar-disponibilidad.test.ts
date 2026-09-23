@@ -63,3 +63,38 @@ describe("consultar_disponibilidad — combos (029)", () => {
     expect(resultado).toEqual({ ok: true, data: { disponible: false, cantidadDisponible: 0, manejaStock: true, esCombo: true } });
   });
 });
+
+describe("consultar_disponibilidad — variantes (030)", () => {
+  beforeEach(() => productoFindFirstMock.mockReset());
+
+  it("un producto con variantes informa el total (suma de variantes activas) y el detalle", async () => {
+    productoFindFirstMock.mockResolvedValue({
+      manejaStock: true, cantidadDisponible: 0, esCombo: false, componentes: [], tieneVariantes: true,
+      variantes: [
+        { id: "a", nombre: "Amarilla", cantidadDisponible: 6 },
+        { id: "m", nombre: "Multicolor", cantidadDisponible: 4 },
+      ],
+    });
+    const tool = registroHerramientas.get("consultar_disponibilidad")!;
+    const resultado = await tool.execute({ productoId: "base" }, ctx);
+    expect(resultado).toEqual({
+      ok: true,
+      data: {
+        disponible: true,
+        cantidadDisponible: 10,
+        manejaStock: true,
+        variantes: [
+          { id: "a", nombre: "Amarilla", cantidadDisponible: 6 },
+          { id: "m", nombre: "Multicolor", cantidadDisponible: 4 },
+        ],
+      },
+    });
+  });
+
+  it("un producto sin variantes sigue usando su propio stock", async () => {
+    productoFindFirstMock.mockResolvedValue({ manejaStock: true, cantidadDisponible: 5, esCombo: false, tieneVariantes: false });
+    const tool = registroHerramientas.get("consultar_disponibilidad")!;
+    const resultado = await tool.execute({ productoId: "p1" }, ctx);
+    expect(resultado).toEqual({ ok: true, data: { disponible: true, cantidadDisponible: 5, manejaStock: true } });
+  });
+});

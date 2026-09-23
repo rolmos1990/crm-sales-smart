@@ -183,3 +183,34 @@ describe("validarDeltas", () => {
     expect(validarDeltas(deltas, stock)).toEqual([]);
   });
 });
+
+describe("variantes como unidad de stock (030)", () => {
+  const variante = (id: string, cantidad: number): LineaConsumo => ({ productoId: "base", varianteId: id, cantidad, composicion: null });
+
+  it("una línea con variante consume esa variante, no el producto ni otras variantes", () => {
+    const consumo = expandirConsumo([variante("amarilla", 2)]);
+    expect([...consumo.keys()]).toEqual(["variante:amarilla"]);
+    expect(consumo.get("variante:amarilla")?.cantidad).toBe(2);
+  });
+
+  it("editar y quitar una línea con variante mueve solo esa variante", () => {
+    const inicial = { "variante:amarilla": 6, "variante:multicolor": 4 };
+    expect(aplicar(inicial, [], [variante("amarilla", 2)])).toEqual({ "variante:amarilla": 4, "variante:multicolor": 4 });
+    expect(aplicar({ "variante:amarilla": 4, "variante:multicolor": 4 }, [variante("amarilla", 2)], [variante("amarilla", 1)])).toEqual({
+      "variante:amarilla": 5,
+      "variante:multicolor": 4,
+    });
+    expect(aplicar({ "variante:amarilla": 5, "variante:multicolor": 4 }, [variante("amarilla", 1)], [])).toEqual(inicial);
+  });
+
+  it("cambiar la variante de una línea devuelve a la anterior y descuenta de la nueva", () => {
+    expect(aplicar({ "variante:amarilla": 4, "variante:multicolor": 4 }, [variante("amarilla", 2)], [variante("multicolor", 2)])).toEqual({
+      "variante:amarilla": 6,
+      "variante:multicolor": 2,
+    });
+  });
+
+  it("una línea sin variante sigue consumiendo su producto (comportamiento de siempre)", () => {
+    expect([...expandirConsumo([{ productoId: "cojin", varianteId: null, cantidad: 1, composicion: null }]).keys()]).toEqual(["cojin"]);
+  });
+});

@@ -150,6 +150,7 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
     lineas: lineas.map((l: any) => ({
       id: l.id,
       productoId: l.productoId ?? null,
+      varianteId: l.varianteId ?? null,
       descripcion: l.descripcion ?? null,
       cantidad: Number(l.cantidad),
       precioUnitario: Number(l.precioUnitario),
@@ -359,7 +360,13 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
             <tbody>
               {lineas.map((linea: any) => (
                 <tr key={linea.id} className="border-b last:border-0">
-                  <td className="py-2 px-2">{linea.producto?.nombre ?? linea.descripcion ?? "—"}</td>
+                  <td className="py-2 px-2">
+                    {linea.producto?.nombre ?? linea.descripcion ?? "—"}
+                    {/* 030 — nombre de la variante al momento de la venta (snapshot). */}
+                    {linea.varianteNombre && (
+                      <div className="text-xs text-muted-foreground">Variante: {linea.varianteNombre}</div>
+                    )}
+                  </td>
                   <td className="py-2 px-2 text-right">{Number(linea.cantidad)}</td>
                   <td className="py-2 px-2 text-right">{pedido.moneda} {Number(linea.precioUnitario).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>
                   <td className="py-2 px-2 text-right">{Number(linea.descuento)}%</td>
@@ -474,7 +481,9 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
             .filter((l: any) => l.producto?.tipo === "DIGITAL")
             .map((l: any) => ({
               pedidoLineaId: l.id,
-              nombreProducto: l.producto?.nombre ?? l.descripcion ?? null,
+              nombreProducto: l.producto?.nombre
+                ? l.varianteNombre ? `${l.producto.nombre} — ${l.varianteNombre}` : l.producto.nombre
+                : (l.descripcion ?? null),
               entregaDigital: l.entregaDigital ?? null,
             }))}
         />

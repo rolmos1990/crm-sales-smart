@@ -909,6 +909,12 @@ model Producto {
   // componente puede ocultarse del selector de pedidos y seguir usándose.
   esCombo            Boolean      @default(false)
   ventaDirecta       Boolean      @default(true)
+  // 030-variantes-producto — opt-in. Con variantes, la fuente de verdad del
+  // stock es cada ProductoVariante y `cantidadDisponible` queda en 0 (nunca
+  // stock de producto + stock de variantes). Los atributos son configuración
+  // ([{ nombre, valores[] }]); lo que se vende y se referencia es la variante.
+  tieneVariantes     Boolean      @default(false)
+  atributosVariantes Json?
   metadata           Json?
   creadoEn           DateTime     @default(now())
   actualizadoEn      DateTime     @updatedAt
@@ -935,6 +941,9 @@ model Producto {
   componentes   ProductoComponente[] @relation("ComboComponentes")
   usadoEnCombos ProductoComponente[] @relation("ComponenteDeCombos")
 
+  // 030-variantes-producto
+  variantes ProductoVariante[]
+
   @@index([instanciaId])
   @@index([sku])
   @@index([nombre])
@@ -949,6 +958,34 @@ model Producto {
 // (se valida en el servidor), así que un ciclo es imposible por construcción.
 // Restrict sobre el componente: los productos se desactivan (activo=false),
 // no se borran; un borrado físico no debe dejar combos rotos en silencio.
+// 030-variantes-producto — cada combinación de valores de atributos de un
+// producto. `clave` es la combinación normalizada (minúsculas, sin espacios
+// sobrantes, en el orden de los atributos) y garantiza que no se repita.
+// `precio` null = usa el precio del producto. El control de stock lo decide
+// Producto.manejaStock para todas sus variantes.
+model ProductoVariante {
+  id                 String   @id @default(cuid())
+  valores            Json
+  clave              String
+  nombre             String
+  sku                String?
+  precio             Decimal?
+  cantidadDisponible Decimal  @default(0)
+  activo             Boolean  @default(true)
+  orden              Int      @default(0)
+  creadoEn           DateTime @default(now())
+  actualizadoEn      DateTime @updatedAt
+
+  productoId String
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+
+  pedidoLineas     PedidoLinea[]
+  cotizacionLineas CotizacionLinea[]
+
+  @@unique([productoId, clave])
+  @@index([productoId])
+}
+
 model ProductoComponente {
   id       String @id @default(cuid())
   cantidad Int
@@ -1238,6 +1275,11 @@ model CotizacionLinea {
   productoId String?
   producto   Producto? @relation(fields: [productoId], references: [id])
 
+  // 030-variantes-producto — ver PedidoLinea.varianteId.
+  varianteId     String?
+  variante       ProductoVariante? @relation(fields: [varianteId], references: [id], onDelete: Restrict)
+  varianteNombre String?
+
   entregaDigital EntregaDigitalCotizacion?
 }
 
@@ -1361,6 +1403,13 @@ model PedidoLinea {
 
   productoId String?
   producto   Producto? @relation(fields: [productoId], references: [id])
+
+  // 030-variantes-producto — variante vendida + su nombre al momento de la
+  // venta (snapshot: el historial no cambia si la variante se renombra o se
+  // desactiva). Restrict: una variante con historial nunca se borra.
+  varianteId     String?
+  variante       ProductoVariante? @relation(fields: [varianteId], references: [id], onDelete: Restrict)
+  varianteNombre String?
 
   entregaDigital EntregaDigitalPedido?
 

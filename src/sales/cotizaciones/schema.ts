@@ -27,6 +27,8 @@ export const EntregaDigitalCotizacionSchema = z.object({
 // decide si se persiste (ver actions.ts).
 export const LineaCotizacionSchema = z.object({
   productoId: z.string().optional().or(z.literal("")),
+  // 030-variantes-producto — ver LineaPedidoSchema.varianteId.
+  varianteId: z.string().optional().or(z.literal("")),
   descripcion: z.string().max(500).optional().or(z.literal("")),
   cantidad: z.number().min(0.01, "La cantidad debe ser mayor a 0"),
   precioUnitario: z.number().min(0, "El precio debe ser mayor o igual a 0"),

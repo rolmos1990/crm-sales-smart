@@ -72,7 +72,10 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
 
   const lineasParaCopiar = lineas.map((l: any) => ({
     descripcion: l.descripcion,
-    productoNombre: l.producto?.nombre ?? null,
+    // 030 — con variante: "Producto — Variante" (snapshot), igual que en pantalla.
+    productoNombre: l.producto?.nombre
+      ? l.varianteNombre ? `${l.producto.nombre} — ${l.varianteNombre}` : l.producto.nombre
+      : null,
     cantidad: Number(l.cantidad),
     precioUnitario: Number(l.precioUnitario),
     descuento: Number(l.descuento),
@@ -212,6 +215,9 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
                 <tr key={linea.id} className="border-b last:border-0">
                   <td className="py-2 px-2">
                     {linea.producto?.nombre ?? linea.descripcion ?? "—"}
+                    {linea.varianteNombre && (
+                      <div className="text-xs text-muted-foreground">Variante: {linea.varianteNombre}</div>
+                    )}
                   </td>
                   <td className="py-2 px-2 text-right">{Number(linea.cantidad)}</td>
                   <td className="py-2 px-2 text-right">{cotizacion.moneda} {Number(linea.precioUnitario).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</td>

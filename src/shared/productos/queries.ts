@@ -23,14 +23,26 @@ export async function obtenerProductoPorId(id: string, instanciaId: string) {
     include: {
       entregaDigital: { select: SELECT_ENTREGA_DIGITAL },
       componentes: { select: { componenteId: true, cantidad: true }, orderBy: { creadoEn: "asc" } },
+      variantes: {
+        select: { id: true, valores: true, sku: true, precio: true, cantidadDisponible: true, activo: true },
+        orderBy: { orden: "asc" },
+      },
     },
   });
   if (!producto) return null;
-  const { entregaDigital, componentes, ...resto } = producto;
+  const { entregaDigital, componentes, variantes, ...resto } = producto;
   return {
     ...resto,
     entregaDigital: ocultarCodigo(entregaDigital),
     componentes: componentes.map((c) => ({ productoId: c.componenteId, cantidad: c.cantidad })),
+    variantes: variantes.map((v) => ({
+      id: v.id,
+      valores: (v.valores ?? {}) as Record<string, string>,
+      sku: v.sku ?? "",
+      precio: v.precio === null ? null : Number(v.precio),
+      cantidadDisponible: Number(v.cantidadDisponible),
+      activo: v.activo,
+    })),
   };
 }
 
@@ -69,17 +81,38 @@ export async function obtenerProductosCatalogo(instanciaId: string): Promise<Pro
             componente: { select: { manejaStock: true, cantidadDisponible: true, activo: true } },
           },
         },
+        // 030 — todas (también inactivas) para resolver el nombre de líneas
+        // ya guardadas; el selector solo ofrece las activas.
+        tieneVariantes: true,
+        variantes: {
+          select: { id: true, nombre: true, sku: true, precio: true, cantidadDisponible: true, activo: true },
+          orderBy: { orden: "asc" },
+        },
       },
       orderBy: { nombre: "asc" },
     });
     return datos.map((p) => {
-      const { entregaDigital, componentes, ...resto } = p;
+      const { entregaDigital, componentes, variantes, ...resto } = p;
+      const variantesCatalogo = variantes.map((v) => ({
+        id: v.id,
+        nombre: v.nombre,
+        sku: v.sku,
+        precio: v.precio === null ? Number(p.precio) : Number(v.precio),
+        disponibilidad: p.manejaStock ? Math.max(0, Number(v.cantidadDisponible)) : null,
+        activo: v.activo,
+      }));
       return {
         ...resto,
         precio: Number(p.precio),
         cantidadDisponible: Number(p.cantidadDisponible),
         entregaDigital: ocultarCodigo(entregaDigital),
-        disponibilidad: p.esCombo
+        variantes: variantesCatalogo,
+        // Con variantes, el total es la suma de las activas: nunca un stock propio.
+        disponibilidad: p.tieneVariantes
+          ? p.manejaStock
+            ? variantesCatalogo.filter((v) => v.activo).reduce((acc, v) => acc + (v.disponibilidad ?? 0), 0)
+            : null
+          : p.esCombo
           ? calcularDisponibilidadCombo(
               componentes.map((c) => ({
                 cantidad: c.cantidad,
@@ -105,7 +138,9 @@ export async function obtenerProductosCatalogo(instanciaId: string): Promise<Pro
  */
 export async function obtenerProductosParaComponentes(instanciaId: string, excluirId?: string) {
   const datos = await prisma.producto.findMany({
-    where: { instanciaId, activo: true, esCombo: false, ...(excluirId && { id: { not: excluirId } }) },
+    // 030 — un producto con variantes todavía no puede ser componente (habría
+    // que elegir de qué variante descontar).
+    where: { instanciaId, activo: true, esCombo: false, tieneVariantes: false, ...(excluirId && { id: { not: excluirId } }) },
     select: { id: true, nombre: true, sku: true, precio: true, moneda: true, unidad: true, manejaStock: true, cantidadDisponible: true },
     orderBy: { nombre: "asc" },
   });

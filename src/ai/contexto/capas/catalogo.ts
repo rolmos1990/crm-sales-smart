@@ -25,7 +25,13 @@ export async function producirCapaCatalogo({ instanciaId, activo, limite }: Insu
       where: { instanciaId, activo: true, ventaDirecta: true, precio: { gt: 0 } },
       orderBy: [{ actualizadoEn: "desc" }],
       take: limite + 1,
-      select: { nombre: true, sku: true, precio: true, moneda: true, unidad: true, categoria: true },
+      select: {
+        nombre: true, sku: true, precio: true, moneda: true, unidad: true, categoria: true,
+        // 030 — un producto con variantes se lista con sus variantes activas y
+        // el precio efectivo de cada una.
+        tieneVariantes: true,
+        variantes: { where: { activo: true }, select: { nombre: true, precio: true }, orderBy: { orden: "asc" } },
+      },
     });
     if (productos.length === 0) return null;
 
@@ -33,6 +39,12 @@ export async function producirCapaCatalogo({ instanciaId, activo, limite }: Insu
     const lineas = productos.slice(0, limite).map((p) => {
       const sku = p.sku ? ` (${p.sku})` : "";
       const categoria = p.categoria ? ` · ${p.categoria}` : "";
+      if (p.tieneVariantes && p.variantes?.length) {
+        const opciones = p.variantes
+          .map((v) => `${v.nombre}: ${Number(v.precio ?? p.precio).toFixed(2)} ${p.moneda}`)
+          .join("; ");
+        return `- ${p.nombre}${sku} — variantes: ${opciones} / ${p.unidad}${categoria}`;
+      }
       return `- ${p.nombre}${sku} — ${Number(p.precio).toFixed(2)} ${p.moneda} / ${p.unidad}${categoria}`;
     });
 

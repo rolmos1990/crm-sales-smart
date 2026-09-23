@@ -73,7 +73,7 @@ export async function generarPedidoDesdeCotizacion(
   // stock vendido por otra cotización/pedido procesado mientras tanto.
   // Un combo se valida y descuenta por sus componentes, con la composición
   // vigente al generar el pedido (029-combos-productos-compuestos).
-  const lineasStock = cotizacion.lineas.map((l) => ({ productoId: l.productoId, cantidad: Number(l.cantidad) }));
+  const lineasStock = cotizacion.lineas.map((l) => ({ productoId: l.productoId, varianteId: l.varianteId, cantidad: Number(l.cantidad) }));
   const composiciones = await cargarComposiciones(lineasStock.map((l) => l.productoId), instanciaId, prisma);
   const consumo = lineasConComposicionActual(lineasStock, composiciones);
   const erroresStock = (await planificarStock([], consumo, prisma)).errores;
@@ -197,6 +197,9 @@ export async function generarPedidoDesdeCotizacion(
           subtotal:       l.subtotal,
           total:          l.total,
           composicionCombo: snapshotComposicion(l.productoId, composiciones),
+          // 030 — la variante y su nombre se copian tal cual de la cotización.
+          varianteId:     l.varianteId,
+          varianteNombre: l.varianteNombre,
           entregaDigital: l.entregaDigital ? {
             create: {
               metodo:          l.entregaDigital.metodo,

@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const LineaPedidoSchema = z.object({
   productoId: z.string().optional().or(z.literal("")),
+  // 030-variantes-producto — obligatoria para un producto con variantes (lo
+  // valida el servidor contra la base, nunca se confía en el cliente).
+  varianteId: z.string().optional().or(z.literal("")),
   descripcion: z.string().max(500).optional().or(z.literal("")),
   cantidad: z.number().min(0.01, "La cantidad debe ser mayor a 0"),
   precioUnitario: z.number().min(0, "El precio debe ser mayor o igual a 0"),
