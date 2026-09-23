@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useFiltrosEnEstado } from "@/shared/ui/vista-filtrada";
 import { TrendingUp, DollarSign, Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OportunidadesKpis } from "../queries";
@@ -22,9 +22,7 @@ function formatearMoneda(valor: number, moneda: string) {
  * evitar tarjetas grandes o llamativas.
  */
 export function OportunidadesKpiCards({ kpis, moneda }: OportunidadesKpiCardsProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { params: searchParams, navegar } = useFiltrosEnEstado();
 
   const estadoActivo = searchParams.get("estado");
   const vencimientoActivo = searchParams.get("vencimiento");
@@ -36,8 +34,7 @@ export function OportunidadesKpiCards({ kpis, moneda }: OportunidadesKpiCardsPro
     params.delete("pagina");
     if (yaActivo) params.delete(clave);
     else params.set(clave, valor);
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    navegar(params);
   };
 
   const tarjetas = [

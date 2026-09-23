@@ -30,6 +30,10 @@ export const queryKeys = {
   pedidos: {
     vista: () => ["pedidos", "vista"] as const,
   },
+  oportunidadesVista: {
+    lista: () => ["oportunidades", "vista"] as const,
+    pipeline: (pipelineId: string) => ["pipeline", pipelineId, "vista"] as const,
+  },
   preparacion: {
     vista: () => ["preparacion", "vista"] as const,
   },

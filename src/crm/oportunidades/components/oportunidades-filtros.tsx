@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useFiltrosEnEstado } from "@/shared/ui/vista-filtrada";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
@@ -76,11 +76,17 @@ function csvAArray(valor: string | null): string[] {
 export function OportunidadesFiltrosBar({
   productosIniciales, contactosIniciales, empresasIniciales, usuarios, tags, pipelines,
 }: OportunidadesFiltrosBarProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // Los filtros viven en estado del padre (ver VistaOportunidades), no en la
+  // URL: mismo formato clave → valor, así que la lógica de la barra no cambia.
+  const { params: searchParams, navegar } = useFiltrosEnEstado();
 
   const [busqueda, setBusqueda] = useState(searchParams.get("q") ?? "");
+  const [qPrevia, setQPrevia] = useState(searchParams.get("q"));
+  // "Limpiar filtros" también existe fuera de la barra (estado vacío).
+  if (qPrevia !== searchParams.get("q")) {
+    setQPrevia(searchParams.get("q"));
+    setBusqueda(searchParams.get("q") ?? "");
+  }
   const [masFiltrosAbierto, setMasFiltrosAbierto] = useState(false);
   const [vencimientoAbierto, setVencimientoAbierto] = useState(false);
   const [rangoVencAbierto, setRangoVencAbierto] = useState(false);
@@ -134,8 +140,7 @@ export function OportunidadesFiltrosBar({
   const navegarConParams = (params: URLSearchParams) => {
     // Cualquier cambio de filtro vuelve a la primera página.
     params.delete("pagina");
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    navegar(params);
   };
 
   const actualizarParam = (clave: string, valor: string | null) => {
@@ -238,7 +243,7 @@ export function OportunidadesFiltrosBar({
     setBusqueda("");
     setProductosConEtiqueta([]);
     setContactosConEtiqueta([]);
-    router.push(pathname);
+    navegar(new URLSearchParams());
   };
 
   // ── Chips de filtros activos ────────────────────────────────────────────

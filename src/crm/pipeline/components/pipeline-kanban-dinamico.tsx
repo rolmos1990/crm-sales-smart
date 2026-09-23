@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo, useTransition } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useFiltrosEnEstado } from "@/shared/ui/vista-filtrada";
+import { LIMITE_POR_STAGE } from "../constantes";
 import {
   CollisionDetection,
   DndContext,
@@ -895,13 +896,6 @@ interface PipelineKanbanDinamicoProps {
   totalesPorStage?: Map<string, number>;
   /** Conteo real por etapa (no solo lo cargado) — ver obtenerConteoPorStage. */
   conteoPorStage?: Map<string, number>;
-  /** Cuántas se pidieron por etapa en esta carga (?limite= en la URL) —
-   *  punto de partida para "cargar más" al llegar al final del scroll. */
-  limitePorStage?: number;
-  /** Overrides puntuales por etapa (?limites=stageId:40,... en la URL) — ver
-   *  page.tsx y obtenerOportunidadesPorPipeline. Una etapa sin entrada acá
-   *  usa `limitePorStage`. */
-  limitesPorStage?: Map<string, number>;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
@@ -917,17 +911,15 @@ export function PipelineKanbanDinamico({
   oportunidadesPorStage,
   totalesPorStage = new Map(),
   conteoPorStage = new Map(),
-  limitePorStage = 30,
-  limitesPorStage = new Map(),
   empresas,
   contactos,
   defaultCountryCode = "PA",
   puedeMod = true,
   verOcultos = false,
 }: PipelineKanbanDinamicoProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // Filtros + paginación por etapa (`limites=stageId:40,…`): estado del
+  // PipelineWrapper, nunca la URL.
+  const { params: searchParams, navegar, actualizando: cargandoMas } = useFiltrosEnEstado();
   const [localOps, setLocalOps] = useState(oportunidadesPorStage);
   const [localTotales, setLocalTotales] = useState(totalesPorStage);
   const [localConteos, setLocalConteos] = useState(conteoPorStage);
@@ -938,7 +930,6 @@ export function PipelineKanbanDinamico({
   // esto es lo que permite saber si de verdad cambió de etapa.
   const [activeOriginStageId, setActiveOriginStageId] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ id: string; stageId: string | null } | null>(null);
-  const [cargandoMas, startCargandoMas] = useTransition();
   // Alimenta la sombra (muy leve) del header sticky de cada columna — solo
   // debe aparecer una vez que el tablero se movió de su posición inicial,
   // nunca en reposo. Se lee del contenedor de scroll único del Pipeline
@@ -1064,16 +1055,19 @@ export function PipelineKanbanDinamico({
   // límite actual (`limitesPorStage`), no se tocan.
   const cargarMasStage = (stageId: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    const actual = limitesPorStage.get(stageId) ?? limitePorStage;
-    const nuevosLimites = new Map(limitesPorStage);
-    nuevosLimites.set(stageId, actual + 10);
+    const limitesPorStage = new Map<string, number>();
+    for (const par of (params.get("limites") ?? "").split(",")) {
+      const [id, valorRaw] = par.split(":");
+      const valor = Number(valorRaw);
+      if (id && Number.isFinite(valor) && valor > 0) limitesPorStage.set(id, Math.floor(valor));
+    }
+    const actual = limitesPorStage.get(stageId) ?? LIMITE_POR_STAGE;
+    limitesPorStage.set(stageId, actual + 10);
     params.set(
       "limites",
-      [...nuevosLimites.entries()].map(([id, n]) => `${id}:${n}`).join(",")
+      [...limitesPorStage.entries()].map(([id, n]) => `${id}:${n}`).join(",")
     );
-    startCargandoMas(() => {
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    });
+    navegar(params);
   };
 
   const sensors = useSensors(

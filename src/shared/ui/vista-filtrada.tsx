@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ export function useVistaFiltrada<F, D>({
   esDefecto,
   inicial,
   consultar,
+  habilitado = true,
 }: {
   clave: readonly unknown[];
   filtros: F;
@@ -37,6 +38,8 @@ export function useVistaFiltrada<F, D>({
   esDefecto: boolean;
   inicial: D;
   consultar: (filtros: F) => Promise<D>;
+  /** `false` cuando la pantalla no tiene nada filtrable (se queda con `inicial`). */
+  habilitado?: boolean;
 }): { datos: D; actualizando: boolean } {
   const queryClient = useQueryClient();
   const queryKey = [...clave, filtros];
@@ -47,6 +50,7 @@ export function useVistaFiltrada<F, D>({
     initialData: esDefecto ? inicial : undefined,
     placeholderData: keepPreviousData,
     gcTime: 0,
+    enabled: habilitado,
   });
 
   const primerInicial = useRef(inicial);
@@ -64,6 +68,43 @@ export function useVistaFiltrada<F, D>({
   }, [query.isError, query.error]);
 
   return { datos: query.data ?? inicial, actualizando: query.isPlaceholderData };
+}
+
+// ── Filtros con forma de query string, guardados en estado ──────────────────
+
+interface FiltrosEnEstado {
+  /** Filtros vigentes. Mismo formato que tenían en la URL, pero en memoria. */
+  params: URLSearchParams;
+  /** Reemplaza los filtros vigentes (antes: `router.push(?…)`). */
+  navegar: (params: URLSearchParams) => void;
+  /** Hay una consulta en vuelo para los filtros recién elegidos. */
+  actualizando: boolean;
+}
+
+const ContextoFiltros = createContext<FiltrosEnEstado | null>(null);
+
+/**
+ * Para barras de filtros que ya estaban escritas contra `URLSearchParams`
+ * (Pipeline, Oportunidades): conservan su lógica y solo cambian de dónde leen
+ * y a dónde escriben. El dueño del estado es el componente que consulta.
+ */
+export function ProveedorFiltrosEnEstado({ children, ...valor }: FiltrosEnEstado & { children: ReactNode }) {
+  return <ContextoFiltros.Provider value={valor}>{children}</ContextoFiltros.Provider>;
+}
+
+export function useFiltrosEnEstado(): FiltrosEnEstado {
+  const ctx = useContext(ContextoFiltros);
+  if (!ctx) throw new Error("useFiltrosEnEstado requiere <ProveedorFiltrosEnEstado>");
+  return ctx;
+}
+
+/** Estado de filtros serializado como query string: `""` = sin filtros. */
+export function useQueryEnEstado() {
+  const [query, setQuery] = useState("");
+  const params = useMemo(() => new URLSearchParams(query), [query]);
+  const navegar = useCallback((p: URLSearchParams) => setQuery(p.toString()), []);
+  const filtros = useMemo(() => Object.fromEntries(params) as Record<string, string>, [params]);
+  return { query, params, navegar, filtros };
 }
 
 /** Atenúa los resultados mientras llega la combinación de filtros recién elegida. */

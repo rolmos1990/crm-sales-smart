@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX, EyeOff, Search, X, MoreVertical } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Settings2, CheckCheck, KanbanSquare, ArrowLeft, SearchX, Eye, EyeOff, Search, X, MoreVertical, Loader2 } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,52 +17,50 @@ import { PipelineKanbanDinamico } from "./pipeline-kanban-dinamico";
 import { PipelineKanban } from "./pipeline-kanban";
 import { PipelineFiltrosDrawer } from "./pipeline-filtros-drawer";
 import { CLAVES_FILTROS_OPORTUNIDAD } from "../schema";
-import type { PipelineConStages, OportunidadEnStage } from "../types";
+import type { PipelineConStages } from "../types";
 import type { Oportunidad, Etapa } from "@/crm/oportunidades/types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { Tag } from "@/crm/tags/types";
 import { useSesion } from "@/shared/auth/sesion-context";
 import { useAutoRefresh } from "@/shared/hooks/use-auto-refresh";
 import { IndicadorAutoRefresh } from "@/shared/components/indicador-auto-refresh";
+import {
+  ProveedorFiltrosEnEstado,
+  useFiltrosEnEstado,
+  useQueryEnEstado,
+  useVistaFiltrada,
+} from "@/shared/ui/vista-filtrada";
+import { queryKeys } from "@/shared/query-keys";
+import { consultarVistaPipelineAction } from "../actions";
+import type { VistaPipeline } from "../vista";
 
 interface PipelineWrapperProps {
   pipelines: PipelineConStages[];
   pipelineActualId: string | null;
-  oportunidadesDinamicas: Map<string, OportunidadEnStage[]> | null;
-  totalesPorStage?: Map<string, number> | null;
-  /** Conteo real por etapa (no el cargado) — ver pipeline-kanban-dinamico.tsx. */
-  conteoPorStage?: Map<string, number> | null;
-  /** Cuántas se pidieron por etapa en esta carga — punto de partida del
-   *  "cargar más" al hacer scroll. */
-  limitePorStage?: number;
-  /** Overrides puntuales por etapa (ver page.tsx y obtenerOportunidadesPorPipeline)
-   *  — cada columna del Kanban pagina de forma independiente. */
-  limitesPorStage?: Map<string, number>;
+  /** Kanban dinámico sin filtros, ya resuelto en el servidor. `null` si el
+   *  pipeline actual no es dinámico (tablero legacy). */
+  vistaInicial: VistaPipeline | null;
   oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null;
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   contactosFiltro?: OpcionCombobox[];
   tags?: Tag[];
   defaultCountryCode?: string;
-  hayFiltrosAplicados?: boolean;
 }
 
 /**
  * Búsqueda compacta de la barra móvil — un ícono que expande un input.
- * No es un sistema de filtros aparte: escribe/lee el mismo query param
- * `titulo` que ya usa el drawer de filtros (`leerFiltrosDeUrl`/`aplicar` en
- * pipeline-filtros-drawer.tsx), así que el badge "Filtros (N)" y el propio
- * drawer quedan sincronizados solos, sin tocarlos.
+ * No es un sistema de filtros aparte: escribe/lee la misma clave `titulo`
+ * que ya usa el drawer de filtros (pipeline-filtros-drawer.tsx), así que el
+ * badge "Filtros (N)" y el propio drawer quedan sincronizados solos.
  */
 function BuscarTituloMovil() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { params: searchParams, navegar } = useFiltrosEnEstado();
   const [abierto, setAbierto] = useState(false);
   const [valor, setValor] = useState(() => searchParams.get("titulo") ?? "");
 
   // Si el título cambia por otra vía (ej. se limpió desde el drawer de
-  // filtros), refleja el valor real de la URL en vez de quedar desalineado.
+  // filtros), refleja el valor vigente en vez de quedar desalineado.
   useEffect(() => {
     setValor(searchParams.get("titulo") ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,8 +75,7 @@ function BuscarTituloMovil() {
       const params = new URLSearchParams(searchParams.toString());
       if (valor.trim()) params.set("titulo", valor.trim());
       else params.delete("titulo");
-      const query = params.toString();
-      router.push(query ? `${pathname}?${query}` : pathname);
+      navegar(params);
     }, 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,22 +118,27 @@ function BuscarTituloMovil() {
 export function PipelineWrapper({
   pipelines: pipelinesIniciales,
   pipelineActualId,
-  oportunidadesDinamicas,
-  totalesPorStage,
-  conteoPorStage,
-  limitePorStage = 30,
-  limitesPorStage,
+  vistaInicial,
   oportunidadesLegacy,
   empresas,
   contactos,
   contactosFiltro,
   tags = [],
   defaultCountryCode = "PA",
-  hayFiltrosAplicados = false,
 }: PipelineWrapperProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // Filtros del drawer + paginación por etapa (`limites`): estado de este
+  // componente, nunca la URL. Arrancan vacíos al entrar y al cambiar de
+  // pipeline (la página le pone `key` por pipeline).
+  const { query, params: searchParams, navegar, filtros } = useQueryEnEstado();
+  const { datos: vista, actualizando } = useVistaFiltrada<Record<string, string>, VistaPipeline | null>({
+    clave: queryKeys.oportunidadesVista.pipeline(pipelineActualId ?? ""),
+    filtros,
+    esDefecto: query === "",
+    inicial: vistaInicial,
+    consultar: (f) => consultarVistaPipelineAction({ pipelineId: pipelineActualId!, filtros: f }),
+    habilitado: !!pipelineActualId && !!vistaInicial,
+  });
   const { puedeModificar } = useSesion();
   const puedeMod = puedeModificar("oportunidades");
   const [modoConfig, setModoConfig] = useState(false);
@@ -173,16 +175,14 @@ export function PipelineWrapper({
   // "Ver ocultos" es un toggle de visibilidad (no un filtro de datos): no hay
   // forma de "filtrar por etapa" en este tablero — cada columna ya es su
   // propia etapa — así que solo necesita combinarse con los filtros del
-  // drawer (contacto/empresa/fechas/tags), nunca competir con uno. Vive en la
-  // URL para que sea compartible/persista al recargar, igual que los filtros.
-  const hayEtapasOcultas = !!pipelineActual?.stages.some((s) => (s.esGanado || s.esPerdido) && !s.visible);
-  const verOcultos = searchParams.get("ocultos") === "1";
-  const toggleVerOcultos = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (verOcultos) params.delete("ocultos"); else params.set("ocultos", "1");
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
-  };
+  // drawer (contacto/empresa/fechas/tags), nunca competir con uno. Es solo
+  // presentación: las columnas ocultas ya vienen cargadas, así que alternarlo
+  // no vuelve a consultar.
+  const cantidadEtapasOcultas = pipelineActual?.stages.filter((s) => (s.esGanado || s.esPerdido) && !s.visible).length ?? 0;
+  const hayEtapasOcultas = cantidadEtapasOcultas > 0;
+  const [verOcultos, setVerOcultos] = useState(false);
+  const toggleVerOcultos = () => setVerOcultos((v) => !v);
+  const textoEtapasOcultas = `${cantidadEtapasOcultas} ${cantidadEtapasOcultas === 1 ? "etapa oculta" : "etapas ocultas"}`;
 
   const handleSwitch = (id: string | null) => {
     setModoConfig(false);
@@ -203,8 +203,7 @@ export function PipelineWrapper({
   const limpiarFiltros = () => {
     const params = new URLSearchParams(searchParams.toString());
     for (const clave of CLAVES_FILTROS_OPORTUNIDAD) params.delete(clave);
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
+    navegar(params);
   };
 
   // El Kanban guarda estado local (localOps) para el drag & drop; sin un
@@ -214,10 +213,10 @@ export function PipelineWrapper({
     (clave) => searchParams.get(clave) ?? ""
   ).join("|")}`;
 
-  const totalOportunidadesDinamicas = oportunidadesDinamicas
-    ? [...oportunidadesDinamicas.values()].reduce((total, arr) => total + arr.length, 0)
+  const totalOportunidadesDinamicas = vista
+    ? [...vista.oportunidadesPorStage.values()].reduce((total, arr) => total + arr.length, 0)
     : 0;
-  const sinResultadosPorFiltros = hayFiltrosAplicados && totalOportunidadesDinamicas === 0;
+  const sinResultadosPorFiltros = !!vista?.hayFiltrosAplicados && totalOportunidadesDinamicas === 0;
 
   // Auto-refresh: vuelve a pedirle al servidor los datos de la ruta actual
   // (router.refresh no navega ni pierde el estado de scroll/UI) para que
@@ -228,6 +227,7 @@ export function PipelineWrapper({
   );
 
   return (
+    <ProveedorFiltrosEnEstado params={searchParams} navegar={navegar} actualizando={actualizando}>
     <div className="flex flex-col gap-4 p-5 h-full overflow-hidden">
       {/* ── Header móvil (<768px) ──────────────────────────────────
           Reemplaza la barra de escritorio (ver más abajo, oculta con
@@ -255,8 +255,8 @@ export function PipelineWrapper({
               <DropdownMenuContent align="end">
                 {pipelineActual && hayEtapasOcultas && (
                   <DropdownMenuItem onClick={toggleVerOcultos}>
-                    <EyeOff className="h-3.5 w-3.5" />
-                    {verOcultos ? "Ocultar ganado/perdido" : "Ver ocultos"}
+                    {verOcultos ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    {verOcultos ? "Volver a ocultar" : `Mostrar ocultas (${cantidadEtapasOcultas})`}
                   </DropdownMenuItem>
                 )}
                 {puedeMod && (
@@ -301,6 +301,13 @@ export function PipelineWrapper({
 
         <div className="flex-1" />
 
+        {actualizando && (
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Actualizando…
+          </span>
+        )}
+
         {!modoConfig && (
           <IndicadorAutoRefresh
             restante={restante}
@@ -326,24 +333,38 @@ export function PipelineWrapper({
           </Button>
         )}
 
-        {/* Ver ocultos — solo si el pipeline tiene etapas Ganado/Perdido ocultas */}
+        {/* Ver ocultos — solo si el pipeline tiene etapas Ganado/Perdido
+            ocultas. Toggle compacto de una línea: ícono + "Ocultas" + cuántas.
+            La explicación larga va al tooltip, no al botón. */}
         {!modoConfig && pipelineActual && hayEtapasOcultas && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger
                 onClick={toggleVerOcultos}
+                aria-pressed={verOcultos}
+                aria-label={verOcultos ? `Volver a ocultar ${textoEtapasOcultas}` : `Mostrar ${textoEtapasOcultas}`}
                 className={cn(
-                  "h-8 px-3 rounded-lg gap-1.5 text-[12.5px] font-medium border transition-colors cursor-pointer",
+                  "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-[12.5px] font-medium transition-colors cursor-pointer outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                   verOcultos
                     ? "bg-primary-muted border-primary-border text-primary"
-                    : "border-button-secondary-border text-button-secondary-text hover:text-foreground"
+                    : "border-button-secondary-border text-button-secondary-text hover:bg-muted hover:text-foreground"
                 )}
               >
-                <EyeOff className="h-3.5 w-3.5" />
-                Ver ocultos
+                {verOcultos ? <Eye className="h-3.5 w-3.5 shrink-0" /> : <EyeOff className="h-3.5 w-3.5 shrink-0" />}
+                <span>Ocultas</span>
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 text-[11px] leading-4 tabular-nums",
+                    verOcultos ? "bg-primary/15" : "bg-muted"
+                  )}
+                >
+                  {cantidadEtapasOcultas}
+                </span>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs text-xs">
-                Muestra las etapas (y sus oportunidades) que están ocultas en este pipeline.
+              <TooltipContent side="bottom" className="max-w-[16rem] text-xs">
+                {verOcultos
+                  ? `Mostrando ${textoEtapasOcultas} (Ganado/Perdido). Clic para volver a ocultarlas.`
+                  : `Mostrar ${textoEtapasOcultas} (Ganado/Perdido) y sus oportunidades.`}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -454,11 +475,9 @@ export function PipelineWrapper({
             <PipelineKanbanDinamico
               key={claveKanban}
               pipeline={pipelineActual}
-              oportunidadesPorStage={oportunidadesDinamicas ?? new Map()}
-              totalesPorStage={totalesPorStage ?? new Map()}
-              conteoPorStage={conteoPorStage ?? new Map()}
-              limitePorStage={limitePorStage}
-              limitesPorStage={limitesPorStage ?? new Map()}
+              oportunidadesPorStage={vista?.oportunidadesPorStage ?? new Map()}
+              totalesPorStage={vista?.totalesPorStage ?? new Map()}
+              conteoPorStage={vista?.conteoPorStage ?? new Map()}
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}
@@ -493,5 +512,6 @@ export function PipelineWrapper({
         </div>
       </div>
     </div>
+    </ProveedorFiltrosEnEstado>
   );
 }

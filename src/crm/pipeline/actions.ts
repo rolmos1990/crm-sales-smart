@@ -8,6 +8,8 @@ import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { SchemaPipeline, SchemaStage, SchemaCampoPersonalizado } from "./schema";
 import { obtenerPipelines } from "./queries";
 import { ejecutarMovimientoAStage } from "./mover-stage";
+import { cargarVistaPipeline, type VistaPipeline } from "./vista";
+import { z } from "zod";
 
 async function requireAdminPipeline() {
   const sesion = await requireSesion();
@@ -336,4 +338,28 @@ export async function toggleAutoRespuestaIAStage(
 
   revalidatePath("/crm/pipeline");
   return { exito: true as const };
+}
+
+const SchemaConsultaVistaPipeline = z.object({
+  pipelineId: z.string().min(1),
+  filtros: z.record(z.string().max(40), z.string().max(2000)),
+});
+
+/**
+ * Consulta del Kanban para la barra de filtros. Los filtros viajan en el
+ * cuerpo de la acción y no en la URL (ver cargarVistaPipeline).
+ */
+export async function consultarVistaPipelineAction(
+  entrada: z.infer<typeof SchemaConsultaVistaPipeline>,
+): Promise<VistaPipeline> {
+  const { pipelineId, filtros } = SchemaConsultaVistaPipeline.parse(entrada);
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "pipeline", "ver").permitido) throw new Error("Acceso denegado");
+
+  try {
+    return await cargarVistaPipeline(pipelineId, sesion.instanciaId, sesion.zonaNegocio, filtros);
+  } catch (err) {
+    console.error("[consultarVistaPipelineAction]", err);
+    throw new Error("No se pudo cargar el pipeline");
+  }
 }

@@ -1,6 +1,6 @@
 import { PipelineWrapper } from "@/crm/pipeline/components/pipeline-wrapper";
-import { obtenerPipelines, obtenerOportunidadesPorPipeline, obtenerTotalesPorStage, obtenerConteoPorStage } from "@/crm/pipeline/queries";
-import { SchemaFiltrosOportunidad } from "@/crm/pipeline/schema";
+import { obtenerPipelines } from "@/crm/pipeline/queries";
+import { cargarVistaPipeline, type VistaPipeline } from "@/crm/pipeline/vista";
 import { obtenerOportunidadesPorEtapa } from "@/crm/oportunidades/queries";
 import { obtenerEmpresas } from "@/crm/empresas/queries";
 import { obtenerContactos } from "@/crm/contactos/queries";
@@ -9,7 +9,7 @@ import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
-import type { OportunidadEnStage, PipelineConStages } from "@/crm/pipeline/types";
+import type { PipelineConStages } from "@/crm/pipeline/types";
 import type { Etapa, Oportunidad } from "@/crm/oportunidades/types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { Tag } from "@/crm/tags/types";
@@ -27,22 +27,12 @@ export default async function PipelinePage(props: {
   const searchParams = await props.searchParams;
   const pipelineIdParam = searchParams.p ?? null;
 
-  // Paginación por etapa del Kanban — "cargar más" (scroll infinito del
-  // tablero, ver pipeline-kanban-dinamico.tsx) sube estos números en la URL en
-  // vez de mantenerlos en estado de cliente aislado: así sigue funcionando
-  // igual con el auto-refresh, cambios de filtro, y F5 (ver obtenerOportunidadesPorPipeline).
-  const limiteParsed = Number(searchParams.limite);
-  const limitePorStage = Number.isFinite(limiteParsed) && limiteParsed > 0 ? Math.floor(limiteParsed) : 30;
-  // `?limites=stageId:40,stageId:70` — overrides puntuales por etapa: cada
-  // columna del Kanban pagina de forma independiente (ver
-  // pipeline-kanban-dinamico.tsx), así que una etapa que el usuario ya
-  // scrolleó más allá del default necesita su propio número, distinto al de
-  // las demás. Solo lleva las etapas que superaron `limitePorStage`.
-  const limitesPorStage = new Map<string, number>();
-  for (const par of (searchParams.limites ?? "").split(",")) {
-    const [stageId, valorRaw] = par.split(":");
-    const valor = Number(valorRaw);
-    if (stageId && Number.isFinite(valor) && valor > 0) limitesPorStage.set(stageId, Math.floor(valor));
+  // Filtros, paginación y "Ver ocultos" viven en estado de cliente (ver
+  // PipelineWrapper), nunca en la URL. `?p=` se conserva porque no es un
+  // filtro sino qué tablero se abre (lo usan los links de otras pantallas).
+  // Cualquier otro param de un link viejo se limpia en vez de aplicarse.
+  if (Object.keys(searchParams).some((k) => k !== "p")) {
+    redirect(pipelineIdParam ? `/crm/pipeline?p=${encodeURIComponent(pipelineIdParam)}` : "/crm/pipeline");
   }
 
   const sesion = await requireSesion();
@@ -50,20 +40,13 @@ export default async function PipelinePage(props: {
 
   let pipelines: PipelineConStages[] = [];
   let pipelineId: string | null = null;
-  let oportunidadesDinamicas: Map<string, OportunidadEnStage[]> | null = null;
-  let totalesPorStage: Map<string, number> | null = null;
-  let conteoPorStage: Map<string, number> | null = null;
+  let vistaInicial: VistaPipeline | null = null;
   let oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null = null;
   let empresasOpciones: OpcionCombobox[] = [];
   let contactosOpciones: OpcionCombobox[] = [];
   let contactosFiltroOpciones: OpcionCombobox[] = [];
   let tags: Tag[] = [];
   let defaultCountryCode = "PA";
-
-  // Filtros del pipeline: viajan como query params y se validan antes de
-  // llegar al `where` de Prisma (ver crm/pipeline/queries.ts).
-  const filtrosParsed = SchemaFiltrosOportunidad.safeParse(searchParams);
-  const filtros = filtrosParsed.success ? filtrosParsed.data : undefined;
 
   try {
     const [pipelinesData, empresas, contactos, tagsData, config] = await Promise.all([
@@ -95,11 +78,7 @@ export default async function PipelinePage(props: {
     const pipelineValido = pipelineId && pipelines.some((p) => p.id === pipelineId);
 
     if (pipelineValido && pipelineId) {
-      [oportunidadesDinamicas, totalesPorStage, conteoPorStage] = await Promise.all([
-        obtenerOportunidadesPorPipeline(pipelineId, sesion.instanciaId, sesion.zonaNegocio, filtros, limitePorStage, limitesPorStage),
-        obtenerTotalesPorStage(pipelineId, sesion.instanciaId, sesion.zonaNegocio, filtros),
-        obtenerConteoPorStage(pipelineId, sesion.instanciaId, sesion.zonaNegocio, filtros),
-      ]);
+      vistaInicial = await cargarVistaPipeline(pipelineId, sesion.instanciaId, sesion.zonaNegocio, {});
     } else {
       const datos = await obtenerOportunidadesPorEtapa(sesion.instanciaId);
       oportunidadesLegacy = datos as unknown as Map<Etapa, Oportunidad[]>;
@@ -109,21 +88,18 @@ export default async function PipelinePage(props: {
   }
 
   return (
+    // `key`: cambiar de pipeline arranca con filtros y "Ver ocultos" limpios.
     <PipelineWrapper
+      key={pipelineId ?? "sin-pipeline"}
       pipelines={pipelines}
       pipelineActualId={pipelineId}
-      oportunidadesDinamicas={oportunidadesDinamicas}
-      totalesPorStage={totalesPorStage}
-      conteoPorStage={conteoPorStage}
-      limitePorStage={limitePorStage}
-      limitesPorStage={limitesPorStage}
+      vistaInicial={vistaInicial}
       oportunidadesLegacy={oportunidadesLegacy}
       empresas={empresasOpciones}
       contactos={contactosOpciones}
       contactosFiltro={contactosFiltroOpciones}
       tags={tags}
       defaultCountryCode={defaultCountryCode}
-      hayFiltrosAplicados={!!filtros && Object.keys(filtros).length > 0}
     />
   );
 }

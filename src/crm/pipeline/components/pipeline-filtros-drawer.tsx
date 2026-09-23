@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useFiltrosEnEstado } from "@/shared/ui/vista-filtrada";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarIcon, Filter, RotateCcw, X } from "lucide-react";
@@ -97,7 +97,7 @@ function fechaDesdeParam(valor: string | null): Date | undefined {
   return Number.isNaN(fecha.getTime()) ? undefined : fecha;
 }
 
-function leerFiltrosDeUrl(params: URLSearchParams): DraftFiltros {
+function leerFiltros(params: URLSearchParams): DraftFiltros {
   return {
     creadoDesde: fechaDesdeParam(params.get("creadoDesde")),
     creadoHasta: fechaDesdeParam(params.get("creadoHasta")),
@@ -128,11 +128,10 @@ interface PipelineFiltrosDrawerProps {
 }
 
 export function PipelineFiltrosDrawer({ contactos, empresas, tags }: PipelineFiltrosDrawerProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // Filtros vigentes: estado del PipelineWrapper, nunca la URL.
+  const { params: searchParams, navegar } = useFiltrosEnEstado();
 
-  const filtrosAplicados = leerFiltrosDeUrl(searchParams);
+  const filtrosAplicados = leerFiltros(searchParams);
   const totalActivos = contarFiltrosActivos(filtrosAplicados);
 
   const [open, setOpen] = useState(false);
@@ -141,7 +140,7 @@ export function PipelineFiltrosDrawer({ contactos, empresas, tags }: PipelineFil
   const handleOpenChange = (siguiente: boolean) => {
     // Al abrir, el draft siempre parte de los filtros actualmente aplicados
     // (no de lo que haya quedado de una sesión anterior sin aplicar).
-    if (siguiente) setDraft(leerFiltrosDeUrl(searchParams));
+    if (siguiente) setDraft(leerFiltros(searchParams));
     setOpen(siguiente);
   };
 
@@ -161,7 +160,9 @@ export function PipelineFiltrosDrawer({ contactos, empresas, tags }: PipelineFil
     set("titulo", draft.titulo.trim() || undefined);
     set("tags", draft.tagIds.length > 0 ? draft.tagIds.join(",") : undefined);
 
-    router.push(`${pathname}?${params.toString()}`);
+    // Otros filtros implican otras tarjetas: la paginación por etapa vuelve a cero.
+    params.delete("limites");
+    navegar(params);
     setOpen(false);
   };
 

@@ -3,12 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { verificarAcceso } from "@/shared/auth/permisos";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearOportunidadSchema, ActualizarOportunidadSchema, CambiarEtapaSchema } from "./schema";
 import type { ResultadoAccion, Oportunidad } from "./types";
 import { PROBABILIDADES_ETAPA } from "./types";
+import { FiltrosVistaOportunidadesSchema } from "./schema";
+import { cargarVistaOportunidades, type FiltrosVistaOportunidades, type VistaOportunidades } from "./vista";
 
 async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
   const links = await prisma.oportunidadConversacion.findMany({
@@ -407,4 +410,21 @@ export async function marcarMensajeLeido(id: string): Promise<void> {
     });
     revalidatePath("/crm/pipeline");
   } catch { /* ignorar — no crítico */ }
+}
+
+/**
+ * Consulta de la lista de Oportunidades para la barra de filtros. Los filtros
+ * viajan en el cuerpo de la acción y no en la URL.
+ */
+export async function consultarVistaOportunidadesAction(entrada: FiltrosVistaOportunidades): Promise<VistaOportunidades> {
+  const filtros = FiltrosVistaOportunidadesSchema.parse(entrada) as FiltrosVistaOportunidades;
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "oportunidades", "ver").permitido) throw new Error("Acceso denegado");
+
+  try {
+    return await cargarVistaOportunidades(sesion.instanciaId, sesion.zonaNegocio, filtros);
+  } catch (err) {
+    console.error("[consultarVistaOportunidadesAction]", err);
+    throw new Error("No se pudieron cargar las oportunidades");
+  }
 }

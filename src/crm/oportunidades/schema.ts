@@ -25,3 +25,7 @@ export const ActualizarOportunidadSchema = CrearOportunidadSchema.partial();
 export type CrearOportunidadInput = z.infer<typeof CrearOportunidadSchema>;
 export type ActualizarOportunidadInput = z.infer<typeof ActualizarOportunidadSchema>;
 export type CambiarEtapaInput = z.infer<typeof CambiarEtapaSchema>;
+
+/** Filtros de la lista, en el mismo formato clave → string que tenían en la
+ *  URL. Viven en estado de cliente; nunca se escriben en la URL. */
+export const FiltrosVistaOportunidadesSchema = z.record(z.string().max(40), z.string().max(2000));
