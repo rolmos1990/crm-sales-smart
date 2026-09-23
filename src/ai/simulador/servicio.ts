@@ -5,6 +5,7 @@ import { recuperadorEjemplos } from "@/ai/piloto/recuperador-ejemplos";
 import { obtenerAutonomiaPorAgente } from "@/ai/autonomia/queries";
 import { clasificarCategoriaIntencion } from "@/ai/autonomia/clasificador";
 import { decidirAutonomia } from "@/ai/autonomia/gate";
+import { resolverHerramientasAgente } from "@/ai/tools/herramientas-agente";
 import type { PerfilCliente } from "@/ai/perfil-cliente/tipos";
 import type { EscenarioSimulacion, DiagnosticoRespuestaSimulada, HerramientaEjecutadaDiagnostico } from "./tipos";
 
@@ -108,14 +109,13 @@ class SimuladorService {
       where: { id: escenario.agenteIAConfigId },
       select: { herramientas: true },
     });
-    // 024-alias-ubicaciones-transportistas (research.md §6) — mismo fix que
-    // generar-respuesta-ia.suscriptor.ts: sin unir las herramientas "siempre
-    // disponibles" acá, el simulador mostraría un resultado distinto al de
-    // una conversación real con el mismo agente.
-    const { HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES } = await import("@/ai/tools/constantes");
-    const herramientasPermitidas = [
-      ...new Set([...parsearListaHerramientas(agenteFull?.herramientas), ...HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES]),
-    ];
+    // Misma resolución que generar-respuesta-ia.suscriptor.ts. El catálogo sale
+    // de `configAgente` (borrador o publicada, según el escenario) para que
+    // probar el toggle en un borrador se refleje acá.
+    const herramientasPermitidas = resolverHerramientasAgente({
+      herramientas: agenteFull?.herramientas,
+      catalogoEnContexto: configAgente.catalogoEnContexto,
+    });
 
     const configsAutonomia = await obtenerAutonomiaPorAgente(escenario.agenteIAConfigId);
 
@@ -245,17 +245,6 @@ class SimuladorService {
       informacionOperativaConsultada,
     };
   }
-}
-
-function parsearListaHerramientas(valor: unknown): string[] {
-  if (!valor) return [];
-  if (Array.isArray(valor)) return valor.filter((h): h is string => typeof h === "string");
-  if (typeof valor === "object" && valor !== null) {
-    const obj = valor as Record<string, unknown>;
-    const lista = obj["habilitadas"] ?? obj["lista"];
-    if (Array.isArray(lista)) return lista.filter((h): h is string => typeof h === "string");
-  }
-  return [];
 }
 
 export const simuladorService = new SimuladorService();

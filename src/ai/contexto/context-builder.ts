@@ -27,6 +27,7 @@ import { producirCapaEstrategia } from "./capas/estrategia-activa";
 import { producirCapaPerfilCliente } from "./capas/perfil-cliente";
 import { producirCapaDatosConocidosFaltantes, producirCapaInfoOperativa } from "./capas/placeholders";
 import { producirCapaEjemplosPiloto } from "./capas/ejemplos-piloto";
+import { LIMITE_CATALOGO_DEFECTO } from "./capas/catalogo";
 import type { PerfilCliente } from "@/ai/perfil-cliente/tipos";
 
 export interface InsumosContexto {
@@ -94,11 +95,18 @@ export async function construirContextoCompuesto(
 
   const contenidoPerfilCliente = perfilCliente ? formatearPerfilComoTexto(perfilCliente) : null;
 
-  // Capas 7-8 siguen reservadas (FR-008 de 013), siempre null. Capa 9
+  // Capa 7 sigue reservada (FR-008 de 013), siempre null. Capa 8 = catálogo
+  // (028). Capa 9
   // (014-conversaciones-piloto-ejemplos-relevantes) ya tiene fuente real.
   const [capaDatosFaltantes, capaInfoOperativa, resultadoCapaEjemplosPiloto] = await Promise.all([
     producirCapaDatosConocidosFaltantes(),
-    producirCapaInfoOperativa(),
+    // 028-respuestas-guia-catalogo-ia — capa 8: catálogo con precios. Un
+    // agente sin el campo (fila previa a la migración) lo trae activo.
+    producirCapaInfoOperativa({
+      instanciaId: insumos.instanciaId,
+      activo: datos.configAgente.catalogoEnContexto ?? true,
+      limite: datos.configAgente.limiteCatalogoContexto ?? LIMITE_CATALOGO_DEFECTO,
+    }),
     producirCapaEjemplosPiloto({
       instanciaId: insumos.instanciaId,
       agenteIAConfigId: insumos.agenteIAConfigId,

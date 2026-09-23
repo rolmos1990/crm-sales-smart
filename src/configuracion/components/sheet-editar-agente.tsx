@@ -58,9 +58,12 @@ import {
   AgenteIAConfigSchema,
   type AgenteIAConfigInput,
   type ConfiguracionTonoInput,
+  type RespuestaGuiaInput,
+  INTENCIONES_RESPUESTA_GUIA,
 } from "@/configuracion/ia/agente-schema";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 import { SeccionVersionesAgente } from "./seccion-versiones-agente";
+import { EditorRespuestasGuia } from "./editor-respuestas-guia";
 import { AsignarEstrategiasAgente } from "@/ai/estrategia/components/asignar-estrategias-agente";
 import { SeccionAutomatizacion } from "@/ai/autonomia/components/seccion-automatizacion";
 import { PanelSimulador } from "@/ai/simulador/components/panel-simulador";
@@ -241,12 +244,16 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
       comportamientosProhibidos: null,
       reglasPersonalizadas: null,
       condicionesTransferenciaHumano: null,
+      respuestasGuia: null,
+      catalogoEnContexto: true,
+      limiteCatalogoContexto: 30,
     },
   });
 
   const canalesActivos = formIA.watch("canalesPermitidos") ?? [];
   const herramientasActivas = formIA.watch("herramientas") ?? [];
   const configuracionTono = formIA.watch("configuracionTono");
+  const catalogoEnContexto = formIA.watch("catalogoEnContexto") ?? true;
 
   useEffect(() => {
     if (!agente?.usuarioId || !agente.agenteIAConfig) return;
@@ -281,6 +288,9 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             comportamientosProhibidos: (config.comportamientosProhibidos as string[] | null) ?? null,
             reglasPersonalizadas: (config.reglasPersonalizadas as string[] | null) ?? null,
             condicionesTransferenciaHumano: (config.condicionesTransferenciaHumano as string[] | null) ?? null,
+            respuestasGuia: (config.respuestasGuia as RespuestaGuiaInput[] | null) ?? null,
+            catalogoEnContexto: config.catalogoEnContexto,
+            limiteCatalogoContexto: config.limiteCatalogoContexto,
           });
         }
       })
@@ -613,6 +623,45 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         );
                       })}
                     </div>
+
+                    {/* 028-respuestas-guia-catalogo-ia — catálogo con precios en el contexto */}
+                    <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2.5 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium leading-none text-stone-300">Incluir catálogo con precios en las respuestas</p>
+                          <p className="text-xs text-stone-500 mt-1">
+                            El agente conoce los productos activos y sus precios reales, y puede buscar el resto. Nunca inventa un precio.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={catalogoEnContexto}
+                          onCheckedChange={(v) => formIA.setValue("catalogoEnContexto", v, { shouldDirty: true })}
+                          aria-label="Incluir catálogo con precios en las respuestas"
+                        />
+                      </div>
+                      {catalogoEnContexto && (
+                        <FormField
+                          control={formIA.control}
+                          name="limiteCatalogoContexto"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-2 space-y-0">
+                              <FormLabel className="text-stone-400 text-xs font-normal">Productos a incluir (máx.)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={100}
+                                  value={field.value ?? 30}
+                                  onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                                  className="h-8 w-20 bg-white/5 border-white/10 text-stone-50 text-sm"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {/* ── Sección: Tono ── */}
@@ -914,6 +963,25 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     </div>
                   </div>
 
+                  {/* ── Sección: Respuestas guía (028) ── */}
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Respuestas guía</p>
+                      <p className="text-stone-500 text-xs mt-0.5">
+                        Cómo responder cada tipo de consulta. El agente sigue el formato y completa los marcadores solo con datos reales.
+                      </p>
+                    </div>
+                    <EditorRespuestasGuia
+                      valores={formIA.watch("respuestasGuia") ?? []}
+                      onChange={(v) => formIA.setValue("respuestasGuia", v, { shouldDirty: true })}
+                    />
+                    {formIA.formState.errors.respuestasGuia && (
+                      <p className="text-xs text-red-400">
+                        Revisa las respuestas guía: cada una necesita "cuándo aplica" y un formato.
+                      </p>
+                    )}
+                  </div>
+
                   {/* ── Sección: Avanzado (colapsable) ── */}
                   <div className="border border-white/10 rounded-xl overflow-hidden">
                     <button
@@ -1171,6 +1239,26 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                       {((configIA.frasesProhibidas as string[] | null) ?? []).map((f, i) => <p key={i} className="text-stone-400">- {f}</p>)}
                     </div>
                   </div>
+                </div>
+
+                <div>
+                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">Respuestas guía</p>
+                  {((configIA.respuestasGuia as RespuestaGuiaInput[] | null) ?? []).filter((r) => r.activa).length === 0 ? (
+                    <p className="text-stone-500 text-xs">Sin respuestas guía activas.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1">
+                      {((configIA.respuestasGuia as RespuestaGuiaInput[] | null) ?? [])
+                        .filter((r) => r.activa)
+                        .map((r) => (
+                          <li key={r.id} className="text-stone-400 text-xs">
+                            - [{INTENCIONES_RESPUESTA_GUIA[r.intencion]}] {r.cuandoAplica}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                  <p className="text-stone-500 text-xs mt-2">
+                    Catálogo con precios: {configIA.catalogoEnContexto ? `activo (hasta ${configIA.limiteCatalogoContexto} productos)` : "desactivado"}
+                  </p>
                 </div>
 
                 <div>

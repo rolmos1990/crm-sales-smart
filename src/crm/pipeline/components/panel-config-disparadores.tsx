@@ -20,6 +20,7 @@ import {
   X,
   Bot,
   Flag,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -258,11 +259,16 @@ function SeccionStage({
   const [iaHabilitada, setIaHabilitada] = useState(stage.respuestaIAHabilitada ?? false);
   const [agenteSeleccionado, setAgenteSeleccionado] = useState<string | null>(stage.agenteIAConfigId ?? null);
   const [agentes, setAgentes] = useState<{ id: string; objetivo: string | null; usuario: { nombre: string } }[]>([]);
+  // Sin esto el aviso de "sin agente" parpadea mientras carga la lista.
+  const [agentesCargados, setAgentesCargados] = useState(false);
   const [toggleandoIA, startToggleIA] = useTransition();
   const color = stage.color ?? "#818cf8";
 
   useEffect(() => {
-    obtenerAgentesIAComerciales().then(setAgentes).catch(() => {});
+    obtenerAgentesIAComerciales()
+      .then(setAgentes)
+      .catch(() => {})
+      .finally(() => setAgentesCargados(true));
   }, []);
 
   function handleToggleIA(valor: boolean) {
@@ -392,13 +398,20 @@ function SeccionStage({
               </div>
             )}
 
-            {/* Cuando IA está activa pero no hay agentes configurados */}
-            {iaHabilitada && agentes.length === 0 && (
-              <div className="px-3 pb-2.5 pt-0.5 border-t border-lime-500/15">
-                <p className="text-[11px] text-stone-500">
-                  Sin agentes IA configurados.{" "}
-                  <a href="/configuracion?tab=usuarios" className="text-lime-500 hover:underline">
-                    Crear uno en Configuración → Usuarios
+            {/* 028-respuestas-guia-catalogo-ia — IA activa sin ningún agente
+                comercial: responde igual, pero con el perfil mínimo (sin
+                catálogo, reglas ni herramientas). Solo avisa, no bloquea. */}
+            {iaHabilitada && agentesCargados && agentes.length === 0 && (
+              <div
+                role="status"
+                className="mx-3 mb-3 flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2"
+              >
+                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-amber-500 mt-0.5" />
+                <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  La IA responderá con un perfil mínimo, sin catálogo ni reglas del negocio. Crea un agente comercial o
+                  asígnalo a esta etapa.{" "}
+                  <a href="/configuracion?tab=usuarios" className="font-medium underline underline-offset-2">
+                    Ir a Configuración → Usuarios
                   </a>
                 </p>
               </div>

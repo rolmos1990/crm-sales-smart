@@ -243,24 +243,15 @@ async function obtenerUltimoMensajeCliente(conversacionId: string): Promise<stri
 // que quedaban registradas pero inalcanzables para el LLM.
 async function obtenerHerramientasPermitidas(agenteId: string): Promise<string[]> {
   const { prisma } = await import("@/shared/db/prisma");
-  const { HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES } = await import("@/ai/tools/constantes");
+  const { resolverHerramientasAgente } = await import("@/ai/tools/herramientas-agente");
   const config = await prisma.agenteIAConfig.findUnique({
     where: { id: agenteId },
-    select: { herramientas: true },
+    select: { herramientas: true, catalogoEnContexto: true },
   });
-  const habilitadasPorElNegocio = parsearListaHerramientas(config?.herramientas);
-  return [...new Set([...habilitadasPorElNegocio, ...HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES])];
-}
-
-function parsearListaHerramientas(valor: unknown): string[] {
-  if (!valor) return [];
-  if (Array.isArray(valor)) return valor.filter((h): h is string => typeof h === "string");
-  if (typeof valor === "object" && valor !== null) {
-    const obj = valor as Record<string, unknown>;
-    const lista = obj["habilitadas"] ?? obj["lista"];
-    if (Array.isArray(lista)) return lista.filter((h): h is string => typeof h === "string");
-  }
-  return [];
+  return resolverHerramientasAgente({
+    herramientas: config?.herramientas,
+    catalogoEnContexto: config?.catalogoEnContexto,
+  });
 }
 
 interface EjecutarConToolsParams {

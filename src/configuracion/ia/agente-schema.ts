@@ -20,6 +20,30 @@ export const ProactividadSchema = z.enum(["BAJA", "MEDIA", "ALTA"]);
 export const IntensidadComercialSchema = z.enum(["SUAVE", "MODERADA", "DIRECTA"]);
 export const EstiloRecomendacionSchema = z.enum(["CONSULTIVO", "DIRECTO", "COMPARATIVO"]);
 
+// 028-respuestas-guia-catalogo-ia — formatos de respuesta por intención.
+export const IntencionRespuestaGuiaSchema = z.enum(["PRECIO", "DISPONIBILIDAD", "ENVIO", "PAGO", "SALUDO", "OTRA"]);
+
+export const INTENCIONES_RESPUESTA_GUIA: Record<z.infer<typeof IntencionRespuestaGuiaSchema>, string> = {
+  PRECIO: "Precio",
+  DISPONIBILIDAD: "Disponibilidad",
+  ENVIO: "Envío",
+  PAGO: "Pago",
+  SALUDO: "Saludo",
+  OTRA: "Otra",
+};
+
+export const MAX_RESPUESTAS_GUIA = 15;
+
+export const RespuestaGuiaSchema = z.object({
+  id: z.string().min(1).max(40),
+  intencion: IntencionRespuestaGuiaSchema,
+  cuandoAplica: z.string().trim().min(1, "Indica cuándo aplica").max(200),
+  formato: z.string().trim().min(1, "El formato es obligatorio").max(1000),
+  activa: z.boolean(),
+});
+
+export type RespuestaGuiaInput = z.infer<typeof RespuestaGuiaSchema>;
+
 export const AgenteIAConfigSchema = z.object({
   sistemaPrompt: z.string().optional(),
   personalidad: z.string().max(100).optional(),
@@ -51,6 +75,16 @@ export const AgenteIAConfigSchema = z.object({
   comportamientosProhibidos: z.array(z.string().max(300)).nullable().optional(),
   reglasPersonalizadas: z.array(z.string().max(300)).nullable().optional(),
   condicionesTransferenciaHumano: z.array(z.string().max(300)).nullable().optional(),
+
+  // 028-respuestas-guia-catalogo-ia
+  respuestasGuia: z
+    .array(RespuestaGuiaSchema)
+    .max(MAX_RESPUESTAS_GUIA)
+    .refine((lista) => new Set(lista.map((r) => r.id)).size === lista.length, "Respuestas guía duplicadas")
+    .nullable()
+    .optional(),
+  catalogoEnContexto: z.boolean().optional(),
+  limiteCatalogoContexto: z.number().int().min(1).max(100).optional(),
 });
 
 export type AgenteIAConfigInput = z.infer<typeof AgenteIAConfigSchema>;

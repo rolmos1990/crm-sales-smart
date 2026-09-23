@@ -18,6 +18,13 @@ vi.mock("./capas/ejemplos-piloto", () => ({
   producirCapaEjemplosPiloto: (...a: unknown[]) => producirCapaEjemplosPilotoMock(...a),
 }));
 
+// 028-respuestas-guia-catalogo-ia — capa 8 consulta Producto. Por defecto el
+// catálogo viene vacío, así las pruebas de composición de arriba no cambian.
+const productoFindManyMock = vi.fn().mockResolvedValue([]);
+vi.mock("@/shared/db/prisma", () => ({
+  prisma: { producto: { findMany: (...a: unknown[]) => productoFindManyMock(...a) } },
+}));
+
 const { construirContextoCompuesto } = await import("./context-builder");
 
 const CONFIG_BASE: ConfigAgenteParaPrompt = {
@@ -138,5 +145,70 @@ describe("construirContextoCompuesto (013, Historia 2 — estrategia y perfil re
 
     expect(resultado.systemPrompt).toContain("Ejemplos de referencia de conversaciones anteriores");
     expect(resultado.ejemplosUtilizadosIds).toEqual(["ej-1"]);
+  });
+});
+
+describe("construirContextoCompuesto — capa 8: catálogo (028)", () => {
+  const producto = (nombre: string) => ({ nombre, sku: null, precio: 45, moneda: "PEN", unidad: "unidad", categoria: null });
+
+  beforeEach(() => {
+    producirCapaEstrategiaMock.mockReset().mockResolvedValue({ texto: null, estrategiaSeleccionada: null });
+    producirCapaPerfilClienteMock.mockReset().mockResolvedValue(null);
+    producirCapaEjemplosPilotoMock.mockReset().mockResolvedValue({ texto: null, ejemplosIds: [] });
+    productoFindManyMock.mockReset().mockResolvedValue([]);
+  });
+
+  it("con catálogo activo, el prompt incluye los productos de la instancia del agente", async () => {
+    productoFindManyMock.mockResolvedValue([producto("Cojín bordado")]);
+
+    const resultado = await construirContextoCompuesto(
+      { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
+      { configAgente: { ...CONFIG_BASE, catalogoEnContexto: true, limiteCatalogoContexto: 10 }, contextoDinamico: {} },
+    );
+
+    expect(resultado.systemPrompt).toContain("Catálogo vigente de la empresa");
+    expect(resultado.systemPrompt).toContain("- Cojín bordado — 45.00 PEN / unidad");
+    const args = productoFindManyMock.mock.calls[0][0];
+    expect(args.where).toEqual({ instanciaId: "instancia-1", activo: true, precio: { gt: 0 } });
+    expect(args.take).toBe(11);
+  });
+
+  it("el catálogo va antes que los ejemplos piloto y después de las reglas del negocio", async () => {
+    productoFindManyMock.mockResolvedValue([producto("Cuadro")]);
+    producirCapaEjemplosPilotoMock.mockResolvedValue({ texto: "Ejemplos de referencia de conversaciones anteriores:\n…", ejemplosIds: ["e1"] });
+
+    const { systemPrompt } = await construirContextoCompuesto(
+      { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
+      { configAgente: CONFIG_BASE, contextoDinamico: {} },
+    );
+
+    const reglas = systemPrompt.indexOf("Reglas del negocio:");
+    const catalogo = systemPrompt.indexOf("Catálogo vigente");
+    const ejemplos = systemPrompt.indexOf("Ejemplos de referencia");
+    expect(catalogo).toBeGreaterThan(reglas);
+    expect(ejemplos).toBeGreaterThan(catalogo);
+  });
+
+  it("con catálogo desactivado no consulta productos y el prompt es el de siempre", async () => {
+    const config = { ...CONFIG_BASE, catalogoEnContexto: false };
+    const resultado = await construirContextoCompuesto(
+      { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
+      { configAgente: config, contextoDinamico: {} },
+    );
+
+    expect(productoFindManyMock).not.toHaveBeenCalled();
+    expect(resultado.systemPrompt).toBe(construirSystemPrompt(config));
+  });
+
+  it("si la consulta del catálogo falla, el prompt se arma igual sin catálogo", async () => {
+    productoFindManyMock.mockRejectedValue(new Error("db caída"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const resultado = await construirContextoCompuesto(
+      { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
+      { configAgente: CONFIG_BASE, contextoDinamico: {} },
+    );
+
+    expect(resultado.systemPrompt).toBe(construirSystemPrompt(CONFIG_BASE));
   });
 });

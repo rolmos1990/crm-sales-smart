@@ -2,6 +2,8 @@
 // El usuario configura objetivo, personalidad, etc. — no escribe prompts manualmente.
 // El campo sistemaPrompt es un override avanzado que se añade al final.
 
+import { INTENCIONES_RESPUESTA_GUIA } from "@/configuracion/ia/agente-schema";
+
 export interface ConfigAgenteParaPrompt {
   objetivo?: string | null;
   personalidad?: string | null;
@@ -25,6 +27,12 @@ export interface ConfigAgenteParaPrompt {
   comportamientosProhibidos?: unknown; // string[]
   reglasPersonalizadas?: unknown; // string[]
   condicionesTransferenciaHumano?: unknown; // string[]
+
+  // 028-respuestas-guia-catalogo-ia. Los dos campos de catálogo no generan
+  // texto acá: los consume la capa 8 del context builder.
+  respuestasGuia?: unknown; // RespuestaGuiaInput[]
+  catalogoEnContexto?: boolean | null;
+  limiteCatalogoContexto?: number | null;
 }
 
 export interface ContextoDinamicoPrompt {
@@ -78,7 +86,11 @@ export function construirSystemPrompt(
       "- Haz como máximo una pregunta principal por mensaje.",
       "- No repitas una pregunta que el cliente ya respondió en esta conversación.",
       "- Si recomiendas productos u opciones, sugiere como máximo tres.",
-      "- No prometas precio, disponibilidad ni fecha de entrega sin haber consultado la información real primero.",
+      // 028-respuestas-guia-catalogo-ia — el catálogo del contexto cuenta
+      // como información real; antes esta regla hacía que la IA preguntara
+      // "¿qué producto?" en vez de dar los precios que ya conocía.
+      "- No des precios, disponibilidad ni fechas de entrega que no aparezcan en el catálogo de este contexto o en el resultado de una herramienta. Nunca inventes un precio.",
+      "- Si el cliente pide precio sin nombrar un producto: si el catálogo es corto, responde con los precios; si es largo, ofrece como máximo tres opciones con su precio y pregunta cuál le interesa.",
     ].join("\n"),
   );
 
@@ -98,6 +110,11 @@ export function construirSystemPrompt(
 
   const bloqueReglas = construirBloqueReglasDeNegocio(config);
   if (bloqueReglas) partes.push(bloqueReglas);
+
+  // 028-respuestas-guia-catalogo-ia — mismo peso que las reglas del negocio y
+  // debajo de las fijas: un formato nunca puede habilitar inventar un precio.
+  const bloqueRespuestasGuia = construirBloqueRespuestasGuia(config.respuestasGuia);
+  if (bloqueRespuestasGuia) partes.push(bloqueRespuestasGuia);
 
   // Capas 4, 5, 7-9 (013-context-builder-capas-precedencia) — siempre
   // después de las reglas obligatorias/de negocio de arriba, nunca antes.
@@ -310,6 +327,33 @@ function construirBloqueReglasDeNegocio(
   }
 
   return lineas.length > 0 ? "Reglas del negocio:\n" + lineas.join("\n") : "";
+}
+
+// El JSON viene de BD (o de un borrador en el simulador): se valida elemento
+// por elemento y se descarta lo malformado en vez de romper la generación.
+function construirBloqueRespuestasGuia(valor: unknown): string {
+  if (!Array.isArray(valor)) return "";
+
+  const lineas: string[] = [];
+  for (const item of valor) {
+    if (typeof item !== "object" || item === null) continue;
+    const r = item as Record<string, unknown>;
+    if (r.activa === false) continue;
+    const cuandoAplica = typeof r.cuandoAplica === "string" ? r.cuandoAplica.trim() : "";
+    const formato = typeof r.formato === "string" ? r.formato.trim() : "";
+    if (!cuandoAplica || !formato) continue;
+    const etiqueta = (INTENCIONES_RESPUESTA_GUIA as Record<string, string>)[String(r.intencion)] ?? INTENCIONES_RESPUESTA_GUIA.OTRA;
+    lineas.push(
+      `- [${etiqueta}] Cuando ${cuandoAplica}: responde siguiendo este formato, adaptándolo con naturalidad: «${formato}»`,
+    );
+  }
+  if (lineas.length === 0) return "";
+
+  return [
+    "Formatos de respuesta del negocio:",
+    ...lineas,
+    "Completa {nombreCliente}, {producto}, {precio} y {moneda} solo con datos reales (catálogo de este contexto o resultado de una herramienta). Si no tienes el dato, no lo inventes ni dejes el marcador literal.",
+  ].join("\n");
 }
 
 function parsearLista(valor: unknown): string[] {

@@ -58,7 +58,15 @@ describe("construirSystemPrompt — comportamiento natural fijo (009, FR-005)", 
     expect(prompt).toContain("como máximo una pregunta principal por mensaje");
     expect(prompt).toContain("No repitas una pregunta");
     expect(prompt).toContain("como máximo tres");
-    expect(prompt).toContain("No prometas precio, disponibilidad ni fecha de entrega sin haber consultado");
+    expect(prompt).toContain("que no aparezcan en el catálogo de este contexto o en el resultado de una herramienta");
+  });
+
+  it("028 — la prohibición de inventar precios sigue presente, y hay guía para precio sin producto", () => {
+    const prompt = construirSystemPrompt({});
+
+    expect(prompt).toContain("Nunca inventes un precio.");
+    expect(prompt).toContain("Si el cliente pide precio sin nombrar un producto");
+    expect(prompt).not.toContain("sin haber consultado la información real primero");
   });
 });
 
@@ -122,5 +130,65 @@ describe("construirSystemPrompt — secciones nuevas de identidad/comunicación/
     expect(indiceComportamientoNatural).toBeGreaterThanOrEqual(0);
     expect(indiceReglas).toBeGreaterThan(indiceComportamientoNatural);
     expect(indiceOverride).toBeGreaterThan(indiceReglas);
+  });
+});
+
+describe("construirSystemPrompt — respuestas guía (028)", () => {
+  const precio = {
+    id: "r1",
+    intencion: "PRECIO",
+    cuandoAplica: "el cliente pregunta el precio sin nombrar producto",
+    formato: "¡Hola {nombreCliente}! Nuestros precios: … ¿Cuál te interesa?",
+    activa: true,
+  };
+  const envio = { id: "r2", intencion: "ENVIO", cuandoAplica: "pregunta por el envío", formato: "Enviamos a todo el país.", activa: true };
+
+  it("sin respuestas guía el prompt es idéntico al de un agente sin el campo", () => {
+    const base = { reglasPersonalizadas: ["Saluda siempre"] };
+    expect(construirSystemPrompt({ ...base, respuestasGuia: null })).toBe(construirSystemPrompt(base));
+    expect(construirSystemPrompt({ ...base, respuestasGuia: [] })).toBe(construirSystemPrompt(base));
+    expect(construirSystemPrompt(base)).not.toContain("Formatos de respuesta del negocio:");
+  });
+
+  it("incluye las activas en el orden guardado, con su intención y formato", () => {
+    const prompt = construirSystemPrompt({ respuestasGuia: [precio, envio] });
+
+    expect(prompt).toContain("Formatos de respuesta del negocio:");
+    expect(prompt).toContain(`- [Precio] Cuando ${precio.cuandoAplica}: responde siguiendo este formato, adaptándolo con naturalidad: «${precio.formato}»`);
+    expect(prompt.indexOf("[Precio]")).toBeLessThan(prompt.indexOf("[Envío]"));
+    expect(prompt).toContain("Si no tienes el dato, no lo inventes ni dejes el marcador literal.");
+  });
+
+  it("excluye las inactivas y, si no queda ninguna, no emite el bloque", () => {
+    const soloInactiva = construirSystemPrompt({ respuestasGuia: [{ ...precio, activa: false }] });
+    expect(soloInactiva).not.toContain("Formatos de respuesta del negocio:");
+
+    const mixta = construirSystemPrompt({ respuestasGuia: [{ ...precio, activa: false }, envio] });
+    expect(mixta).not.toContain("[Precio]");
+    expect(mixta).toContain("[Envío]");
+  });
+
+  it("va después de las reglas del negocio y antes de la estrategia", () => {
+    const prompt = construirSystemPrompt(
+      { reglasPersonalizadas: ["Saluda siempre"], respuestasGuia: [precio] },
+      undefined,
+      { contenidoEstrategia: "Estrategia activa para esta conversación (X):" },
+    );
+
+    const reglas = prompt.indexOf("Reglas del negocio:");
+    const formatos = prompt.indexOf("Formatos de respuesta del negocio:");
+    const estrategia = prompt.indexOf("Estrategia activa");
+    expect(reglas).toBeGreaterThan(-1);
+    expect(formatos).toBeGreaterThan(reglas);
+    expect(estrategia).toBeGreaterThan(formatos);
+  });
+
+  it("ignora elementos malformados sin romper la generación", () => {
+    const prompt = construirSystemPrompt({
+      respuestasGuia: [null, "texto", { intencion: "PRECIO" }, { ...envio, intencion: "DESCONOCIDA" }],
+    });
+
+    expect(prompt).toContain("- [Otra] Cuando pregunta por el envío");
+    expect(prompt.match(/^- \[/gm)?.length).toBe(1);
   });
 });

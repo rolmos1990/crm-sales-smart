@@ -267,3 +267,20 @@ Los 16 escenarios del pedido se reparten entre las specs 012 (perfil/intención)
 ## 11. Estimación relativa por fase
 
 Base (009+010+012) ≈ mediana; Estrategia (011+013) ≈ mediana-alta; Operativa+Autonomía (015+016) ≈ alta (tocan flujo de producción real); Piloto/Aprendizaje (014+017) ≈ mediana; Simulador (018) ≈ mediana-baja (consumidor de todo lo anterior, sin persistencia nueva compleja).
+
+## 12. Posterior al plan: 028-respuestas-guia-catalogo-ia (2026-09-23)
+
+Origin: a real case. "Buenas tardes, precio por favor" got the generic reply "¿qué producto necesitas?". Detail in `specs/028-respuestas-guia-catalogo-ia/`.
+
+- **Layer 8 ("Información operativa verificada") is no longer a placeholder.** `src/ai/contexto/capas/catalogo.ts` injects the instance's active products with price > 0, up to `AgenteIAConfig.limiteCatalogoContexto` (default 30).
+  - When there are more products, it tells the agent to use `buscar_productos`.
+  - It is fault-tolerant: an error means no catalog, and never blocks the reply.
+  - It is turned on and off per agent with `catalogoEnContexto` (default `true`, including for agents that existed before the migration).
+- **Guide answers per intent.** `AgenteIAConfig.respuestasGuia` is a JSON list, versioned with the profile (draft, publish, restore).
+  - Each one has an intent, "cuándo aplica", a format with `{nombreCliente}` `{producto}` `{precio}` `{moneda}`, and an active flag.
+  - They are injected as "Formatos de respuesta del negocio" right after "Reglas del negocio".
+  - The model fills the placeholders only with data from the catalog or the tools.
+  - Edited in the agent sheet, "Respuestas guía" section.
+- **Fixed price rule, reworded.** The catalog in the context counts as real information, and inventing a price is still forbidden. For a price question with no product: give prices if the catalog is short; otherwise offer at most three options and ask which one.
+- **Tools.** `resolverHerramientasAgente` (`src/ai/tools/herramientas-agente.ts`) is now the single source for the consumer and the simulator. With the catalog on, it adds `buscar_productos`.
+- **No-agent warning.** The stage panel of the pipeline shows an amber warning when auto-reply is enabled and there is no Comercial agent. In that case the AI keeps replying with the minimal fallback profile (no catalog, no rules, no tools). This case was the root cause of the original report.

@@ -79,6 +79,11 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
             comportamientosProhibidos: true,
             reglasPersonalizadas: true,
             condicionesTransferenciaHumano: true,
+
+            // 028-respuestas-guia-catalogo-ia
+            respuestasGuia: true,
+            catalogoEnContexto: true,
+            limiteCatalogoContexto: true,
           },
         })
       : null,
@@ -158,6 +163,9 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
           comportamientosProhibidos: agenteConfig.comportamientosProhibidos,
           reglasPersonalizadas: agenteConfig.reglasPersonalizadas,
           condicionesTransferenciaHumano: agenteConfig.condicionesTransferenciaHumano,
+          respuestasGuia: agenteConfig.respuestasGuia,
+          catalogoEnContexto: agenteConfig.catalogoEnContexto,
+          limiteCatalogoContexto: agenteConfig.limiteCatalogoContexto,
         },
         contextoDinamico: {
           nombreContacto: contacto?.nombre,

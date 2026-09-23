@@ -1,3 +1,5 @@
+import { producirCapaCatalogo, type InsumosCapaCatalogo } from "./catalogo";
+
 // 013-context-builder-capas-precedencia (FR-008) — puntos de extensión
 // reservados para capas que todavía no tienen fuente de datos real.
 // Siempre devuelven `null` — ninguna produce contenido en esta spec. Cuando
@@ -9,9 +11,10 @@ export async function producirCapaDatosConocidosFaltantes(): Promise<string | nu
   return null;
 }
 
-/** Capa 8 — información operativa verificada. Fuente real: 015-herramientas-operativas-inventario-envios-acciones. */
-export async function producirCapaInfoOperativa(): Promise<string | null> {
-  return null;
+/** Capa 8 — información operativa verificada. Desde 028-respuestas-guia-catalogo-ia
+ *  lleva el catálogo vigente con precios (ver ./catalogo.ts). */
+export async function producirCapaInfoOperativa(insumos: InsumosCapaCatalogo): Promise<string | null> {
+  return producirCapaCatalogo(insumos);
 }
 
 // Capa 9 (ejemplos piloto relevantes) ya no es un placeholder — ver

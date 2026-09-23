@@ -2584,6 +2584,13 @@ model AgenteIAConfig {
   // preserva la creación directa actual de cotizaciones/pedidos por IA.
   accionesComercialesModoBorrador Boolean @default(false)
 
+  // 028-respuestas-guia-catalogo-ia — respuestas guía por intención
+  // (RespuestaGuiaSchema[] en src/configuracion/ia/agente-schema.ts) y
+  // catálogo con precios en la capa 8 del context builder.
+  respuestasGuia         Json?
+  catalogoEnContexto     Boolean @default(true)
+  limiteCatalogoContexto Int     @default(30)
+
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 

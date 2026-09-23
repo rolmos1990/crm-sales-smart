@@ -109,6 +109,11 @@ export async function cargarConfigAgenteIA(usuarioId: string) {
       comportamientosProhibidos: true,
       reglasPersonalizadas: true,
       condicionesTransferenciaHumano: true,
+
+      // 028-respuestas-guia-catalogo-ia
+      respuestasGuia: true,
+      catalogoEnContexto: true,
+      limiteCatalogoContexto: true,
     },
   });
 }
@@ -357,6 +362,12 @@ function construirPayloadAgenteIA(datos: AgenteIAConfigInput) {
     comportamientosProhibidos: datos.comportamientosProhibidos ?? Prisma.JsonNull,
     reglasPersonalizadas: datos.reglasPersonalizadas ?? Prisma.JsonNull,
     condicionesTransferenciaHumano: datos.condicionesTransferenciaHumano ?? Prisma.JsonNull,
+
+    // 028-respuestas-guia-catalogo-ia — una versión anterior a 028 no trae
+    // estos campos: se restaura sin respuestas guía y con el catálogo activo.
+    respuestasGuia: datos.respuestasGuia ?? Prisma.JsonNull,
+    catalogoEnContexto: datos.catalogoEnContexto ?? true,
+    limiteCatalogoContexto: datos.limiteCatalogoContexto ?? 30,
   };
 }
 
