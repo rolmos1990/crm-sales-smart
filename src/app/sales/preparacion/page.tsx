@@ -17,6 +17,7 @@ import { ResumenPorProducto } from "@/sales/preparacion/components/resumen-por-p
 import { TableroLista } from "@/sales/preparacion/components/tablero-lista";
 import { TableroCliente } from "@/sales/preparacion/components/tablero-cliente";
 import { parsearExtremosDeSearchParams } from "@/shared/fechas/searchparams";
+import { ProveedorNavegacionFiltros, ZonaResultados } from "@/shared/ui/navegacion-filtros";
 import type { FiltrosTableroInput } from "@/sales/preparacion/schema";
 import type { RangoPreparacion } from "@/sales/preparacion/types";
 
@@ -104,43 +105,53 @@ export default async function PreparacionPage({ searchParams }: PreparacionPageP
         accion={puedeMod ? <PanelConfigPreparacion configuracion={tablero.configuracion} /> : undefined}
       />
 
-      <PreparacionTabsRango
-        rangoActivo={rango}
-        contadores={tablero.contadores}
-        busqueda={filtros.busqueda}
-        vista={vista}
-      />
-
-      {totalTarjetas === 0 ? (
-        hayBusqueda ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-16">
-            <SearchX className="h-5 w-5 text-muted-foreground" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Ningún pedido coincide con esa búsqueda en este rango.
-            </p>
-          </div>
-        ) : (
-          <EmptyState
-            Icono={PackageCheck}
-            titulo="Nada para preparar en este rango"
-            descripcion="Cuando un pedido llegue a una etapa que habilita la preparación, aparecerá acá automáticamente."
-          />
-        )
-      ) : vista === "lista" ? (
-        <TableroLista columnas={tablero.columnas} />
-      ) : (
-        <TableroCliente
-          columnas={tablero.columnas}
-          limitePorEstado={limitePorEstado}
-          puedeMod={puedeMod}
-          agrupacion={agrupacion}
+      {/* Filtros y resultados comparten la transición de navegación: al
+          cambiar de rango o vista la barra queda montada con la selección ya
+          marcada y el tablero se atenúa, en vez de saltar al loading.tsx. */}
+      <ProveedorNavegacionFiltros>
+        <PreparacionTabsRango
+          rangoActivo={rango}
+          desde={sp.desde ?? null}
+          hasta={sp.hasta ?? null}
+          contadores={tablero.contadores}
+          busqueda={filtros.busqueda}
+          vista={vista}
+          zonaNegocio={zonaHoraria}
         />
-      )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ResumenPorProducto resumen={resumen} />
-        <ActividadReciente movimientos={actividad} />
-      </div>
+        <ZonaResultados>
+          {totalTarjetas === 0 ? (
+            hayBusqueda ? (
+              <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-16">
+                <SearchX className="h-5 w-5 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  Ningún pedido coincide con esa búsqueda en este rango.
+                </p>
+              </div>
+            ) : (
+              <EmptyState
+                Icono={PackageCheck}
+                titulo="Nada para preparar en este rango"
+                descripcion="Cuando un pedido llegue a una etapa que habilita la preparación, aparecerá acá automáticamente."
+              />
+            )
+          ) : vista === "lista" ? (
+            <TableroLista columnas={tablero.columnas} />
+          ) : (
+            <TableroCliente
+              columnas={tablero.columnas}
+              limitePorEstado={limitePorEstado}
+              puedeMod={puedeMod}
+              agrupacion={agrupacion}
+            />
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ResumenPorProducto resumen={resumen} />
+            <ActividadReciente movimientos={actividad} />
+          </div>
+        </ZonaResultados>
+      </ProveedorNavegacionFiltros>
     </div>
   );
 }
