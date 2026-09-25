@@ -1,5 +1,6 @@
-import "server-only";
-
+// Sin `import "server-only"`: el worker (tsx, fuera de Next) importa este
+// módulo vía generar-pedido-desde-cotizacion.service, y ahí el paquete no
+// existe — el worker entero no arrancaba y dejaba de procesar mensajes.
 import type { Prisma } from "@/generated/prisma/client";
 import {
   claveStockVariante,
