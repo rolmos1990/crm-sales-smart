@@ -15,7 +15,13 @@ export async function transferirAHumanoInterno(ctx: ContextoTool, motivo: string
 
   await prisma.conversacion.updateMany({
     where: { id: ctx.conversacionId, instanciaId: ctx.instanciaId },
-    data: { clasificacion: "SOPORTE", clasificadoEn: new Date() },
+    data: {
+      clasificacion: "SOPORTE",
+      clasificadoEn: new Date(),
+      modoAtencion: "HUMANO",
+      atencionDesde: new Date(),
+      atencionMotivo: motivo,
+    },
   });
 
   // 012-perfil-dinamico-cliente — un fallo al publicar no debe impedir la

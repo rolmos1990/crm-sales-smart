@@ -10,7 +10,8 @@ import { obtenerProvider } from "./providers/registry";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import { obtenerConversacionPorId, obtenerConversacionesInbox } from "./queries";
 import { requireSesion } from "@/shared/auth/sesion";
-import { ejecutarMovimientoAStage } from "@/crm/pipeline/mover-stage";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
+import { moverOportunidadAEtapa, registrarEntradaInicialAEtapa } from "@/crm/pipeline/mover-stage";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 
 // ── Resolución compartida de contacto + conversación ────────────────────────
@@ -270,6 +271,10 @@ export async function procesarMensajeEntrante(
         obtenerMonedaPrincipal(instanciaId),
       ]);
 
+      // Solo si ESTA llamada creó la oportunidad: las concurrentes que la
+      // encuentran ya creada no deben repetir historial ni disparadores.
+      let creada = null as { id: string; stageId: string; pipelineId: string } | null;
+
       // Sección crítica: bloquear fila de conversación para serializar llamadas concurrentes
       // que llegaron hasta aquí en paralelo (Baileys puede emitir el mismo mensaje 3 veces).
       await prisma.$transaction(async (tx) => {
@@ -312,7 +317,25 @@ export async function procesarMensajeEntrante(
         await tx.oportunidadConversacion.create({
           data: { oportunidadId: oportunidadActiva.id, conversacionId: conversacion.id },
         });
+        if (oportunidadActiva.stageId && oportunidadActiva.pipelineId) {
+          creada = {
+            id: oportunidadActiva.id,
+            stageId: oportunidadActiva.stageId,
+            pipelineId: oportunidadActiva.pipelineId,
+          };
+        }
       });
+
+      if (creada) {
+        await registrarEntradaInicialAEtapa({
+          oportunidadId: creada.id,
+          stageId: creada.stageId,
+          pipelineId: creada.pipelineId,
+          instanciaId,
+          origen: { tipo: "SISTEMA" },
+          motivo: "Lead entrante",
+        });
+      }
 
       try {
         revalidatePath("/crm/oportunidades");
@@ -791,7 +814,13 @@ async function procesarPrimeraRespuestaProspecto(conversacionId: string, mensaje
     });
     if (!stageDestino || stageDestino.id === oportunidad.stageId) return;
 
-    const resultado = await ejecutarMovimientoAStage(oportunidad.id, stageDestino.id, stageDestino.pipelineId);
+    const resultado = await moverOportunidadAEtapa({
+      oportunidadId: oportunidad.id,
+      stageId: stageDestino.id,
+      pipelineId: stageDestino.pipelineId,
+      origen: { tipo: "SISTEMA" },
+      motivo: "Primera respuesta al prospecto",
+    });
     if (resultado.exito) {
       await registrarEventoConversacion(conversacionId, "ETAPA_AUTOMATICA", { etapaNombre: stageDestino.nombre });
     } else {
@@ -875,6 +904,45 @@ export async function reabrirConversacion(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error al reabrir la conversación" };
+  }
+}
+
+// ── Atención humana / automática ────────────────────────────────────────────
+
+// Deshace una transferencia a humano: la IA de la etapa vuelve a responder
+// los próximos mensajes (si la etapa la tiene habilitada).
+export async function devolverAtencionAutomatica(
+  conversacionId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const auth = await requirePermisoAction("inbox", "modificar");
+  if (!auth.ok) return { ok: false, error: auth.error };
+
+  try {
+    const { count } = await prisma.conversacion.updateMany({
+      where: { id: conversacionId, instanciaId: auth.sesion.instanciaId, modoAtencion: "HUMANO" },
+      data: {
+        modoAtencion: "AUTOMATICO",
+        atencionDesde: new Date(),
+        atencionMotivo: null,
+        atencionUsuarioId: null,
+      },
+    });
+    if (count === 0) return { ok: false, error: "La conversación no está en atención humana" };
+
+    await prisma.eventoLog.create({
+      data: {
+        tipo: "ATENCION_DEVUELTA_A_AUTOMATICO",
+        payload: { conversacionId, usuarioId: auth.sesion.usuarioId },
+        entidadTipo: "Conversacion",
+        entidadId: conversacionId,
+        usuarioId: auth.sesion.usuarioId,
+        instanciaId: auth.sesion.instanciaId,
+      },
+    });
+    revalidatePath("/crm/inbox");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Error al devolver la conversación a atención automática" };
   }
 }
 
@@ -1090,6 +1158,17 @@ export async function crearOportunidadDesdeConversacion({
         instanciaId,
       },
     });
+
+    if (oportunidad.stageId && oportunidad.pipelineId) {
+      await registrarEntradaInicialAEtapa({
+        oportunidadId: oportunidad.id,
+        stageId: oportunidad.stageId,
+        pipelineId: oportunidad.pipelineId,
+        instanciaId,
+        origen: { tipo: "USUARIO" },
+        motivo: "Oportunidad creada desde el Inbox",
+      });
+    }
 
     revalidatePath("/crm/inbox");
     revalidatePath("/crm/oportunidades");

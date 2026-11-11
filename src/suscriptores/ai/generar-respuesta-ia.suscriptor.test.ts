@@ -85,6 +85,21 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2) 
     ensamblarYPersistirRegistroMock.mockReset().mockResolvedValue("registro-1");
   });
 
+  it("conversación transferida a humano (modoAtencion=HUMANO): no genera ni envía", async () => {
+    conversacionFindUniqueMock.mockResolvedValue({
+      contactoId: "contacto-1",
+      instanciaId: "instancia-1",
+      modoAtencion: "HUMANO",
+      oportunidades: [],
+    });
+
+    await new GenerarRespuestaIASuscriptor().manejar(envelope("agente-1"));
+
+    expect(generarRespuestaMock).not.toHaveBeenCalled();
+    expect(generarConHerramientasMock).not.toHaveBeenCalled();
+    expect(enviarMensajeMock).not.toHaveBeenCalled();
+  });
+
   it("agente sin ninguna fila de AutonomiaIntencionConfig: nunca invoca clasificarCategoriaIntencion, envía normalmente y registra ENVIADA_AUTOMATICAMENTE (FR-004, 017 Historia 1)", async () => {
     obtenerAutonomiaPorAgenteMock.mockResolvedValue(null);
 

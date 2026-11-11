@@ -281,6 +281,15 @@ enum TipoMovimientoEtapa {
   AUTOMATICO
 }
 
+// Quién provocó un cambio de etapa de una oportunidad (pipeline dinámico).
+enum OrigenMovimientoEtapa {
+  USUARIO
+  WORKFLOW
+  DISPARADOR
+  IA
+  SISTEMA
+}
+
 enum TipoPlantilla {
   TEXTO
   TEXTO_IMAGEN
@@ -298,6 +307,16 @@ enum EstadoConversacion {
   CERRADA
   ARCHIVADA
   EN_ESPERA
+}
+
+// Quién atiende la conversación. AUTOMATICO = comportamiento de siempre (la
+// IA de la etapa responde si está habilitada). HUMANO = la IA no responde
+// hasta que un agente la devuelva a AUTOMATICO. WORKFLOW se reserva para el
+// motor de Workflows (docs/WORKFLOWS-PROPUESTA-ARQUITECTURA.md).
+enum ModoAtencionConversacion {
+  AUTOMATICO
+  WORKFLOW
+  HUMANO
 }
 
 // Flujo de OAuth usado para obtener el access token de una CuentaCanal de
@@ -730,6 +749,7 @@ model Oportunidad {
   tags                  OportunidadTag[]
   campos                CampoPersonalizadoValor[]
   disparadorJobs        DisparadorJob[]
+  historialEtapas       OportunidadHistorialEtapa[]
   conversaciones        OportunidadConversacion[]
   conversacionesGanadas Conversacion[]            @relation("ConvOportunidadGanada")
 
@@ -739,6 +759,30 @@ model Oportunidad {
   @@index([stageId])
   @@index([empresaId])
   @@index([etapa])
+}
+
+// Una fila por cada cambio de etapa del pipeline dinámico, venga de donde
+// venga (ver moverOportunidadAEtapa). `procesadoWorkflowEn` lo usará el motor
+// de Workflows como outbox de respaldo (docs/WORKFLOWS-PROPUESTA-ARQUITECTURA.md).
+model OportunidadHistorialEtapa {
+  id                  String                @id @default(cuid())
+  stageAnteriorId     String?
+  stageNuevoId        String
+  pipelineId          String
+  origen              OrigenMovimientoEtapa
+  usuarioId           String?
+  ejecucionWorkflowId String?
+  motivo              String?
+  procesadoWorkflowEn DateTime?
+  creadoEn            DateTime              @default(now())
+
+  oportunidadId String
+  oportunidad   Oportunidad @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  instanciaId   String
+
+  @@index([oportunidadId, creadoEn])
+  @@index([instanciaId, creadoEn])
+  @@index([procesadoWorkflowEn])
 }
 
 model OportunidadContacto {
@@ -2419,6 +2463,13 @@ model Conversacion {
   clasificacion    ClasificacionConversacion @default(NINGUNA)
   clasificadoEn    DateTime?
   clasificadoPorId String?
+
+  // Separado de `clasificacion`: clasificar como SOPORTE a mano no debe
+  // apagar la IA; solo una transferencia explícita lo hace.
+  modoAtencion      ModoAtencionConversacion @default(AUTOMATICO)
+  atencionDesde     DateTime?
+  atencionMotivo    String?
+  atencionUsuarioId String?
 
   oportunidadGanadaRelId String?
   oportunidadGanadaRel   Oportunidad? @relation("ConvOportunidadGanada", fields: [oportunidadGanadaRelId], references: [id], onDelete: SetNull)

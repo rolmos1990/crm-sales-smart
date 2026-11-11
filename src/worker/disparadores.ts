@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../shared/env/cargar-env";
 import { ejecutarJobsPendientes } from "../crm/pipeline/disparadores/ejecutor";
 import { registrarTodosSuscriptores } from "../suscriptores/registrar";
 import { reconectarSesionesWA } from "../integraciones/whatsapp-lite/reconectar";

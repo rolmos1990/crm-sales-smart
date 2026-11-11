@@ -24,6 +24,7 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
       prisma.conversacion.findUnique({
         where: { id: conversacionId },
         select: {
+          modoAtencion: true,
           cuentaCanal: { select: { canal: true } },
           oportunidades: {
             select: {
@@ -58,6 +59,11 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
 
     if (!configIA?.habilitado) {
       console.log(`[OrquestarIA] IA deshabilitada globalmente — instancia ${instanciaId}`);
+      return;
+    }
+
+    if (conv?.modoAtencion === "HUMANO") {
+      console.log(`[OrquestarIA] Conversación ${conversacionId} atendida por humano — IA no responde`);
       return;
     }
 

@@ -9,11 +9,12 @@ export async function procesarCambioStage(
   stageId: string,
   pipelineId: string
 ) {
-  // Cancelar pendientes de stages anteriores en este pipeline
+  // Cancelar pendientes de cualquier etapa anterior, también si la
+  // oportunidad cambió de pipeline (D5: al salir de una etapa no debe seguir
+  // corriendo nada de ella).
   await prisma.disparadorJob.updateMany({
     where: {
       oportunidadId,
-      pipelineId,
       stageId: { not: stageId },
       estado: "PENDIENTE",
     },

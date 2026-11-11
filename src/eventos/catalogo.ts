@@ -16,6 +16,7 @@ export const EventosSistema = {
   OportunidadCreada:      "OPORTUNIDAD_CREADA",
   OportunidadActualizada: "OPORTUNIDAD_ACTUALIZADA",
   EtapaCambiada:          "ETAPA_CAMBIADA",
+  OportunidadMovidaDeEtapa: "OPORTUNIDAD_MOVIDA_DE_ETAPA",
   OportunidadGanada:      "OPORTUNIDAD_GANADA",
   OportunidadPerdida:     "OPORTUNIDAD_PERDIDA",
 

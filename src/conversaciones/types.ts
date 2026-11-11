@@ -4,9 +4,17 @@ import type {
   EstadoMensaje,
   EstadoConversacion,
   ClasificacionConversacion,
+  ModoAtencionConversacion,
 } from "@/generated/prisma/enums";
 
-export type { TipoMensaje, RemitenteMsg, EstadoMensaje, EstadoConversacion, ClasificacionConversacion };
+export type {
+  TipoMensaje,
+  RemitenteMsg,
+  EstadoMensaje,
+  EstadoConversacion,
+  ClasificacionConversacion,
+  ModoAtencionConversacion,
+};
 
 export interface MensajeReaccionResumen {
   id: string;
@@ -109,6 +117,8 @@ export interface ConversacionResumen {
   asunto: string | null;
   estado: EstadoConversacion;
   clasificacion: ClasificacionConversacion;
+  modoAtencion?: ModoAtencionConversacion;
+  atencionMotivo?: string | null;
   oportunidadGanadaRel?: OportunidadGanadaResumen | null;
   creadoEn: Date;
   actualizadoEn: Date;

@@ -18,6 +18,7 @@ export type { EmpresaActualizadaPayload }  from "./contratos/empresa-actualizada
 export type { OportunidadCreadaPayload }      from "./contratos/oportunidad-creada.event";
 export type { OportunidadActualizadaPayload } from "./contratos/oportunidad-actualizada.event";
 export type { EtapaCambiadaPayload }          from "./contratos/etapa-cambiada.event";
+export type { OportunidadMovidaDeEtapaPayload } from "./contratos/oportunidad-movida-de-etapa.event";
 export type { OportunidadGanadaPayload }      from "./contratos/oportunidad-ganada.event";
 export type { OportunidadPerdidaPayload }     from "./contratos/oportunidad-perdida.event";
 
