@@ -24,6 +24,7 @@ import {
   Database,
   Truck,
   PackageCheck,
+  Workflow,
   Menu,
   X,
 } from "lucide-react";
@@ -61,6 +62,7 @@ const NAVEGACION = [
       { href: "/crm/oportunidades", etiqueta: "Oportunidades", Icono: TrendingUp, modulo: "oportunidades" },
       { href: "/crm/actividades", etiqueta: "Actividades", Icono: CalendarCheck, modulo: "actividades" },
       { href: "/crm/etiquetas", etiqueta: "Etiquetas", Icono: Tag, modulo: "etiquetas" },
+      { href: "/crm/workflows", etiqueta: "Workflows", Icono: Workflow, modulo: "workflows" },
     ],
   },
   {

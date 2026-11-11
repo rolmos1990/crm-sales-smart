@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock, RotateCcw, Check, ArrowRightLeft } from "lucide-react";
+import { Lock, RotateCcw, Check, ArrowRightLeft, UserCog } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { MensajeConMeta } from "../types";
@@ -30,14 +30,27 @@ const CONFIG = {
     color: "text-lime-400",
     prefijo: "Movida a",
   },
+  // D6 — cambio de quién atiende la conversación.
+  ATENCION_CAMBIADA: {
+    Icon: UserCog,
+    label: "Cambió la atención",
+    color: "text-muted-foreground",
+    prefijo: "Por",
+  },
 } as const;
+
+const ETIQUETA_MODO: Record<string, string> = {
+  HUMANO: "Atención humana",
+  WORKFLOW: "Atiende un Workflow",
+  AUTOMATICO: "Atención automática",
+};
 
 interface EventoSistemaProps {
   mensaje: MensajeConMeta;
 }
 
 export function EventoSistema({ mensaje }: EventoSistemaProps) {
-  let evento: { tipo?: string; usuarioNombre?: string | null; etapaNombre?: string | null } = {};
+  let evento: { tipo?: string; usuarioNombre?: string | null; etapaNombre?: string | null; a?: string; motivo?: string | null } = {};
   try {
     evento = JSON.parse(mensaje.contenido ?? "{}");
   } catch {
@@ -51,7 +64,11 @@ export function EventoSistema({ mensaje }: EventoSistemaProps) {
   const fechaHora = format(new Date(mensaje.creadoEn), "d MMM yyyy, HH:mm", { locale: es });
 
   let subtitulo: string;
-  if (tipo === "ETAPA_AUTOMATICA" && evento.etapaNombre) {
+  let etiqueta: string = cfg.label;
+  if (tipo === "ATENCION_CAMBIADA") {
+    etiqueta = ETIQUETA_MODO[evento.a ?? ""] ?? cfg.label;
+    subtitulo = [evento.motivo, evento.usuarioNombre && `${cfg.prefijo} ${evento.usuarioNombre}`, fechaHora].filter(Boolean).join(" · ");
+  } else if (tipo === "ETAPA_AUTOMATICA" && evento.etapaNombre) {
     subtitulo = `${cfg.prefijo} "${evento.etapaNombre}" · ${fechaHora}`;
   } else if (tipo === "REABIERTA") {
     subtitulo = `${cfg.prefijo} · ${fechaHora}`;
@@ -67,7 +84,7 @@ export function EventoSistema({ mensaje }: EventoSistemaProps) {
       <div className="flex flex-col items-center gap-0.5">
         <div className="flex items-center gap-1.5">
           <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
-          <span className={`text-[12px] font-medium ${cfg.color}`}>{cfg.label}</span>
+          <span className={`text-[12px] font-medium ${cfg.color}`}>{etiqueta}</span>
         </div>
         <span className="text-[10px] text-muted-foreground">{subtitulo}</span>
       </div>

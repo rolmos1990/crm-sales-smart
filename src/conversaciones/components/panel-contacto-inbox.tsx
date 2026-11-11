@@ -20,6 +20,7 @@ import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeli
 import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { vincularConversacionAContacto, clasificarConversacion } from "../actions";
 import { AvatarContacto } from "./avatar-contacto";
+import { SelectorAtencion } from "@/workflows/components/selector-atencion";
 import type { ConversacionResumen, ClasificacionConversacion, OportunidadActivaResumen } from "../types";
 
 type Contacto = ConversacionResumen["contacto"];
@@ -729,6 +730,17 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
             )}
           </div>
         )}
+
+        {/* Atención: humano / Workflow / automático (D6) */}
+        <div className="pt-2 pb-1 px-3">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Atención</p>
+        </div>
+        <SelectorAtencion
+          key={conversacion.id}
+          conversacionId={conversacion.id}
+          className="mx-2"
+          onCambio={() => onConversacionActualizada?.(conversacion.id)}
+        />
 
         {/* Info del canal */}
         {conversacion.cuentaCanal && (

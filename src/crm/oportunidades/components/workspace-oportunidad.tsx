@@ -8,7 +8,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   X, Phone, Video, Search, MoreHorizontal, ExternalLink, Loader2,
   ChevronDown, Building2, Layers, Mail, Globe,
-  Save, Tag as TagIcon, User, FileText, CheckCircle2, Trash2,
+  Save, Tag as TagIcon, User, FileText, CheckCircle2, Trash2, Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
+import { HistorialEjecuciones } from "@/workflows/components/historial-ejecuciones";
 import { PanelConversacion } from "@/conversaciones/components/panel-conversacion";
 import {
   obtenerOportunidadAction,
@@ -335,6 +336,7 @@ function WorkspaceContenido({
     etiquetas: false,
     campos: false,
     cotizaciones: false,
+    automatizaciones: false,
   });
 
   const refrescarCotizaciones = async () => {
@@ -908,6 +910,16 @@ function WorkspaceContenido({
                     </div>
                   </Seccion>
                 )}
+
+                {/* ── Automatizaciones (Workflows) ─────────────────────── */}
+                <Seccion
+                  titulo="Automatizaciones"
+                  icono={<Workflow className="h-3 w-3" />}
+                  abierto={secciones.automatizaciones}
+                  onToggle={() => toggleSeccion("automatizaciones")}
+                >
+                  {secciones.automatizaciones && <HistorialEjecuciones oportunidadId={oportunidad.id} />}
+                </Seccion>
 
                 {/* ── Cotizaciones ──────────────────────────────────── */}
                 <Seccion

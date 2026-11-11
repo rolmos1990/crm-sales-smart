@@ -40,6 +40,50 @@ async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
   });
 }
 
+// ── Reintentos ───────────────────────────────────────────────────────────────
+
+const MAX_INTENTOS = 3;
+const ESPERA_REINTENTO_MS = [60_000, 5 * 60_000];
+// Más que el timeout de un webhook (10 s) con holgura: si un job sigue en
+// PROCESANDO pasado este plazo, el worker que lo tomó se cayó.
+const DURACION_BLOQUEO_MS = 5 * 60_000;
+const LOTE = 25;
+
+// Error de negocio: reintentar no lo arregla (campo no permitido, campos
+// requeridos, validación del pedido, HTTP 4xx). Todo lo demás (red, timeout,
+// HTTP 5xx/429, base de datos) se considera transitorio.
+class ErrorDefinitivo extends Error {}
+
+function errorHttp(status: number): Error {
+  const mensaje = `HTTP ${status}`;
+  return status >= 500 || status === 429 ? new Error(mensaje) : new ErrorDefinitivo(mensaje);
+}
+
+async function registrarFallo(job: { id: string; intentos: number }, err: unknown): Promise<{ exito: false }> {
+  const mensaje = err instanceof Error ? err.message : "Error desconocido";
+  const reintentar = !(err instanceof ErrorDefinitivo) && job.intentos < MAX_INTENTOS;
+  await prisma.disparadorJob.update({
+    where: { id: job.id },
+    data: reintentar
+      ? {
+          estado: "PENDIENTE",
+          ejecutarEn: new Date(Date.now() + ESPERA_REINTENTO_MS[Math.min(job.intentos - 1, ESPERA_REINTENTO_MS.length - 1)]),
+          bloqueadoHasta: null,
+          error: `Intento ${job.intentos}/${MAX_INTENTOS} falló: ${mensaje}`,
+        }
+      : { estado: "FALLIDO", procesadoEn: new Date(), bloqueadoHasta: null, error: mensaje },
+  });
+  return { exito: false };
+}
+
+async function registrarExito(jobId: string): Promise<{ exito: true }> {
+  await prisma.disparadorJob.update({
+    where: { id: jobId },
+    data: { estado: "COMPLETADO", procesadoEn: new Date(), bloqueadoHasta: null, error: null, resultado: { ok: true } },
+  });
+  return { exito: true };
+}
+
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
 type JobConDisparador = Awaited<
@@ -97,7 +141,7 @@ async function ejecutarJobOportunidad(
             : undefined,
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw errorHttp(res.status);
     } else if (tipo === "ASIGNAR_USUARIO") {
       const cfg = config as unknown as ConfigAsignarUsuario;
       await prisma.oportunidad.update({
@@ -115,7 +159,7 @@ async function ejecutarJobOportunidad(
       const cfg = config as unknown as ConfigModificarCampo;
       if (cfg.modo === "campo_directo") {
         const CAMPOS_PERMITIDOS = ["titulo", "notas", "moneda", "etapa", "valor", "probabilidad"];
-        if (!CAMPOS_PERMITIDOS.includes(cfg.clave)) throw new Error(`Campo no permitido: ${cfg.clave}`);
+        if (!CAMPOS_PERMITIDOS.includes(cfg.clave)) throw new ErrorDefinitivo(`Campo no permitido: ${cfg.clave}`);
         const valorConvertido: unknown =
           cfg.clave === "valor" || cfg.clave === "probabilidad"
             ? parseFloat(cfg.valor) || 0
@@ -149,21 +193,12 @@ async function ejecutarJobOportunidad(
         origen: { tipo: "DISPARADOR" },
         motivo: `Disparador "${job.disparador.nombre}"`,
       });
-      if (!movimiento.exito) throw new Error(movimiento.error);
+      if (!movimiento.exito) throw new ErrorDefinitivo(movimiento.error);
     }
 
-    await prisma.disparadorJob.update({
-      where: { id: job.id },
-      data: { estado: "COMPLETADO", procesadoEn: new Date(), resultado: { ok: true } },
-    });
-    return { exito: true };
+    return await registrarExito(job.id);
   } catch (err) {
-    const mensaje = err instanceof Error ? err.message : "Error desconocido";
-    await prisma.disparadorJob.update({
-      where: { id: job.id },
-      data: { estado: "FALLIDO", procesadoEn: new Date(), error: mensaje },
-    });
-    return { exito: false };
+    return registrarFallo(job, err);
   }
 }
 
@@ -224,12 +259,12 @@ async function ejecutarJobPedido(
             : undefined,
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw errorHttp(res.status);
     } else if (tipo === "MODIFICAR_CAMPO") {
       const cfg = config as unknown as ConfigModificarCampo;
       if (cfg.modo === "campo_directo") {
         const CAMPOS_PERMITIDOS = ["notas", "moneda"];
-        if (!CAMPOS_PERMITIDOS.includes(cfg.clave)) throw new Error(`Campo no permitido: ${cfg.clave}`);
+        if (!CAMPOS_PERMITIDOS.includes(cfg.clave)) throw new ErrorDefinitivo(`Campo no permitido: ${cfg.clave}`);
         await prisma.pedido.update({
           where: { id: pedidoId },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -271,7 +306,7 @@ async function ejecutarJobPedido(
             }
             const motivo = resultado.reglaFallida?.mensajeFallo?.trim()
               || `Requisito no cumplido: "${resultado.reglaFallida?.nombre ?? "regla de validación"}"`;
-            throw new Error(motivo);
+            throw new ErrorDefinitivo(motivo);
           }
         }
         await prisma.pedido.update({
@@ -331,7 +366,7 @@ async function ejecutarJobPedido(
                 motivo: `Pedido ${cfg.resultado === "GANADA" ? "ganado" : "perdido"} — disparador "${job.disparador.nombre}"`,
                 validarCamposRequeridos: false,
               });
-              if (!movimiento.exito) throw new Error(movimiento.error);
+              if (!movimiento.exito) throw new ErrorDefinitivo(movimiento.error);
             }
           } else {
             // Oportunidad sin pipeline dinámico: usa el sistema legado de etapa fija
@@ -354,18 +389,9 @@ async function ejecutarJobPedido(
     }
     // ASIGNAR_USUARIO y ASIGNAR_ETIQUETA: skip silencioso para pedidos
 
-    await prisma.disparadorJob.update({
-      where: { id: job.id },
-      data: { estado: "COMPLETADO", procesadoEn: new Date(), resultado: { ok: true } },
-    });
-    return { exito: true };
+    return await registrarExito(job.id);
   } catch (err) {
-    const mensaje = err instanceof Error ? err.message : "Error desconocido";
-    await prisma.disparadorJob.update({
-      where: { id: job.id },
-      data: { estado: "FALLIDO", procesadoEn: new Date(), error: mensaje },
-    });
-    return { exito: false };
+    return registrarFallo(job, err);
   }
 }
 
@@ -378,33 +404,76 @@ async function ejecutarJob(job: JobConDisparador): Promise<{ exito: boolean }> {
   if (job.pedidoId) {
     return ejecutarJobPedido(job, job.pedidoId);
   }
-  // Job sin entidad — marcar como fallido
-  await prisma.disparadorJob.update({
-    where: { id: job.id },
-    data: { estado: "FALLIDO", procesadoEn: new Date(), error: "Job sin entidad asociada" },
-  });
-  return { exito: false };
+  return registrarFallo(job, new ErrorDefinitivo("Job sin entidad asociada"));
 }
 
 // ── API pública ──────────────────────────────────────────────────────────────
+
+/**
+ * Jobs que quedaron en PROCESANDO porque el worker se cayó a mitad. Los que
+ * tienen bloqueo vencido vuelven a la cola (o fallan si agotaron intentos).
+ * Los que no tienen bloqueo son anteriores a este mecanismo: se marcan
+ * FALLIDO sin reintentar, porque podrían ser de hace mucho (p.ej. un webhook
+ * de hace meses no debe dispararse ahora).
+ */
+export async function recuperarJobsInterrumpidos(ahora: Date = new Date()): Promise<number> {
+  const mensaje = "Interrumpido: el worker se detuvo mientras se ejecutaba";
+  const [reencolados, agotados, legados] = await Promise.all([
+    prisma.disparadorJob.updateMany({
+      where: { estado: "PROCESANDO", bloqueadoHasta: { lt: ahora }, intentos: { lt: MAX_INTENTOS } },
+      data: { estado: "PENDIENTE", ejecutarEn: ahora, bloqueadoHasta: null, error: mensaje },
+    }),
+    prisma.disparadorJob.updateMany({
+      where: { estado: "PROCESANDO", bloqueadoHasta: { lt: ahora }, intentos: { gte: MAX_INTENTOS } },
+      data: { estado: "FALLIDO", procesadoEn: ahora, bloqueadoHasta: null, error: mensaje },
+    }),
+    prisma.disparadorJob.updateMany({
+      where: {
+        estado: "PROCESANDO",
+        bloqueadoHasta: null,
+        ejecutarEn: { lt: new Date(ahora.getTime() - 2 * DURACION_BLOQUEO_MS) },
+      },
+      data: { estado: "FALLIDO", procesadoEn: ahora, error: `${mensaje} (antes de habilitar reintentos)` },
+    }),
+  ]);
+  return reencolados.count + agotados.count + legados.count;
+}
+
+/**
+ * Toma un lote de jobs vencidos de forma atómica: FOR UPDATE SKIP LOCKED hace
+ * que dos workers en paralelo nunca tomen el mismo job.
+ */
+async function reclamarJobs(ahora: Date): Promise<string[]> {
+  const bloqueadoHasta = new Date(ahora.getTime() + DURACION_BLOQUEO_MS);
+  const filas = await prisma.$queryRaw<{ id: string }[]>`
+    UPDATE "DisparadorJob"
+    SET "estado" = 'PROCESANDO', "intentos" = "intentos" + 1, "bloqueadoHasta" = ${bloqueadoHasta}
+    WHERE "id" IN (
+      SELECT "id" FROM "DisparadorJob"
+      WHERE "estado" = 'PENDIENTE' AND "ejecutarEn" <= ${ahora}
+      ORDER BY "ejecutarEn" ASC
+      LIMIT ${LOTE}
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING "id"`;
+  return filas.map((f) => f.id);
+}
 
 export async function ejecutarJobsPendientes(): Promise<{
   procesados: number;
   completados: number;
   fallidos: number;
 }> {
+  const ahora = new Date();
+  await recuperarJobsInterrumpidos(ahora);
+
+  const ids = await reclamarJobs(ahora);
+  if (ids.length === 0) return { procesados: 0, completados: 0, fallidos: 0 };
+
   const jobs = await prisma.disparadorJob.findMany({
-    where: { estado: "PENDIENTE", ejecutarEn: { lte: new Date() } },
+    where: { id: { in: ids } },
     orderBy: { ejecutarEn: "asc" },
-    take: 25,
     include: { disparador: true },
-  });
-
-  if (jobs.length === 0) return { procesados: 0, completados: 0, fallidos: 0 };
-
-  await prisma.disparadorJob.updateMany({
-    where: { id: { in: jobs.map((j) => j.id) } },
-    data: { estado: "PROCESANDO" },
   });
 
   const resultados = await Promise.allSettled(jobs.map(ejecutarJob));

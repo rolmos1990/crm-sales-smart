@@ -885,9 +885,9 @@ Las fases siguen las del documento de requerimientos, con una Fase 0 de prerrequ
 |---|---|---|
 | ✅ 0.1 Auth en acciones de disparadores (B3) — hecho, incluye también los disparadores de Flujo de venta | — | Las 5 acciones exigen `requireAdminPipeline` y validan que el `stageId`/`disparadorId` pertenece a la instancia de la sesión. Lo que hoy funciona para un admin sigue funcionando |
 | ✅ 0.2 `OportunidadHistorialEtapa` + servicio único `moverOportunidadAEtapa` (B1) — hecho (D7 opción A) | — | Todo cambio de `stageId` (Kanban, Inbox, disparadores, creación) crea historial y publica `OportunidadMovidaDeEtapa`; Disparadores se encolan en todos los caminos; validación de campos requeridos igual que hoy |
-| 0.3 Reclamo de `DisparadorJob` con `SKIP LOCKED` + recuperación de `PROCESANDO` vencidos (B2) | — | Dos workers en paralelo no ejecutan el mismo job (test de integración) |
+| ✅ 0.3 Reclamo de `DisparadorJob` con `SKIP LOCKED` + recuperación de `PROCESANDO` vencidos (B2) — hecho, con reintentos (3, backoff 1 y 5 min) solo para errores transitorios | — | Dos workers en paralelo no ejecutan el mismo job (test de integración) |
 | 0.4 `responderConAgente` extraído (H.1) | — | Test existente del suscriptor pasa sin cambios; misma salida de mensajes |
-| 0.5 Parámetro `origen` en `enviarMensaje` (B5) | — | Llamadas actuales sin `origen` se comportan igual; con `origen: "WORKFLOW"` no se ejecuta `procesarPrimeraRespuestaProspecto` (D2) |
+| ✅ 0.5 Parámetro `origen` en `enviarMensaje` (B5) — hecho en `enviarMensajeInterno` (`src/conversaciones/envio.ts`, sin `"use server"`); la Server Action `enviarMensaje` ahora toma la instancia solo de la sesión | — | Llamadas actuales sin `origen` se comportan igual; con `origen: "WORKFLOW"` no se ejecuta `procesarPrimeraRespuestaProspecto` (D2) |
 | ✅ 0.6 Hotfix IA tras transferir a humano (B4, D4): columna `Conversacion.modoAtencion` (default `AUTOMATICO`), `transferir_a_humano` la pone en `HUMANO`, `OrquestarIASuscriptor` no responde en `HUMANO`, botón "Devolver a automático" en el Inbox | — | Tras una transferencia la IA no envía más mensajes en esa conversación; conversaciones sin transferencia se comportan igual que hoy |
 
 ### Fase 1 — Diseño (este documento)
@@ -898,14 +898,15 @@ Entregable: este informe aprobado + decisiones de la sección J resueltas.
 
 | Tarea | Depende de |
 |---|---|
-| 2.1 Migración `fase2_workflows_base` + flag `workflowsHabilitado` | 0.2 |
-| 2.2 `definicion/` (tipos, Zod, catálogo de nodos, validador) con tests | — |
+| ✅ 2.1 Migración `20261112120000_workflows_base` (`Workflow`, `WorkflowVersion`, `WorkflowAsignacion`, índice parcial de una asignación activa por etapa) + flag `workflowsHabilitado` + módulo de permisos `workflows` (OWNER/ADMIN/GERENTE_VENTAS rw, SUPERVISOR r) | 0.2 |
+| ✅ 2.2 `src/workflows/definicion/` — `schema.ts` (Zod por nodo, tipos con `z.infer`), `catalogo-nodos.ts`, `variables.ts`, `validador.ts` (estructura pura + referencias con consultas inyectadas), `consultas-referencias.ts` (Prisma), 21 tests. Variables: `contacto.*`, `empresa.*`, `agente`, `correo_agente` como en plantillas; la oportunidad con prefijo explícito `oportunidad.*` (las plantillas usan `{{titulo}}` sin prefijo) | — |
 | 2.3 Núcleo puro `nucleo.ts` + `avanzar.ts` (lease, pasos idempotentes, tope de pasos) | 2.1, 2.2 |
 | 2.4 Nodos Inicio, Fin, Enviar mensaje (sin validación de ventana, D1), Condición (reuso `evaluarArbol` generalizado a `src/shared/condiciones/`), Esperar respuesta, Timer, Menú (texto) | 2.3, 0.5 |
 | 2.5 Integración worker: `procesarTimersVencidos`, `recuperarLeasesVencidos`, `enrutarMensajeEntrante` en `OrquestarIASuscriptor`, `modoAtencion` | 2.3 |
 | 2.6 `WorkflowEtapaSuscriptor` + asignación por etapa + barrido outbox | 0.2, 2.3 |
-| 2.7 CRUD/publicar/duplicar/activar (`actions.ts`, permiso `workflows`), lista `/crm/workflows`, editor básico (React Flow, biblioteca, panel de propiedades, validación) | 2.2 |
-| 2.8 Selector de Workflow en panel de etapa; historial de ejecución (lista de pasos) en oportunidad | 2.6 |
+| ✅ 2.7 CRUD/publicar/duplicar/activar/eliminar (`src/workflows/actions.ts`, permiso `workflows`), lista `/crm/workflows` (menú CRM), editor `/crm/workflows/[id]` con `@xyflow/react` 12.12.0: biblioteca drag & drop, lienzo, panel de propiedades con formularios de los 14 nodos, validación en vivo, autoguardado, deshacer/rehacer, copiar/pegar/duplicar, publicar | 2.2 |
+| ✅ 2.8a Pestaña "Workflows" en la configuración del pipeline: un Workflow por etapa (`asignarWorkflowAEtapa`) | 2.6 |
+| 2.8b Historial de ejecución (lista de pasos) en la oportunidad | B1 |
 
 Criterio de aceptación de fase: el flujo de la sección 9, sin los nodos CRM (con Fin en su lugar), se construye en el editor, se asigna a "Cotización", corre de punta a punta con timers reales cortos (minutos) y sobrevive a un reinicio del worker.
 
@@ -999,3 +1000,30 @@ Sin decisiones pendientes.
 - `CLAUDE.md` indica Next.js 16.2 pero está instalado 15.5.18.
 - `Disparador` no tiene `instanciaId` propio (lo deriva del stage); el modelo nuevo sí lo tiene en todas las tablas.
 - A futuro, los Disparadores pueden expresarse como Workflows de un solo nodo; **no** se propone migrarlos ahora.
+
+---
+
+## Estado de implementación (2026-11-12)
+
+**Hecho**
+
+| Bloque | Qué | Dónde |
+|---|---|---|
+| 0.1–0.6 | Correcciones previas (auth disparadores e Inbox, etapa única + historial, worker con SKIP LOCKED/reintentos, `responderConAgente`, `enviarMensajeInterno` con `origen`, modo de atención) | ver tabla de Fase 0 |
+| A1–A8 | Modelo, contratos, validador, acciones, lista `/crm/workflows`, editor React Flow, formularios de nodos, Workflow por etapa | `src/workflows/definicion`, `src/workflows/components` |
+| B1 | `WorkflowEjecucion`, `WorkflowEjecucionPaso`, índice parcial de control de conversación | migración `20261112150000_workflows_ejecuciones` |
+| B2–B3 | Motor (lease, pasos idempotentes, esperas, reintentos 1/5/15 min, salida "error", tope de 50 pasos, guarda de etapa D5, pausa por humano) y ejecutores de los 14 nodos | `src/workflows/motor/{motor,nodos,contexto,adaptadores,tipos}.ts` |
+| B4 | `enrutarMensajeEntrante` dentro de `OrquestarIASuscriptor` (D3), ciclo del worker (vencidas, huérfanas, respaldo de mensajes y de etapas), solo empresas con Workflows activos | `src/workflows/motor/disparo.ts`, `src/worker/disparadores.ts` |
+| B5 | `WorkflowEtapaSuscriptor` (D5 + inicio por etapa, profundidad máx. 10) | `src/suscriptores/workflows/` |
+| B6 | Historial "Automatizaciones" en el detalle de la oportunidad, con recorrido y cancelación | `historial-ejecuciones.tsx` |
+| D6 | Selector "Atención" en Inbox y chat de la oportunidad (humano / retomar / iniciar Workflow / automático), paso a humano al responder a mano, eventos en el chat | `selector-atencion.tsx`, `atencion-actions.ts` |
+| D3 | Interruptor por empresa con aviso de etapas con IA; "Mensajes sin atención" (disparador `MENSAJE_RECIBIDO`) | `activacion-workflows.tsx`, `asignacion-mensajes.tsx` |
+
+**Pendiente**
+
+- Disparadores de Inicio `CONVERSACION_CREADA`, `OPORTUNIDAD_CREADA`, `PEDIDO_CREADO` (se muestran como "Próximamente").
+- Modelo de notificaciones in-app (hoy "Notificar agente" crea una tarea de prioridad alta + email opcional).
+- Simulador de Workflows (los adaptadores ya son inyectables: `_usarAdaptadores`).
+- Menú con botones/listas nativas por canal (hoy texto numerado).
+- Ocultar el switch "Respuesta IA" del diálogo de etapa cuando la empresa tiene Workflows activos (hoy D3 se aplica en el servidor; la UI no lo refleja en ese diálogo).
+- Plantillas sembradas ("Atención IA desde el inicio", "Seguimiento de cotización").

@@ -46,6 +46,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useSesion } from "@/shared/auth/sesion-context";
+import { WorkflowsPorEtapa } from "@/workflows/components/workflows-por-etapa";
 import { cn } from "@/lib/utils";
 import {
   crearStage,
@@ -364,6 +366,7 @@ export function PanelConfigPipeline({
   const [isPendingNombre, startTransitionNombre] = useTransition();
   const [isPendingNueva, startTransitionNueva] = useTransition();
   const [isPendingReorden, startTransitionReorden] = useTransition();
+  const { puedeVer } = useSesion();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -462,6 +465,11 @@ export function PanelConfigPipeline({
         <TabsTrigger value="disparadores" className="rounded-none px-4 py-2 text-sm font-medium border-b-2 border-transparent data-active:border-lime-500 dark:data-active:border-lime-400 data-active:text-stone-900 dark:data-active:text-stone-50">
           Disparadores
         </TabsTrigger>
+        {puedeVer("workflows") && (
+          <TabsTrigger value="workflows" className="rounded-none px-4 py-2 text-sm font-medium border-b-2 border-transparent data-active:border-lime-500 dark:data-active:border-lime-400 data-active:text-stone-900 dark:data-active:text-stone-50">
+            Workflows
+          </TabsTrigger>
+        )}
         <TabsTrigger value="peligro" className="rounded-none px-4 py-2 text-sm font-medium border-b-2 border-transparent data-active:border-red-500 data-active:text-red-600 dark:data-active:text-red-400">
           Zona peligrosa
         </TabsTrigger>
@@ -599,6 +607,13 @@ export function PanelConfigPipeline({
       <TabsContent value="disparadores">
         <PanelConfigDisparadores pipeline={{ ...pipeline, stages }} />
       </TabsContent>
+
+      {/* ── Tab: Workflows por etapa ────────────────────────────── */}
+      {puedeVer("workflows") && (
+        <TabsContent value="workflows">
+          <WorkflowsPorEtapa pipelineId={pipeline.id} stages={stages} />
+        </TabsContent>
+      )}
 
       {/* ── Tab: Zona peligrosa ──────────────────────────────────── */}
       <TabsContent value="peligro">

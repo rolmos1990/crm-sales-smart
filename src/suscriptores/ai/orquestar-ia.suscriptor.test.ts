@@ -18,6 +18,11 @@ vi.mock("@/shared/rabbitmq/publicador", () => ({
   publicadorEventos: { publicar: (...a: unknown[]) => publicarMock(...a) },
 }));
 
+const enrutarMensajeEntranteMock = vi.fn();
+vi.mock("@/workflows/motor/disparo", () => ({
+  enrutarMensajeEntrante: (...a: unknown[]) => enrutarMensajeEntranteMock(...a),
+}));
+
 const { OrquestarIASuscriptor } = await import("./orquestar-ia.suscriptor");
 
 function envelope() {
@@ -37,6 +42,22 @@ describe("OrquestarIASuscriptor — atención humana", () => {
       .mockReset()
       .mockResolvedValue({ stage: { respuestaIAHabilitada: true, agenteIAConfigId: null } });
     publicarMock.mockReset();
+    enrutarMensajeEntranteMock.mockReset().mockResolvedValue({ atendido: false });
+  });
+
+  it("si un Workflow (o la regla D3) atiende el mensaje, la IA por etapa no responde", async () => {
+    enrutarMensajeEntranteMock.mockResolvedValue({ atendido: true });
+    conversacionFindUniqueMock.mockReset().mockResolvedValue(conversacion("AUTOMATICO"));
+
+    await new OrquestarIASuscriptor().manejar(envelope());
+
+    expect(enrutarMensajeEntranteMock).toHaveBeenCalledWith({
+      instanciaId: "instancia-1",
+      conversacionId: "conv-1",
+      mensajeId: "msg-1",
+      oportunidadId: "op-1",
+    });
+    expect(publicarMock).not.toHaveBeenCalled();
   });
 
   it("conversación en modo HUMANO: no publica GENERAR_RESPUESTA_IA", async () => {

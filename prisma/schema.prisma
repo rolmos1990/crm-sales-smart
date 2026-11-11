@@ -438,6 +438,9 @@ model Instancia {
   evaluacionesRespuestaIA       EvaluacionRespuestaIA[]
   // 026-preparacion-pedidos
   flujoPreparacion              FlujoPreparacion?
+  // Workflows (docs/WORKFLOWS-PROPUESTA-ARQUITECTURA.md)
+  workflows                     Workflow[]
+  workflowAsignaciones          WorkflowAsignacion[]
 
   @@index([slug])
   @@index([estado])
@@ -658,6 +661,7 @@ model Pipeline {
   oportunidades Oportunidad[]
   campos        CampoPersonalizado[]
   disparadores  Disparador[]
+  workflowAsignaciones WorkflowAsignacion[]
   cuentasCanal  CuentaCanal[]
 
   @@index([instanciaId])
@@ -692,6 +696,7 @@ model PipelineStage {
   oportunidades             Oportunidad[]
   campos                    CampoPersonalizado[]
   disparadores              Disparador[]
+  workflowAsignaciones      WorkflowAsignacion[]
   cuentasCanal              CuentaCanal[]        @relation("CuentaCanalStageEntrada")
   cuentasCanalRespuestaAuto CuentaCanal[]        @relation("CuentaCanalStageRespuesta")
 
@@ -750,6 +755,7 @@ model Oportunidad {
   campos                CampoPersonalizadoValor[]
   disparadorJobs        DisparadorJob[]
   historialEtapas       OportunidadHistorialEtapa[]
+  workflowEjecuciones   WorkflowEjecucion[]
   conversaciones        OportunidadConversacion[]
   conversacionesGanadas Conversacion[]            @relation("ConvOportunidadGanada")
 
@@ -783,6 +789,206 @@ model OportunidadHistorialEtapa {
   @@index([oportunidadId, creadoEn])
   @@index([instanciaId, creadoEn])
   @@index([procesadoWorkflowEn])
+}
+
+// =====================
+// WORKFLOWS (docs/WORKFLOWS-PROPUESTA-ARQUITECTURA.md)
+// =====================
+
+enum EstadoWorkflow {
+  BORRADOR
+  PUBLICADO
+  INACTIVO
+}
+
+enum TipoDisparadorWorkflow {
+  ENTRADA_ETAPA
+  MENSAJE_RECIBIDO
+  CONVERSACION_CREADA
+  OPORTUNIDAD_CREADA
+  PEDIDO_CREADO
+  // "Ejecutar otro Workflow" y el simulador
+  MANUAL
+}
+
+model Workflow {
+  id          String         @id @default(cuid())
+  nombre      String
+  descripcion String?
+  estado      EstadoWorkflow @default(BORRADOR)
+  // DefinicionWorkflow editable (src/workflows/definicion/schema.ts). Las
+  // ejecuciones NUNCA leen esto: usan una WorkflowVersion publicada.
+  borrador      Json
+  configuracion Json?
+
+  versionPublicadaId String?          @unique
+  versionPublicada   WorkflowVersion? @relation("VersionVigente", fields: [versionPublicadaId], references: [id])
+
+  creadoPorId      String?
+  actualizadoPorId String?
+  creadoEn         DateTime @default(now())
+  actualizadoEn    DateTime @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  versiones    WorkflowVersion[]    @relation("VersionesDeWorkflow")
+  ejecuciones  WorkflowEjecucion[]
+  asignaciones WorkflowAsignacion[]
+
+  @@unique([instanciaId, nombre])
+  @@index([instanciaId, estado])
+}
+
+// Inmutable una vez creada: publicar siempre crea una versión nueva.
+model WorkflowVersion {
+  id             String   @id @default(cuid())
+  numero         Int
+  definicion     Json
+  publicadaEn    DateTime @default(now())
+  publicadaPorId String?
+
+  workflowId  String
+  workflow    Workflow  @relation("VersionesDeWorkflow", fields: [workflowId], references: [id], onDelete: Cascade)
+  vigenteDe   Workflow? @relation("VersionVigente")
+  ejecuciones WorkflowEjecucion[]
+  instanciaId String
+
+  @@unique([workflowId, numero])
+  @@index([instanciaId])
+}
+
+// Dónde y ante qué evento corre un Workflow. Una sola asignación activa de
+// tipo ENTRADA_ETAPA por etapa (índice parcial en la migración).
+model WorkflowAsignacion {
+  id         String                 @id @default(cuid())
+  disparador TipoDisparadorWorkflow
+  activo     Boolean                @default(true)
+  // ConditionTree opcional para acotar cuándo aplica (p.ej. solo un canal).
+  filtros    Json?
+  creadoEn   DateTime               @default(now())
+
+  workflowId String
+  workflow   Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  pipelineId String?
+  pipeline   Pipeline?      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stageId    String?
+  stage      PipelineStage? @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId, disparador, activo])
+  @@index([workflowId])
+  @@index([stageId])
+}
+
+enum EstadoEjecucionWorkflow {
+  EJECUTANDO
+  ESPERANDO_RESPUESTA
+  ESPERANDO_TIMER
+  // p.ej. respuesta de IA pendiente de revisión humana (autonomía)
+  ESPERANDO_ACCION_EXTERNA
+  IA_ACTIVA
+  // Pausada porque un humano tomó la conversación; se puede retomar (D6).
+  TRANSFERIDA_HUMANO
+  COMPLETADA
+  FALLIDA
+  CANCELADA
+}
+
+enum TipoEsperaWorkflow {
+  TIMER
+  RESPUESTA
+  IA
+  REVISION
+  // Reintento programado de un nodo que falló por un error transitorio.
+  REINTENTO
+}
+
+// Una ejecución de una versión publicada (inmutable) de un Workflow.
+model WorkflowEjecucion {
+  id     String                  @id @default(cuid())
+  estado EstadoEjecucionWorkflow @default(EJECUTANDO)
+
+  nodoActualId String?
+  // { variables: {...}, meta: {...} } — variables del Workflow y datos de
+  // control de los nodos (intentos, interacciones de IA, inicio de espera).
+  contexto    Json
+  esperaTipo  TipoEsperaWorkflow?
+  esperaDesde DateTime?
+  esperaHasta DateTime?
+
+  ultimoMensajeProcesadoId String?
+  intentosNodo             Int     @default(0)
+
+  // Lease: quién la está procesando y hasta cuándo (sin locks largos).
+  bloqueadoHasta DateTime?
+  bloqueadoPor   String?
+
+  claveIdempotencia    String  @unique
+  controlaConversacion Boolean @default(false)
+  // Cadena de ejecuciones (Mover etapa → Workflow de la etapa siguiente,
+  // Ejecutar otro Workflow): límite contra bucles.
+  profundidad          Int     @default(0)
+  disparador           TipoDisparadorWorkflow
+  stageId              String?
+
+  resultado         String?
+  error             String?
+  motivoCancelacion String?
+  iniciadaEn        DateTime  @default(now())
+  actualizadaEn     DateTime  @updatedAt
+  finalizadaEn      DateTime?
+
+  workflowId String
+  workflow   Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  versionId  String
+  version    WorkflowVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  oportunidadId  String?
+  oportunidad    Oportunidad?  @relation(fields: [oportunidadId], references: [id], onDelete: Cascade)
+  conversacionId String?
+  conversacion   Conversacion? @relation(fields: [conversacionId], references: [id], onDelete: SetNull)
+  contactoId     String?
+
+  ejecucionOrigenId String?
+  ejecucionOrigen   WorkflowEjecucion?  @relation("CadenaEjecuciones", fields: [ejecucionOrigenId], references: [id], onDelete: SetNull)
+  ejecucionesHijas  WorkflowEjecucion[] @relation("CadenaEjecuciones")
+
+  instanciaId String
+
+  pasos WorkflowEjecucionPaso[]
+
+  @@index([estado, esperaHasta])
+  @@index([estado, bloqueadoHasta])
+  @@index([oportunidadId, estado])
+  @@index([conversacionId, estado])
+  @@index([instanciaId, workflowId, iniciadaEn])
+}
+
+// Historial de la ejecución y, a la vez, garantía de idempotencia: el paso
+// se registra ANTES del efecto (enviar, mover, crear tarea); si el motor se
+// reintenta, el unique evita repetir el efecto.
+model WorkflowEjecucionPaso {
+  id         String   @id @default(cuid())
+  nodoId     String
+  tipoNodo   String
+  iteracion  Int      @default(0)
+  // EJECUTANDO | OK | ERROR | ESPERANDO | INTERRUMPIDO
+  estado     String
+  salida     String?
+  resultado  Json?
+  error      String?
+  duracionMs Int?
+  ocurridoEn DateTime @default(now())
+
+  ejecucionId String
+  ejecucion   WorkflowEjecucion @relation(fields: [ejecucionId], references: [id], onDelete: Cascade)
+  instanciaId String
+
+  @@unique([ejecucionId, nodoId, iteracion])
+  @@index([ejecucionId, ocurridoEn])
 }
 
 model OportunidadContacto {
@@ -1916,6 +2122,10 @@ model DisparadorJob {
   error       String?
   creadoEn    DateTime            @default(now())
   procesadoEn DateTime?
+  // Reintentos ante errores transitorios (red, HTTP 5xx) y recuperación de
+  // jobs que quedaron en PROCESANDO porque el worker se cayó a mitad.
+  intentos       Int       @default(0)
+  bloqueadoHasta DateTime?
 
   disparadorId String
   disparador   Disparador @relation(fields: [disparadorId], references: [id])
@@ -1935,6 +2145,7 @@ model DisparadorJob {
   flujoVentaId      String?
 
   @@index([estado, ejecutarEn])
+  @@index([estado, bloqueadoHasta])
   @@index([oportunidadId, stageId])
   @@index([pedidoId, flujoVentaEtapaId])
   @@index([disparadorId])
@@ -2277,6 +2488,9 @@ model ConfiguracionEmpresa {
   // productos en pedidos y cotizaciones. Solo el inicial: el usuario puede
   // cambiarlo a mano.
   filtroProductosPedido FiltroCatalogoVenta @default(TODOS)
+  // Workflows — apagado por defecto: sin el flag, el motor no hace nada y la
+  // IA por etapa funciona como siempre (D3).
+  workflowsHabilitado Boolean @default(false)
 
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -2470,6 +2684,8 @@ model Conversacion {
   atencionDesde     DateTime?
   atencionMotivo    String?
   atencionUsuarioId String?
+  // Ejecución de Workflow que controla la conversación (modoAtencion = WORKFLOW).
+  atencionEjecucionId String?
 
   oportunidadGanadaRelId String?
   oportunidadGanadaRel   Oportunidad? @relation("ConvOportunidadGanada", fields: [oportunidadGanadaRelId], references: [id], onDelete: SetNull)
@@ -2491,6 +2707,7 @@ model Conversacion {
   respuestasPendientesRevision RespuestaPendienteRevision[]
   // 014-conversaciones-piloto-ejemplos-relevantes — auditoría de origen
   conversacionesPilotoOrigen   ConversacionPiloto[]
+  workflowEjecuciones          WorkflowEjecucion[]
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt

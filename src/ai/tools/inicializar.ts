@@ -19,3 +19,4 @@ import "@/ai/tools/providers/obtener-ubicaciones-retiro.tool";
 import "@/ai/tools/providers/agregar-productos-oportunidad.tool";
 // 024-alias-ubicaciones-transportistas
 import "@/ai/tools/providers/consultar-opciones-envio.tool";
+import "@/ai/tools/providers/finalizar-atencion-workflow.tool";

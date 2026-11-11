@@ -9,6 +9,7 @@ import { CotizacionAprobadaSuscriptor } from "./cotizaciones/cotizacion-aprobada
 import { GenerarRespuestaIASuscriptor } from "./ai/generar-respuesta-ia.suscriptor";
 import { OrquestarIASuscriptor } from "./ai/orquestar-ia.suscriptor";
 import { InvalidarPerfilSuscriptor } from "@/ai/perfil-cliente/suscriptores/invalidar-perfil.suscriptor";
+import { WorkflowEtapaSuscriptor } from "./workflows/workflow-etapa.suscriptor";
 
 export async function registrarTodosSuscriptores(): Promise<void> {
   const suscriptores = [
@@ -23,6 +24,7 @@ export async function registrarTodosSuscriptores(): Promise<void> {
     new GenerarRespuestaIASuscriptor(),
     new OrquestarIASuscriptor(),
     new InvalidarPerfilSuscriptor(),
+    new WorkflowEtapaSuscriptor(),
   ];
   await Promise.all(suscriptores.map((s) => s.iniciar()));
   console.log("[Suscriptores] Todos activos");

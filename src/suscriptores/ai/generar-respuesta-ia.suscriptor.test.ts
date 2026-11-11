@@ -33,8 +33,8 @@ vi.mock("@/ai/contexto/constructor", () => ({
 }));
 
 const enviarMensajeMock = vi.fn();
-vi.mock("@/conversaciones/actions", () => ({
-  enviarMensaje: (...a: unknown[]) => enviarMensajeMock(...a),
+vi.mock("@/conversaciones/envio", () => ({
+  enviarMensajeInterno: (...a: unknown[]) => enviarMensajeMock(...a),
 }));
 
 const obtenerAutonomiaPorAgenteMock = vi.fn();

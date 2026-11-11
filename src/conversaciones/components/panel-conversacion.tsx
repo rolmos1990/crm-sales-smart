@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ListaMensajes } from "./lista-mensajes";
 import { InputMensaje } from "./input-mensaje";
 import { SelectorCuentaCanal } from "./selector-cuenta-canal";
+import { SelectorAtencion } from "@/workflows/components/selector-atencion";
 import { enviarMensaje, iniciarConversacion } from "../actions";
 import type { ConversacionResumen, MensajeConMeta, CuentaCanalResumen } from "../types";
 
@@ -301,6 +302,11 @@ export function PanelConversacion({
             )}
           </div>}
         </div>
+      )}
+
+      {/* Atención: humano / Workflow / automático (D6) */}
+      {!sinConversacion && conversacionActiva && (
+        <SelectorAtencion key={conversacionActiva} conversacionId={conversacionActiva} className="mx-3 mt-2 shrink-0" />
       )}
 
       {/* Lista de mensajes con paginación */}

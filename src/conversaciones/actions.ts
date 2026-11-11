@@ -4,14 +4,20 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { EventosSistema, ComandosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
-import { EnviarMensajeSchema } from "./schema";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
 import { obtenerProvider } from "./providers/registry";
 import { obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import { obtenerConversacionPorId, obtenerConversacionesInbox } from "./queries";
-import { requireSesion } from "@/shared/auth/sesion";
+import { requireSesion, obtenerSesionActual } from "@/shared/auth/sesion";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
-import { moverOportunidadAEtapa, registrarEntradaInicialAEtapa } from "@/crm/pipeline/mover-stage";
+import type { SesionActual } from "@/shared/auth/sesion";
+import { registrarEntradaInicialAEtapa } from "@/crm/pipeline/mover-stage";
+import {
+  enviarMensajeInterno,
+  procesarPrimeraRespuestaProspecto,
+  registrarEventoConversacion,
+  type ResultadoEnvio,
+} from "./envio";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 
 // ── Resolución compartida de contacto + conversación ────────────────────────
@@ -506,22 +512,26 @@ export async function iniciarConversacion(input: {
   cuentaCanalId?: string | null;
   oportunidadId?: string | null;
 }): Promise<{ ok: true; conversacionId: string } | { ok: false; error: string }> {
+  const auth = await requirePermisoAction("inbox", "modificar");
+  if (!auth.ok) return { ok: false, error: auth.error };
   try {
-    // Resolver instanciaId desde el canal seleccionado (si aplica)
-    let instanciaId: string | null = null;
-    if (input.cuentaCanalId) {
-      const cuenta = await prisma.cuentaCanal.findUnique({
-        where: { id: input.cuentaCanalId },
-        select: { instanciaId: true },
-      });
-      instanciaId = cuenta?.instanciaId ?? null;
-    }
+    // La instancia sale de la sesión; contacto y canal deben pertenecerle.
+    const instanciaId = auth.sesion.instanciaId;
+    const [contacto, cuenta] = await Promise.all([
+      prisma.contacto.count({ where: { id: input.contactoId, instanciaId } }),
+      input.cuentaCanalId
+        ? prisma.cuentaCanal.count({ where: { id: input.cuentaCanalId, instanciaId } })
+        : Promise.resolve(1),
+    ]);
+    if (contacto === 0) return { ok: false, error: "Contacto no encontrado" };
+    if (cuenta === 0) return { ok: false, error: "Canal no encontrado" };
 
     // Reusar conversación abierta si ya existe para este contacto + canal
     const existente = await prisma.conversacion.findFirst({
       where: {
         contactoId: input.contactoId,
         cuentaCanalId: input.cuentaCanalId ?? undefined,
+        instanciaId,
         estado: "ABIERTA",
       },
     });
@@ -530,13 +540,13 @@ export async function iniciarConversacion(input: {
       data: {
         contactoId: input.contactoId,
         cuentaCanalId: input.cuentaCanalId ?? undefined,
-        instanciaId: instanciaId ?? undefined,
+        instanciaId,
         estado: "ABIERTA",
       },
     });
 
     // Registrar identificador de canal del contacto solo si hay canal activo
-    if (input.cuentaCanalId && instanciaId) {
+    if (input.cuentaCanalId) {
       const [cuentaCanal, contacto] = await Promise.all([
         prisma.cuentaCanal.findUnique({ where: { id: input.cuentaCanalId }, select: { canal: true } }),
         prisma.contacto.findUnique({ where: { id: input.contactoId }, select: { telefonoPrincipal: true, email: true } }),
@@ -556,9 +566,9 @@ export async function iniciarConversacion(input: {
     }
 
     if (!existente) {
-      void publicadorEventos.publicar(EventosSistema.ConversacionCreada, instanciaId ?? "", {
+      void publicadorEventos.publicar(EventosSistema.ConversacionCreada, instanciaId, {
         conversacionId: conversacion.id,
-        instanciaId: instanciaId ?? "",
+        instanciaId,
         contactoId: input.contactoId,
       });
     }
@@ -571,6 +581,10 @@ export async function iniciarConversacion(input: {
 
 // ── Enviar mensaje saliente ─────────────────────────────────────────────────
 
+// Server Action del navegador: la instancia SIEMPRE sale de la sesión. Antes
+// aceptaba un `instanciaId` como parámetro para que lo usara el worker, pero
+// al ser una Server Action cualquier cliente podía mandarlo y saltarse la
+// sesión. Los procesos internos usan enviarMensajeInterno (envio.ts).
 export async function enviarMensaje(input: {
   conversacionId: string;
   contenido?: string;
@@ -578,102 +592,45 @@ export async function enviarMensaje(input: {
   esNotaInterna?: boolean;
   usuarioId?: string;
   mediaUrl?: string;
-  /** Solo para llamadores internos de confianza (workers de cola, ej.
-   *  GenerarRespuestaIASuscriptor) que ya resolvieron y validaron el
-   *  instanciaId contra la conversación antes de llegar acá — nunca lo
-   *  manda un cliente. Si no viene, se resuelve por sesión (llamada desde
-   *  el navegador). Ver docs/META-INSTAGRAM-PRODUCTION-AUDIT.md, hallazgo #2. */
-  instanciaId?: string;
-}): Promise<{ ok: true; mensaje: { id: string } } | { ok: false; error: string }> {
-  try {
-    const validado = EnviarMensajeSchema.parse(input);
+}): Promise<ResultadoEnvio> {
+  const sesion = await obtenerSesionActual();
+  if (!sesion) return { ok: false, error: "No autenticado" };
 
-    const conversacion = await prisma.conversacion.findUniqueOrThrow({
-      where: { id: validado.conversacionId },
-      include: { cuentaCanal: true, contacto: true },
+  // D6: si un Workflow atiende y un agente responde a mano, la conversación
+  // pasa a atención humana y el Workflow queda en pausa (se puede retomar
+  // desde el selector "Atención").
+  if (!input.esNotaInterna) {
+    const conv = await prisma.conversacion.findFirst({
+      where: { id: input.conversacionId, instanciaId: sesion.instanciaId, modoAtencion: "WORKFLOW" },
+      select: { id: true },
     });
-
-    // Aislamiento multi-tenant: un llamador de confianza (worker) trae su
-    // propio instanciaId ya validado; si no, se exige sesión real y se
-    // compara contra ella — nunca se confía en la conversación por su solo id.
-    const instanciaIdEsperado = input.instanciaId ?? (await requireSesion()).instanciaId;
-    if (conversacion.instanciaId !== instanciaIdEsperado) {
-      return { ok: false, error: "Conversación no encontrada" };
-    }
-
-    // Crear mensaje en BD de inmediato (optimistic — el agente lo ve al instante)
-    const mensaje = await prisma.mensajeConversacion.create({
-      data: {
-        conversacionId: validado.conversacionId,
-        contenido: validado.contenido ?? null,
-        tipo: validado.tipo,
-        mediaUrl: validado.mediaUrl ?? null,
-        remitente: validado.esNotaInterna ? "SISTEMA" : "AGENTE",
-        estado: "ENVIADO",
-        esNotaInterna: validado.esNotaInterna,
-        usuarioId: input.usuarioId ?? null,
-        enviadoEn: new Date(),
-      },
-    });
-
-    await prisma.conversacion.update({
-      where: { id: validado.conversacionId },
-      data: { actualizadoEn: new Date() },
-    });
-
-    // Cubre tanto una respuesta manual de un agente humano como una respuesta
-    // automática de IA (GenerarRespuestaIASuscriptor llama a esta misma
-    // función) — las notas internas no cuentan como "responder al contacto".
-    if (!validado.esNotaInterna) {
-      await procesarPrimeraRespuestaProspecto(validado.conversacionId, mensaje.id);
-    }
-
-    // Notificar SSE de inmediato para que el panel lo muestre sin esperar al worker
-    if (conversacion.instanciaId) {
-      void publicadorEventos.publicar(EventosSistema.MensajeEnviado, conversacion.instanciaId, {
-        mensajeId: mensaje.id,
-        conversacionId: validado.conversacionId,
-        instanciaId: conversacion.instanciaId,
-      });
-    }
-
-    // Encolar job asíncrono para la entrega real solo si hay canal configurado
-    if (!validado.esNotaInterna && conversacion.cuentaCanalId && conversacion.instanciaId && conversacion.cuentaCanal) {
-      // Resolver el identificador real del contacto en este canal.
-      // Para contactos @lid (privacidad activada en WhatsApp) telefonoPrincipal es null,
-      // pero el JID correcto está guardado en ContactoIdentificadorCanal desde el primer mensaje entrante.
-      const idCanal = await prisma.contactoIdentificadorCanal.findFirst({
-        where: {
-          contactoId: conversacion.contactoId,
-          instanciaId: conversacion.instanciaId,
-          canal: conversacion.cuentaCanal.canal,
+    if (conv) {
+      await prisma.conversacion.update({
+        where: { id: conv.id },
+        data: {
+          modoAtencion: "HUMANO",
+          atencionDesde: new Date(),
+          atencionMotivo: "Un agente respondió manualmente",
+          atencionUsuarioId: sesion.usuarioInstanciaId,
+          atencionEjecucionId: null,
         },
-        select: { identificador: true },
       });
-      const destinatario =
-        idCanal?.identificador ??
-        conversacion.contacto.telefonoPrincipal ??
-        conversacion.contacto.email ??
-        "";
-
-      await publicadorEventos.publicar(ComandosSistema.EnviarMensaje, conversacion.instanciaId, {
-        instanciaId: conversacion.instanciaId,
-        mensajeId: mensaje.id,
-        conversacionId: validado.conversacionId,
-        contenido: validado.contenido,
-        tipo: validado.tipo,
-        mediaUrl: input.mediaUrl ?? undefined,
-        destinatario,
-        canal: conversacion.cuentaCanal.canal,
-        cuentaCanalId: conversacion.cuentaCanalId,
-      });
+      const { pausarPorHumano } = await import("@/workflows/motor/motor");
+      const { registrarCambioAtencionChat } = await import("@/workflows/motor/adaptadores");
+      await pausarPorHumano(conv.id);
+      await registrarCambioAtencionChat(conv.id, "HUMANO", "Un agente respondió manualmente", sesion.nombre);
     }
-
-    revalidatePath(`/crm/oportunidades`);
-    return { ok: true, mensaje: { id: mensaje.id } };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Error al enviar mensaje" };
   }
+
+  return enviarMensajeInterno({
+    conversacionId: input.conversacionId,
+    contenido: input.contenido,
+    tipo: input.tipo,
+    esNotaInterna: input.esNotaInterna,
+    usuarioId: input.usuarioId,
+    mediaUrl: input.mediaUrl,
+    instanciaId: sesion.instanciaId,
+  });
 }
 
 // ── Obtener datos para workspace (pipeline panel) ──────────────────────────
@@ -704,12 +661,18 @@ export async function vincularConversacionAContacto(
   conversacionId: string,
   nuevoContactoId: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const auth = await autorizarConversacion(conversacionId);
+  if (!auth.ok) return auth;
   try {
     const conv = await prisma.conversacion.findUnique({
       where: { id: conversacionId },
       select: { contactoId: true, instanciaId: true },
     });
     if (!conv) return { ok: false, error: "Conversación no encontrada" };
+    const nuevoContacto = await prisma.contacto.count({
+      where: { id: nuevoContactoId, instanciaId: auth.sesion.instanciaId },
+    });
+    if (nuevoContacto === 0) return { ok: false, error: "Contacto no encontrado" };
 
     const viejoContactoId = conv.contactoId;
 
@@ -755,106 +718,23 @@ export async function vincularConversacionAContacto(
   }
 }
 
-// ── Primera respuesta a un prospecto → mover etapa automáticamente ─────────
-//
-// Config por CuentaCanal.stageIdRespuestaAutomatica (dropdown "Al responder
-// por primera vez, mover prospecto a:" en cada panel de integración). Se
-// llama desde AMBOS puntos donde nace un mensaje saliente hacia el contacto:
-// enviarMensaje (cubre tanto una respuesta manual de un agente humano como
-// una respuesta automática de IA — GenerarRespuestaIASuscriptor llama a esa
-// misma función) y registrarMensajeAppNativa (respuesta enviada desde la app
-// nativa del canal, fuera de Karia). Deliberadamente resiliente: un error acá
-// nunca debe impedir que el mensaje se termine de enviar/registrar.
-async function procesarPrimeraRespuestaProspecto(conversacionId: string, mensajeRecienCreadoId: string) {
-  try {
-    const conversacion = await prisma.conversacion.findUnique({
-      where: { id: conversacionId },
-      select: { cuentaCanalId: true },
-    });
-    if (!conversacion?.cuentaCanalId) return;
+// ── Autorización de acciones del Inbox ──────────────────────────────────────
 
-    const cuentaCanal = await prisma.cuentaCanal.findUnique({
-      where: { id: conversacion.cuentaCanalId },
-      select: { stageIdRespuestaAutomatica: true },
-    });
-    if (!cuentaCanal?.stageIdRespuestaAutomatica) return;
-
-    // "Primera respuesta" = no hay otro mensaje saliente previo (agente
-    // humano o app nativa) en esta conversación. Las notas internas
-    // (remitente SISTEMA) y los mensajes del propio contacto no cuentan —
-    // el llamador ya filtra notas internas antes de invocar esto.
-    const respuestasPrevias = await prisma.mensajeConversacion.count({
-      where: {
-        conversacionId,
-        remitente: { in: ["AGENTE", "AGENTE_CANAL_NATIVO"] },
-        id: { not: mensajeRecienCreadoId },
-      },
-    });
-    if (respuestasPrevias > 0) return;
-
-    // Misma resolución de "oportunidad activa de la conversación" que usa
-    // el endpoint de contexto de IA (src/app/api/conversaciones/[id]/contexto/route.ts).
-    const oportunidadConv = await prisma.oportunidadConversacion.findFirst({
-      where: { conversacionId, esActiva: true },
-      orderBy: { creadoEn: "desc" },
-      include: { oportunidad: { select: { id: true, stageId: true } } },
-    });
-    const oportunidad = oportunidadConv?.oportunidad;
-    if (!oportunidad?.stageId) return;
-
-    const stageActual = await prisma.pipelineStage.findUnique({
-      where: { id: oportunidad.stageId },
-      select: { esInicial: true },
-    });
-    if (!stageActual?.esInicial) return; // ya no está en la etapa inicial — no tocar
-
-    const stageDestino = await prisma.pipelineStage.findUnique({
-      where: { id: cuentaCanal.stageIdRespuestaAutomatica },
-      select: { id: true, pipelineId: true, nombre: true },
-    });
-    if (!stageDestino || stageDestino.id === oportunidad.stageId) return;
-
-    const resultado = await moverOportunidadAEtapa({
-      oportunidadId: oportunidad.id,
-      stageId: stageDestino.id,
-      pipelineId: stageDestino.pipelineId,
-      origen: { tipo: "SISTEMA" },
-      motivo: "Primera respuesta al prospecto",
-    });
-    if (resultado.exito) {
-      await registrarEventoConversacion(conversacionId, "ETAPA_AUTOMATICA", { etapaNombre: stageDestino.nombre });
-    } else {
-      // Ej. el stage destino tiene campos personalizados requeridos sin
-      // completar — skip silencioso, una automatización no puede pedirle al
-      // usuario que los complete en este instante.
-      console.error(
-        `[procesarPrimeraRespuestaProspecto] No se pudo mover oportunidad ${oportunidad.id}: ${resultado.error}`
-      );
-    }
-  } catch (e) {
-    console.error("[procesarPrimeraRespuestaProspecto] Error inesperado:", e);
-  }
-}
-
-// ── Eventos de ciclo de vida ────────────────────────────────────────────────
-
-type TipoEvento = "CERRADA" | "REABIERTA" | "RESPONDIDA" | "ETAPA_AUTOMATICA";
-
-async function registrarEventoConversacion(
+// Este archivo es "use server": todo lo exportado es invocable desde el
+// navegador con cualquier id. Cada acción del Inbox exige sesión con permiso
+// y que la conversación sea de la instancia de esa sesión.
+async function autorizarConversacion(
   conversacionId: string,
-  tipo: TipoEvento,
-  detalle?: { usuarioNombre?: string; etapaNombre?: string }
-) {
-  await prisma.mensajeConversacion.create({
-    data: {
-      conversacionId,
-      tipo: "EVENTO_SISTEMA",
-      remitente: "SISTEMA",
-      estado: "ENVIADO",
-      esNotaInterna: false,
-      contenido: JSON.stringify({ tipo, usuarioNombre: detalle?.usuarioNombre ?? null, etapaNombre: detalle?.etapaNombre ?? null }),
-    },
+  tipo: "ver" | "modificar" = "modificar",
+): Promise<{ ok: true; sesion: SesionActual } | { ok: false; error: string }> {
+  const auth = await requirePermisoAction("inbox", tipo);
+  if (!auth.ok) return { ok: false, error: auth.error };
+  const conv = await prisma.conversacion.findFirst({
+    where: { id: conversacionId, instanciaId: auth.sesion.instanciaId },
+    select: { id: true },
   });
+  if (!conv) return { ok: false, error: "Conversación no encontrada" };
+  return { ok: true, sesion: auth.sesion };
 }
 
 // ── Cerrar / marcar respondida / reabrir ────────────────────────────────────
@@ -862,6 +742,8 @@ async function registrarEventoConversacion(
 export async function cerrarConversacion(
   conversacionId: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const auth = await autorizarConversacion(conversacionId);
+  if (!auth.ok) return auth;
   try {
     await prisma.conversacion.update({
       where: { id: conversacionId },
@@ -878,6 +760,8 @@ export async function cerrarConversacion(
 export async function marcarRespondida(
   conversacionId: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const auth = await autorizarConversacion(conversacionId);
+  if (!auth.ok) return auth;
   try {
     await prisma.conversacion.update({
       where: { id: conversacionId },
@@ -894,6 +778,8 @@ export async function marcarRespondida(
 export async function reabrirConversacion(
   conversacionId: string
 ): Promise<{ ok: boolean; error?: string }> {
+  const auth = await autorizarConversacion(conversacionId);
+  if (!auth.ok) return auth;
   try {
     await prisma.conversacion.update({
       where: { id: conversacionId },
@@ -952,6 +838,8 @@ export async function marcarMensajesLeidos(
   conversacionId: string,
   mensajeIds: string[]
 ): Promise<{ ok: boolean; error?: string }> {
+  const auth = await autorizarConversacion(conversacionId);
+  if (!auth.ok) return auth;
   try {
     if (!mensajeIds.length) return { ok: false, error: "Sin mensajes" };
 
@@ -995,6 +883,8 @@ export async function marcarMensajesLeidos(
 // ── Obtener conversación actualizada (para refrescar estado en cliente) ────────
 
 export async function obtenerConversacionAction(conversacionId: string): Promise<ConversacionResumen | null> {
+  const auth = await autorizarConversacion(conversacionId, "ver");
+  if (!auth.ok) return null;
   return obtenerConversacionPorId(conversacionId);
 }
 
@@ -1014,6 +904,8 @@ export async function clasificarConversacion({
   conversacionId: string;
   clasificacion: "NINGUNA" | "POSTVENTA" | "SOPORTE" | "COMERCIAL";
 }): Promise<{ ok: boolean; error?: string; oportunidadId?: string; aviso?: string; conversacion?: ConversacionResumen }> {
+  const auth = await autorizarConversacion(conversacionId);
+  if (!auth.ok) return auth;
   try {
     const anterior = await prisma.conversacion.findUnique({
       where: { id: conversacionId },
@@ -1084,6 +976,13 @@ export async function crearOportunidadDesdeConversacion({
   instanciaId: string;
   cuentaCanalId?: string | null;
 }): Promise<{ ok: boolean; oportunidadId?: string; error?: string }> {
+  // El panel del Inbox manda instanciaId y contactoId desde el cliente: se
+  // validan contra la sesión y contra la conversación, nunca se confía en ellos.
+  const auth = await autorizarConversacion(conversacionId);
+  if (!auth.ok) return auth;
+  if (instanciaId !== auth.sesion.instanciaId) return { ok: false, error: "Conversación no encontrada" };
+  const contactoValido = await prisma.conversacion.count({ where: { id: conversacionId, contactoId } });
+  if (contactoValido === 0) return { ok: false, error: "Conversación no encontrada" };
   try {
     // Guard: verificar que no exista oportunidad activa (ni por etapa enum ni por stage pipeline)
     const opActiva = await prisma.oportunidadContacto.findFirst({
@@ -1188,9 +1087,11 @@ export async function toggleReaccion(
   usuarioId: string | null,
   nombreUsuario: string | null,
 ): Promise<{ exito: true } | { exito: false; error: string }> {
+  const auth = await requirePermisoAction("inbox", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
   try {
-    const mensaje = await prisma.mensajeConversacion.findUnique({
-      where: { id: mensajeId },
+    const mensaje = await prisma.mensajeConversacion.findFirst({
+      where: { id: mensajeId, conversacion: { instanciaId: auth.sesion.instanciaId } },
       select: {
         conversacionId: true,
         idExterno: true,
