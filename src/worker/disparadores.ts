@@ -1,5 +1,6 @@
 import "../shared/env/cargar-env";
 import { ejecutarJobsPendientes } from "../crm/pipeline/disparadores/ejecutor";
+import { cicloWorkflows } from "../workflows/motor/disparo";
 import { registrarTodosSuscriptores } from "../suscriptores/registrar";
 import { reconectarSesionesWA } from "../integraciones/whatsapp-lite/reconectar";
 
@@ -22,6 +23,15 @@ async function run() {
       }
     } catch (err) {
       console.error("[worker:disparadores] error en ciclo:", err);
+    }
+
+    // Workflows: timers vencidos, recuperación y respaldo de eventos perdidos.
+    try {
+      const wf = await cicloWorkflows();
+      const total = wf.vencidas + wf.recuperadas + wf.mensajes + wf.etapas;
+      if (total > 0) console.log(`[worker:workflows] ${JSON.stringify(wf)}`);
+    } catch (err) {
+      console.error("[worker:workflows] error en ciclo:", err);
     }
 
     await new Promise((r) => setTimeout(r, INTERVALO_MS));

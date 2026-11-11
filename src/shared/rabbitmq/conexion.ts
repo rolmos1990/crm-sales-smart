@@ -90,6 +90,10 @@ async function configurarTopologia(ch: amqplib.Channel): Promise<void> {
   await ch.assertQueue(QUEUES.AI_ORQUESTAR, queueOpts);
   await ch.bindQueue(QUEUES.AI_ORQUESTAR, EXCHANGE, RK.EVENTO_MENSAJE_RECIBIDO);
 
+  // Workflows: inicia el Workflow de la etapa a la que entra una oportunidad
+  await ch.assertQueue(QUEUES.WORKFLOW_ETAPA, queueOpts);
+  await ch.bindQueue(QUEUES.WORKFLOW_ETAPA, EXCHANGE, RK.EVENTO_OPORTUNIDAD_MOVIDA_DE_ETAPA);
+
   // 012-perfil-dinamico-cliente — invalidación incremental del perfil del
   // cliente. Lista cerrada de eventos (research.md Decisión 1) — a
   // propósito NO se usa "evento.cotizacion.*" (incluiría CotizacionEnviada,

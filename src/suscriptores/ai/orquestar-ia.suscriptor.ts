@@ -11,7 +11,14 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
   readonly routingKeys = [RK.EVENTO_MENSAJE_RECIBIDO];
 
   async manejar(envelope: EventoEnvelope<MensajeRecibidoPayload>): Promise<void> {
-    const { instanciaId, conversacionId, oportunidadId } = envelope.payload;
+    const { instanciaId, conversacionId, oportunidadId, mensajeId } = envelope.payload;
+
+    // Workflows primero, en el mismo consumidor (no en una cola aparte) para
+    // que IA y Workflow nunca compitan por el mismo mensaje. Sin Workflows
+    // habilitados devuelve atendido=false y todo sigue como siempre.
+    const { enrutarMensajeEntrante } = await import("@/workflows/motor/disparo");
+    const { atendido } = await enrutarMensajeEntrante({ instanciaId, conversacionId, mensajeId, oportunidadId });
+    if (atendido) return;
 
     const { prisma } = await import("@/shared/db/prisma");
 

@@ -1,0 +1,35 @@
+import {
+  ArrowRightLeft,
+  Bell,
+  Bot,
+  CircleStop,
+  GitBranch,
+  ListOrdered,
+  ListTodo,
+  MessageSquareReply,
+  PencilLine,
+  Play,
+  Send,
+  Timer,
+  UserRound,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react";
+
+// Nombres usados en CATALOGO_NODOS.icono → componente de lucide.
+export const ICONOS_NODO: Record<string, LucideIcon> = {
+  ArrowRightLeft,
+  Bell,
+  Bot,
+  CircleStop,
+  GitBranch,
+  ListOrdered,
+  ListTodo,
+  MessageSquareReply,
+  PencilLine,
+  Play,
+  Send,
+  Timer,
+  UserRound,
+  Workflow,
+};

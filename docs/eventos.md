@@ -214,7 +214,7 @@ interface EtapaCambiadaPayload {
 
 **Publicado por**: `src/crm/pipeline/mover-stage.ts` (`moverOportunidadAEtapa`, `registrarEntradaInicialAEtapa`)
 
-**Consumido por**: (próximamente) motor de Workflows — ver `docs/WORKFLOWS-PROPUESTA-ARQUITECTURA.md`
+**Consumido por**: `WorkflowEtapaSuscriptor` (`src/suscriptores/workflows/workflow-etapa.suscriptor.ts`, cola `crm.workflows.etapa`) — cancela lo pendiente de la etapa anterior e inicia el Workflow asignado a la nueva. Respaldo si el evento se pierde: el ciclo del worker procesa las filas de `OportunidadHistorialEtapa` con `procesadoWorkflowEn = null`.
 
 **Contrato**: `src/eventos/contratos/oportunidad-movida-de-etapa.event.ts`
 

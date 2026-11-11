@@ -21,6 +21,8 @@ export const QUEUES = {
   AI_ORQUESTAR: "crm.ai.orquestar",
   // 012-perfil-dinamico-cliente
   PERFIL_CLIENTE_INVALIDAR: "crm.perfil-cliente.invalidar",
+  // Workflows — entrada de una oportunidad a una etapa
+  WORKFLOW_ETAPA: "crm.workflows.etapa",
 } as const;
 
 // Routing keys — prefijo "evento." para domain events, "comando." para async commands

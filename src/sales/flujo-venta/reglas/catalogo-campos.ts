@@ -369,7 +369,7 @@ function mapearTipoCampoPersonalizado(tipo: string): CampoRegla["dataType"] {
   }
 }
 
-const OPERADORES_POR_TIPO: Record<CampoRegla["dataType"], CampoRegla["allowedOperators"]> = {
+export const OPERADORES_POR_TIPO: Record<CampoRegla["dataType"], CampoRegla["allowedOperators"]> = {
   TEXTO: ["IGUAL", "DIFERENTE", "CONTIENE", "NO_CONTIENE", "ESTA_VACIO", "NO_ESTA_VACIO", "EMPIEZA_CON", "TERMINA_CON"],
   NUMERO: ["IGUAL", "DIFERENTE", "MAYOR_QUE", "MAYOR_IGUAL", "MENOR_QUE", "MENOR_IGUAL", "ENTRE"],
   MONEDA: ["IGUAL", "DIFERENTE", "MAYOR_QUE", "MAYOR_IGUAL", "MENOR_QUE", "MENOR_IGUAL", "ENTRE"],
