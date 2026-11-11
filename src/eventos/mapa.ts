@@ -18,6 +18,7 @@ import type { EmpresaActualizadaPayload }  from "./contratos/empresa-actualizada
 import type { OportunidadCreadaPayload }      from "./contratos/oportunidad-creada.event";
 import type { OportunidadActualizadaPayload } from "./contratos/oportunidad-actualizada.event";
 import type { EtapaCambiadaPayload }          from "./contratos/etapa-cambiada.event";
+import type { OportunidadMovidaDeEtapaPayload } from "./contratos/oportunidad-movida-de-etapa.event";
 import type { OportunidadGanadaPayload }      from "./contratos/oportunidad-ganada.event";
 import type { OportunidadPerdidaPayload }     from "./contratos/oportunidad-perdida.event";
 import type { ActividadCreadaPayload }     from "./contratos/actividad-creada.event";
@@ -62,6 +63,7 @@ export interface MapaPayloads {
   OPORTUNIDAD_CREADA:      OportunidadCreadaPayload;
   OPORTUNIDAD_ACTUALIZADA: OportunidadActualizadaPayload;
   ETAPA_CAMBIADA:          EtapaCambiadaPayload;
+  OPORTUNIDAD_MOVIDA_DE_ETAPA: OportunidadMovidaDeEtapaPayload;
   OPORTUNIDAD_GANADA:      OportunidadGanadaPayload;
   OPORTUNIDAD_PERDIDA:     OportunidadPerdidaPayload;
   // Actividades

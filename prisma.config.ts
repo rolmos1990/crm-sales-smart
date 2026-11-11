@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./src/shared/env/cargar-env";
 import { defineConfig } from "prisma/config";
 
 export default defineConfig({

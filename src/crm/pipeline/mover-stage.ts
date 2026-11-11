@@ -1,14 +1,46 @@
 // Sin "use server": este módulo NO debe llevar esa directiva porque
-// `ejecutarMovimientoAStage` deliberadamente saltea el chequeo de permisos de
-// sesión (ver comentario en la función) — un archivo "use server" convierte
-// automáticamente TODA función exportada en un Server Action invocable
-// directamente desde el cliente, sin importar si algo más "interno" la
-// importa como helper. Vivir fuera de actions.ts (que sí tiene "use server")
-// es lo que mantiene esta función como un detalle de implementación interno,
-// nunca como un endpoint público.
+// `moverOportunidadAEtapa` deliberadamente saltea el chequeo de permisos de
+// sesión — un archivo "use server" convierte automáticamente TODA función
+// exportada en un Server Action invocable directamente desde el cliente.
+// Vivir fuera de actions.ts es lo que mantiene estas funciones como un
+// detalle de implementación interno, nunca como un endpoint público. Los
+// llamadores desde el cliente pasan por `moverAStage` (pipeline/actions.ts) o
+// `actualizarOportunidad`, que sí validan el permiso.
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
+import { publicadorEventos } from "@/shared/rabbitmq";
+import { EventosSistema } from "@/eventos/catalogo";
+import type { OrigenMovimientoEtapaPayload } from "@/eventos/contratos/oportunidad-movida-de-etapa.event";
 import { procesarCambioStage } from "./disparadores/motor";
+
+export type OrigenMovimientoEtapa = OrigenMovimientoEtapaPayload;
+
+export interface OrigenMovimiento {
+  tipo: OrigenMovimientoEtapa;
+  usuarioId?: string | null;
+  ejecucionWorkflowId?: string | null;
+}
+
+export interface MovimientoEtapa {
+  oportunidadId: string;
+  stageId: string;
+  pipelineId: string;
+  /** Si viene, la oportunidad DEBE pertenecer a esta instancia. */
+  instanciaId?: string;
+  origen: OrigenMovimiento;
+  motivo?: string;
+  /** Default true. Solo se desactiva para cierres automáticos del sistema
+   *  (p.ej. CERRAR_OPORTUNIDAD desde un pedido), que nunca validaron campos. */
+  validarCamposRequeridos?: boolean;
+}
+
+export type ResultadoMovimiento =
+  | { exito: true; historialId: string | null }
+  | { exito: false; error: string };
+
+// Cadenas de disparadores "Cambiar etapa" que se llaman entre sí (A→B→A…)
+// correrían para siempre, una vuelta cada ciclo del worker.
+const MAX_MOVIMIENTOS_AUTOMATICOS_POR_HORA = 20;
 
 async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
   const links = await prisma.oportunidadConversacion.findMany({
@@ -23,39 +55,119 @@ async function cerrarConversacionesDeOportunidad(oportunidadId: string) {
   });
 }
 
-/**
- * Cuerpo real del movimiento de etapa, sin el gate de permisos de sesión de
- * `moverAStage` (src/crm/pipeline/actions.ts) — se extrajo a este módulo para
- * que lo puedan usar automatizaciones del sistema sin sesión de usuario
- * propia (ver procesarPrimeraRespuestaProspecto en conversaciones/actions.ts,
- * disparada por un worker de IA o un webhook de mensaje nativo). Cualquier
- * llamador nuevo desde el cliente debe pasar por `moverAStage` para no
- * saltarse el permiso "oportunidades.modificar".
- */
-export async function ejecutarMovimientoAStage(oportunidadId: string, stageId: string, pipelineId: string) {
+function revalidarVistas() {
+  // revalidatePath solo funciona dentro de un request de Next.js; desde el
+  // worker o un webhook lanza. Es "best effort": nunca debe tirar abajo un
+  // movimiento que ya se guardó.
   try {
-    const [stage, todosCampos, oportunidad] = await Promise.all([
-      prisma.pipelineStage.findUnique({
-        where: { id: stageId },
-        select: { nombre: true, probabilidad: true, esGanado: true, esPerdido: true },
-      }),
-      prisma.campoPersonalizado.findMany({
-        where: { pipelineId, activo: true },
-        select: { nombre: true, clave: true, requeridoEn: true },
-      }),
+    revalidatePath("/crm/pipeline");
+    revalidatePath("/crm/oportunidades");
+    revalidatePath("/crm/inbox");
+  } catch { /* fuera de request context */ }
+}
+
+async function publicarMovimiento(datos: {
+  instanciaId: string;
+  oportunidadId: string;
+  pipelineId: string;
+  stageAnteriorId: string | null;
+  stageNuevoId: string;
+  historialId: string;
+  origen: OrigenMovimiento;
+}) {
+  // El historial ya quedó guardado; si RabbitMQ falla, el motor de Workflows
+  // lo recupera desde `procesadoWorkflowEn` (outbox de respaldo).
+  try {
+    await publicadorEventos.publicar(EventosSistema.OportunidadMovidaDeEtapa, datos.instanciaId, {
+      version: 1,
+      instanciaId: datos.instanciaId,
+      oportunidadId: datos.oportunidadId,
+      pipelineId: datos.pipelineId,
+      stageAnteriorId: datos.stageAnteriorId,
+      stageNuevoId: datos.stageNuevoId,
+      historialId: datos.historialId,
+      origen: datos.origen.tipo,
+      usuarioId: datos.origen.usuarioId ?? null,
+    });
+  } catch (err) {
+    console.error("[moverOportunidadAEtapa] Error al publicar OportunidadMovidaDeEtapa:", err);
+  }
+}
+
+/**
+ * Único camino para cambiar la etapa (`stageId`) de una oportunidad
+ * existente. Kanban, selector del Inbox, disparadores y automatizaciones
+ * pasan por acá para que todos hagan lo mismo: validar campos requeridos,
+ * actualizar probabilidad/fechas, guardar historial, cerrar conversaciones
+ * en etapas terminales, cancelar pendientes de la etapa anterior, encolar los
+ * disparadores de la nueva y publicar OportunidadMovidaDeEtapa.
+ */
+export async function moverOportunidadAEtapa(mov: MovimientoEtapa): Promise<ResultadoMovimiento> {
+  const { oportunidadId, stageId, pipelineId, origen } = mov;
+  try {
+    const [oportunidad, stage] = await Promise.all([
       prisma.oportunidad.findUnique({
         where: { id: oportunidadId },
-        select: { metadata: true },
+        select: { instanciaId: true, stageId: true, pipelineId: true, metadata: true },
+      }),
+      prisma.pipelineStage.findUnique({
+        where: { id: stageId },
+        select: {
+          nombre: true,
+          probabilidad: true,
+          esGanado: true,
+          esPerdido: true,
+          pipelineId: true,
+          pipeline: { select: { instanciaId: true } },
+        },
       }),
     ]);
 
-    // Validar campos requeridos para el stage destino
-    const camposRequeridos = todosCampos.filter(
-      (c) => Array.isArray(c.requeridoEn) && (c.requeridoEn as string[]).includes(stageId)
-    );
-    if (camposRequeridos.length > 0) {
-      const metadata = (oportunidad?.metadata as Record<string, unknown>) ?? {};
-      const faltantes = camposRequeridos
+    if (!oportunidad || (mov.instanciaId && oportunidad.instanciaId !== mov.instanciaId)) {
+      return { exito: false, error: "Oportunidad no encontrada" };
+    }
+    const instanciaPipeline = stage?.pipeline.instanciaId;
+    if (
+      !stage ||
+      stage.pipelineId !== pipelineId ||
+      (instanciaPipeline && oportunidad.instanciaId && instanciaPipeline !== oportunidad.instanciaId)
+    ) {
+      return { exito: false, error: "Etapa no encontrada" };
+    }
+
+    // Soltar en la misma columna no es un movimiento: no se repiten
+    // disparadores ni se ensucia el historial.
+    if (oportunidad.stageId === stageId && oportunidad.pipelineId === pipelineId) {
+      return { exito: true, historialId: null };
+    }
+
+    const instanciaId = oportunidad.instanciaId ?? instanciaPipeline ?? null;
+    if (!instanciaId) return { exito: false, error: "Oportunidad sin instancia" };
+
+    if (origen.tipo === "DISPARADOR" || origen.tipo === "WORKFLOW") {
+      const recientes = await prisma.oportunidadHistorialEtapa.count({
+        where: {
+          oportunidadId,
+          origen: { in: ["DISPARADOR", "WORKFLOW"] },
+          creadoEn: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+        },
+      });
+      if (recientes >= MAX_MOVIMIENTOS_AUTOMATICOS_POR_HORA) {
+        return {
+          exito: false,
+          error: `Se detuvo el cambio automático de etapa: más de ${MAX_MOVIMIENTOS_AUTOMATICOS_POR_HORA} movimientos automáticos en la última hora (posible ciclo entre etapas)`,
+        };
+      }
+    }
+
+    if (mov.validarCamposRequeridos !== false) {
+      const campos = await prisma.campoPersonalizado.findMany({
+        where: { pipelineId, activo: true },
+        select: { nombre: true, clave: true, requeridoEn: true },
+      });
+      const metadata = (oportunidad.metadata as Record<string, unknown>) ?? {};
+      const faltantes = campos
+        .filter((c) => Array.isArray(c.requeridoEn) && (c.requeridoEn as string[]).includes(stageId))
         .filter((c) => {
           const v = metadata[c.clave];
           return v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
@@ -63,46 +175,106 @@ export async function ejecutarMovimientoAStage(oportunidadId: string, stageId: s
         .map((c) => c.nombre);
       if (faltantes.length > 0) {
         return {
-          exito: false as const,
-          error: `Para avanzar a "${stage?.nombre ?? stageId}" debes completar: ${faltantes.join(", ")}`,
+          exito: false,
+          error: `Para avanzar a "${stage.nombre}" debes completar: ${faltantes.join(", ")}`,
         };
       }
     }
 
     const ahora = new Date();
-    await prisma.oportunidad.update({
-      where: { id: oportunidadId },
-      data: {
-        stageId,
-        pipelineId,
-        ...(stage != null && { probabilidad: stage.probabilidad }),
-        ...(stage?.esGanado && { etapa: "GANADO", fechaGanada: ahora }),
-        ...(stage?.esPerdido && { etapa: "PERDIDO", fechaPerdida: ahora }),
-      },
-    });
+    const [, historial] = await prisma.$transaction([
+      prisma.oportunidad.update({
+        where: { id: oportunidadId },
+        data: {
+          stageId,
+          pipelineId,
+          probabilidad: stage.probabilidad,
+          ...(stage.esGanado && { etapa: "GANADO", fechaGanada: ahora }),
+          ...(stage.esPerdido && { etapa: "PERDIDO", fechaPerdida: ahora }),
+        },
+      }),
+      prisma.oportunidadHistorialEtapa.create({
+        data: {
+          oportunidadId,
+          instanciaId,
+          pipelineId,
+          stageAnteriorId: oportunidad.stageId,
+          stageNuevoId: stageId,
+          origen: origen.tipo,
+          usuarioId: origen.usuarioId ?? null,
+          ejecucionWorkflowId: origen.ejecucionWorkflowId ?? null,
+          motivo: mov.motivo ?? null,
+        },
+        select: { id: true },
+      }),
+    ]);
 
-    // Cerrar conversaciones asociadas si la etapa es terminal
-    if (stage?.esGanado || stage?.esPerdido) {
+    if (stage.esGanado || stage.esPerdido) {
       await cerrarConversacionesDeOportunidad(oportunidadId);
     }
 
     await procesarCambioStage(oportunidadId, stageId, pipelineId);
 
-    // revalidatePath solo funciona dentro de un request de Next.js — esta
-    // función también se llama desde automatizaciones sin ese contexto (ej.
-    // procesarPrimeraRespuestaProspecto disparada por un worker de IA o un
-    // webhook de mensaje nativo), donde revalidatePath lanza. Mismo patrón ya
-    // usado en conversaciones/actions.ts (registrarMensajeAppNativa) para el
-    // mismo problema — la revalidación es "best effort", nunca debe tirar
-    // abajo un movimiento de etapa que ya se guardó en la base.
-    try {
-      revalidatePath("/crm/pipeline");
-      revalidatePath("/crm/oportunidades");
-      revalidatePath("/crm/inbox");
-    } catch { /* fuera de request context */ }
+    await publicarMovimiento({
+      instanciaId,
+      oportunidadId,
+      pipelineId,
+      stageAnteriorId: oportunidad.stageId,
+      stageNuevoId: stageId,
+      historialId: historial.id,
+      origen,
+    });
 
-    return { exito: true as const };
-  } catch {
-    return { exito: false as const, error: "Error al mover la oportunidad" };
+    revalidarVistas();
+    return { exito: true, historialId: historial.id };
+  } catch (err) {
+    console.error("[moverOportunidadAEtapa] Error:", err);
+    return { exito: false, error: "Error al mover la oportunidad" };
+  }
+}
+
+/**
+ * Para oportunidades que se CREAN ya dentro de una etapa: no hay movimiento
+ * que validar, pero sí historial, disparadores de la etapa inicial y evento,
+ * igual que si hubieran entrado moviéndose.
+ */
+export async function registrarEntradaInicialAEtapa(entrada: {
+  oportunidadId: string;
+  stageId: string;
+  pipelineId: string;
+  instanciaId: string;
+  origen: OrigenMovimiento;
+  motivo?: string;
+}): Promise<void> {
+  try {
+    const historial = await prisma.oportunidadHistorialEtapa.create({
+      data: {
+        oportunidadId: entrada.oportunidadId,
+        instanciaId: entrada.instanciaId,
+        pipelineId: entrada.pipelineId,
+        stageAnteriorId: null,
+        stageNuevoId: entrada.stageId,
+        origen: entrada.origen.tipo,
+        usuarioId: entrada.origen.usuarioId ?? null,
+        ejecucionWorkflowId: entrada.origen.ejecucionWorkflowId ?? null,
+        motivo: entrada.motivo ?? null,
+      },
+      select: { id: true },
+    });
+
+    await procesarCambioStage(entrada.oportunidadId, entrada.stageId, entrada.pipelineId);
+
+    await publicarMovimiento({
+      instanciaId: entrada.instanciaId,
+      oportunidadId: entrada.oportunidadId,
+      pipelineId: entrada.pipelineId,
+      stageAnteriorId: null,
+      stageNuevoId: entrada.stageId,
+      historialId: historial.id,
+      origen: entrada.origen,
+    });
+  } catch (err) {
+    // La oportunidad ya existe; un fallo acá no debe deshacer su creación.
+    console.error("[registrarEntradaInicialAEtapa] Error:", err);
   }
 }

@@ -7,6 +7,7 @@ import { verificarAcceso } from "@/shared/auth/permisos";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
+import { moverOportunidadAEtapa, registrarEntradaInicialAEtapa } from "@/crm/pipeline/mover-stage";
 import { CrearOportunidadSchema, ActualizarOportunidadSchema, CambiarEtapaSchema } from "./schema";
 import type { ResultadoAccion, Oportunidad } from "./types";
 import { PROBABILIDADES_ETAPA } from "./types";
@@ -75,6 +76,16 @@ export async function crearOportunidad(datos: unknown): Promise<ResultadoAccion<
       empresaId: oportunidad.empresaId ?? undefined,
     });
 
+    if (oportunidad.stageId && oportunidad.pipelineId) {
+      await registrarEntradaInicialAEtapa({
+        oportunidadId: oportunidad.id,
+        stageId: oportunidad.stageId,
+        pipelineId: oportunidad.pipelineId,
+        instanciaId: sesion.instanciaId,
+        origen: { tipo: "USUARIO", usuarioId: sesion.usuarioId },
+      });
+    }
+
     revalidatePath("/crm/oportunidades");
     revalidatePath("/crm/pipeline");
     return { exito: true, datos: { ...oportunidad, valor: Number(oportunidad.valor) } as unknown as Oportunidad };
@@ -142,14 +153,33 @@ export async function actualizarOportunidad(id: string, datos: unknown): Promise
     if (!existe) return { exito: false, error: "Oportunidad no encontrada" };
 
     const { empresaId, contactoId: _, notas, probabilidad: _prob, tagIds, pipelineId, stageId, ...resto } = validado.data;
+
+    // Un cambio real de etapa pasa por el mismo servicio que el Kanban
+    // (historial, disparadores, campos requeridos). Se hace ANTES del resto
+    // de los cambios: si la etapa no se puede cambiar, no se guarda nada.
+    const pipelineDestino = pipelineId || existe.pipelineId;
+    const cambiaEtapa =
+      !!stageId && !!pipelineDestino && (stageId !== existe.stageId || pipelineDestino !== existe.pipelineId);
+    if (cambiaEtapa) {
+      const movimiento = await moverOportunidadAEtapa({
+        oportunidadId: id,
+        stageId,
+        pipelineId: pipelineDestino,
+        instanciaId: sesion.instanciaId,
+        origen: { tipo: "USUARIO", usuarioId: sesion.usuarioId },
+      });
+      if (!movimiento.exito) return { exito: false, error: movimiento.error };
+    }
+
     const oportunidad = await prisma.oportunidad.update({
       where: { id },
       data: {
         ...resto,
         ...(notas !== undefined && { notas: notas || null }),
         ...(empresaId !== undefined && { empresaId: empresaId || null }),
-        ...(pipelineId !== undefined && { pipelineId: pipelineId || null }),
-        ...(stageId !== undefined && { stageId: stageId || null }),
+        // Si la etapa ya se movió arriba, no volver a escribirla acá.
+        ...(!cambiaEtapa && pipelineId !== undefined && { pipelineId: pipelineId || null }),
+        ...(!cambiaEtapa && stageId !== undefined && { stageId: stageId || null }),
       },
       include: { empresa: { select: { id: true, nombre: true } }, contactos: { include: { contacto: { select: { id: true, nombre: true, apellido: true } } } } },
     });

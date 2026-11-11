@@ -7,7 +7,7 @@ import { verificarAcceso } from "@/shared/auth/permisos";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { SchemaPipeline, SchemaStage, SchemaCampoPersonalizado } from "./schema";
 import { obtenerPipelines } from "./queries";
-import { ejecutarMovimientoAStage } from "./mover-stage";
+import { moverOportunidadAEtapa } from "./mover-stage";
 import { cargarVistaPipeline, type VistaPipeline } from "./vista";
 import { z } from "zod";
 
@@ -171,7 +171,13 @@ export async function reordenarStages(pipelineId: string, stageIds: string[]) {
 export async function moverAStage(oportunidadId: string, stageId: string, pipelineId: string) {
   const auth = await requirePermisoAction("oportunidades", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
-  return ejecutarMovimientoAStage(oportunidadId, stageId, pipelineId);
+  return moverOportunidadAEtapa({
+    oportunidadId,
+    stageId,
+    pipelineId,
+    instanciaId: auth.sesion.instanciaId,
+    origen: { tipo: "USUARIO", usuarioId: auth.sesion.usuarioId },
+  });
 }
 
 // ── Campos personalizados del Pipeline ──────────────────────────────

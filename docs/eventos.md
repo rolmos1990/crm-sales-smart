@@ -208,6 +208,36 @@ interface EtapaCambiadaPayload {
 
 ---
 
+### OportunidadMovidaDeEtapa
+
+**Descripción**: Se ejecuta cada vez que una oportunidad cambia de etapa (`stageId`) en el pipeline dinámico, o se crea directamente dentro de una etapa. A diferencia de `EtapaCambiada` (enum legado `etapa`), se publica en **todos** los caminos: Kanban, selector del Inbox, disparadores "Cambiar etapa" / "Cerrar oportunidad", movimiento automático por primera respuesta y creación de oportunidades. Cada publicación corresponde a una fila de `OportunidadHistorialEtapa`.
+
+**Publicado por**: `src/crm/pipeline/mover-stage.ts` (`moverOportunidadAEtapa`, `registrarEntradaInicialAEtapa`)
+
+**Consumido por**: (próximamente) motor de Workflows — ver `docs/WORKFLOWS-PROPUESTA-ARQUITECTURA.md`
+
+**Contrato**: `src/eventos/contratos/oportunidad-movida-de-etapa.event.ts`
+
+```ts
+interface OportunidadMovidaDeEtapaPayload {
+  version: 1;
+  instanciaId: string;
+  oportunidadId: string;
+  pipelineId: string;
+  stageAnteriorId: string | null; // null si la oportunidad se creó en la etapa
+  stageNuevoId: string;
+  historialId: string;            // OportunidadHistorialEtapa.id
+  origen: "USUARIO" | "WORKFLOW" | "DISPARADOR" | "IA" | "SISTEMA";
+  usuarioId: string | null;
+}
+```
+
+**Routing key**: `evento.oportunidad.movida-de-etapa`
+
+**Versión**: v1
+
+---
+
 ### OportunidadGanada
 
 **Descripción**: Se ejecuta cuando una oportunidad es marcada como ganada.

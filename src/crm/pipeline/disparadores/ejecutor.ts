@@ -2,6 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 // Relative imports so this module works both in Next.js and in the standalone worker (tsx)
 import { PrismaClient } from "../../../generated/prisma/client";
 import { validarPedidoParaEtapa } from "../../../sales/flujo-venta/reglas/motor";
+import { moverOportunidadAEtapa } from "../mover-stage";
 import type {
   ConfigCrearTarea,
   ConfigCrearNota,
@@ -137,14 +138,18 @@ async function ejecutarJobOportunidad(
         });
       }
     } else if (tipo === "CAMBIAR_ETAPA") {
+      // Mismo servicio que el Kanban (D7): historial, campos requeridos,
+      // disparadores de la etapa destino y anti-ciclos entre disparadores.
       const cfg = config as unknown as ConfigCambiarEtapa;
-      await prisma.oportunidad.update({
-        where: { id: oportunidadId },
-        data: {
-          stageId: cfg.stageId,
-          pipelineId: cfg.pipelineId,
-        },
+      const movimiento = await moverOportunidadAEtapa({
+        oportunidadId,
+        stageId: cfg.stageId,
+        pipelineId: cfg.pipelineId,
+        ...(instanciaId && { instanciaId }),
+        origen: { tipo: "DISPARADOR" },
+        motivo: `Disparador "${job.disparador.nombre}"`,
       });
+      if (!movimiento.exito) throw new Error(movimiento.error);
     }
 
     await prisma.disparadorJob.update({
@@ -313,17 +318,20 @@ async function ejecutarJobPedido(
             });
             // Anti-loop: no mover si ya está en la etapa destino
             if (stageDestino && oportunidad.stageId !== stageDestino.id) {
-              await prisma.oportunidad.update({
-                where: { id: oportunidadId },
-                data: {
-                  stageId: stageDestino.id,
-                  pipelineId: oportunidad.pipelineId,
-                  probabilidad: stageDestino.probabilidad,
-                  etapa: cfg.resultado === "GANADA" ? "GANADO" : "PERDIDO",
-                  ...(cfg.resultado === "GANADA" ? { fechaGanada: ahora } : { fechaPerdida: ahora }),
-                },
+              // Mismo servicio que el Kanban (D7). Sin validar campos
+              // requeridos: este cierre automático nunca los exigió y un
+              // pedido entregado no debe quedar con la oportunidad abierta
+              // por un campo vacío.
+              const movimiento = await moverOportunidadAEtapa({
+                oportunidadId,
+                stageId: stageDestino.id,
+                pipelineId: oportunidad.pipelineId,
+                ...(instanciaId && { instanciaId }),
+                origen: { tipo: "DISPARADOR" },
+                motivo: `Pedido ${cfg.resultado === "GANADA" ? "ganado" : "perdido"} — disparador "${job.disparador.nombre}"`,
+                validarCamposRequeridos: false,
               });
-              await cerrarConversacionesDeOportunidad(oportunidadId);
+              if (!movimiento.exito) throw new Error(movimiento.error);
             }
           } else {
             // Oportunidad sin pipeline dinámico: usa el sistema legado de etapa fija

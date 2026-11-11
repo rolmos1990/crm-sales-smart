@@ -18,6 +18,26 @@ services:
       timeout: 5s
       retries: 5
 
+  # Bus de eventos — la app y el worker (src/worker/disparadores.ts) se
+  # conectan con RABBITMQ_URL, por defecto amqp://guest:guest@localhost:5672.
+  # Consola de administración: http://localhost:15672 (guest / guest).
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: crm_sales_smart_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
     name: crm_sales_smart_postgres_data
+  rabbitmq_data:
+    name: crm_sales_smart_rabbitmq_data

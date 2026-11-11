@@ -24,11 +24,23 @@ export class GenerarRespuestaIASuscriptor extends ConsumidorBase<ComandoGenerarR
 
     const conversacion = await prisma.conversacion.findUnique({
       where: { id: conversacionId },
-      select: { contactoId: true, instanciaId: true, oportunidades: { select: { oportunidadId: true }, take: 1 } },
+      select: {
+        contactoId: true,
+        instanciaId: true,
+        modoAtencion: true,
+        oportunidades: { select: { oportunidadId: true }, take: 1 },
+      },
     });
 
     if (!conversacion || conversacion.instanciaId !== instanciaId) {
       console.warn(`[GenerarRespuestaIA] Conversación ${conversacionId} no encontrada o instancia incorrecta`);
+      return;
+    }
+
+    // Comandos ya encolados antes de la transferencia (p.ej. el cliente envió
+    // dos mensajes seguidos) no deben responder después de ella.
+    if (conversacion.modoAtencion === "HUMANO") {
+      console.log(`[GenerarRespuestaIA] Conversación ${conversacionId} atendida por humano — se omite`);
       return;
     }
 

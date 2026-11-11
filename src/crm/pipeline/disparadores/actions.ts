@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
+import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { SchemaDisparador } from "./schema";
 import { obtenerDisparadoresPorPipeline } from "./queries";
 import type { Disparador, DisparadorJob } from "./types";
@@ -37,6 +38,24 @@ export async function obtenerDisparadoresAction(
   return obtenerDisparadoresPorPipeline(pipelineId, sesion.instanciaId);
 }
 
+const ERROR_NO_ENCONTRADO = "Disparador no encontrado";
+
+// Los ids llegan desde el cliente: sin este filtro por instancia, un usuario
+// podría modificar disparadores de otra empresa conociendo un id. Se acepta
+// también vía stage porque `pipelineId` es opcional en el modelo.
+function filtroInstancia(instanciaId: string) {
+  return {
+    OR: [{ pipeline: { instanciaId } }, { stage: { pipeline: { instanciaId } } }],
+  };
+}
+
+async function disparadorDeInstancia(id: string, instanciaId: string) {
+  return prisma.disparador.findFirst({
+    where: { id, ...filtroInstancia(instanciaId) },
+    select: { id: true },
+  });
+}
+
 export async function crearDisparador(
   pipelineId: string,
   stageId: string,
@@ -46,7 +65,16 @@ export async function crearDisparador(
   if (!parsed.success)
     return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const auth = await requirePermisoAction("pipeline", "modificar");
+  if (!auth.ok) return { exito: false as const, error: auth.error };
+
   try {
+    const stage = await prisma.pipelineStage.findFirst({
+      where: { id: stageId, pipelineId, pipeline: { instanciaId: auth.sesion.instanciaId } },
+      select: { id: true },
+    });
+    if (!stage) return { exito: false as const, error: "Etapa no encontrada" };
+
     const last = await prisma.disparador.findFirst({
       where: { stageId, activo: true },
       orderBy: { orden: "desc" },
@@ -78,7 +106,13 @@ export async function actualizarDisparador(id: string, datos: unknown) {
   if (!parsed.success)
     return { exito: false as const, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
+  const auth = await requirePermisoAction("pipeline", "modificar");
+  if (!auth.ok) return { exito: false as const, error: auth.error };
+
   try {
+    if (!(await disparadorDeInstancia(id, auth.sesion.instanciaId)))
+      return { exito: false as const, error: ERROR_NO_ENCONTRADO };
+
     await prisma.disparador.update({
       where: { id },
       data: {
@@ -98,7 +132,13 @@ export async function actualizarDisparador(id: string, datos: unknown) {
 }
 
 export async function toggleDisparador(id: string, activo: boolean) {
+  const auth = await requirePermisoAction("pipeline", "modificar");
+  if (!auth.ok) return { exito: false as const, error: auth.error };
+
   try {
+    if (!(await disparadorDeInstancia(id, auth.sesion.instanciaId)))
+      return { exito: false as const, error: ERROR_NO_ENCONTRADO };
+
     await prisma.disparador.update({ where: { id }, data: { activo } });
     revalidatePath("/crm/pipeline");
     return { exito: true as const };
@@ -108,7 +148,13 @@ export async function toggleDisparador(id: string, activo: boolean) {
 }
 
 export async function eliminarDisparador(id: string) {
+  const auth = await requirePermisoAction("pipeline", "modificar");
+  if (!auth.ok) return { exito: false as const, error: auth.error };
+
   try {
+    if (!(await disparadorDeInstancia(id, auth.sesion.instanciaId)))
+      return { exito: false as const, error: ERROR_NO_ENCONTRADO };
+
     await prisma.disparador.update({ where: { id }, data: { activo: false } });
     revalidatePath("/crm/pipeline");
     return { exito: true as const };
@@ -118,7 +164,15 @@ export async function eliminarDisparador(id: string) {
 }
 
 export async function reordenarDisparadores(stageId: string, ids: string[]) {
+  const auth = await requirePermisoAction("pipeline", "modificar");
+  if (!auth.ok) return { exito: false as const, error: auth.error };
+
   try {
+    const propios = await prisma.disparador.count({
+      where: { id: { in: ids }, stageId, ...filtroInstancia(auth.sesion.instanciaId) },
+    });
+    if (propios !== new Set(ids).size) return { exito: false as const, error: ERROR_NO_ENCONTRADO };
+
     await prisma.$transaction(
       ids.map((id, index) =>
         prisma.disparador.update({ where: { id }, data: { orden: index } })

@@ -80,6 +80,8 @@ function mapearConversacion(conv: any): ConversacionResumen {
     asunto: conv.asunto,
     estado: conv.estado,
     clasificacion: conv.clasificacion,
+    modoAtencion: conv.modoAtencion,
+    atencionMotivo: conv.atencionMotivo ?? null,
     oportunidadGanadaRel: conv.oportunidadGanadaRel,
     creadoEn: conv.creadoEn,
     actualizadoEn: conv.actualizadoEn,

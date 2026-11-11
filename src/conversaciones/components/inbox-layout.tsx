@@ -25,8 +25,10 @@ import { EventoSistema } from "./evento-sistema";
 import { InputMensaje } from "./input-mensaje";
 import { PanelContactoInbox } from "./panel-contacto-inbox";
 import { BarraClasificacion } from "./barra-clasificacion";
+import { BarraAtencionHumana } from "./barra-atencion-humana";
 import {
   cerrarConversacion,
+  devolverAtencionAutomatica,
   enviarMensaje,
   marcarMensajesLeidos,
   marcarRespondida,
@@ -485,6 +487,20 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     });
   };
 
+  const handleDevolverAutomatico = (id: string) => {
+    startAccion(async () => {
+      const result = await devolverAtencionAutomatica(id);
+      if (!result.ok) {
+        toast.error(result.error ?? "Error al devolver a automático");
+        return;
+      }
+      toast.success("La IA vuelve a atender esta conversación");
+      setConversaciones((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, modoAtencion: "AUTOMATICO", atencionMotivo: null } : c))
+      );
+    });
+  };
+
   // ── Refresco puntual de una conversación ────────────────────────────────────
   // El panel de contacto (clasificación, edición de la oportunidad activa)
   // hace sus propias llamadas a Server Actions; tras cada una pide refrescar
@@ -889,6 +905,14 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
             {/* Barra de clasificación (solo si hay oportunidad ganada previa) */}
             {convActiva.oportunidadGanadaRel && <BarraClasificacion />}
+
+            {convActiva.modoAtencion === "HUMANO" && (
+              <BarraAtencionHumana
+                motivo={convActiva.atencionMotivo}
+                devolviendo={accionando}
+                onDevolver={() => handleDevolverAutomatico(convActiva.id)}
+              />
+            )}
 
             {/* Área de mensajes */}
             <div
