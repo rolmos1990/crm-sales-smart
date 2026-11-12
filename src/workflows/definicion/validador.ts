@@ -32,6 +32,7 @@ export type CodigoProblema =
   | "TIMER_SIN_POLITICA_RESPUESTA"
   | "AGENTE_IA_INEXISTENTE"
   | "PLANTILLA_INEXISTENTE"
+  | "IA_NO_HABILITADA"
   | "ETAPA_INEXISTENTE"
   | "ETAPA_CON_WORKFLOW"
   | "USUARIO_INEXISTENTE"
@@ -292,6 +293,8 @@ export interface ConsultasReferencias {
   workflowsPublicados(ids: string[]): Promise<Map<string, string[]>>;
   /** Plantillas activas de la instancia. */
   plantillas(ids: string[]): Promise<Set<string>>;
+  /** La IA está habilitada en Configuración → IA. */
+  iaHabilitada(): Promise<boolean>;
 }
 
 function idsDestinatario(d: Destinatario | undefined): string[] {
@@ -367,6 +370,11 @@ export async function validarReferencias(
     if (!etiquetasOk.has(id)) errores.push({ codigo: "ETIQUETA_INEXISTENTE", mensaje: "La etiqueta elegida no existe o está inactiva", nodoId });
   }
 
+  if (agentes.size && !(await consultas.iaHabilitada())) {
+    for (const nodoId of new Set(agentes.values())) {
+      errores.push({ codigo: "IA_NO_HABILITADA", mensaje: "La IA no está habilitada en Configuración → IA: este paso no podría responder", nodoId });
+    }
+  }
   for (const [id, nodoId] of plantillas) {
     if (!plantillasOk.has(id)) errores.push({ codigo: "PLANTILLA_INEXISTENTE", mensaje: "La plantilla elegida no existe o está inactiva", nodoId });
   }

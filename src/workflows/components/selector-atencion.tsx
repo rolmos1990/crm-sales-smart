@@ -76,12 +76,17 @@ export function SelectorAtencion({ conversacionId, onCambio, className }: { conv
           {modo === "WORKFLOW" && ejecucion && (
             <p className="text-[11px] text-muted-foreground">
               {ejecucion.paso ? `${ejecucion.paso} · ` : ""}
-              {ESTADO_EJECUCION[ejecucion.estado] ?? ""}
+              {ejecucion.reintento ? "reintento tras error" : ESTADO_EJECUCION[ejecucion.estado] ?? ""}
               {ejecucion.esperaHasta && (
                 <>
                   {" "}hasta <FechaHora valor={ejecucion.esperaHasta} modo="fechaHora" />
                 </>
               )}
+            </p>
+          )}
+          {modo === "WORKFLOW" && ejecucion?.reintento?.error && (
+            <p className="text-[11px] text-destructive" title={ejecucion.reintento.error}>
+              Falló {ejecucion.reintento.intento} de 3 intentos: {ejecucion.reintento.error}
             </p>
           )}
           {estado.motivo && <p className="truncate text-[11px] text-muted-foreground" title={estado.motivo}>{estado.motivo}</p>}

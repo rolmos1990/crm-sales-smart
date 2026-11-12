@@ -47,6 +47,10 @@ export function crearAdaptadoresReales(iniciar: AdaptadoresEjecucion["iniciarWor
     },
 
     async responderConAgente(p) {
+      // Error de configuración, no transitorio: sin esto el motor reintenta
+      // (1, 5 y 15 min) y el cliente queda sin respuesta todo ese tiempo.
+      const configIA = await prisma.configuracionIA.findUnique({ where: { instanciaId: p.instanciaId }, select: { habilitado: true } });
+      if (!configIA?.habilitado) throw new ErrorDefinitivoWorkflow("La IA no está habilitada en Configuración → IA");
       const { responderConAgente } = await import("@/ai/respuesta/responder-con-agente");
       return responderConAgente(p);
     },

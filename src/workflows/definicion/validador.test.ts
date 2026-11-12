@@ -272,6 +272,7 @@ function consultasFalsas(datos: {
   etiquetas?: string[];
   workflows?: Record<string, string[]>;
   plantillas?: string[];
+  iaHabilitada?: boolean;
 }): ConsultasReferencias {
   return {
     agentesIA: async (ids) => new Set(ids.filter((i) => datos.agentes?.includes(i))),
@@ -286,6 +287,7 @@ function consultasFalsas(datos: {
     workflowsPublicados: async (ids) =>
       new Map(ids.filter((i) => datos.workflows?.[i]).map((i) => [i, datos.workflows![i]])),
     plantillas: async (ids) => new Set(ids.filter((i) => datos.plantillas?.includes(i))),
+    iaHabilitada: async () => datos.iaHabilitada ?? true,
   };
 }
 
@@ -306,6 +308,12 @@ describe("validarReferencias", () => {
     ]);
     const r = await validarReferencias(def, consultasFalsas({ agentes: ["propio"] }), {});
     expect(codigos(r)).toEqual(["AGENTE_IA_INEXISTENTE"]);
+  });
+
+  it("Atención IA con la IA de la empresa deshabilitada", async () => {
+    const def = conNodo(nodo("ia", "ATENCION_IA", { agenteIAConfigId: "propio", modo: "RESPUESTA_UNICA" }), ["respondido", "transferencia", "error"]);
+    const r = await validarReferencias(def, consultasFalsas({ agentes: ["propio"], iaHabilitada: false }), {});
+    expect(codigos(r)).toEqual(["IA_NO_HABILITADA"]);
   });
 
   it("plantilla inexistente o inactiva; el texto propio no consulta plantillas", async () => {

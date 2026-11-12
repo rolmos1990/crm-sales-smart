@@ -19,7 +19,15 @@ export interface EstadoAtencion {
   usuarioNombre: string | null;
   workflowsHabilitados: boolean;
   /** Ejecución que controla la conversación ahora. */
-  ejecucion: { id: string; workflow: string; estado: EstadoEjecucionWorkflow; paso: string | null; esperaHasta: Date | null } | null;
+  ejecucion: {
+    id: string;
+    workflow: string;
+    estado: EstadoEjecucionWorkflow;
+    paso: string | null;
+    esperaHasta: Date | null;
+    /** Esperando reintentar un paso que falló. */
+    reintento: { intento: number; error: string | null } | null;
+  } | null;
   /** Ejecución pausada por atención humana que se puede retomar. */
   pausada: { id: string; workflow: string; paso: string | null } | null;
   workflows: { id: string; nombre: string }[];
@@ -57,7 +65,7 @@ export async function obtenerAtencionAction(conversacionId: string): Promise<Est
     prisma.workflowEjecucion.findFirst({
       where: { conversacionId, instanciaId, controlaConversacion: true, estado: { in: ESTADOS_ACTIVOS } },
       orderBy: { iniciadaEn: "desc" },
-      select: { id: true, estado: true, nodoActualId: true, esperaHasta: true, workflow: { select: { nombre: true } }, version: { select: { definicion: true } } },
+      select: { id: true, estado: true, nodoActualId: true, esperaHasta: true, esperaTipo: true, intentosNodo: true, error: true, workflow: { select: { nombre: true } }, version: { select: { definicion: true } } },
     }),
     prisma.workflowEjecucion.findFirst({
       where: { conversacionId, instanciaId, estado: "TRANSFERIDA_HUMANO" },
@@ -79,7 +87,11 @@ export async function obtenerAtencionAction(conversacionId: string): Promise<Est
     usuarioNombre: usuario?.usuario.nombre ?? null,
     workflowsHabilitados: config?.workflowsHabilitado === true,
     ejecucion: activa
-      ? { id: activa.id, workflow: activa.workflow.nombre, estado: activa.estado, paso: nombrePaso(activa.version.definicion, activa.nodoActualId), esperaHasta: activa.esperaHasta }
+      ? { id: activa.id, workflow: activa.workflow.nombre, estado: activa.estado, paso: nombrePaso(activa.version.definicion, activa.nodoActualId),
+          esperaHasta: activa.esperaHasta,
+          // Reintento tras un error: se muestra el error en vez de un "esperando" engañoso.
+          reintento: activa.esperaTipo === "REINTENTO" ? { intento: activa.intentosNodo, error: activa.error } : null,
+        }
       : null,
     pausada: pausada ? { id: pausada.id, workflow: pausada.workflow.nombre, paso: nombrePaso(pausada.version.definicion, pausada.nodoActualId) } : null,
     workflows,

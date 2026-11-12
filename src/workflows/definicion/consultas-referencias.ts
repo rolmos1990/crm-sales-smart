@@ -49,6 +49,11 @@ export function crearConsultasReferencias(instanciaId: string): ConsultasReferen
       return new Set(filas.map((f) => f.id));
     },
 
+    async iaHabilitada() {
+      const config = await prisma.configuracionIA.findUnique({ where: { instanciaId }, select: { habilitado: true } });
+      return config?.habilitado === true;
+    },
+
     async plantillas(ids) {
       const filas = await prisma.plantillaCRM.findMany({
         where: { id: { in: ids }, instanciaId, activo: true },
