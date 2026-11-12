@@ -265,3 +265,20 @@ export function esNodoTerminal(tipo: TipoNodo, config: unknown): boolean {
   }
   return salidasDeNodo(tipo, config).length === 0;
 }
+
+/**
+ * Salida por la que el flujo sigue cuando no se elige una: el camino feliz.
+ *
+ * Cada `salidas` de este catálogo declara ese camino primero — ATENCION_IA
+ * abre con "Objetivo cumplido", ESPERAR_RESPUESTA con "Respondió", MENU con
+ * su primera opción — y el resto son desvíos (error, timeout, "En otro caso").
+ * Mantener ese orden al agregar o reordenar salidas; `catalogo-nodos.test.ts`
+ * lo fija tipo por tipo.
+ *
+ * Un nodo terminal devuelve `null`: después de él no se continúa. Lo usa el
+ * editor para insertar un nodo dentro de una conexión existente.
+ */
+export function salidaPorDefectoDeNodo(tipo: TipoNodo, config: unknown): string | null {
+  if (esNodoTerminal(tipo, config)) return null;
+  return salidasDeNodo(tipo, config)[0]?.id ?? null;
+}

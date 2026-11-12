@@ -321,7 +321,9 @@
       "Bash(curl -s -o /tmp/pedido-page.html -w \"HTTP %{http_code}\\\\n\" http://localhost:3000/sales/pedidos/cmudlj0pu0001jfw1pajj88nx)",
       "Bash(grep -n \"FinalBloqueada\\\\|1790138461659\\\\|status\\\\|Añadir etapa\\\\|etapas$\" \"/Users/ramonolmos/Repositories/crm-sales-smart/test-results/sales-flujo-venta-Uso-del--08eb0--Final-desbloquea-el-pedido-chromium/error-context.md\")",
       "Bash(pkill -f \"next dev\" 2>/dev/null *)",
-      "Bash(grep -o \"DATABASE_URL=.\\\\{0,30\\\\}\" .env)"
+      "Bash(grep -o \"DATABASE_URL=.\\\\{0,30\\\\}\" .env)",
+      "Bash(grep -o 'react-flow__edge[^\"]\\\\{0,10\\\\}\"[^\\)]\\\\{0,200\\\\}' node_modules/@xyflow/react/dist/esm/index.mjs)",
+      "Bash(node *)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

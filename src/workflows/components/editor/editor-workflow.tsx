@@ -42,7 +42,7 @@ import { useMediaQuery } from "@/shared/hooks/use-media-query";
 import { FechaHora } from "@/shared/fechas/fecha-hora";
 import { cn } from "@/lib/utils";
 import type { EstadoWorkflow } from "@/generated/prisma/enums";
-import { CATALOGO_NODOS, salidasDeNodo } from "../../definicion/catalogo-nodos";
+import { CATALOGO_NODOS, salidaPorDefectoDeNodo, salidasDeNodo } from "../../definicion/catalogo-nodos";
 import type { DefinicionWorkflow, NodoWorkflow, TipoNodo } from "../../definicion/schema";
 import { validarEstructura, type ResultadoValidacion } from "../../definicion/validador";
 import { actualizarDatosWorkflow, guardarBorradorWorkflow, publicarWorkflow, validarWorkflow } from "../../actions";
@@ -59,6 +59,14 @@ import { resumenNodo } from "./resumen-nodo";
 
 const TIPOS_NODO_FLOW = { workflow: NodoWorkflowFlow };
 const AUTOGUARDADO_MS = 1200;
+
+/** Tipos que pueden intercalarse en una conexión: los que, recién creados,
+ *  continúan el flujo por alguna salida. Un nodo terminal cortaría el tramo. */
+const TIPOS_INSERTABLES = new Set(
+  (Object.keys(CATALOGO_NODOS) as TipoNodo[]).filter(
+    (t) => salidaPorDefectoDeNodo(t, CATALOGO_NODOS[t].configInicial()) !== null,
+  ),
+);
 
 type EstadoGuardado = "guardado" | "pendiente" | "guardando" | "error";
 
@@ -87,6 +95,25 @@ function esCampoDeTexto(el: EventTarget | null): boolean {
   return el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) || !!el.closest("[role=dialog],[role=listbox],[role=menu]");
 }
 
+/**
+ * Id de la conexión bajo el cursor, si el cursor está sobre su trazo.
+ *
+ * React Flow marca cada arista con `data-id` y le da un trazo invisible de
+ * `interactionWidth` px sensible al puntero. Se recorre la pila de elementos
+ * de arriba hacia abajo y se corta en el primer nodo: una arista que pasa por
+ * debajo de una tarjeta no cuenta como apuntada.
+ */
+function conexionBajoElCursor(x: number, y: number): string | null {
+  for (const el of document.elementsFromPoint(x, y)) {
+    // Lo que flota sobre el lienzo —tarjetas, mapa, controles, validación—
+    // tapa la arista que pase por debajo: ahí no se está apuntando a ella.
+    if (el.closest(".react-flow__node, .react-flow__panel, [data-sobre-lienzo]")) return null;
+    const arista = el.closest(".react-flow__edge");
+    if (arista) return arista.getAttribute("data-id");
+  }
+  return null;
+}
+
 function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorWorkflow; opciones: OpcionesEditor; puedeModificar: boolean }) {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
@@ -107,6 +134,8 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
   const [modoLienzo, setModoLienzo] = useState<ModoLienzo>("seleccion");
   const [mapaVisible, setMapaVisible] = useState(true);
   const [actualizadoEn, setActualizadoEn] = useState(workflow.actualizadoEn);
+  const [conexionDestacada, setConexionDestacada] = useState<string | null>(null);
+  const tipoArrastrado = useRef<TipoNodo | null>(null);
   const [publicando, startPublicar] = useTransition();
   const [validando, startValidar] = useTransition();
   const portapapeles = useRef<{ nodos: NodoWorkflow[]; conexiones: DefinicionWorkflow["conexiones"] } | null>(null);
@@ -153,7 +182,7 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
   );
 
   const agregarNodo = useCallback(
-    (tipo: TipoNodo, posicion?: { x: number; y: number }) => {
+    (tipo: TipoNodo, posicion?: { x: number; y: number }, insertarEnConexion?: string) => {
       if (soloLectura) return;
       const id = generarId(tipo.toLowerCase());
       const centro = (() => {
@@ -163,13 +192,30 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
         const alto = el?.clientHeight ?? 600;
         return { x: (ancho / 2 - x) / zoom - 128, y: (alto / 2 - y) / zoom - 40 };
       })();
-      const nodo: NodoWorkflow = {
-        id,
-        tipo,
-        posicion: posicion ?? centro,
-        config: CATALOGO_NODOS[tipo].configInicial() as Record<string, unknown>,
-      };
-      aplicar((d) => ({ ...d, nodos: [...d.nodos, nodo] }));
+      const config = CATALOGO_NODOS[tipo].configInicial() as Record<string, unknown>;
+      const nodo: NodoWorkflow = { id, tipo, posicion: posicion ?? centro, config };
+
+      // Se calculan fuera del reducer: genera ids aleatorios y el reducer debe
+      // ser puro (StrictMode lo ejecuta dos veces).
+      const salida = salidaPorDefectoDeNodo(tipo, config);
+      const idEntrada = generarId("c");
+      const idSalida = generarId("c");
+
+      aplicar((d) => {
+        const conexion = insertarEnConexion ? d.conexiones.find((c) => c.id === insertarEnConexion) : undefined;
+        if (!conexion || !salida) return { ...d, nodos: [...d.nodos, nodo] };
+        // El tramo A → B pasa a ser A → nuevo → B, entrando por la salida que
+        // ya tenía A y saliendo por el camino feliz del nuevo nodo.
+        return {
+          ...d,
+          nodos: [...d.nodos, nodo],
+          conexiones: [
+            ...d.conexiones.filter((c) => c.id !== conexion.id),
+            { id: idEntrada, origen: conexion.origen, salida: conexion.salida, destino: id },
+            { id: idSalida, origen: id, salida, destino: conexion.destino },
+          ],
+        };
+      });
       setSeleccion([id]);
       setBibliotecaAbierta(false);
     },
@@ -272,18 +318,31 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
 
   const aristas: Edge[] = useMemo(
     () =>
-      def.conexiones.map((c) => ({
-        id: c.id,
-        source: c.origen,
-        sourceHandle: c.salida,
-        target: c.destino,
-        targetHandle: "entrada",
-        type: "smoothstep",
-        selected: aristasSeleccionadas.includes(c.id),
-        deletable: !soloLectura,
-        interactionWidth: 20,
-      })),
-    [aristasSeleccionadas, def.conexiones, soloLectura],
+      def.conexiones.map((c) => {
+        const destacada = c.id === conexionDestacada;
+        return {
+          id: c.id,
+          source: c.origen,
+          sourceHandle: c.salida,
+          target: c.destino,
+          targetHandle: "entrada",
+          type: "smoothstep",
+          selected: aristasSeleccionadas.includes(c.id),
+          deletable: !soloLectura,
+          interactionWidth: 20,
+          // Destino del componente que se está arrastrando: se marca el tramo
+          // y se avisa qué va a pasar al soltar.
+          animated: destacada,
+          zIndex: destacada ? 10 : undefined,
+          style: destacada ? { stroke: "var(--primary)", strokeWidth: 2.5 } : undefined,
+          label: destacada ? "Soltar para insertar aquí" : undefined,
+          labelStyle: { fill: "var(--primary-foreground)", fontSize: 10, fontWeight: 600 },
+          labelBgStyle: { fill: "var(--primary)" },
+          labelBgPadding: [6, 4] as [number, number],
+          labelBgBorderRadius: 6,
+        };
+      }),
+    [aristasSeleccionadas, conexionDestacada, def.conexiones, soloLectura],
   );
 
   const onNodesChange = useCallback(
@@ -356,15 +415,31 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
     [aplicar, conexionValida],
   );
 
+  // Durante `dragover` el `dataTransfer` está bloqueado: el tipo que se
+  // arrastra viene del ref que llenó la biblioteca al empezar.
+  const onDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const tipo = tipoArrastrado.current;
+      const sobreConexion = tipo && !soloLectura && TIPOS_INSERTABLES.has(tipo);
+      setConexionDestacada(sobreConexion ? conexionBajoElCursor(e.clientX, e.clientY) : null);
+    },
+    [soloLectura],
+  );
+
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      const conexion = conexionDestacada;
+      setConexionDestacada(null);
+      tipoArrastrado.current = null;
       const tipo = e.dataTransfer.getData(TIPO_ARRASTRE) as TipoNodo;
       if (!tipo || !(tipo in CATALOGO_NODOS)) return;
       const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      agregarNodo(tipo, { x: p.x - 128, y: p.y - 30 });
+      agregarNodo(tipo, { x: p.x - 128, y: p.y - 30 }, conexion ?? undefined);
     },
-    [agregarNodo, screenToFlowPosition],
+    [agregarNodo, conexionDestacada, screenToFlowPosition],
   );
 
   // ── Validar / publicar ────────────────────────────────────────────────────
@@ -491,12 +566,27 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
         {/* Biblioteca */}
         {esEscritorio && !soloLectura && (
           <aside className="w-64 shrink-0 border-r border-border bg-card">
-            <BibliotecaNodos onAgregar={agregarNodo} />
+            <BibliotecaNodos
+              onAgregar={agregarNodo}
+              onArrastreInicio={(t) => (tipoArrastrado.current = t)}
+              onArrastreFin={() => {
+                tipoArrastrado.current = null;
+                setConexionDestacada(null);
+              }}
+            />
           </aside>
         )}
 
         {/* Lienzo */}
-        <div className="relative min-w-0 flex-1 bg-surface-1" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+        <div
+          className="relative min-w-0 flex-1 bg-surface-1"
+          onDragOver={onDragOver}
+          onDragLeave={(e) => {
+            // `dragleave` también salta al pasar de un hijo a otro.
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setConexionDestacada(null);
+          }}
+          onDrop={onDrop}
+        >
           <ReactFlow<NodoFlow>
             nodes={nodos}
             edges={aristas}
@@ -545,6 +635,7 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
           {esEscritorio && (
             <BotonIcono
               etiqueta={mapaVisible ? "Ocultar el mapa" : "Mostrar el mapa"}
+              data-sobre-lienzo
               onClick={() => setMapaVisible((v) => !v)}
               className={cn(
                 "absolute bottom-3 z-10 h-8 w-8 border border-border bg-card shadow-md hover:bg-card-hover",
@@ -556,7 +647,7 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
           )}
 
           {validacion && (
-            <div className="absolute inset-x-3 bottom-0 z-10 mx-auto max-w-2xl">
+            <div data-sobre-lienzo className="absolute inset-x-3 bottom-0 z-10 mx-auto max-w-2xl">
               <PanelValidacion resultado={validacion} onIrANodo={irANodo} onCerrar={() => setValidacion(null)} />
             </div>
           )}
@@ -564,6 +655,7 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
             <button
               type="button"
               onClick={() => setValidacion(validacionLocal)}
+              data-sobre-lienzo
               className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-danger-border bg-danger-muted px-3 py-1 text-xs font-medium text-danger-text shadow-sm"
             >
               <AlertCircle className="h-3.5 w-3.5" />
@@ -586,7 +678,14 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
               <SheetHeader className="sr-only">
                 <SheetTitle>Componentes</SheetTitle>
               </SheetHeader>
-              <BibliotecaNodos onAgregar={agregarNodo} />
+              <BibliotecaNodos
+                onAgregar={agregarNodo}
+                onArrastreInicio={(t) => (tipoArrastrado.current = t)}
+                onArrastreFin={() => {
+                  tipoArrastrado.current = null;
+                  setConexionDestacada(null);
+                }}
+              />
             </SheetContent>
           </Sheet>
           <Sheet open={!!panelPropiedades} onOpenChange={(abierto) => !abierto && setSeleccion([])}>

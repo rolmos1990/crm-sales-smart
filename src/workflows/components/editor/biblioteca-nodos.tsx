@@ -17,7 +17,17 @@ const ORDEN_CATEGORIAS: CategoriaNodo[] = ["CONVERSACION", "CONTROL", "CRM", "IA
 // Inicio es único y ya viene en todo Workflow: no se ofrece en la biblioteca.
 const TIPOS_DISPONIBLES = (Object.keys(CATALOGO_NODOS) as TipoNodo[]).filter((t) => t !== "INICIO");
 
-export function BibliotecaNodos({ onAgregar }: { onAgregar: (tipo: TipoNodo) => void }) {
+export function BibliotecaNodos({
+  onAgregar,
+  onArrastreInicio,
+  onArrastreFin,
+}: {
+  onAgregar: (tipo: TipoNodo) => void;
+  /** El lienzo necesita saber qué se arrastra: durante `dragover` el
+   *  `dataTransfer` está bloqueado y no se puede leer el tipo. */
+  onArrastreInicio?: (tipo: TipoNodo) => void;
+  onArrastreFin?: () => void;
+}) {
   const [filtro, setFiltro] = useState("");
   const [colapsadas, setColapsadas] = useState<Set<CategoriaNodo>>(new Set());
   const buscador = useRef<HTMLInputElement>(null);
@@ -135,7 +145,9 @@ export function BibliotecaNodos({ onAgregar }: { onAgregar: (tipo: TipoNodo) => 
                           onDragStart={(e) => {
                             e.dataTransfer.setData(TIPO_ARRASTRE, tipo);
                             e.dataTransfer.effectAllowed = "move";
+                            onArrastreInicio?.(tipo);
                           }}
+                          onDragEnd={() => onArrastreFin?.()}
                           onClick={() => onAgregar(tipo)}
                           title={`${d.descripcion}\nArrástralo al lienzo o haz clic para agregarlo.`}
                           className="flex w-full cursor-grab items-start gap-2.5 rounded-lg border border-transparent bg-card p-2 text-left transition-colors hover:border-border-default hover:bg-card-hover active:cursor-grabbing"
