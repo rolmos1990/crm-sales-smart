@@ -4,7 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import type { EstadoEjecucionWorkflow, TipoDisparadorWorkflow } from "@/generated/prisma/enums";
 import { obtenerZonaNegocio } from "@/shared/fechas/negocio";
 import { CATALOGO_NODOS } from "../definicion/catalogo-nodos";
-import { CONFIG_POR_TIPO, DefinicionWorkflowSchema, type DefinicionWorkflow, type MotivoInterrupcion } from "../definicion/schema";
+import { CONFIG_POR_TIPO, DefinicionWorkflowSchema, duracionEnMinutos, type DefinicionWorkflow, type MotivoInterrupcion } from "../definicion/schema";
 import { crearAdaptadoresReales, registrarCambioAtencionChat } from "./adaptadores";
 import { cargarContextoDatos, type ContextoDatos } from "./contexto";
 import { EJECUTORES } from "./nodos";
@@ -514,13 +514,22 @@ const ESTADO_DE_ESPERA = {
 export async function retomarEjecucion(id: string): Promise<boolean> {
   const ej = await prisma.workflowEjecucion.findUnique({
     where: { id },
-    select: { estado: true, conversacionId: true, instanciaId: true, esperaTipo: true },
+    select: {
+      estado: true,
+      conversacionId: true,
+      instanciaId: true,
+      esperaTipo: true,
+      nodoActualId: true,
+      esperaDesde: true,
+      version: { select: { definicion: true } },
+    },
   });
   if (ej?.estado !== "TRANSFERIDA_HUMANO") return false;
   const estado = ej.esperaTipo ? ESTADO_DE_ESPERA[ej.esperaTipo] : "EJECUTANDO";
+  const esperaIA = ej.esperaTipo === "IA" ? await reiniciarEsperaIA(ej) : {};
   try {
     await prisma.$transaction([
-      prisma.workflowEjecucion.update({ where: { id }, data: { estado, controlaConversacion: !!ej.conversacionId } }),
+      prisma.workflowEjecucion.update({ where: { id }, data: { estado, controlaConversacion: !!ej.conversacionId, ...esperaIA } }),
       ...(ej.conversacionId
         ? [
             prisma.conversacion.update({
@@ -537,6 +546,38 @@ export async function retomarEjecucion(id: string): Promise<boolean> {
   // No se avanza acá (puede llamarse desde una petición HTTP y un paso de IA
   // tarda): queda EJECUTANDO sin lease y el worker la toma en su ciclo.
   return true;
+}
+
+/**
+ * Al retomar una Atención IA tras una pausa humana:
+ * - la inactividad cuenta desde ahora (si no, una pausa más larga que la
+ *   inactividad haría salir el nodo por "No resuelto" sin atender);
+ * - la espera arranca en la última respuesta enviada al cliente, para que el
+ *   respaldo de mensajes solo tome un mensaje del cliente que nadie contestó
+ *   (no uno que el humano ya respondió durante la pausa).
+ */
+async function reiniciarEsperaIA(ej: {
+  conversacionId: string | null;
+  nodoActualId: string | null;
+  esperaDesde: Date | null;
+  version: { definicion: unknown };
+}) {
+  const ahora = new Date();
+  const def = DefinicionWorkflowSchema.safeParse(ej.version.definicion);
+  const nodo = def.success ? def.data.nodos.find((n) => n.id === ej.nodoActualId) : undefined;
+  const config = nodo?.tipo === "ATENCION_IA" ? CONFIG_POR_TIPO.ATENCION_IA.safeParse(nodo.config) : null;
+  const inactividad = config?.success ? config.data.inactividad : undefined;
+  const ultimaRespuesta = ej.conversacionId
+    ? await prisma.mensajeConversacion.findFirst({
+        where: { conversacionId: ej.conversacionId, esNotaInterna: false, remitente: { in: ["AGENTE", "AGENTE_CANAL_NATIVO", "BOT"] } },
+        orderBy: { creadoEn: "desc" },
+        select: { creadoEn: true },
+      })
+    : null;
+  return {
+    esperaDesde: ultimaRespuesta?.creadoEn ?? ej.esperaDesde ?? ahora,
+    esperaHasta: inactividad ? new Date(ahora.getTime() + duracionEnMinutos(inactividad) * 60_000) : null,
+  };
 }
 
 /** Pausa la ejecución que controla una conversación cuando un humano la toma (D6). */
