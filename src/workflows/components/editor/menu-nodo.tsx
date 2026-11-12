@@ -4,6 +4,7 @@ import { Copy, CopyPlus, Settings2, Trash2, Unlink } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -61,53 +62,57 @@ export function MenuNodo({
         render={<span className="pointer-events-none fixed h-0 w-0" style={{ left: posicion.x, top: posicion.y }} />}
       />
       <DropdownMenuContent align="start" side="bottom" sideOffset={0} className="w-60">
-        <DropdownMenuLabel className="truncate">{titulo}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        {/* El título es la etiqueta del grupo de acciones: `DropdownMenuLabel`
+            es `Menu.GroupLabel` de Base UI y falla fuera de un `Menu.Group`. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="truncate">{titulo}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
 
-        {/* Con un solo paso el panel de configuración ya se abrió al hacer
-            clic derecho; con varios, esta es la forma de bajar a uno. */}
-        {varios && (
-          <DropdownMenuItem onClick={acciones.onConfigurar}>
-            <Settings2 />
-            {soloLectura ? "Ver solo este paso" : "Configurar solo este paso"}
-          </DropdownMenuItem>
-        )}
-
-        <DropdownMenuItem onClick={acciones.onCopiar}>
-          <Copy />
-          {varios ? "Copiar pasos" : "Copiar paso"}
-          <DropdownMenuShortcut>Ctrl+C</DropdownMenuShortcut>
-        </DropdownMenuItem>
-
-        {!soloLectura && (
-          <DropdownMenuItem onClick={acciones.onDuplicar} disabled={modificables === 0}>
-            <CopyPlus />
-            {varios ? "Duplicar pasos" : "Duplicar paso"}
-            <DropdownMenuShortcut>Ctrl+D</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        )}
-
-        {!soloLectura && (
-          <DropdownMenuItem onClick={acciones.onDesconectar} disabled={!conConexiones}>
-            <Unlink />
-            {varios ? "Desconectar pasos" : "Desconectar paso"}
-          </DropdownMenuItem>
-        )}
-
-        {!soloLectura && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={acciones.onEliminar} disabled={modificables === 0}>
-              <Trash2 />
-              {modificables === 0
-                ? "El paso Inicio no se elimina"
-                : varios
-                  ? `Eliminar ${modificables} ${modificables === 1 ? "paso" : "pasos"}`
-                  : "Eliminar paso"}
-              {modificables > 0 && <DropdownMenuShortcut>Supr</DropdownMenuShortcut>}
+          {/* Con un solo paso el panel de configuración ya se abrió al hacer
+              clic derecho; con varios, esta es la forma de bajar a uno. */}
+          {varios && (
+            <DropdownMenuItem onClick={acciones.onConfigurar}>
+              <Settings2 />
+              {soloLectura ? "Ver solo este paso" : "Configurar solo este paso"}
             </DropdownMenuItem>
-          </>
-        )}
+          )}
+
+          <DropdownMenuItem onClick={acciones.onCopiar}>
+            <Copy />
+            {varios ? "Copiar pasos" : "Copiar paso"}
+            <DropdownMenuShortcut>Ctrl+C</DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          {!soloLectura && (
+            <DropdownMenuItem onClick={acciones.onDuplicar} disabled={modificables === 0}>
+              <CopyPlus />
+              {varios ? "Duplicar pasos" : "Duplicar paso"}
+              <DropdownMenuShortcut>Ctrl+D</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
+
+          {!soloLectura && (
+            <DropdownMenuItem onClick={acciones.onDesconectar} disabled={!conConexiones}>
+              <Unlink />
+              {varios ? "Desconectar pasos" : "Desconectar paso"}
+            </DropdownMenuItem>
+          )}
+
+          {!soloLectura && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={acciones.onEliminar} disabled={modificables === 0}>
+                <Trash2 />
+                {modificables === 0
+                  ? "El paso Inicio no se elimina"
+                  : varios
+                    ? `Eliminar ${modificables} ${modificables === 1 ? "paso" : "pasos"}`
+                    : "Eliminar paso"}
+                {modificables > 0 && <DropdownMenuShortcut>Supr</DropdownMenuShortcut>}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
