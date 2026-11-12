@@ -4,11 +4,28 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { enviarMensaje } from "@/conversaciones/actions";
+import { enviarMensajeInterno } from "@/conversaciones/envio";
 import { GuardarAutonomiaIntencionConfigSchema, EditarYEnviarRespuestaPendienteSchema } from "./schema";
 import { listarAutonomiaPorAgente, listarRespuestasPendientes } from "./queries";
 import type { CategoriaIntencionAutonomia } from "@/generated/prisma/enums";
 
 type Resultado<T extends object = object> = ({ exito: true } & T) | { exito: false; error: string };
+
+/**
+ * Aprobar una sugerencia de la IA no es "responder a mano": si un Workflow
+ * atiende la conversación, el mensaje sale como turno de la IA y el Workflow
+ * sigue atendiendo (sin la pausa D6 de enviarMensaje).
+ */
+async function enviarSugerenciaAprobada(conversacionId: string, contenido: string, instanciaId: string) {
+  const conv = await prisma.conversacion.findFirst({
+    where: { id: conversacionId, instanciaId },
+    select: { modoAtencion: true },
+  });
+  if (conv?.modoAtencion === "WORKFLOW") {
+    return enviarMensajeInterno({ conversacionId, contenido, tipo: "TEXTO", esNotaInterna: false, instanciaId, origen: "WORKFLOW" });
+  }
+  return enviarMensaje({ conversacionId, contenido, tipo: "TEXTO", esNotaInterna: false });
+}
 
 // Historia 1 — gestión de AutonomiaIntencionConfig por agente.
 export async function obtenerAutonomiaDeAgente(agenteIAConfigId: string) {
@@ -119,12 +136,7 @@ export async function enviarRespuestaPendiente(id: string): Promise<Resultado> {
   const pendiente = await resolverPendiente(id, auth.sesion.instanciaId);
   if (!pendiente) return { exito: false, error: "Respuesta pendiente no encontrada" };
 
-  const resultado = await enviarMensaje({
-    conversacionId: pendiente.conversacionId,
-    contenido: pendiente.respuestaPropuesta,
-    tipo: "TEXTO",
-    esNotaInterna: false,
-  });
+  const resultado = await enviarSugerenciaAprobada(pendiente.conversacionId, pendiente.respuestaPropuesta, auth.sesion.instanciaId);
   if (!resultado.ok) return { exito: false, error: resultado.error };
 
   await prisma.respuestaPendienteRevision.update({
@@ -146,12 +158,7 @@ export async function editarYEnviarRespuestaPendiente(datos: unknown): Promise<R
   const pendiente = await resolverPendiente(validado.data.id, auth.sesion.instanciaId);
   if (!pendiente) return { exito: false, error: "Respuesta pendiente no encontrada" };
 
-  const resultado = await enviarMensaje({
-    conversacionId: pendiente.conversacionId,
-    contenido: validado.data.textoEditado,
-    tipo: "TEXTO",
-    esNotaInterna: false,
-  });
+  const resultado = await enviarSugerenciaAprobada(pendiente.conversacionId, validado.data.textoEditado, auth.sesion.instanciaId);
   if (!resultado.ok) return { exito: false, error: resultado.error };
 
   await prisma.respuestaPendienteRevision.update({

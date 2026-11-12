@@ -31,6 +31,8 @@ export interface EstadoAtencion {
   /** Ejecución pausada por atención humana que se puede retomar. */
   pausada: { id: string; workflow: string; paso: string | null } | null;
   workflows: { id: string; nombre: string }[];
+  /** Respuestas de la IA retenidas por la autonomía del agente (Solo sugerencia). */
+  sugerenciasPendientes: number;
 }
 
 function nombrePaso(definicion: unknown, nodoId: string | null): string | null {
@@ -56,7 +58,7 @@ export async function obtenerAtencionAction(conversacionId: string): Promise<Est
   if (!a.ok) return null;
   const instanciaId = a.sesion.instanciaId;
 
-  const [conv, config, activa, pausada, workflows] = await Promise.all([
+  const [conv, config, activa, pausada, workflows, sugerenciasPendientes] = await Promise.all([
     prisma.conversacion.findUnique({
       where: { id: conversacionId },
       select: { modoAtencion: true, atencionDesde: true, atencionMotivo: true, atencionUsuarioId: true },
@@ -73,6 +75,7 @@ export async function obtenerAtencionAction(conversacionId: string): Promise<Est
       select: { id: true, nodoActualId: true, workflow: { select: { nombre: true } }, version: { select: { definicion: true } } },
     }),
     prisma.workflow.findMany({ where: { instanciaId, estado: "PUBLICADO" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true } }),
+    prisma.respuestaPendienteRevision.count({ where: { conversacionId, instanciaId, estado: "PENDIENTE" } }),
   ]);
   if (!conv) return null;
 
@@ -95,6 +98,7 @@ export async function obtenerAtencionAction(conversacionId: string): Promise<Est
       : null,
     pausada: pausada ? { id: pausada.id, workflow: pausada.workflow.nombre, paso: nombrePaso(pausada.version.definicion, pausada.nodoActualId) } : null,
     workflows,
+    sugerenciasPendientes,
   };
 }
 

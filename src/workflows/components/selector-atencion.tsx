@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Bot, ChevronDown, Loader2, Play, UserRound, Workflow } from "lucide-react";
@@ -88,6 +89,13 @@ export function SelectorAtencion({ conversacionId, onCambio, className }: { conv
             <p className="text-[11px] text-destructive" title={ejecucion.reintento.error}>
               Falló {ejecucion.reintento.intento} de 3 intentos: {ejecucion.reintento.error}
             </p>
+          )}
+          {estado.sugerenciasPendientes > 0 && (
+            <Link href="/crm/inbox/pendientes-ia" className="block text-[11px] font-medium text-warning hover:underline">
+              {estado.sugerenciasPendientes === 1
+                ? "1 respuesta de la IA espera tu aprobación"
+                : `${estado.sugerenciasPendientes} respuestas de la IA esperan tu aprobación`}
+            </Link>
           )}
           {estado.motivo && <p className="truncate text-[11px] text-muted-foreground" title={estado.motivo}>{estado.motivo}</p>}
           {pausada && modo !== "WORKFLOW" && (

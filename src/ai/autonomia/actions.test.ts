@@ -12,6 +12,12 @@ vi.mock("@/conversaciones/actions", () => ({
   enviarMensaje: (...a: unknown[]) => enviarMensajeMock(...a),
 }));
 
+const enviarMensajeInternoMock = vi.fn().mockResolvedValue({ ok: true, mensaje: { id: "m2" } });
+vi.mock("@/conversaciones/envio", () => ({
+  enviarMensajeInterno: (...a: unknown[]) => enviarMensajeInternoMock(...a),
+}));
+
+const conversacionFindFirstMock = vi.fn();
 const agenteFindFirstMock = vi.fn();
 const autonomiaUpsertMock = vi.fn();
 const transactionMock = vi.fn((ops: unknown[]) => Promise.all(ops));
@@ -22,6 +28,7 @@ const evaluacionCreateMock = vi.fn();
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
     agenteIAConfig: { findFirst: (...a: unknown[]) => agenteFindFirstMock(...a) },
+    conversacion: { findFirst: (...a: unknown[]) => conversacionFindFirstMock(...a) },
     autonomiaIntencionConfig: { upsert: (...a: unknown[]) => autonomiaUpsertMock(...a) },
     respuestaPendienteRevision: {
       findFirst: (...a: unknown[]) => pendienteFindFirstMock(...a),
@@ -48,6 +55,8 @@ describe("autonomia/actions (016)", () => {
   beforeEach(() => {
     requirePermisoActionMock.mockClear().mockResolvedValue({ ok: true, sesion: sesionMock });
     enviarMensajeMock.mockClear().mockResolvedValue({ ok: true, mensaje: { id: "m1" } });
+    enviarMensajeInternoMock.mockClear().mockResolvedValue({ ok: true, mensaje: { id: "m2" } });
+    conversacionFindFirstMock.mockReset().mockResolvedValue({ modoAtencion: "AUTOMATICO" });
     agenteFindFirstMock.mockReset().mockResolvedValue({ id: "agente-1" });
     autonomiaUpsertMock.mockReset();
     transactionMock.mockClear();
@@ -98,6 +107,17 @@ describe("autonomia/actions (016)", () => {
       expect(enviarMensajeMock).toHaveBeenCalledWith(expect.objectContaining({ contenido: "Hola, con más detalle" }));
       expect(pendienteUpdateMock).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ estado: "EDITADA_Y_ENVIADA", respuestaEditada: "Hola, con más detalle" }) }),
+      );
+    });
+
+    it("con un Workflow atendiendo, aprobar la sugerencia no pausa el Workflow (no pasa por la respuesta manual D6)", async () => {
+      conversacionFindFirstMock.mockResolvedValue({ modoAtencion: "WORKFLOW" });
+      pendienteFindFirstMock.mockResolvedValue({ id: "p1", conversacionId: "c1", respuestaPropuesta: "Hola" });
+      const resultado = await enviarRespuestaPendiente("p1");
+      expect(resultado.exito).toBe(true);
+      expect(enviarMensajeMock).not.toHaveBeenCalled();
+      expect(enviarMensajeInternoMock).toHaveBeenCalledWith(
+        expect.objectContaining({ conversacionId: "c1", contenido: "Hola", instanciaId: "instancia-1", origen: "WORKFLOW" }),
       );
     });
 
