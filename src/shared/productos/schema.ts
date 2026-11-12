@@ -75,6 +75,9 @@ export const CrearProductoSchema = z.object({
   tieneVariantes: z.boolean().optional(),
   atributosVariantes: z.array(AtributoVarianteSchema).max(10).optional(),
   variantes: z.array(VarianteEditableSchema).max(200).optional(),
+
+  // Etiquetas del catálogo. En la edición, ausente = no se tocan.
+  etiquetaIds: z.array(z.string().min(1)).max(30).optional(),
 });
 
 export const ActualizarProductoSchema = CrearProductoSchema.partial();

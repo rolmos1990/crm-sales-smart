@@ -1,7 +1,7 @@
 import { prisma } from "@/shared/db/prisma";
 import { ocultarCodigo } from "@/shared/lib/codigo-sensible";
 import { calcularDisponibilidadCombo } from "./inventario";
-import type { ProductoCatalogo } from "./types";
+import type { ProductoCatalogo, ProductoListado } from "./types";
 
 // Campos de ProductoEntregaDigital que sí pueden llegar al cliente — nunca
 // `codigo` crudo (ver ocultarCodigo, aplicado siempre antes del `return`).
@@ -17,6 +17,47 @@ export async function obtenerProductos(instanciaId: string) {
   });
 }
 
+export async function obtenerProductosListado(instanciaId: string): Promise<ProductoListado[]> {
+  const productos = await prisma.producto.findMany({
+    where: { instanciaId },
+    orderBy: { nombre: "asc" },
+    select: {
+      id: true, sku: true, nombre: true, descripcion: true, precio: true, moneda: true, categoria: true, tipo: true,
+      unidad: true, imagenUrl: true, activo: true, esCombo: true, ventaDirecta: true, manejaStock: true,
+      cantidadDisponible: true, tieneVariantes: true,
+      variantes: { where: { activo: true }, select: { cantidadDisponible: true } },
+      componentes: {
+        select: { cantidad: true, componente: { select: { manejaStock: true, cantidadDisponible: true, activo: true } } },
+      },
+      etiquetas: { select: { etiqueta: { select: { id: true, nombre: true, color: true } } } },
+    },
+  });
+
+  return productos.map(({ variantes, componentes, etiquetas, manejaStock, cantidadDisponible, tieneVariantes, ...p }) => {
+    let stock: number | null = null;
+    if (p.esCombo) {
+      stock = calcularDisponibilidadCombo(
+        componentes.map((c) => ({
+          cantidad: c.cantidad,
+          manejaStock: c.componente.manejaStock,
+          cantidadDisponible: Number(c.componente.cantidadDisponible),
+          activo: c.componente.activo,
+        })),
+      );
+    } else if (manejaStock) {
+      stock = tieneVariantes
+        ? variantes.reduce((total, v) => total + Number(v.cantidadDisponible), 0)
+        : Number(cantidadDisponible);
+    }
+    return {
+      ...p,
+      precio: Number(p.precio),
+      stock,
+      etiquetas: etiquetas.map((e) => e.etiqueta).sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    };
+  });
+}
+
 export async function obtenerProductoPorId(id: string, instanciaId: string) {
   const producto = await prisma.producto.findFirst({
     where: { id, instanciaId },
@@ -27,12 +68,14 @@ export async function obtenerProductoPorId(id: string, instanciaId: string) {
         select: { id: true, valores: true, sku: true, precio: true, cantidadDisponible: true, activo: true },
         orderBy: { orden: "asc" },
       },
+      etiquetas: { select: { etiquetaId: true } },
     },
   });
   if (!producto) return null;
-  const { entregaDigital, componentes, variantes, ...resto } = producto;
+  const { entregaDigital, componentes, variantes, etiquetas, ...resto } = producto;
   return {
     ...resto,
+    etiquetaIds: etiquetas.map((e) => e.etiquetaId),
     entregaDigital: ocultarCodigo(entregaDigital),
     componentes: componentes.map((c) => ({ productoId: c.componenteId, cantidad: c.cantidad })),
     variantes: variantes.map((v) => ({

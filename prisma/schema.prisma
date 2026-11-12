@@ -395,6 +395,7 @@ model Instancia {
   cotizaciones         Cotizacion[]
   pedidos              Pedido[]
   tags                 Tag[]
+  etiquetasProducto    EtiquetaProducto[]
   campos               CampoPersonalizado[]
   eventos              EventoLog[]
   integraciones        IntegracionInstancia[]
@@ -1058,6 +1059,33 @@ model ContactoTag {
   @@id([contactoId, tagId])
 }
 
+// Etiquetas del catálogo de productos (Esfera, Base, Pequeña…). Lista propia,
+// separada de Tag: no se mezclan con las etiquetas de contactos/oportunidades.
+model EtiquetaProducto {
+  id       String   @id @default(cuid())
+  nombre   String
+  color    String?
+  creadoEn DateTime @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  productos ProductoEtiqueta[]
+
+  @@unique([instanciaId, nombre])
+}
+
+model ProductoEtiqueta {
+  productoId String
+  etiquetaId String
+
+  producto Producto         @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  etiqueta EtiquetaProducto @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
+
+  @@id([productoId, etiquetaId])
+  @@index([etiquetaId])
+}
+
 // =====================
 // CAMPOS PERSONALIZADOS
 // =====================
@@ -1193,6 +1221,9 @@ model Producto {
 
   // 030-variantes-producto
   variantes ProductoVariante[]
+
+  // Etiquetas propias del catálogo (separadas de las Tag del CRM).
+  etiquetas ProductoEtiqueta[]
 
   @@index([instanciaId])
   @@index([sku])

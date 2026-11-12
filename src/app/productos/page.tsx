@@ -3,23 +3,27 @@ import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { ListaProductos } from "@/shared/productos/components/lista-productos";
-import { obtenerProductos } from "@/shared/productos/queries";
+import { obtenerProductosListado } from "@/shared/productos/queries";
+import { obtenerEtiquetasProducto } from "@/shared/productos/etiquetas/queries";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
-import type { Producto } from "@/shared/productos/types";
+import type { ProductoListado } from "@/shared/productos/types";
+import type { EtiquetaProducto } from "@/shared/productos/etiquetas/types";
 
 export default async function ProductosPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "productos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "productos");
-  let productos: Producto[] = [];
+  let productos: ProductoListado[] = [];
+  let etiquetas: EtiquetaProducto[] = [];
 
   try {
-    const datos = await obtenerProductos(sesion.instanciaId);
-    // El listado no necesita entregaDigital (solo la ficha/edición la usa) —
-    // obtenerProductos no la trae, así que se completa en null acá.
-    productos = datos.map((p) => ({ ...p, precio: Number(p.precio), cantidadDisponible: Number(p.cantidadDisponible), entregaDigital: null })) as Producto[];
+    // Activos e inactivos: el filtro Estado del listado decide qué se ve.
+    [productos, etiquetas] = await Promise.all([
+      obtenerProductosListado(sesion.instanciaId),
+      obtenerEtiquetasProducto(sesion.instanciaId),
+    ]);
   } catch {
     // DB not configured — show empty state
   }
@@ -43,7 +47,7 @@ export default async function ProductosPage() {
           ) : undefined}
         />
       ) : (
-        <ListaProductos productos={productos} />
+        <ListaProductos productos={productos} etiquetas={etiquetas} />
       )}
     </div>
   );

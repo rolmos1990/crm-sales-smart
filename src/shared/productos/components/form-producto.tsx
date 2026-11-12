@@ -26,6 +26,8 @@ import type { AtributoVariante } from "../variantes";
 import type { ProductoParaComponente } from "../queries";
 import type { ComponenteCombo, VarianteEditable } from "../types";
 import { vincularMediaArchivo } from "@/lib/media/server-actions";
+import { SelectorEtiquetasProducto } from "../etiquetas/components/selector-etiquetas-producto";
+import type { EtiquetaBasica } from "../etiquetas/components/chip-etiqueta";
 
 const METODO_ENTREGA_DIGITAL_LABELS: Record<string, string> = {
   EMAIL: "Email",
@@ -46,11 +48,14 @@ interface FormProductoProps {
     tieneVariantes?: boolean;
     atributosVariantes?: unknown;
     variantes?: VarianteEditable[];
+    etiquetaIds?: string[];
   };
   modo?: "crear" | "editar";
   monedaDefault?: string;
   /** 029 — productos simples que pueden ser componentes de un combo. */
   productosComponentes?: ProductoParaComponente[];
+  /** Etiquetas del catálogo disponibles para asignar. */
+  etiquetas?: EtiquetaBasica[];
 }
 
 // Mismo switch artesanal que el de "Control de inventario" (patrón del form).
@@ -71,7 +76,7 @@ function Interruptor({ activo, onCambiar, etiqueta }: { activo: boolean; onCambi
   );
 }
 
-export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefault = "PEN", productosComponentes = [] }: FormProductoProps) {
+export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefault = "PEN", productosComponentes = [], etiquetas = [] }: FormProductoProps) {
   const router = useRouter();
   const [productoId, setProductoId] = useState<string | null>(inicial?.id ?? null);
   const [pendingMediaId, setPendingMediaId] = useState<string | null>(null);
@@ -97,6 +102,7 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
       tieneVariantes: inicial?.tieneVariantes ?? false,
       atributosVariantes: (Array.isArray(inicial?.atributosVariantes) ? inicial.atributosVariantes : []) as AtributoVariante[],
       variantes: inicial?.variantes ?? [],
+      etiquetaIds: inicial?.etiquetaIds ?? [],
       entregaDigital: {
         metodo: inicial?.entregaDigital?.metodo ?? undefined,
         url: inicial?.entregaDigital?.url ?? "",
@@ -281,6 +287,14 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
           </FormItem>
         )} />
 
+        <FormField control={form.control} name="etiquetaIds" render={({ field }) => (
+          <FormItem>
+            <FormLabel>Etiquetas</FormLabel>
+            <SelectorEtiquetasProducto etiquetas={etiquetas} seleccionadas={field.value ?? []} onChange={field.onChange} />
+            <p className="text-xs text-muted-foreground">Sirven para clasificar y filtrar el catálogo (por ejemplo Esfera, Base, Pequeña).</p>
+          </FormItem>
+        )} />
+
         {/* Imagen */}
         <FormField control={form.control} name="imagenUrl" render={({ field }) => (
           <FormItem>
@@ -436,7 +450,9 @@ export function FormProducto({ instanciaId, inicial, modo = "crear", monedaDefau
                 Disponible para venta directa
               </p>
               <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
-                Aparece al agregar productos a pedidos y cotizaciones. Desactívalo para piezas que solo se venden dentro de un combo.
+                {esCombo
+                  ? "Mantenlo activo para que el combo se pueda vender y el agente IA lo ofrezca."
+                  : "Aparece al agregar productos a pedidos y cotizaciones. Desactívalo para piezas que solo se venden dentro de un combo."}
               </p>
             </div>
             <FormField control={form.control} name="ventaDirecta" render={({ field }) => (

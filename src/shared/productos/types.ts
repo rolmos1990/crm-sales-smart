@@ -120,6 +120,27 @@ export interface ComponenteCombo {
   cantidad: number;
 }
 
+/** Fila del listado de /productos: incluye inactivos, etiquetas y el stock
+ *  efectivo (suma de variantes, o lo que alcanzan los componentes de un combo). */
+export interface ProductoListado {
+  id: string;
+  sku: string | null;
+  nombre: string;
+  descripcion: string | null;
+  precio: number;
+  moneda: string;
+  categoria: string | null;
+  tipo: TipoProducto;
+  unidad: string | null;
+  imagenUrl: string | null;
+  activo: boolean;
+  esCombo: boolean;
+  ventaDirecta: boolean;
+  /** null = no controla stock (ni él ni, si es combo, sus componentes). */
+  stock: number | null;
+  etiquetas: { id: string; nombre: string; color: string | null }[];
+}
+
 export type ResultadoAccion<T = void> =
   | { exito: true; datos: T }
   | { exito: false; error: string };

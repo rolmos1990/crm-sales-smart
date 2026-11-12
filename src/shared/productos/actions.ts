@@ -30,6 +30,13 @@ export async function buscarProductosAction(query: string) {
   return buscarProductos(query, sesion.instanciaId);
 }
 
+/** true si todas las etiquetas existen y son de la instancia (nunca de otra). */
+async function etiquetasDeLaInstancia(instanciaId: string, ids: string[]): Promise<boolean> {
+  if (ids.length === 0) return true;
+  const encontradas = await prisma.etiquetaProducto.count({ where: { instanciaId, id: { in: ids } } });
+  return encontradas === ids.length;
+}
+
 /** Une repetidos sumando cantidades: agregar dos veces el mismo producto
  *  equivale a subir su cantidad, nunca a duplicarlo. */
 function normalizarComponentes(componentes: ComponenteComboInput[]): ComponenteComboInput[] {
@@ -83,8 +90,12 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
   try {
     const {
       descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, componentes,
-      tieneVariantes, atributosVariantes, variantes, ...resto
+      tieneVariantes, atributosVariantes, variantes, etiquetaIds, ...resto
     } = validado.data;
+    const etiquetas = etiquetaIds === undefined ? undefined : [...new Set(etiquetaIds)];
+    if (etiquetas && !(await etiquetasDeLaInstancia(sesion.instanciaId, etiquetas))) {
+      return { exito: false, error: "Alguna etiqueta no existe" };
+    }
     const esCombo = resto.esCombo ?? false;
     const componentesCombo = esCombo ? normalizarComponentes(componentes ?? []) : [];
     if (esCombo) {
@@ -107,6 +118,7 @@ export async function crearProducto(datos: unknown): Promise<ResultadoAccion<Pro
         componentes: esCombo
           ? { create: componentesCombo.map((c) => ({ componenteId: c.productoId, cantidad: c.cantidad })) }
           : undefined,
+        etiquetas: etiquetas?.length ? { create: etiquetas.map((etiquetaId) => ({ etiquetaId })) } : undefined,
         instanciaId: sesion.instanciaId,
         moneda: resto.moneda ?? "PEN",
         activo: resto.activo ?? true,
@@ -166,8 +178,12 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
   try {
     const {
       descripcion, categoria, unidad, sku, imagenUrl, manejaStock, cantidadDisponible, entregaDigital, componentes,
-      tieneVariantes, atributosVariantes, variantes, ...resto
+      tieneVariantes, atributosVariantes, variantes, etiquetaIds, ...resto
     } = validado.data;
+    const etiquetas = etiquetaIds === undefined ? undefined : [...new Set(etiquetaIds)];
+    if (etiquetas && !(await etiquetasDeLaInstancia(sesion.instanciaId, etiquetas))) {
+      return { exito: false, error: "Alguna etiqueta no existe" };
+    }
     const productoAntes = await prisma.producto.findUnique({
       where: { id, instanciaId: sesion.instanciaId },
       select: {
@@ -250,6 +266,9 @@ export async function actualizarProducto(id: string, datos: unknown): Promise<Re
         entregaDigital: datosEntregaDigital ? {
           upsert: { create: datosEntregaDigital, update: datosEntregaDigital },
         } : undefined,
+        etiquetas: etiquetas
+          ? { deleteMany: {}, ...(etiquetas.length > 0 && { create: etiquetas.map((etiquetaId) => ({ etiquetaId })) }) }
+          : undefined,
       },
       include: { entregaDigital: { select: { metodo: true, url: true, archivo: true, codigo: true, usuarioAcceso: true, instrucciones: true, observaciones: true, requiereSeguimiento: true, tipoSeguimiento: true } } },
      });

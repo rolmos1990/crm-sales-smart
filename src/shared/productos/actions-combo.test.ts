@@ -14,6 +14,7 @@ const productoFindUnique = vi.fn();
 const productoCreate = vi.fn();
 const productoUpdate = vi.fn();
 const componenteFindFirst = vi.fn();
+const etiquetaCount = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => {
   const db = {
@@ -25,6 +26,7 @@ vi.mock("@/shared/db/prisma", () => {
     },
     productoComponente: { findFirst: (...a: unknown[]) => componenteFindFirst(...a) },
     productoVariante: { findMany: () => Promise.resolve([]) },
+    etiquetaProducto: { count: (...a: unknown[]) => etiquetaCount(...a) },
   };
   return { prisma: { ...db, $transaction: (cb: (tx: typeof db) => unknown) => cb(db) } };
 });
@@ -36,7 +38,8 @@ const base = { nombre: "Luminaria Luna Grande", precio: 26 };
 
 describe("029 — crear y editar combos", () => {
   beforeEach(() => {
-    for (const m of [productoFindMany, productoFindUnique, productoCreate, productoUpdate, componenteFindFirst]) m.mockReset();
+    for (const m of [productoFindMany, productoFindUnique, productoCreate, productoUpdate, componenteFindFirst, etiquetaCount]) m.mockReset();
+    etiquetaCount.mockImplementation(({ where }: { where: { id: { in: string[] } } }) => Promise.resolve(where.id.in.length));
     productoCreate.mockResolvedValue(creado);
     productoUpdate.mockResolvedValue(creado);
     componenteFindFirst.mockResolvedValue(null);
@@ -172,5 +175,57 @@ describe("029 — crear y editar combos", () => {
     const r = await crearProducto({ ...base, esCombo: true, componentes: [{ productoId: "base-oculta", cantidad: 1 }] });
     expect(r.exito).toBe(true);
     expect(productoFindMany.mock.calls[0][0].select).not.toHaveProperty("ventaDirecta");
+  });
+
+  it("un combo con venta directa la conserva (la IA y los pedidos lo ofrecen) y nunca maneja stock", async () => {
+    await crearProducto({ ...base, esCombo: true, ventaDirecta: true, manejaStock: true, componentes: [{ productoId: "base", cantidad: 1 }] });
+    const data = productoCreate.mock.calls[0][0].data;
+    expect(data.ventaDirecta).toBe(true);
+    expect(data.manejaStock).toBe(false);
+
+    productoFindUnique.mockResolvedValue({
+      precio: 26, tipo: "FISICO", esCombo: true, entregaDigital: null, componentes: [{ componenteId: "base", cantidad: 1 }],
+    });
+    await actualizarProducto("combo-1", { ventaDirecta: true, manejaStock: true });
+    const upd = productoUpdate.mock.calls[0][0].data;
+    expect(upd.ventaDirecta).toBe(true);
+    expect(upd.manejaStock).toBe(false);
+  });
+});
+
+describe("etiquetas del producto", () => {
+  beforeEach(() => {
+    for (const m of [productoFindUnique, productoCreate, productoUpdate, etiquetaCount]) m.mockReset();
+    productoCreate.mockResolvedValue(creado);
+    productoUpdate.mockResolvedValue(creado);
+    productoFindUnique.mockResolvedValue({ precio: 26, tipo: "FISICO", esCombo: false, entregaDigital: null, componentes: [] });
+    etiquetaCount.mockImplementation(({ where }: { where: { id: { in: string[] } } }) => Promise.resolve(where.id.in.length));
+  });
+
+  it("al crear asigna las etiquetas, sin repetidas", async () => {
+    await crearProducto({ ...base, etiquetaIds: ["esfera", "pequena", "esfera"] });
+    expect(productoCreate.mock.calls[0][0].data.etiquetas).toEqual({ create: [{ etiquetaId: "esfera" }, { etiquetaId: "pequena" }] });
+    expect(etiquetaCount.mock.calls[0][0].where).toEqual({ instanciaId: "inst-1", id: { in: ["esfera", "pequena"] } });
+  });
+
+  it("al editar reemplaza el conjunto; una lista vacía las quita todas", async () => {
+    await actualizarProducto("p1", { etiquetaIds: ["base"] });
+    expect(productoUpdate.mock.calls[0][0].data.etiquetas).toEqual({ deleteMany: {}, create: [{ etiquetaId: "base" }] });
+
+    await actualizarProducto("p1", { etiquetaIds: [] });
+    expect(productoUpdate.mock.calls[1][0].data.etiquetas).toEqual({ deleteMany: {} });
+  });
+
+  it("editar otro campo no toca las etiquetas", async () => {
+    await actualizarProducto("p1", { precio: 30 });
+    expect(productoUpdate.mock.calls[0][0].data.etiquetas).toBeUndefined();
+    expect(etiquetaCount).not.toHaveBeenCalled();
+  });
+
+  it("rechaza etiquetas que no son de la instancia", async () => {
+    etiquetaCount.mockResolvedValue(1);
+    const r = await actualizarProducto("p1", { etiquetaIds: ["mia", "ajena"] });
+    expect(r).toEqual({ exito: false, error: "Alguna etiqueta no existe" });
+    expect(productoUpdate).not.toHaveBeenCalled();
   });
 });

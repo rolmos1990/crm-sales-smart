@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 interface DataTableProps<TData, TValue> {
@@ -30,6 +31,8 @@ interface DataTableProps<TData, TValue> {
   datos: TData[];
   filtroPor?: string;
   placeholderFiltro?: string;
+  /** Si se pasa, muestra el selector "Filas por página" con estas opciones (la primera es la inicial). */
+  opcionesTamanoPagina?: number[];
 }
 
 export function DataTable<TData, TValue>({
@@ -37,6 +40,7 @@ export function DataTable<TData, TValue>({
   datos,
   filtroPor,
   placeholderFiltro = "Buscar...",
+  opcionesTamanoPagina,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -53,7 +57,7 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     state: { sorting, columnFilters, columnVisibility },
-    initialState: { pagination: { pageSize: 20 } },
+    initialState: { pagination: { pageSize: opcionesTamanoPagina?.[0] ?? 20 } },
   });
 
   return (
@@ -125,6 +129,27 @@ export function DataTable<TData, TValue>({
           {table.getFilteredRowModel().rows.length} registro(s)
         </p>
         <div className="flex items-center gap-2">
+          {opcionesTamanoPagina && (
+            <div className="mr-2 hidden items-center gap-2 text-sm text-muted-foreground sm:flex">
+              Filas por página
+              <Select
+                items={Object.fromEntries(opcionesTamanoPagina.map((n) => [String(n), String(n)]))}
+                value={String(table.getState().pagination.pageSize)}
+                onValueChange={(v) => v && table.setPageSize(Number(v))}
+              >
+                <SelectTrigger size="sm" aria-label="Filas por página" className="w-18">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {opcionesTamanoPagina.map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Button
             variant="outline"
             size="sm"
