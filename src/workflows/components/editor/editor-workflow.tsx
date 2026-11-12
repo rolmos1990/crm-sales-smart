@@ -52,6 +52,7 @@ import { ESTILO_CATEGORIA, ESTILO_ESTADO } from "../estilos";
 import { BibliotecaNodos, TIPO_ARRASTRE } from "./biblioteca-nodos";
 import { ControlesLienzo, type ModoLienzo } from "./controles-lienzo";
 import { duplicarNodos, estadoInicial, generarId, quitarNodos, reducerEditor } from "./estado-editor";
+import { MenuNodo } from "./menu-nodo";
 import { NodoWorkflowFlow, type DatosNodoFlow, type NodoFlow } from "./nodo-workflow";
 import { PanelPropiedades } from "./panel-propiedades";
 import { PanelValidacion } from "./panel-validacion";
@@ -67,6 +68,13 @@ const TIPOS_INSERTABLES = new Set(
     (t) => salidaPorDefectoDeNodo(t, CATALOGO_NODOS[t].configInicial()) !== null,
   ),
 );
+
+/** Compartido por todo nodo sano: evita un arreglo nuevo por nodo y por frame. */
+const SIN_PROBLEMAS: string[] = [];
+
+function mismosProblemas(a: string[], b: string[]): boolean {
+  return a === b || (a.length === b.length && a.every((p, i) => p === b[i]));
+}
 
 type EstadoGuardado = "guardado" | "pendiente" | "guardando" | "error";
 
@@ -135,7 +143,13 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
   const [mapaVisible, setMapaVisible] = useState(true);
   const [actualizadoEn, setActualizadoEn] = useState(workflow.actualizadoEn);
   const [conexionDestacada, setConexionDestacada] = useState<string | null>(null);
+  const [menuNodo, setMenuNodo] = useState<{ nodoId: string; x: number; y: number } | null>(null);
   const tipoArrastrado = useRef<TipoNodo | null>(null);
+  // Tamaño con el que React Flow midió cada nodo. No va en la definición —
+  // eso se guarda en base de datos— pero sí hay que devolvérselo en el nodo:
+  // un objeto sin `measured` llega "sin medir" y React Flow lo esconde hasta
+  // volver a medirlo. Ver `onNodesChange` y el memo de `nodos`.
+  const medidas = useRef(new Map<string, { width: number; height: number }>());
   const [publicando, startPublicar] = useTransition();
   const [validando, startValidar] = useTransition();
   const portapapeles = useRef<{ nodos: NodoWorkflow[]; conexiones: DefinicionWorkflow["conexiones"] } | null>(null);
@@ -257,6 +271,32 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
     [aplicar, def, soloLectura],
   );
 
+  // Clic derecho sobre un paso: si ya forma parte de una selección múltiple,
+  // el menú actúa sobre toda; si no, pasa a ser el único seleccionado.
+  const onNodeContextMenu = useCallback((e: React.MouseEvent, nodo: NodoFlow) => {
+    e.preventDefault();
+    setSeleccion((s) => (s.length > 1 && s.includes(nodo.id) ? s : [nodo.id]));
+    setAristasSeleccionadas([]);
+    setMenuNodo({ nodoId: nodo.id, x: e.clientX, y: e.clientY });
+  }, []);
+
+  /** Quita toda conexión que entre o salga de los pasos seleccionados. */
+  const desconectarSeleccion = useCallback(() => {
+    const ids = new Set(seleccion);
+    if (ids.size === 0) return;
+    aplicar((d) => ({ ...d, conexiones: d.conexiones.filter((c) => !ids.has(c.origen) && !ids.has(c.destino)) }));
+  }, [aplicar, seleccion]);
+
+  /** Copia los pasos seleccionados junto a sí mismos, con sus conexiones internas. */
+  const duplicarSeleccion = useCallback(() => {
+    const ids = new Set(seleccion);
+    if (ids.size === 0) return;
+    pegar({
+      nodos: def.nodos.filter((n) => ids.has(n.id)),
+      conexiones: def.conexiones.filter((c) => ids.has(c.origen) && ids.has(c.destino)),
+    });
+  }, [def, pegar, seleccion]);
+
   // ── Atajos de teclado ─────────────────────────────────────────────────────
   // Herramientas del lienzo: también en solo lectura, porque solo navegan.
   useEffect(() => {
@@ -289,32 +329,70 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
         pegar();
       } else if (tecla === "d") {
         e.preventDefault();
-        const ids = new Set(seleccion);
-        pegar({ nodos: def.nodos.filter((n) => ids.has(n.id)), conexiones: def.conexiones.filter((c) => ids.has(c.origen) && ids.has(c.destino)) });
+        duplicarSeleccion();
       }
     };
     window.addEventListener("keydown", manejar);
     return () => window.removeEventListener("keydown", manejar);
-  }, [copiar, def, pegar, seleccion, soloLectura]);
+  }, [copiar, duplicarSeleccion, pegar, soloLectura]);
 
   // ── React Flow (controlado desde la definición) ───────────────────────────
-  const nodos: NodoFlow[] = useMemo(
-    () =>
-      def.nodos.map((n) => ({
-        id: n.id,
-        type: "workflow" as const,
-        position: n.posicion,
-        selected: seleccion.includes(n.id),
-        deletable: !soloLectura && n.tipo !== "INICIO",
-        data: {
-          nodo: n,
-          resumen: resumenNodo(n, opciones),
-          salidas: salidasDeNodo(n.tipo, n.config),
-          problemas: problemasPorNodo.get(n.id) ?? [],
-        },
-      })),
-    [def.nodos, opciones, problemasPorNodo, seleccion, soloLectura],
-  );
+  // React Flow conserva las dimensiones que midió de un nodo solo mientras el
+  // objeto que se le pasa mantenga su identidad (`adoptUserNodes`, opción
+  // `checkEquality`). Si cambia, las descarta y lo deja en `visibility:
+  // hidden` hasta volver a medirlo: rehacer el arreglo entero en cada frame
+  // del arrastre hacía parpadear todos los nodos a la vez. Por eso se reusa
+  // el objeto anterior de cada nodo que no cambió.
+  const nodosEmitidos = useRef(new Map<string, NodoFlow>());
+  const opcionesEmitidas = useRef(opciones);
+
+  const nodos: NodoFlow[] = useMemo(() => {
+    // Los catálogos alimentan `resumen`: si cambian, hay que rehacer todo.
+    if (opcionesEmitidas.current !== opciones) {
+      opcionesEmitidas.current = opciones;
+      nodosEmitidos.current = new Map();
+    }
+    const previos = nodosEmitidos.current;
+    const actuales = new Map<string, NodoFlow>();
+
+    const lista = def.nodos.map((n) => {
+      const selected = seleccion.includes(n.id);
+      const deletable = !soloLectura && n.tipo !== "INICIO";
+      const problemas = problemasPorNodo.get(n.id) ?? SIN_PROBLEMAS;
+      const previo = previos.get(n.id);
+      // `n` encapsula posición, etiqueta y config, de donde salen `resumen` y
+      // `salidas`: con el mismo objeto, lo derivado tampoco cambió.
+      const sinCambios =
+        previo !== undefined &&
+        previo.data.nodo === n &&
+        previo.selected === selected &&
+        previo.deletable === deletable &&
+        mismosProblemas(previo.data.problemas, problemas);
+
+      const nodo: NodoFlow = sinCambios
+        ? previo
+        : {
+            id: n.id,
+            type: "workflow",
+            position: n.posicion,
+            selected,
+            deletable,
+            // Sin esto el nodo llegaría "sin medir" y se escondería un frame.
+            measured: medidas.current.get(n.id),
+            data: {
+              nodo: n,
+              resumen: resumenNodo(n, opciones),
+              salidas: salidasDeNodo(n.tipo, n.config),
+              problemas,
+            },
+          };
+      actuales.set(n.id, nodo);
+      return nodo;
+    });
+
+    nodosEmitidos.current = actuales;
+    return lista;
+  }, [def.nodos, opciones, problemasPorNodo, seleccion, soloLectura]);
 
   const aristas: Edge[] = useMemo(
     () =>
@@ -351,6 +429,8 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
       let nuevaSeleccion: Set<string> | null = null;
       const eliminar = new Set<string>();
       for (const c of cambios) {
+        // Se anota, no se guarda: es tamaño de pantalla, no parte del flujo.
+        if (c.type === "dimensions" && c.dimensions) medidas.current.set(c.id, c.dimensions);
         if (c.type === "position" && c.position) posiciones.set(c.id, c.position);
         if (c.type === "select") {
           nuevaSeleccion ??= new Set(seleccion);
@@ -369,6 +449,7 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
       if (eliminar.size > 0) {
         aplicar((d) => quitarNodos(d, new Set([...eliminar].filter((id) => d.nodos.find((n) => n.id === id)?.tipo !== "INICIO"))));
         setSeleccion((s) => s.filter((id) => !eliminar.has(id)));
+        for (const id of eliminar) medidas.current.delete(id);
       }
     },
     [aplicar, seleccion],
@@ -471,6 +552,10 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
   };
 
   const nodoSeleccionado = seleccion.length === 1 ? def.nodos.find((n) => n.id === seleccion[0]) ?? null : null;
+  const nodosSeleccionados = def.nodos.filter((n) => seleccion.includes(n.id));
+  // Si el paso se borra con el menú abierto, el menú desaparece con él.
+  const nodoDelMenu = menuNodo ? def.nodos.find((n) => n.id === menuNodo.nodoId) ?? null : null;
+  const seleccionConConexiones = def.conexiones.some((c) => seleccion.includes(c.origen) || seleccion.includes(c.destino));
   const estiloEstado = ESTILO_ESTADO[datos.estado];
   const hayBorradorSinPublicar = datos.estado !== "BORRADOR" && estado.revision > 0;
 
@@ -601,6 +686,10 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
               antesDeArrastrar.current = null;
             }}
             onPaneClick={() => setSeleccion([])}
+            onNodeContextMenu={onNodeContextMenu}
+            // El menú se ancla al cursor: si el lienzo se mueve, deja de
+            // corresponder con el paso y se cierra.
+            onMove={() => setMenuNodo(null)}
             nodesDraggable={!soloLectura}
             nodesConnectable={!soloLectura}
             deleteKeyCode={soloLectura ? null : ["Backspace", "Delete"]}
@@ -644,6 +733,24 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
             >
               <MapaIcono className="h-4 w-4" />
             </BotonIcono>
+          )}
+
+          {menuNodo && nodoDelMenu && (
+            <MenuNodo
+              posicion={menuNodo}
+              nodo={nodoDelMenu}
+              seleccionados={nodosSeleccionados}
+              conConexiones={seleccionConConexiones}
+              soloLectura={soloLectura}
+              onCerrar={() => setMenuNodo(null)}
+              acciones={{
+                onConfigurar: () => setSeleccion([nodoDelMenu.id]),
+                onCopiar: copiar,
+                onDuplicar: duplicarSeleccion,
+                onDesconectar: desconectarSeleccion,
+                onEliminar: eliminarSeleccion,
+              }}
+            />
           )}
 
           {validacion && (

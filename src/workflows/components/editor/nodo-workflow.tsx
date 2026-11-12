@@ -33,7 +33,9 @@ function NodoWorkflowBase({ data, selected }: NodeProps<NodoFlow>) {
       data-slot="nodo-workflow"
       // Sin overflow-hidden: los handles se dibujan fuera del borde y se recortarían.
       className={cn(
-        "w-64 rounded-xl border bg-card transition-all duration-150",
+        // Solo lo que de verdad cambia: `transition-all` haría trabajo de más
+        // en cada frame de arrastre.
+        "w-64 rounded-xl border bg-card transition-[border-color,box-shadow] duration-150",
         selected
           ? cn("shadow-lg ring-2", estilo.anillo)
           : conProblemas
