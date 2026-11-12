@@ -23,15 +23,23 @@ import {
   Plus,
   X,
   BookOpen,
+  Search,
+  Target,
+  MessageCircle,
+  Radio,
+  Brain,
+  IdCard,
+  SlidersHorizontal,
+  ShieldAlert,
+  Layers,
+  Wrench,
+  Route,
+  Gauge,
+  PlayCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES } from "@/ai/tools/constantes";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
@@ -122,6 +130,66 @@ const HERRAMIENTAS_DISPONIBLES = [
 const TONOS = ["Cálido", "Profesional", "Directo", "Empático", "Entusiasta"] as const;
 const FORMALIDADES = ["Formal", "Semi Formal", "Informal"] as const;
 
+// Navegación vertical del modal. Mismos destinos que las pestañas anteriores
+// —ninguno se eliminó— reordenados de lo más usado a lo más ocasional.
+const DESTINOS: { valor: string; etiqueta: string; Icono: LucideIcon }[] = [
+  { valor: "general", etiqueta: "General", Icono: Settings2 },
+  { valor: "ia", etiqueta: "Configuración IA", Icono: Sparkles },
+  { valor: "conocimiento", etiqueta: "Conocimiento", Icono: BookOpen },
+  { valor: "estrategias", etiqueta: "Estrategias", Icono: Route },
+  { valor: "automatizacion", etiqueta: "Automatización", Icono: Gauge },
+  { valor: "simulador", etiqueta: "Simulador", Icono: PlayCircle },
+  { valor: "versiones", etiqueta: "Versiones", Icono: History },
+];
+
+/** Tarjeta de una sección del modal: ícono, título, descripción y contenido. */
+function SeccionConfig({
+  Icono,
+  titulo,
+  descripcion,
+  accion,
+  children,
+  className,
+}: {
+  Icono: LucideIcon;
+  titulo: string;
+  descripcion: string;
+  accion?: React.ReactNode;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "flex flex-col gap-3 rounded-2xl border border-white/8 bg-white/[0.02] p-4",
+        className,
+      )}
+    >
+      <header className="flex items-start gap-3">
+        <span className="shrink-0 rounded-lg border border-white/10 bg-white/5 p-2 text-stone-300">
+          <Icono className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-medium leading-tight text-stone-100">{titulo}</h3>
+          <p className="mt-0.5 text-xs leading-snug text-stone-500">{descripcion}</p>
+        </div>
+        {accion && <div className="shrink-0">{accion}</div>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** Encabezado de un grupo de secciones dentro del área de contenido. */
+function TituloGrupo({ titulo, descripcion }: { titulo: string; descripcion: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <h2 className="text-lg font-semibold tracking-tight text-stone-50">{titulo}</h2>
+      <p className="text-sm text-stone-500">{descripcion}</p>
+    </div>
+  );
+}
+
 // 009-perfil-agente-estructurado-versionado — editor simple de listas de
 // texto (frases preferidas/prohibidas, comportamientos prohibidos, reglas
 // personalizadas, condiciones de transferencia a humano). Reutilizable entre
@@ -207,6 +275,10 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   const [cargandoConfig, setCargandoConfig] = useState(false);
   const [activandoIA, startActivar] = useTransition();
   const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
+  // Controlada: el pie del modal necesita saber qué sección está abierta para
+  // ofrecer el guardado que corresponde.
+  const [seccion, setSeccion] = useState<string>("general");
+  const [busquedaHerramienta, setBusquedaHerramienta] = useState("");
 
   const formBasico = useForm<EditarUsuarioInput>({
     resolver: zodResolver(EditarUsuarioSchema),
@@ -256,6 +328,11 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   const herramientasActivas = formIA.watch("herramientas") ?? [];
   const configuracionTono = formIA.watch("configuracionTono");
   const catalogoEnContexto = formIA.watch("catalogoEnContexto") ?? true;
+
+  const herramientasFiltradas = HERRAMIENTAS_DISPONIBLES.filter(({ label, descripcion }) => {
+    const q = busquedaHerramienta.trim().toLowerCase();
+    return !q || label.toLowerCase().includes(q) || descripcion.toLowerCase().includes(q);
+  });
 
   useEffect(() => {
     if (!agente?.usuarioId || !agente.agenteIAConfig) return;
@@ -421,71 +498,79 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   const tieneConfigIA = !!agente?.agenteIAConfig;
 
   return (
-    <Sheet open={!!agente} onOpenChange={handleCerrar}>
-      <SheetContent className="bg-stone-950/98 border-white/10 w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader className="pb-4">
-          <SheetTitle className="flex items-center gap-2 text-stone-50">
-            <Bot className="h-5 w-5 text-purple-400" />
-            {agente?.nombre ?? "Agente"}
-          </SheetTitle>
-          <SheetDescription className="text-stone-500 text-xs">{agente?.email}</SheetDescription>
-        </SheetHeader>
+    <Dialog open={!!agente} onOpenChange={handleCerrar}>
+      <DialogContent
+        showCloseButton={false}
+        className="flex h-[90vh] max-h-[90vh] w-[calc(100vw-2rem)] max-w-[1120px] flex-col gap-0 overflow-hidden rounded-2xl border border-white/10 bg-stone-950/98 p-0 text-stone-200 sm:max-w-[1120px] max-sm:h-screen max-sm:max-h-screen max-sm:w-screen max-sm:rounded-none"
+      >
+        {/* ── Encabezado fijo ── */}
+        <header className="flex shrink-0 items-start gap-3 border-b border-white/8 px-5 py-4">
+          <div className="rounded-xl border border-purple-500/30 bg-purple-500/15 p-2">
+            <Bot className="h-5 w-5 text-purple-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <DialogTitle className="text-base font-semibold text-stone-50">Editar agente</DialogTitle>
+              <span className="truncate text-sm font-medium text-stone-300">{agente?.nombre ?? "Agente"}</span>
+              {agente?.email && <span className="truncate text-xs text-stone-500">{agente.email}</span>}
+              <span
+                className={cn(
+                  "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                  tieneConfigIA
+                    ? "border-lime-500/30 bg-lime-500/10 text-lime-300"
+                    : "border-white/10 bg-white/5 text-stone-400",
+                )}
+              >
+                {tieneConfigIA ? "IA activa" : "Sin IA"}
+              </span>
+            </div>
+            <DialogDescription className="mt-0.5 text-xs text-stone-500">
+              Configura el comportamiento, conocimiento y herramientas del agente.
+            </DialogDescription>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleCerrar}
+            aria-label="Cerrar"
+            className="shrink-0 text-stone-400 hover:bg-white/10 hover:text-stone-100"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </header>
 
-        <Tabs defaultValue="general" className="flex flex-col gap-4">
-          <TabsList className="bg-white/5 border border-white/10 w-fit">
-            <TabsTrigger
-              value="general"
-              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-              General
-            </TabsTrigger>
-            <TabsTrigger
-              value="ia"
-              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Configuración IA
-              {tieneConfigIA && (
-                <span className="h-1.5 w-1.5 rounded-full bg-lime-400 ml-1" />
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="versiones"
-              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
-            >
-              <History className="h-3.5 w-3.5" />
-              Versiones
-            </TabsTrigger>
-            <TabsTrigger
-              value="estrategias"
-              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
-            >
-              Estrategias
-            </TabsTrigger>
-            <TabsTrigger
-              value="automatizacion"
-              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
-            >
-              Automatización
-            </TabsTrigger>
-            <TabsTrigger
-              value="simulador"
-              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
-            >
-              Simulador
-            </TabsTrigger>
-            <TabsTrigger
-              value="conocimiento"
-              className="data-[state=active]:bg-stone-800 data-[state=active]:text-stone-50 text-stone-400 gap-1.5"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              Conocimiento
-            </TabsTrigger>
+        {/* ── Cuerpo: navegación vertical + contenido desplazable ── */}
+        <Tabs
+          orientation="vertical"
+          value={seccion}
+          onValueChange={(v) => setSeccion(String(v))}
+          className="flex min-h-0 flex-1 gap-0"
+        >
+          <TabsList
+            variant="line"
+            className="h-full w-56 shrink-0 flex-col items-stretch justify-start gap-1 overflow-y-auto border-r border-white/8 bg-white/[0.02] p-3 max-sm:w-44"
+          >
+            {DESTINOS.map(({ valor, etiqueta, Icono }) => (
+              <TabsTrigger
+                key={valor}
+                value={valor}
+                className="w-full flex-none justify-start gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-stone-400 after:hidden hover:bg-white/5 hover:text-stone-200 data-active:bg-lime-500/10 data-active:text-lime-300 data-active:ring-1 data-active:ring-lime-500/25"
+              >
+                <Icono className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{etiqueta}</span>
+                {valor === "ia" && tieneConfigIA && (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-lime-400" />
+                )}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+
           {/* Tab: General */}
-          <TabsContent value="general">
+          <TabsContent value="general" className="flex flex-col gap-5">
+            <TituloGrupo titulo="Datos del agente" descripcion="Cómo se identifica el agente dentro de Karia." />
             <Form {...formBasico}>
               <form onSubmit={formBasico.handleSubmit(onSubmitBasico)} className="flex flex-col gap-4">
                 <FormField
@@ -524,13 +609,6 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                   )}
                 />
 
-                <Button
-                  type="submit"
-                  disabled={isPendingBasico}
-                  className="self-end rounded-xl bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02] font-semibold"
-                >
-                  {isPendingBasico ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar cambios"}
-                </Button>
               </form>
             </Form>
           </TabsContent>
@@ -569,140 +647,163 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
               </div>
             ) : (
               <Form {...formIA}>
-                <form onSubmit={formIA.handleSubmit(onSubmitIA)} className="flex flex-col gap-6">
+                <form onSubmit={formIA.handleSubmit(onSubmitIA)} className="flex flex-col gap-5">
+                  <TituloGrupo
+                    titulo="Comportamiento del agente"
+                    descripcion="Define las reglas, respuestas y recursos que puede usar durante una conversación."
+                  />
 
                   {/* ── Sección: Instrucciones ── */}
-                  <FormField
-                    control={formIA.control}
-                    name="instruccionesAgente"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">
-                          Instrucciones del agente
-                        </FormLabel>
-                        <p className="text-stone-500 text-xs">
-                          Rol y objetivo, estilo de comunicación, proceso de atención y reglas. Es lo que
-                          define cómo responde.
-                        </p>
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            value={field.value ?? ""}
-                            rows={18}
-                            placeholder="# Rol y objetivo…"
-                            className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 font-mono text-xs leading-relaxed"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <SeccionConfig
+                    Icono={FileText}
+                    titulo="Instrucciones del agente"
+                    descripcion="Rol y objetivo, estilo de comunicación, proceso de atención y reglas. Es lo que define cómo responde."
+                  >
+                    <FormField
+                      control={formIA.control}
+                      name="instruccionesAgente"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              value={field.value ?? ""}
+                              rows={16}
+                              placeholder="# Rol y objetivo…"
+                              className="border-white/10 bg-white/5 font-mono text-xs leading-relaxed text-stone-50 placeholder:text-stone-500"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </SeccionConfig>
 
                   {/* ── Sección: Objetivo ── */}
-                  <FormField
-                    control={formIA.control}
-                    name="objetivo"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Objetivo del agente</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="Ayudar al cliente a encontrar el producto ideal y cerrar la venta"
-                            className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <SeccionConfig
+                    Icono={Target}
+                    titulo="Objetivo del agente"
+                    descripcion="En una frase, qué debe conseguir en cada conversación."
+                  >
+                    <FormField
+                      control={formIA.control}
+                      name="objetivo"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="Ayudar al cliente a encontrar el producto ideal y cerrar la venta"
+                              className="border-white/10 bg-white/5 text-sm text-stone-50 placeholder:text-stone-500"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </SeccionConfig>
 
-                  {/* ── Sección: Capacidades ── */}
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Capacidades</p>
-                      <p className="text-stone-500 text-xs mt-0.5">Qué acciones puede ejecutar el agente</p>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2">
-                      {HERRAMIENTAS_DISPONIBLES.map(({ nombre, label, descripcion, Icono }) => {
-                        const activo = herramientasActivas.includes(nombre);
-                        return (
-                          <button
-                            key={nombre}
-                            type="button"
-                            onClick={() => toggleHerramienta(nombre)}
-                            className={cn(
-                              "flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all",
-                              activo
-                                ? "bg-lime-500/10 border-lime-500/25 text-lime-300"
-                                : "bg-white/3 border-white/8 text-stone-400 hover:border-white/15 hover:text-stone-300",
-                            )}
-                          >
-                            <div className={cn(
-                              "p-1.5 rounded-lg flex-shrink-0",
-                              activo ? "bg-lime-500/20" : "bg-white/5",
-                            )}>
-                              <Icono className="h-3.5 w-3.5" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium leading-none">{label}</p>
-                              <p className="text-xs text-stone-500 mt-0.5">{descripcion}</p>
-                            </div>
-                            {activo
-                              ? <CheckSquare className="h-4 w-4 text-lime-400 flex-shrink-0" />
-                              : <Square className="h-4 w-4 text-stone-600 flex-shrink-0" />
-                            }
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* 028-respuestas-guia-catalogo-ia — catálogo con precios en el contexto */}
-                    <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2.5 space-y-2">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium leading-none text-stone-300">Incluir catálogo con precios en las respuestas</p>
-                          <p className="text-xs text-stone-500 mt-1">
-                            El agente conoce los productos activos y sus precios reales, y puede buscar el resto. Nunca inventa un precio.
-                          </p>
-                        </div>
+                  {/* ── Sección: Catálogo con precios (028) ── */}
+                  <SeccionConfig
+                    Icono={Layers}
+                    titulo="Catálogo con precios"
+                    descripcion="El agente conoce los productos activos y sus precios reales, y puede buscar el resto. Nunca inventa un precio."
+                    accion={
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-xs", catalogoEnContexto ? "text-lime-300" : "text-stone-500")}>
+                          {catalogoEnContexto ? "Activo" : "Desactivado"}
+                        </span>
                         <Switch
                           checked={catalogoEnContexto}
                           onCheckedChange={(v) => formIA.setValue("catalogoEnContexto", v, { shouldDirty: true })}
                           aria-label="Incluir catálogo con precios en las respuestas"
                         />
                       </div>
-                      {catalogoEnContexto && (
-                        <FormField
-                          control={formIA.control}
-                          name="limiteCatalogoContexto"
-                          render={({ field }) => (
-                            <FormItem className="flex items-center gap-2 space-y-0">
-                              <FormLabel className="text-stone-400 text-xs font-normal">Productos a incluir (máx.)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  max={100}
-                                  value={field.value ?? 30}
-                                  onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-                                  className="h-8 w-20 bg-white/5 border-white/10 text-stone-50 text-sm"
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                    }
+                  >
+                    {catalogoEnContexto && (
+                      <FormField
+                        control={formIA.control}
+                        name="limiteCatalogoContexto"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center gap-2 space-y-0 border-t border-white/8 pt-3">
+                            <FormLabel className="text-stone-400 text-xs font-normal">Productos a incluir (máx.)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={100}
+                                value={field.value ?? 30}
+                                onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                                className="h-8 w-20 border-white/10 bg-white/5 text-sm text-stone-50"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </SeccionConfig>
+
+                  {/* ── Sección: Herramientas habilitadas ── */}
+                  <SeccionConfig
+                    Icono={Wrench}
+                    titulo="Herramientas habilitadas"
+                    descripcion="Define las acciones comerciales que el agente puede ejecutar durante una conversación."
+                    accion={
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-stone-400">
+                          {herramientasActivas.length} de {HERRAMIENTAS_DISPONIBLES.length}
+                        </span>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-500" />
+                          <Input
+                            value={busquedaHerramienta}
+                            onChange={(e) => setBusquedaHerramienta(e.target.value)}
+                            placeholder="Buscar herramientas"
+                            aria-label="Buscar herramientas"
+                            className="h-8 w-48 border-white/10 bg-white/5 pl-8 text-sm text-stone-50 placeholder:text-stone-500"
+                          />
+                        </div>
+                      </div>
+                    }
+                  >
+                    <ul className="divide-y divide-white/5 overflow-hidden rounded-xl border border-white/8">
+                      {herramientasFiltradas.map(({ nombre, label, descripcion, Icono }) => {
+                        const activo = herramientasActivas.includes(nombre);
+                        return (
+                          <li key={nombre} className="flex items-center gap-3 bg-white/[0.02] px-3 py-2.5">
+                            <span
+                              className={cn(
+                                "shrink-0 rounded-lg p-1.5",
+                                activo ? "bg-lime-500/15 text-lime-300" : "bg-white/5 text-stone-500",
+                              )}
+                            >
+                              <Icono className="h-3.5 w-3.5" />
+                            </span>
+                            <div className="min-w-0 flex-[0_0_11rem]">
+                              <p className="truncate text-sm font-medium leading-tight text-stone-200">{label}</p>
+                            </div>
+                            <p className="min-w-0 flex-1 truncate text-xs text-stone-500">{descripcion}</p>
+                            <Switch
+                              checked={activo}
+                              onCheckedChange={() => toggleHerramienta(nombre)}
+                              aria-label={`${label}: ${activo ? "habilitada" : "deshabilitada"}`}
+                              className="shrink-0"
+                            />
+                          </li>
+                        );
+                      })}
+                      {herramientasFiltradas.length === 0 && (
+                        <li className="bg-white/[0.02] px-3 py-6 text-center text-xs text-stone-500">
+                          Ninguna herramienta coincide con “{busquedaHerramienta}”.
+                        </li>
                       )}
-                    </div>
-                  </div>
+                    </ul>
+                  </SeccionConfig>
 
                   {/* ── Sección: Tono ── */}
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Tono de conversación</p>
-                      <p className="text-stone-500 text-xs mt-0.5">Cómo se expresa el agente al hablar</p>
-                    </div>
+                  <SeccionConfig Icono={MessageCircle} titulo="Tono de conversación" descripcion="Cómo se expresa el agente al hablar.">
 
                     <div className="space-y-1.5">
                       <p className="text-stone-400 text-xs">Tono</p>
@@ -774,17 +875,20 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </SeccionConfig>
 
                   {/* ── Sección: Canales ── */}
+                  <SeccionConfig
+                    Icono={Radio}
+                    titulo="Canales donde actúa"
+                    descripcion="Sin ninguno marcado, el agente actúa en todos los canales."
+                  >
                   <FormField
                     control={formIA.control}
                     name="canalesPermitidos"
                     render={() => (
                       <FormItem>
-                        <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Canales donde actúa</FormLabel>
-                        <FormDescription className="text-stone-500 text-xs">Vacío = actúa en todos</FormDescription>
-                        <div className="flex flex-wrap gap-2 mt-2">
+                        <div className="flex flex-wrap gap-2">
                           {CANALES_DISPONIBLES.map((canal) => {
                             const activo = canalesActivos.includes(canal.valor);
                             return (
@@ -809,32 +913,32 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                       </FormItem>
                     )}
                   />
+                  </SeccionConfig>
 
                   {/* ── Sección: Memoria ── */}
                   <FormField
                     control={formIA.control}
                     name="memoriaHabilitada"
                     render={({ field }) => (
-                      <FormItem className="flex items-center justify-between rounded-xl border border-white/10 bg-white/3 px-4 py-3">
-                        <div>
-                          <FormLabel className="text-stone-200 text-sm">Memoria habilitada</FormLabel>
-                          <FormDescription className="text-stone-500 text-xs">
-                            El agente recuerda contexto de conversaciones anteriores
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
+                      <SeccionConfig
+                        Icono={Brain}
+                        titulo="Memoria"
+                        descripcion="El agente recuerda contexto de conversaciones anteriores con el mismo contacto."
+                        accion={
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              aria-label="Memoria habilitada"
+                            />
+                          </FormControl>
+                        }
+                      />
                     )}
                   />
 
                   {/* ── Sección: Identidad (009-perfil-agente-estructurado-versionado) ── */}
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Identidad</p>
-                      <p className="text-stone-500 text-xs mt-0.5">Nombre, rol e idioma del agente</p>
-                    </div>
+                  <SeccionConfig Icono={IdCard} titulo="Identidad" descripcion="Nombre, rol e idioma del agente.">
                     <div className="grid grid-cols-2 gap-3">
                       <FormField
                         control={formIA.control}
@@ -894,14 +998,10 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         </FormItem>
                       )}
                     />
-                  </div>
+                  </SeccionConfig>
 
                   {/* ── Sección: Comunicación extendida ── */}
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Comunicación</p>
-                      <p className="text-stone-500 text-xs mt-0.5">Longitud, proactividad, intensidad comercial y estilo de recomendación</p>
-                    </div>
+                  <SeccionConfig Icono={SlidersHorizontal} titulo="Comunicación" descripcion="Longitud, proactividad, intensidad comercial y estilo de recomendación.">
                     {(
                       [
                         { campo: "longitudRespuesta" as const, etiqueta: "Longitud de respuesta", opciones: LONGITUDES },
@@ -939,16 +1039,10 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         </div>
                       );
                     })}
-                  </div>
+                  </SeccionConfig>
 
                   {/* ── Sección: Reglas ── */}
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Reglas</p>
-                      <p className="text-stone-500 text-xs mt-0.5">
-                        Frases, comportamientos prohibidos y condiciones de transferencia a humano
-                      </p>
-                    </div>
+                  <SeccionConfig Icono={ShieldAlert} titulo="Reglas y límites" descripcion="Frases preferidas y prohibidas, comportamientos vetados y cuándo transferir a una persona.">
 
                     <div className="space-y-1.5">
                       <p className="text-stone-400 text-xs">Frases preferidas</p>
@@ -994,16 +1088,10 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         placeholder="el cliente menciona un reclamo o reembolso"
                       />
                     </div>
-                  </div>
+                  </SeccionConfig>
 
                   {/* ── Sección: Respuestas guía (028) ── */}
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-stone-300 text-xs uppercase tracking-wide font-medium">Respuestas guía</p>
-                      <p className="text-stone-500 text-xs mt-0.5">
-                        Cómo responder cada tipo de consulta. El agente sigue el formato y completa los marcadores solo con datos reales.
-                      </p>
-                    </div>
+                  <SeccionConfig Icono={BookOpen} titulo="Respuestas guía" descripcion="Cómo responder cada tipo de consulta. El agente sigue el formato y completa los marcadores solo con datos reales.">
                     <EditorRespuestasGuia
                       valores={formIA.watch("respuestasGuia") ?? []}
                       onChange={(v) => formIA.setValue("respuestasGuia", v, { shouldDirty: true })}
@@ -1013,7 +1101,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         Revisa las respuestas guía: cada una necesita "cuándo aplica" y un formato.
                       </p>
                     )}
-                  </div>
+                  </SeccionConfig>
 
                   {/* ── Sección: Avanzado (colapsable) ── */}
                   <div className="border border-white/10 rounded-xl overflow-hidden">
@@ -1163,31 +1251,14 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isPendingBorrador}
-                      onClick={formIA.handleSubmit(onSubmitBorrador)}
-                      className="rounded-xl border-white/10 text-stone-300 hover:bg-white/10"
-                    >
-                      {isPendingBorrador ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar como borrador"}
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={isPendingIA}
-                      className="rounded-xl bg-lime-500/90 text-stone-950 hover:bg-lime-400 shadow-lg transition-all hover:scale-[1.02] font-semibold"
-                    >
-                      {isPendingIA ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar configuración IA"}
-                    </Button>
-                  </div>
                 </form>
               </Form>
             )}
           </TabsContent>
 
           {/* Tab: Versiones (009-perfil-agente-estructurado-versionado) */}
-          <TabsContent value="versiones">
+          <TabsContent value="versiones" className="flex flex-col gap-5">
+            <TituloGrupo titulo="Versiones" descripcion="Historial de configuraciones publicadas. Puedes duplicar o restaurar cualquiera." />
             {!tieneConfigIA ? (
               <p className="text-stone-500 text-sm text-center py-8">
                 Activá primero el Agente Comercial IA para ver su historial de versiones.
@@ -1198,7 +1269,8 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
           </TabsContent>
 
           {/* Tab: Estrategias (011-playbook-estrategia-comercial) */}
-          <TabsContent value="estrategias">
+          <TabsContent value="estrategias" className="flex flex-col gap-5">
+            <TituloGrupo titulo="Estrategias" descripcion="Playbooks comerciales que el agente aplica según la situación." />
             {!tieneConfigIA ? (
               <p className="text-stone-500 text-sm text-center py-8">
                 Activá primero el Agente Comercial IA para asignarle estrategias.
@@ -1209,7 +1281,8 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
           </TabsContent>
 
           {/* Tab: Automatización (016-niveles-autonomia-automatizacion) */}
-          <TabsContent value="automatizacion">
+          <TabsContent value="automatizacion" className="flex flex-col gap-5">
+            <TituloGrupo titulo="Automatización" descripcion="Cuánta autonomía tiene el agente para actuar sin revisión humana." />
             {!tieneConfigIA ? (
               <p className="text-stone-500 text-sm text-center py-8">
                 Activá primero el Agente Comercial IA para configurar su autonomía.
@@ -1220,7 +1293,8 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
           </TabsContent>
 
           {/* Tab: Simulador (018-simulador-agente) */}
-          <TabsContent value="simulador">
+          <TabsContent value="simulador" className="flex flex-col gap-5">
+            <TituloGrupo titulo="Simulador" descripcion="Prueba el agente con conversaciones de ejemplo antes de publicarlo." />
             {!tieneConfigIA ? (
               <p className="text-stone-500 text-sm text-center py-8">
                 Activá primero el Agente Comercial IA para poder simular conversaciones.
@@ -1240,15 +1314,15 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
 
           {/* Tab: Conocimiento (018-simulador-agente, Historia 4) — vista de
               solo lectura, sin campos editables nuevos (contracts/simulador.md). */}
-          <TabsContent value="conocimiento">
+          <TabsContent value="conocimiento" className="flex flex-col gap-5">
+            <TituloGrupo titulo="Conocimiento del agente" descripcion="Resumen de solo lectura de lo que el agente sabe y puede usar. Se edita desde Configuración IA." />
             {!tieneConfigIA || !configIA ? (
               <p className="text-stone-500 text-sm text-center py-8">
                 Activá primero el Agente Comercial IA para ver su conocimiento configurado.
               </p>
             ) : (
               <div className="flex flex-col gap-6 text-sm">
-                <div>
-                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">Reglas personalizadas</p>
+                <SeccionConfig Icono={ShieldAlert} titulo="Reglas personalizadas" descripcion="Instrucciones propias que guían el comportamiento del agente en todo momento.">
                   {((configIA.reglasPersonalizadas as string[] | null) ?? []).length === 0 ? (
                     <p className="text-stone-500 text-xs">Sin reglas personalizadas configuradas.</p>
                   ) : (
@@ -1258,10 +1332,9 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                       ))}
                     </ul>
                   )}
-                </div>
+                </SeccionConfig>
 
-                <div>
-                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">Frases preferidas / prohibidas</p>
+                <SeccionConfig Icono={MessageCircle} titulo="Frases preferidas y prohibidas" descripcion="Expresiones que debe usar y las que nunca debe decir.">
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <p className="text-stone-500 mb-1">Preferidas</p>
@@ -1272,10 +1345,9 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                       {((configIA.frasesProhibidas as string[] | null) ?? []).map((f, i) => <p key={i} className="text-stone-400">- {f}</p>)}
                     </div>
                   </div>
-                </div>
+                </SeccionConfig>
 
-                <div>
-                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">Respuestas guía</p>
+                <SeccionConfig Icono={BookOpen} titulo="Respuestas guía y catálogo" descripcion="Formatos aprobados por tipo de consulta, y si el catálogo con precios viaja en el contexto.">
                   {((configIA.respuestasGuia as RespuestaGuiaInput[] | null) ?? []).filter((r) => r.activa).length === 0 ? (
                     <p className="text-stone-500 text-xs">Sin respuestas guía activas.</p>
                   ) : (
@@ -1292,36 +1364,98 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                   <p className="text-stone-500 text-xs mt-2">
                     Catálogo con precios: {configIA.catalogoEnContexto ? `activo (hasta ${configIA.limiteCatalogoContexto} productos)` : "desactivado"}
                   </p>
-                </div>
+                </SeccionConfig>
 
-                <div>
-                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">Herramientas habilitadas</p>
+                <SeccionConfig Icono={Wrench} titulo="Herramientas habilitadas" descripcion="Acciones comerciales que el agente puede ejecutar.">
                   {herramientasActivas.length === 0 ? (
                     <p className="text-stone-500 text-xs">Ninguna herramienta comercial habilitada todavía.</p>
                   ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {herramientasActivas.map((h: string) => (
-                        <span key={h} className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-stone-300">{h}</span>
-                      ))}
-                    </div>
+                    <ul className="flex flex-col gap-1.5">
+                      {herramientasActivas.map((h: string) => {
+                        // El identificador técnico solo se muestra si no hay
+                        // una herramienta conocida con ese nombre.
+                        const def = HERRAMIENTAS_DISPONIBLES.find((d) => d.nombre === h);
+                        const Icono = def?.Icono;
+                        return (
+                          <li key={h} className="flex items-center gap-2 text-xs text-stone-300">
+                            {Icono && <Icono className="h-3.5 w-3.5 shrink-0 text-lime-400" />}
+                            <span className="font-medium">{def?.label ?? h}</span>
+                            {def && <span className="truncate text-stone-500">· {def.descripcion}</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
-                </div>
+                </SeccionConfig>
 
-                <div>
-                  <p className="text-stone-300 text-xs uppercase tracking-wide font-medium mb-2">
-                    Datos operativos siempre disponibles (015)
-                  </p>
+                <SeccionConfig Icono={Layers} titulo="Datos operativos siempre disponibles" descripcion="Consultas de solo lectura que el agente puede hacer sin habilitarlas (015).">
                   <div className="flex flex-wrap gap-1.5">
                     {HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES.map((h) => (
                       <span key={h} className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-stone-500">{h}</span>
                     ))}
                   </div>
-                </div>
+                </SeccionConfig>
               </div>
             )}
           </TabsContent>
+          </div>
         </Tabs>
-      </SheetContent>
-    </Sheet>
+
+        {/* ── Pie fijo ── Guarda la sección abierta: General y Configuración IA
+            tienen cada una su formulario, igual que antes. El resto de
+            secciones guardan con sus propios controles internos. */}
+        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/8 px-5 py-3.5">
+          <p className="hidden text-xs text-stone-500 sm:block">
+            {seccion === "general"
+              ? "Nombre y descripción del agente."
+              : seccion === "ia"
+                ? "Publica los cambios o guárdalos como borrador para probarlos antes."
+                : "Esta sección se guarda con sus propios controles."}
+          </p>
+
+          <div className="flex items-center gap-2 max-sm:w-full max-sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCerrar}
+              className="rounded-xl border-white/10 bg-white/5 text-stone-300 hover:bg-white/10"
+            >
+              Cancelar
+            </Button>
+
+            {seccion === "ia" && tieneConfigIA && !cargandoConfig && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPendingBorrador}
+                onClick={formIA.handleSubmit(onSubmitBorrador)}
+                className="rounded-xl border-white/10 bg-white/5 text-stone-300 hover:bg-white/10"
+              >
+                {isPendingBorrador ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar como borrador"}
+              </Button>
+            )}
+
+            {(seccion === "general" || (seccion === "ia" && tieneConfigIA && !cargandoConfig)) && (
+              <Button
+                type="button"
+                disabled={seccion === "general" ? isPendingBasico : isPendingIA}
+                onClick={
+                  seccion === "general"
+                    ? formBasico.handleSubmit(onSubmitBasico)
+                    : formIA.handleSubmit(onSubmitIA)
+                }
+                className="rounded-xl bg-lime-500/90 font-semibold text-stone-950 shadow-lg transition-all hover:bg-lime-400"
+              >
+                {(seccion === "general" ? isPendingBasico : isPendingIA) ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Guardar cambios"
+                )}
+              </Button>
+            )}
+          </div>
+        </footer>
+      </DialogContent>
+    </Dialog>
   );
 }
