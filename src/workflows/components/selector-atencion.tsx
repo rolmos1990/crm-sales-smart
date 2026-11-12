@@ -8,6 +8,7 @@ import { Bot, ChevronDown, Loader2, Play, UserRound, Workflow } from "lucide-rea
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -122,7 +123,10 @@ export function SelectorAtencion({ conversacionId, onCambio, className }: { conv
             <ChevronDown className="h-3 w-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuLabel className="text-xs">Atención de la conversación</DropdownMenuLabel>
+            {/* DropdownMenuLabel es Menu.GroupLabel de Base UI: fuera de un
+                Menu.Group lanza un error al abrir el menú. */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs">Atención de la conversación</DropdownMenuLabel>
             {modo !== "HUMANO" && (
               <DropdownMenuItem onClick={() => cambiar({ accion: "HUMANO" }, "Ahora atiendes tú: la automatización no responderá")}>
                 <UserRound className="h-4 w-4" />
@@ -150,6 +154,7 @@ export function SelectorAtencion({ conversacionId, onCambio, className }: { conv
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
+            </DropdownMenuGroup>
             {modo !== "AUTOMATICO" && (
               <>
                 <DropdownMenuSeparator />
