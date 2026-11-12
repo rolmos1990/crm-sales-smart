@@ -49,7 +49,7 @@ export type WorkflowDetalle = NonNullable<Awaited<ReturnType<typeof obtenerWorkf
 
 /** Catálogos que necesitan los formularios de los nodos en el editor. */
 export async function obtenerOpcionesEditor(instanciaId: string, workflowIdActual?: string) {
-  const [pipelines, agentes, usuarios, etiquetas, workflows] = await Promise.all([
+  const [pipelines, agentes, usuarios, etiquetas, workflows, plantillas] = await Promise.all([
     prisma.pipeline.findMany({
       where: { instanciaId, activo: true },
       orderBy: [{ esDefault: "desc" }, { nombre: "asc" }],
@@ -83,6 +83,11 @@ export async function obtenerOpcionesEditor(instanciaId: string, workflowIdActua
       orderBy: { nombre: "asc" },
       select: { id: true, nombre: true },
     }),
+    prisma.plantillaCRM.findMany({
+      where: { instanciaId, activo: true },
+      orderBy: { nombre: "asc" },
+      select: { id: true, nombre: true, alias: true, contenidoTexto: true, imagenUrl: true },
+    }),
   ]);
 
   return {
@@ -91,6 +96,7 @@ export async function obtenerOpcionesEditor(instanciaId: string, workflowIdActua
     usuarios: usuarios.map((u) => ({ id: u.id, nombre: u.usuario.nombre, email: u.usuario.email })),
     etiquetas,
     workflows,
+    plantillas,
   };
 }
 

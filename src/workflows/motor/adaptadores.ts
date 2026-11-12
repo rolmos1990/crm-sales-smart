@@ -27,6 +27,14 @@ export function crearAdaptadoresReales(iniciar: AdaptadoresEjecucion["iniciarWor
       return { mensajeId: r.mensaje.id };
     },
 
+    async obtenerPlantilla({ instanciaId, plantillaId }) {
+      const p = await prisma.plantillaCRM.findFirst({
+        where: { id: plantillaId, instanciaId, activo: true },
+        select: { contenidoTexto: true, imagenUrl: true },
+      });
+      return p ? { texto: p.contenidoTexto ?? "", imagenUrl: p.imagenUrl } : null;
+    },
+
     moverEtapa({ instanciaId, oportunidadId, pipelineId, stageId, motivo, ejecucionId }) {
       return moverOportunidadAEtapa({
         oportunidadId,

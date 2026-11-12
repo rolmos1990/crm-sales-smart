@@ -76,6 +76,8 @@ export interface EjecutorNodo<C> {
  */
 export interface AdaptadoresEjecucion {
   enviarMensaje(p: { instanciaId: string; conversacionId: string; texto: string; mediaUrl?: string }): Promise<{ mensajeId: string }>;
+  /** Plantilla activa de la instancia, o null si no existe o fue desactivada. */
+  obtenerPlantilla(p: { instanciaId: string; plantillaId: string }): Promise<{ texto: string; imagenUrl: string | null } | null>;
   moverEtapa(p: {
     instanciaId: string;
     oportunidadId: string;

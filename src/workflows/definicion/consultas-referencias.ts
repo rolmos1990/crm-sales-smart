@@ -49,6 +49,14 @@ export function crearConsultasReferencias(instanciaId: string): ConsultasReferen
       return new Set(filas.map((f) => f.id));
     },
 
+    async plantillas(ids) {
+      const filas = await prisma.plantillaCRM.findMany({
+        where: { id: { in: ids }, instanciaId, activo: true },
+        select: { id: true },
+      });
+      return new Set(filas.map((f) => f.id));
+    },
+
     async workflowsPublicados(ids) {
       if (ids.length === 0) return new Map();
       const filas = await prisma.workflow.findMany({

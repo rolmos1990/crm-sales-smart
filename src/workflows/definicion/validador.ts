@@ -31,6 +31,7 @@ export type CodigoProblema =
   | "VARIABLE_DESCONOCIDA"
   | "TIMER_SIN_POLITICA_RESPUESTA"
   | "AGENTE_IA_INEXISTENTE"
+  | "PLANTILLA_INEXISTENTE"
   | "ETAPA_INEXISTENTE"
   | "ETAPA_CON_WORKFLOW"
   | "USUARIO_INEXISTENTE"
@@ -289,6 +290,8 @@ export interface ConsultasReferencias {
   /** Workflows publicados de la instancia → ids de Workflows que su versión
    *  publicada ejecuta (para detectar recursión A → B → A). */
   workflowsPublicados(ids: string[]): Promise<Map<string, string[]>>;
+  /** Plantillas activas de la instancia. */
+  plantillas(ids: string[]): Promise<Set<string>>;
 }
 
 function idsDestinatario(d: Destinatario | undefined): string[] {
@@ -314,6 +317,7 @@ export async function validarReferencias(
   const usuarios = new Map<string, string>();
   const etiquetas = new Map<string, string>();
   const workflows = new Map<string, string>();
+  const plantillas = new Map<string, string>();
 
   for (const n of def.nodos) {
     const ia = configValida(n, "ATENCION_IA");
@@ -329,13 +333,16 @@ export async function validarReferencias(
     }
     const ejecutar = configValida(n, "EJECUTAR_WORKFLOW");
     if (ejecutar) workflows.set(ejecutar.workflowId, n.id);
+    const enviar = configValida(n, "ENVIAR_MENSAJE");
+    if (enviar?.origen === "PLANTILLA" && enviar.plantillaId) plantillas.set(enviar.plantillaId, n.id);
   }
 
-  const [agentesOk, etapasOk, usuariosOk, etiquetasOk] = await Promise.all([
+  const [agentesOk, etapasOk, usuariosOk, etiquetasOk, plantillasOk] = await Promise.all([
     agentes.size ? consultas.agentesIA([...agentes.keys()]) : new Set<string>(),
     etapas.size ? consultas.etapas([...etapas.keys()]) : new Map<string, { pipelineId: string; tieneWorkflow: boolean }>(),
     usuarios.size ? consultas.usuarios([...usuarios.keys()]) : new Set<string>(),
     etiquetas.size ? consultas.etiquetas([...etiquetas.keys()]) : new Set<string>(),
+    plantillas.size ? consultas.plantillas([...plantillas.keys()]) : new Set<string>(),
   ]);
 
   for (const [id, nodoId] of agentes) {
@@ -358,6 +365,10 @@ export async function validarReferencias(
   }
   for (const [id, nodoId] of etiquetas) {
     if (!etiquetasOk.has(id)) errores.push({ codigo: "ETIQUETA_INEXISTENTE", mensaje: "La etiqueta elegida no existe o está inactiva", nodoId });
+  }
+
+  for (const [id, nodoId] of plantillas) {
+    if (!plantillasOk.has(id)) errores.push({ codigo: "PLANTILLA_INEXISTENTE", mensaje: "La plantilla elegida no existe o está inactiva", nodoId });
   }
 
   // Ejecutar otro Workflow: debe estar publicado y la cadena de llamadas no

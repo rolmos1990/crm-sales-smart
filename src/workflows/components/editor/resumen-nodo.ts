@@ -34,6 +34,10 @@ export function resumenNodo(nodo: NodoWorkflow, opciones: OpcionesEditor): strin
     case "FIN":
       return parse("FIN")?.etiqueta || null;
     case "ENVIAR_MENSAJE": {
+      if (nodo.config.origen === "PLANTILLA") {
+        const p = opciones.plantillas.find((x) => x.id === nodo.config.plantillaId);
+        return p ? `Plantilla: ${p.nombre}` : null;
+      }
       const texto = typeof nodo.config.texto === "string" ? nodo.config.texto : "";
       return texto.trim() ? `“${recortar(texto)}”` : null;
     }

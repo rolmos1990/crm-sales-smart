@@ -69,7 +69,7 @@ export function esVariableConocida(ruta: string, declaradas: Set<string>): boole
 /** Textos con {{variables}} dentro de la config de un nodo. */
 export function textosConVariables(tipo: string, config: Record<string, unknown>): string[] {
   const textos: unknown[] = [];
-  if (tipo === "ENVIAR_MENSAJE") textos.push(config.texto);
+  if (tipo === "ENVIAR_MENSAJE" && config.origen !== "PLANTILLA") textos.push(config.texto);
   if (tipo === "MENU") textos.push(config.pregunta);
   if (tipo === "CREAR_TAREA") textos.push(config.titulo, config.descripcion);
   if (tipo === "NOTIFICAR_AGENTE") textos.push(config.mensaje);

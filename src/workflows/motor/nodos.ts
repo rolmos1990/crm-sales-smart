@@ -116,11 +116,20 @@ const ejecutarWorkflow: EjecutorNodo<ConfigNodo<"EJECUTAR_WORKFLOW">> = {
 const enviarMensaje: EjecutorNodo<ConfigNodo<"ENVIAR_MENSAJE">> = {
   async ejecutar(c, ctx) {
     const conversacionId = requiereConversacion(ctx);
+    const instanciaId = ctx.ejecucion.instanciaId;
+    let contenido = c.texto;
+    let mediaUrl = c.mediaUrl;
+    if (c.origen === "PLANTILLA") {
+      const plantilla = c.plantillaId ? await ctx.deps.obtenerPlantilla({ instanciaId, plantillaId: c.plantillaId }) : null;
+      if (!plantilla) throw new ErrorDefinitivoWorkflow("La plantilla del mensaje no existe o fue desactivada");
+      contenido = plantilla.texto;
+      mediaUrl = plantilla.imagenUrl ?? undefined;
+    }
     const { mensajeId } = await ctx.deps.enviarMensaje({
-      instanciaId: ctx.ejecucion.instanciaId,
+      instanciaId,
       conversacionId,
-      texto: await texto(c.texto, ctx),
-      mediaUrl: c.mediaUrl,
+      texto: await texto(contenido, ctx),
+      mediaUrl,
     });
     return continuar("siguiente", { resultado: { mensajeId } });
   },

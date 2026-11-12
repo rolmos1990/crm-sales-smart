@@ -98,7 +98,7 @@ export const CATALOGO_NODOS: Catalogo = {
     salidas: () => [SIGUIENTE],
     esEspera: false,
     enviaMensajes: true,
-    configInicial: () => ({ texto: "" }),
+    configInicial: () => ({ origen: "TEXTO", texto: "" }),
   },
   MENU: {
     tipo: "MENU",

@@ -271,6 +271,7 @@ function consultasFalsas(datos: {
   usuarios?: string[];
   etiquetas?: string[];
   workflows?: Record<string, string[]>;
+  plantillas?: string[];
 }): ConsultasReferencias {
   return {
     agentesIA: async (ids) => new Set(ids.filter((i) => datos.agentes?.includes(i))),
@@ -284,6 +285,7 @@ function consultasFalsas(datos: {
     etiquetas: async (ids) => new Set(ids.filter((i) => datos.etiquetas?.includes(i))),
     workflowsPublicados: async (ids) =>
       new Map(ids.filter((i) => datos.workflows?.[i]).map((i) => [i, datos.workflows![i]])),
+    plantillas: async (ids) => new Set(ids.filter((i) => datos.plantillas?.includes(i))),
   };
 }
 
@@ -304,6 +306,14 @@ describe("validarReferencias", () => {
     ]);
     const r = await validarReferencias(def, consultasFalsas({ agentes: ["propio"] }), {});
     expect(codigos(r)).toEqual(["AGENTE_IA_INEXISTENTE"]);
+  });
+
+  it("plantilla inexistente o inactiva; el texto propio no consulta plantillas", async () => {
+    const enviarPlantilla = (plantillaId: string) =>
+      conNodo(nodo("e", "ENVIAR_MENSAJE", { origen: "PLANTILLA", plantillaId }), ["siguiente"]);
+    const consultas = consultasFalsas({ plantillas: ["activa"] });
+    expect(codigos(await validarReferencias(enviarPlantilla("borrada"), consultas, {}))).toEqual(["PLANTILLA_INEXISTENTE"]);
+    expect(codigos(await validarReferencias(enviarPlantilla("activa"), consultas, {}))).toEqual([]);
   });
 
   it("etapa que no pertenece al pipeline elegido; advertencia si la etapa destino tiene su propio Workflow", async () => {

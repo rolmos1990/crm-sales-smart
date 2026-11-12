@@ -60,12 +60,20 @@ export const ConfigFinSchema = z.object({
   etiqueta: z.string().max(80).optional(),
 });
 
+// TEXTO: el mensaje se escribe en el nodo. PLANTILLA: se envía una plantilla
+// de Configuración → Plantillas, leída al momento del envío (si la editan, el
+// Workflow envía la versión nueva sin republicar).
 export const ConfigEnviarMensajeSchema = z
   .object({
-    texto: z.string().max(4096),
+    origen: z.enum(["TEXTO", "PLANTILLA"]).default("TEXTO"),
+    texto: z.string().max(4096).default(""),
     mediaUrl: z.string().optional(),
+    plantillaId: z.string().optional(),
   })
-  .refine((c) => c.texto.trim().length > 0 || !!c.mediaUrl, { message: "Escribe un mensaje o adjunta un archivo" });
+  .refine((c) => c.origen !== "TEXTO" || c.texto.trim().length > 0 || !!c.mediaUrl, {
+    message: "Escribe un mensaje o adjunta un archivo",
+  })
+  .refine((c) => c.origen !== "PLANTILLA" || !!c.plantillaId, { message: "Elige una plantilla" });
 
 export const OpcionMenuSchema = z.object({
   id: z.string().min(1),

@@ -269,7 +269,83 @@ function FormEjecutarWorkflow({ config, onChange, opciones, definicion }: PropsF
 
 // ── Conversación ────────────────────────────────────────────────────────────
 
-function FormEnviarMensaje({ config, onChange, definicion }: PropsFormulario) {
+const ORIGENES_MENSAJE = [
+  { valor: "TEXTO", etiqueta: "Escribir texto" },
+  { valor: "PLANTILLA", etiqueta: "Usar plantilla" },
+] as const;
+
+function FormEnviarMensaje(props: PropsFormulario) {
+  const { config, onChange, opciones } = props;
+  const origen = config.origen === "PLANTILLA" ? "PLANTILLA" : "TEXTO";
+  const plantilla = opciones.plantillas.find((p) => p.id === config.plantillaId);
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+        {ORIGENES_MENSAJE.map((o) => (
+          <button
+            key={o.valor}
+            type="button"
+            onClick={() => onChange({ ...config, origen: o.valor })}
+            className={cn(
+              "rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+              origen === o.valor ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {o.etiqueta}
+          </button>
+        ))}
+      </div>
+      {origen === "TEXTO" ? (
+        <MensajeTextoPropio {...props} />
+      ) : (
+        <Campo
+          etiqueta="Plantilla"
+          ayuda="Se envía el contenido actual de la plantilla (Configuración → Plantillas), con sus variables reemplazadas. Si editas la plantilla, el Workflow envía la versión nueva."
+        >
+          {opciones.plantillas.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No hay plantillas activas. Créalas en Configuración → Plantillas.</p>
+          ) : (
+            <div className="space-y-2">
+              <SelectSimple
+                valor={plantilla?.id}
+                opciones={opciones.plantillas.map((p) => ({ valor: p.id, etiqueta: p.nombre }))}
+                onChange={(v) => onChange({ ...config, plantillaId: v })}
+                placeholder="Selecciona una plantilla…"
+              />
+              {plantilla && (
+                <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-2">
+                  {plantilla.imagenUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={plantilla.imagenUrl} alt="" className="max-h-32 rounded-md object-cover" />
+                  )}
+                  <p className="whitespace-pre-wrap text-xs text-foreground">{plantilla.contenidoTexto || "(sin texto)"}</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() =>
+                      onChange({
+                        ...config,
+                        origen: "TEXTO",
+                        texto: plantilla.contenidoTexto ?? "",
+                        mediaUrl: plantilla.imagenUrl ?? undefined,
+                      })
+                    }
+                  >
+                    Personalizar como texto
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </Campo>
+      )}
+    </>
+  );
+}
+
+function MensajeTextoPropio({ config, onChange, definicion }: PropsFormulario) {
   const variables = useVariables(definicion);
   return (
     <>
