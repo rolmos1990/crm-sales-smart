@@ -116,16 +116,21 @@ export function WorkflowsPorEtapa({ pipelineId, stages }: { pipelineId: string; 
                   </span>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2 sm:w-64">
+              <div className="flex min-w-0 items-center gap-2 sm:w-72 sm:shrink-0">
                 {guardandoEtapa === stage.id ? (
                   <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
                 ) : (
                   <Workflow className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}
                 {editable ? (
-                  <SelectSimple valor={asignados[stage.id] ?? SIN_WORKFLOW} opciones={opciones} onChange={(v) => asignar(stage.id, v)} />
+                  <SelectSimple
+                    valor={asignados[stage.id] ?? SIN_WORKFLOW}
+                    opciones={opciones}
+                    onChange={(v) => asignar(stage.id, v)}
+                    className="flex-1"
+                  />
                 ) : (
-                  <span className="text-sm text-muted-foreground">
+                  <span className="min-w-0 truncate text-sm text-muted-foreground">
                     {workflows.find((w) => w.id === asignados[stage.id])?.nombre ?? "Sin Workflow"}
                   </span>
                 )}

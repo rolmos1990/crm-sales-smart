@@ -49,8 +49,21 @@ export function SelectSimple({
   const items = Object.fromEntries(opciones.map((o) => [o.valor, o.etiqueta]));
   return (
     <Select items={items} value={valor ?? null} onValueChange={(v) => v && onChange(v as string)}>
-      <SelectTrigger className={cn("w-full", className)}>
-        <SelectValue placeholder={placeholder} />
+      <SelectTrigger className={cn("w-full min-w-0", className)}>
+        {/* El texto va en su propio span: dentro del flex del valor un texto
+            suelto no puede recortarse con "…" y empuja el trigger hacia afuera. */}
+        <SelectValue className="min-w-0">
+          {(v: string | null) => {
+            const etiqueta = v != null ? items[v] : undefined;
+            return etiqueta ? (
+              <span className="truncate" title={etiqueta}>
+                {etiqueta}
+              </span>
+            ) : (
+              placeholder
+            );
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {opciones.map((o) => (
