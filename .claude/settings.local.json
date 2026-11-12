@@ -323,7 +323,11 @@
       "Bash(pkill -f \"next dev\" 2>/dev/null *)",
       "Bash(grep -o \"DATABASE_URL=.\\\\{0,30\\\\}\" .env)",
       "Bash(grep -o 'react-flow__edge[^\"]\\\\{0,10\\\\}\"[^\\)]\\\\{0,200\\\\}' node_modules/@xyflow/react/dist/esm/index.mjs)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(awk '/^const menu/,/^};/' src/workflows/motor/nodos.ts)",
+      "Bash(dig +short db.tdgcoadccolyplhikbrr.supabase.co A)",
+      "Bash(dig +short db.tdgcoadccolyplhikbrr.supabase.co AAAA)",
+      "Bash(dig +short aws-1-us-west-2.pooler.supabase.com A)"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",

@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { crearSupabaseAdminClient } from "@/shared/auth/provider/supabase-admin";
 import { CrearUsuarioSchema, EditarUsuarioSchema } from "./schema";
-import { AgenteIAConfigSchema } from "@/configuracion/ia/agente-schema";
+import { AgenteIAConfigSchema, TipoAgenteIASchema } from "@/configuracion/ia/agente-schema";
+import { construirPayloadAgenteIA } from "@/configuracion/ia/payload-agente";
+import { plantillaDeTipo, TIPO_AGENTE_POR_DEFECTO } from "@/configuracion/ia/plantillas-agente";
 import type { ResultadoAccion, ResultadoCrearUsuario } from "./types";
 
 async function obtenerOrigin(): Promise<string> {
@@ -130,6 +131,7 @@ export async function crearUsuario(
 export async function crearAgenteConIA(
   datosUsuario: unknown,
   configIA?: unknown,
+  tipoAgente?: unknown,
 ): Promise<ResultadoAccion<{ usuarioId: string }>> {
   const sesion = await requireSesion();
   if (sesion.rol !== "OWNER" && sesion.rol !== "ADMIN") {
@@ -158,6 +160,12 @@ export async function crearAgenteConIA(
     }
   }
 
+  const validadoTipo = TipoAgenteIASchema.safeParse(tipoAgente ?? TIPO_AGENTE_POR_DEFECTO);
+  if (!validadoTipo.success) {
+    return { exito: false, error: "Tipo de agente inválido" };
+  }
+  const tipo = validadoTipo.data;
+
   try {
     const usuario = await prisma.usuario.create({
       data: {
@@ -175,23 +183,24 @@ export async function crearAgenteConIA(
     });
 
     if (validadoConfig?.success) {
-      const d = validadoConfig.data;
-      await prisma.agenteIAConfig.create({
+      const payload = construirPayloadAgenteIA(validadoConfig.data);
+      const agente = await prisma.agenteIAConfig.create({
         data: {
           usuarioId: usuario.id,
           instanciaId: sesion.instanciaId,
-          tipo: "COMERCIAL",
-          sistemaPrompt: d.sistemaPrompt ?? null,
-          personalidad: d.personalidad ?? null,
-          objetivo: d.objetivo ?? null,
-          especialidad: d.especialidad ?? null,
-          temperaturaOverride: d.temperaturaOverride ?? null,
-          modeloPreferido: d.modeloPreferido ?? null,
-          memoriaHabilitada: d.memoriaHabilitada,
-          limiteTokensCtx: d.limiteTokensCtx,
-          canalesPermitidos: d.canalesPermitidos ?? Prisma.JsonNull,
+          tipo,
+          ...payload,
+          // El agente nace con las instrucciones de su tipo; si el formulario
+          // ya las traía editadas, mandan las del formulario.
+          instruccionesAgente: payload.instruccionesAgente ?? plantillaDeTipo(tipo).instrucciones,
         },
+        select: { id: true },
       });
+
+      // 016-niveles-autonomia-automatizacion — la clasificación inicial se
+      // siembra al crear el AgenteIAConfig, igual que en guardarAgenteIA.
+      const { sembrarAutonomiaDefault } = await import("@/ai/autonomia/siembra");
+      await sembrarAutonomiaDefault(sesion.instanciaId, agente.id);
     }
 
     revalidatePath("/configuracion");

@@ -44,7 +44,24 @@ export const RespuestaGuiaSchema = z.object({
 
 export type RespuestaGuiaInput = z.infer<typeof RespuestaGuiaSchema>;
 
+// Tipo de agente (TipoAgenteIA en Prisma). Se elige al crear el agente y
+// decide con qué plantilla de instrucciones nace — ver plantillas-agente.ts.
+export const TipoAgenteIASchema = z.enum(["COMERCIAL", "GERENCIA"]);
+
+export const MAX_INSTRUCCIONES_AGENTE = 20000;
+
 export const AgenteIAConfigSchema = z.object({
+  // Bloque único de instrucciones (Rol · Estilo · Proceso · Reglas). Es la
+  // fuente del prompt; los campos de identidad/comunicación/reglas de abajo
+  // solo siguen vigentes mientras un agente no lo tenga. El `tipo` del agente
+  // no viaja acá a propósito: se elige al crearlo y publicar o restaurar una
+  // versión nunca debe cambiarlo.
+  instruccionesAgente: z
+    .string()
+    .max(MAX_INSTRUCCIONES_AGENTE, "Las instrucciones son demasiado largas")
+    .nullable()
+    .optional(),
+
   sistemaPrompt: z.string().optional(),
   personalidad: z.string().max(100).optional(),
   objetivo: z.string().max(300).optional(),

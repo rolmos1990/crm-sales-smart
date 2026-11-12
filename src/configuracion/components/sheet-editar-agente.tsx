@@ -61,6 +61,7 @@ import {
   type RespuestaGuiaInput,
   INTENCIONES_RESPUESTA_GUIA,
 } from "@/configuracion/ia/agente-schema";
+import { plantillaDeTipo, TIPO_AGENTE_POR_DEFECTO } from "@/configuracion/ia/plantillas-agente";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 import { SeccionVersionesAgente } from "./seccion-versiones-agente";
 import { EditorRespuestasGuia } from "./editor-respuestas-guia";
@@ -220,6 +221,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   const formIA = useForm<AgenteIAConfigInput>({
     resolver: zodResolver(AgenteIAConfigSchema),
     defaultValues: {
+      instruccionesAgente: "",
       sistemaPrompt: "",
       personalidad: "",
       objetivo: "",
@@ -264,6 +266,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
         setConfigIA(config);
         if (config) {
           formIA.reset({
+            instruccionesAgente: config.instruccionesAgente ?? "",
             sistemaPrompt: config.sistemaPrompt ?? "",
             personalidad: config.personalidad ?? "",
             objetivo: config.objetivo ?? "",
@@ -402,6 +405,9 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
         limiteTokensCtx: 4000,
         canalesPermitidos: null,
         temperaturaOverride: null,
+        // Activar la IA también es crear el agente: nace con la plantilla,
+        // igual que si se hubiera creado desde "Nuevo agente".
+        instruccionesAgente: plantillaDeTipo(TIPO_AGENTE_POR_DEFECTO).instrucciones,
       });
       if (!resultado.exito) {
         toast.error(resultado.error ?? "Error al activar IA");
@@ -564,6 +570,33 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             ) : (
               <Form {...formIA}>
                 <form onSubmit={formIA.handleSubmit(onSubmitIA)} className="flex flex-col gap-6">
+
+                  {/* ── Sección: Instrucciones ── */}
+                  <FormField
+                    control={formIA.control}
+                    name="instruccionesAgente"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">
+                          Instrucciones del agente
+                        </FormLabel>
+                        <p className="text-stone-500 text-xs">
+                          Rol y objetivo, estilo de comunicación, proceso de atención y reglas. Es lo que
+                          define cómo responde.
+                        </p>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            value={field.value ?? ""}
+                            rows={18}
+                            placeholder="# Rol y objetivo…"
+                            className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 font-mono text-xs leading-relaxed"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   {/* ── Sección: Objetivo ── */}
                   <FormField

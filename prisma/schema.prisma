@@ -2954,6 +2954,20 @@ model AgenteIAConfig {
   catalogoEnContexto     Boolean @default(true)
   limiteCatalogoContexto Int     @default(30)
 
+  // Bloque único de instrucciones (Rol y objetivo · Estilo · Proceso de
+  // atención · Reglas) que la plantilla del `tipo` siembra al crear el agente
+  // y el responsable edita a mano. Es la fuente del prompt y reemplaza a los
+  // campos estructurados de la 009 (rol, longitudRespuesta, proactividad,
+  // intensidadComercial, estiloRecomendacion, frases*, comportamientos*,
+  // reglasPersonalizadas, condicionesTransferenciaHumano), que quedan solo
+  // como origen de la migración.
+  //
+  // Null = agente todavía sin migrar: `construirSystemPrompt` sigue
+  // componiendo desde esos campos. El backfill
+  // (scripts/backfill-instrucciones-agente.ts) lo rellena a partir de lo que
+  // cada agente ya tenía, para que nadie pierda comportamiento al desplegar.
+  instruccionesAgente String?
+
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 

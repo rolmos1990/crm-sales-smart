@@ -6,6 +6,7 @@ import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { AgenteIAConfigSchema, type AgenteIAConfigInput } from "./agente-schema";
+import { construirPayloadAgenteIA } from "./payload-agente";
 import { detectarContradicciones } from "@/ai/prompt/contradicciones";
 import {
   obtenerBorradorActivo,
@@ -83,6 +84,7 @@ export async function cargarConfigAgenteIA(usuarioId: string) {
     select: {
       id: true,
       tipo: true,
+      instruccionesAgente: true,
       sistemaPrompt: true,
       personalidad: true,
       objetivo: true,
@@ -335,41 +337,6 @@ export async function listarVersionesAgenteIA(agenteIAConfigId: string) {
 
 // --- helpers internos ---
 
-function construirPayloadAgenteIA(datos: AgenteIAConfigInput) {
-  return {
-    sistemaPrompt: datos.sistemaPrompt ?? null,
-    personalidad: datos.personalidad ?? null,
-    objetivo: datos.objetivo ?? null,
-    especialidad: datos.especialidad ?? null,
-    temperaturaOverride: datos.temperaturaOverride ?? null,
-    modeloPreferido: datos.modeloPreferido ?? null,
-    memoriaHabilitada: datos.memoriaHabilitada,
-    limiteTokensCtx: datos.limiteTokensCtx,
-    canalesPermitidos: datos.canalesPermitidos ?? Prisma.JsonNull,
-    herramientas: datos.herramientas ?? Prisma.JsonNull,
-    configuracionTono: datos.configuracionTono ?? Prisma.JsonNull,
-
-    nombreAgente: datos.nombreAgente ?? null,
-    rol: datos.rol ?? null,
-    idiomaPrincipal: datos.idiomaPrincipal ?? null,
-    idiomasPermitidos: datos.idiomasPermitidos ?? Prisma.JsonNull,
-    longitudRespuesta: datos.longitudRespuesta ?? null,
-    proactividad: datos.proactividad ?? null,
-    intensidadComercial: datos.intensidadComercial ?? null,
-    estiloRecomendacion: datos.estiloRecomendacion ?? null,
-    frasesPreferidas: datos.frasesPreferidas ?? Prisma.JsonNull,
-    frasesProhibidas: datos.frasesProhibidas ?? Prisma.JsonNull,
-    comportamientosProhibidos: datos.comportamientosProhibidos ?? Prisma.JsonNull,
-    reglasPersonalizadas: datos.reglasPersonalizadas ?? Prisma.JsonNull,
-    condicionesTransferenciaHumano: datos.condicionesTransferenciaHumano ?? Prisma.JsonNull,
-
-    // 028-respuestas-guia-catalogo-ia — una versión anterior a 028 no trae
-    // estos campos: se restaura sin respuestas guía y con el catálogo activo.
-    respuestasGuia: datos.respuestasGuia ?? Prisma.JsonNull,
-    catalogoEnContexto: datos.catalogoEnContexto ?? true,
-    limiteCatalogoContexto: datos.limiteCatalogoContexto ?? 30,
-  };
-}
 
 // FR: una misma frase no puede estar en frasesPreferidas y frasesProhibidas a la vez.
 function validarSinConflictoDeFrases(datos: AgenteIAConfigInput): string | null {

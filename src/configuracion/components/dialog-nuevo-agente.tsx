@@ -23,10 +23,24 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { crearAgenteConIA, crearUsuario } from "@/configuracion/usuarios/actions";
 import { CrearUsuarioSchema, type CrearUsuarioInput } from "@/configuracion/usuarios/schema";
 import type { AgenteIAConfigInput } from "@/configuracion/ia/agente-schema";
+import {
+  PLANTILLAS_AGENTE,
+  TIPO_AGENTE_POR_DEFECTO,
+  TIPOS_AGENTE_SELECCIONABLES,
+  plantillaDeTipo,
+} from "@/configuracion/ia/plantillas-agente";
+import type { TipoAgenteIA } from "@/generated/prisma/enums";
+
+// Etiquetas del <Select>: su value (COMERCIAL) no coincide con lo que se ve
+// ("Agente de Ventas"), así que el Select necesita `items` — ver docs/selects.md.
+const ETIQUETAS_TIPO = Object.fromEntries(
+  TIPOS_AGENTE_SELECCIONABLES.map((t) => [t, PLANTILLAS_AGENTE[t].etiqueta]),
+);
 
 interface DialogNuevoAgenteProps {
   abierto: boolean;
@@ -37,6 +51,7 @@ interface DialogNuevoAgenteProps {
 export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAgenteProps) {
   const [isPending, startTransition] = useTransition();
   const [esAgenteComercial, setEsAgenteComercial] = useState(false);
+  const [tipoAgente, setTipoAgente] = useState<TipoAgenteIA>(TIPO_AGENTE_POR_DEFECTO);
 
   const formUsuario = useForm<CrearUsuarioInput>({
     resolver: zodResolver(CrearUsuarioSchema),
@@ -48,16 +63,24 @@ export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAge
       objetivo: "",
       personalidad: "",
       especialidad: "",
-      sistemaPrompt: "",
+      instruccionesAgente: plantillaDeTipo(TIPO_AGENTE_POR_DEFECTO).instrucciones,
       memoriaHabilitada: true,
       limiteTokensCtx: 4000,
     },
   });
 
+  // Cambiar de tipo reescribe las instrucciones: cada tipo trae su plantilla y
+  // mezclar dos no tendría sentido.
+  function cambiarTipo(tipo: TipoAgenteIA) {
+    setTipoAgente(tipo);
+    formIA.setValue("instruccionesAgente", plantillaDeTipo(tipo).instrucciones);
+  }
+
   function handleCerrar() {
     formUsuario.reset();
     formIA.reset();
     setEsAgenteComercial(false);
+    setTipoAgente(TIPO_AGENTE_POR_DEFECTO);
     onCerrar();
   }
 
@@ -68,16 +91,20 @@ export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAge
       let resultado;
       if (esAgenteComercial) {
         const configIA = formIA.getValues();
-        resultado = await crearAgenteConIA(base, {
-          objetivo: configIA.objetivo || undefined,
-          personalidad: configIA.personalidad || undefined,
-          especialidad: configIA.especialidad || undefined,
-          sistemaPrompt: configIA.sistemaPrompt || undefined,
-          memoriaHabilitada: configIA.memoriaHabilitada ?? true,
-          limiteTokensCtx: configIA.limiteTokensCtx ?? 4000,
-          temperaturaOverride: null,
-          canalesPermitidos: null,
-        });
+        resultado = await crearAgenteConIA(
+          base,
+          {
+            objetivo: configIA.objetivo || undefined,
+            personalidad: configIA.personalidad || undefined,
+            especialidad: configIA.especialidad || undefined,
+            instruccionesAgente: configIA.instruccionesAgente || undefined,
+            memoriaHabilitada: configIA.memoriaHabilitada ?? true,
+            limiteTokensCtx: configIA.limiteTokensCtx ?? 4000,
+            temperaturaOverride: null,
+            canalesPermitidos: null,
+          },
+          tipoAgente,
+        );
       } else {
         resultado = await crearUsuario(base);
       }
@@ -243,6 +270,29 @@ export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAge
                       Configuración IA
                     </p>
 
+                    <FormItem>
+                      <FormLabel className="text-stone-300">Tipo de agente</FormLabel>
+                      <Select
+                        items={ETIQUETAS_TIPO}
+                        value={tipoAgente}
+                        onValueChange={(v) => v && cambiarTipo(v as TipoAgenteIA)}
+                      >
+                        <SelectTrigger className="w-full bg-white/5 border-white/10 text-stone-50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPOS_AGENTE_SELECCIONABLES.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {PLANTILLAS_AGENTE[t].etiqueta}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription className="text-stone-600 text-xs">
+                        {plantillaDeTipo(tipoAgente).descripcion}
+                      </FormDescription>
+                    </FormItem>
+
                     <FormField
                       control={formIA.control}
                       name="objetivo"
@@ -301,23 +351,21 @@ export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAge
 
                     <FormField
                       control={formIA.control}
-                      name="sistemaPrompt"
+                      name="instruccionesAgente"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-stone-300">
-                            System Prompt{" "}
-                            <span className="text-stone-600 font-normal">(opcional)</span>
-                          </FormLabel>
+                          <FormLabel className="text-stone-300">Instrucciones del agente</FormLabel>
                           <FormControl>
                             <Textarea
                               {...field}
-                              rows={4}
-                              placeholder="Eres un asistente comercial de [Empresa]. Tu objetivo es ayudar a los clientes a encontrar el producto ideal y resolver sus dudas de forma profesional…"
-                              className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-600 text-sm resize-none"
+                              value={field.value ?? ""}
+                              rows={10}
+                              className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-600 font-mono text-xs leading-relaxed"
                             />
                           </FormControl>
                           <FormDescription className="text-stone-600 text-xs">
-                            Editable en detalle desde la configuración del agente.
+                            Rol, estilo y proceso de atención. Vienen de la plantilla del tipo; edítalas
+                            ahora o después desde la configuración del agente.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

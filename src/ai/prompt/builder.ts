@@ -1,6 +1,15 @@
-// Genera el system prompt desde los campos estructurados de AgenteIAConfig.
-// El usuario configura objetivo, personalidad, etc. — no escribe prompts manualmente.
-// El campo sistemaPrompt es un override avanzado que se añade al final.
+// Genera el system prompt de un AgenteIAConfig.
+//
+// La parte configurable sale de `instruccionesAgente`: un único bloque de
+// texto (Rol · Estilo · Proceso · Reglas) que la plantilla del tipo siembra al
+// crear el agente. Los agentes creados antes de ese cambio todavía no lo
+// tienen, y para ellos se sigue componiendo desde los campos estructurados de
+// la 009 (ver `generarInstruccionesDesdeConfig`, que es lo que el backfill usa
+// para pasarlos de un modelo al otro).
+//
+// Lo fijo del sistema —comportamiento natural, restricciones y el bloque de
+// seguridad— se aplica siempre y por debajo: ningún texto del negocio lo
+// desactiva. `sistemaPrompt` sigue siendo un override avanzado al final.
 
 import { INTENCIONES_RESPUESTA_GUIA } from "@/configuracion/ia/agente-schema";
 
@@ -33,6 +42,17 @@ export interface ConfigAgenteParaPrompt {
   respuestasGuia?: unknown; // RespuestaGuiaInput[]
   catalogoEnContexto?: boolean | null;
   limiteCatalogoContexto?: number | null;
+
+  /**
+   * Bloque único de instrucciones escrito por el responsable (Rol · Estilo ·
+   * Proceso · Reglas). Cuando está presente reemplaza a todo lo que el negocio
+   * configuraba por campos —rol, identidad, estilo, especialidad y reglas—,
+   * que arriba quedan solo para los agentes que aún no se migraron.
+   *
+   * Lo fijo del sistema (comportamiento natural, restricciones, seguridad) se
+   * sigue aplicando igual: este texto no puede desactivarlo.
+   */
+  instruccionesAgente?: string | null;
 }
 
 export interface ContextoDinamicoPrompt {
@@ -61,20 +81,29 @@ export function construirSystemPrompt(
 ): string {
   const partes: string[] = [];
 
-  partes.push(buildRol(config));
+  // El bloque de instrucciones, cuando existe, ocupa el lugar de todo lo
+  // configurable: rol, identidad, estilo, especialidad y reglas del negocio.
+  // Va primero y los bloques fijos de abajo siguen cerrándolo por detrás.
+  const bloqueInstrucciones = config.instruccionesAgente?.trim();
 
-  const bloqueIdentidad = construirBloqueIdentidadExtendida(config);
-  if (bloqueIdentidad) partes.push(bloqueIdentidad);
+  if (bloqueInstrucciones) {
+    partes.push(bloqueInstrucciones);
+  } else {
+    partes.push(buildRol(config));
 
-  const bloqueTono = construirBloqueTono(config.configuracionTono, config);
-  if (bloqueTono) {
-    partes.push(bloqueTono);
-  } else if (config.personalidad) {
-    partes.push(`Tu estilo y personalidad: ${config.personalidad}.`);
-  }
+    const bloqueIdentidad = construirBloqueIdentidadExtendida(config);
+    if (bloqueIdentidad) partes.push(bloqueIdentidad);
 
-  if (config.especialidad) {
-    partes.push(`Área de especialidad: ${config.especialidad}.`);
+    const bloqueTono = construirBloqueTono(config.configuracionTono, config);
+    if (bloqueTono) {
+      partes.push(bloqueTono);
+    } else if (config.personalidad) {
+      partes.push(`Tu estilo y personalidad: ${config.personalidad}.`);
+    }
+
+    if (config.especialidad) {
+      partes.push(`Área de especialidad: ${config.especialidad}.`);
+    }
   }
 
   // Comportamiento natural — fijo, no configurable por el negocio (FR-005 de
@@ -108,8 +137,12 @@ export function construirSystemPrompt(
 
   partes.push(restricciones.join("\n"));
 
-  const bloqueReglas = construirBloqueReglasDeNegocio(config);
-  if (bloqueReglas) partes.push(bloqueReglas);
+  // Las reglas por campos solo aplican al agente sin migrar: con el bloque de
+  // instrucciones, sus reglas ya viajan dentro de él.
+  if (!bloqueInstrucciones) {
+    const bloqueReglas = construirBloqueReglasDeNegocio(config);
+    if (bloqueReglas) partes.push(bloqueReglas);
+  }
 
   // 028-respuestas-guia-catalogo-ia — mismo peso que las reglas del negocio y
   // debajo de las fijas: un formato nunca puede habilitar inventar un precio.
@@ -160,7 +193,7 @@ export function construirSystemPrompt(
   return partes.filter(Boolean).join("\n\n");
 }
 
-function buildRol(config: Pick<ConfigAgenteParaPrompt, "objetivo">): string {
+export function buildRol(config: Pick<ConfigAgenteParaPrompt, "objetivo">): string {
   if (config.objetivo) {
     return `Eres un asistente especializado en ${config.objetivo}. Tu misión es ayudar a los clientes de forma profesional y efectiva.`;
   }
@@ -170,7 +203,7 @@ function buildRol(config: Pick<ConfigAgenteParaPrompt, "objetivo">): string {
 // 009-perfil-agente-estructurado-versionado — nombre/rol/idioma del agente.
 // Todo opcional: sin ninguno configurado, esta función devuelve "" y no
 // altera el prompt (retrocompatibilidad exacta).
-function construirBloqueIdentidadExtendida(
+export function construirBloqueIdentidadExtendida(
   config: Pick<ConfigAgenteParaPrompt, "nombreAgente" | "rol" | "idiomaPrincipal" | "idiomasPermitidos">,
 ): string {
   const lineas: string[] = [];
@@ -227,7 +260,7 @@ const MAPA_ESTILO_RECOMENDACION: Record<string, string> = {
 // 009-perfil-agente-estructurado-versionado — el bloque de tono existente se
 // extiende con las nuevas dimensiones de comunicación (longitud, proactividad,
 // intensidad comercial, estilo de recomendación), bajo el mismo encabezado.
-function construirBloqueTono(
+export function construirBloqueTono(
   valorTono: unknown,
   comunicacionExtendida: Pick<
     ConfigAgenteParaPrompt,
@@ -285,7 +318,7 @@ function construirBloqueTono(
 // 009-perfil-agente-estructurado-versionado — frases/comportamientos
 // prohibidos, frases preferidas, reglas personalizadas y condiciones de
 // transferencia a humano. Todo opcional: sin nada configurado, devuelve "".
-function construirBloqueReglasDeNegocio(
+export function construirBloqueReglasDeNegocio(
   config: Pick<
     ConfigAgenteParaPrompt,
     | "frasesPreferidas"
