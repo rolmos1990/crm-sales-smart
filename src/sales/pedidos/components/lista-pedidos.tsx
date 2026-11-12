@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Trash2, ArrowUpDown, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -105,6 +106,9 @@ function EstadoBadge({ estado, etapa }: { estado: EstadoPedido; etapa: EtapaResu
 type EtapaFlujo = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null };
 
 function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: EtapaFlujo[] }) {
+  // El diálogo vive fuera del menú: Base UI desmonta el contenido del menú al
+  // cerrarlo, y con él cualquier diálogo abierto desde adentro.
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
   const router = useRouter();
   const etapaActualId = (pedido as any).flujoVentaEtapa?.id ?? null;
   const siguientesEtapas = calcularSiguientesEtapas(etapasFlujo, etapaActualId);
@@ -132,6 +136,7 @@ function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: 
   const pendienteConfirmacion = pedido.generadoPorIA && !pedido.confirmadoPorHumano;
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
         <MoreHorizontal className="h-4 w-4" />
@@ -158,18 +163,19 @@ function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: 
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <ConfirmacionDialog
-          trigger={
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />Eliminar
-            </DropdownMenuItem>
-          }
-          titulo="¿Eliminar pedido?"
-          descripcion={`Se eliminará el pedido ${pedido.numero}.`}
-          onConfirmar={handleEliminar}
-        />
+        <DropdownMenuItem onClick={() => setConfirmarEliminar(true)} className="text-destructive focus:text-destructive">
+          <Trash2 className="mr-2 h-4 w-4" />Eliminar
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <ConfirmacionDialog
+      open={confirmarEliminar}
+      onOpenChange={setConfirmarEliminar}
+      titulo="¿Eliminar pedido?"
+      descripcion={`Se eliminará el pedido ${pedido.numero}.`}
+      onConfirmar={handleEliminar}
+    />
+    </>
   );
 }
 

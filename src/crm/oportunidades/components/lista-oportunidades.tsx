@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Pencil, Trash2, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
@@ -22,6 +23,9 @@ import { EtapaBadge } from "./etapa-badge";
 
 function AccionesOportunidad({ oportunidad }: { oportunidad: Oportunidad }) {
   const router = useRouter();
+  // El diálogo vive fuera del menú: Base UI desmonta el contenido del menú al
+  // cerrarlo, y con él cualquier diálogo abierto desde adentro.
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
   const handleEliminar = async () => {
     const resultado = await eliminarOportunidad(oportunidad.id);
     if (resultado.exito) toast.success("Oportunidad eliminada");
@@ -29,6 +33,7 @@ function AccionesOportunidad({ oportunidad }: { oportunidad: Oportunidad }) {
   };
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
         <MoreHorizontal className="h-4 w-4" />
@@ -39,18 +44,19 @@ function AccionesOportunidad({ oportunidad }: { oportunidad: Oportunidad }) {
           <Pencil className="mr-2 h-4 w-4" />Editar
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <ConfirmacionDialog
-          trigger={
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" />Eliminar
-            </DropdownMenuItem>
-          }
-          titulo="¿Eliminar oportunidad?"
-          descripcion={`Se eliminará permanentemente "${oportunidad.titulo}".`}
-          onConfirmar={handleEliminar}
-        />
+        <DropdownMenuItem onClick={() => setConfirmarEliminar(true)} className="text-destructive focus:text-destructive">
+          <Trash2 className="mr-2 h-4 w-4" />Eliminar
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <ConfirmacionDialog
+      open={confirmarEliminar}
+      onOpenChange={setConfirmarEliminar}
+      titulo="¿Eliminar oportunidad?"
+      descripcion={`Se eliminará permanentemente "${oportunidad.titulo}".`}
+      onConfirmar={handleEliminar}
+    />
+    </>
   );
 }
 

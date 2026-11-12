@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, Pencil, Trash2, ArrowUpDown, Send, CheckCircle2, ExternalLink, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -24,6 +25,10 @@ const formatearMoneda = (valor: number, moneda: string) =>
 
 function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
   const router = useRouter();
+  // Los diálogos viven fuera del menú: Base UI desmonta el contenido del menú al
+  // cerrarlo, y con él cualquier diálogo abierto desde adentro.
+  const [confirmarAprobar, setConfirmarAprobar] = useState(false);
+  const [confirmarEliminar, setConfirmarEliminar] = useState(false);
 
   const handleRevisar = async () => {
     const resultado = await cambiarEstadoCotizacion(cotizacion.id, "REVISADA");
@@ -64,6 +69,7 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
   const pendienteConfirmacion = cotizacion.generadoPorIA && !cotizacion.confirmadoPorHumano;
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-lg hover:bg-muted hover:text-foreground transition-all outline-none">
         <MoreHorizontal className="h-4 w-4" />
@@ -88,37 +94,35 @@ function AccionesCotizacion({ cotizacion }: { cotizacion: Cotizacion }) {
           </DropdownMenuItem>
         )}
         {puedeAprobar && (
-          <ConfirmacionDialog
-            trigger={
-              <DropdownMenuItem
-                onSelect={(e) => e.preventDefault()}
-                className="text-emerald-600 dark:text-emerald-400 focus:text-emerald-700 dark:focus:text-emerald-300"
-              >
-                <CheckCircle2 className="mr-2 h-4 w-4" />Aprobar y generar pedido
-              </DropdownMenuItem>
-            }
-            titulo="¿Aprobar cotización?"
-            descripcion={`Se aprobará la cotización ${cotizacion.numero} y se generará un pedido confirmado automáticamente. Si algún producto no tiene stock suficiente, la operación fallará.`}
-            onConfirmar={handleAprobar}
-          />
+          <DropdownMenuItem onClick={() => setConfirmarAprobar(true)} className="text-emerald-600 dark:text-emerald-400 focus:text-emerald-700 dark:focus:text-emerald-300">
+            <CheckCircle2 className="mr-2 h-4 w-4" />Aprobar y generar pedido
+          </DropdownMenuItem>
         )}
         {esModificable && (
           <>
             <DropdownMenuSeparator />
-            <ConfirmacionDialog
-              trigger={
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-                  <Trash2 className="mr-2 h-4 w-4" />Eliminar
-                </DropdownMenuItem>
-              }
-              titulo="¿Eliminar cotización?"
-              descripcion={`Se eliminará la cotización ${cotizacion.numero}.`}
-              onConfirmar={handleEliminar}
-            />
+            <DropdownMenuItem onClick={() => setConfirmarEliminar(true)} className="text-destructive focus:text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />Eliminar
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    <ConfirmacionDialog
+      open={confirmarAprobar}
+      onOpenChange={setConfirmarAprobar}
+      titulo="¿Aprobar cotización?"
+      descripcion={`Se aprobará la cotización ${cotizacion.numero} y se generará un pedido confirmado automáticamente. Si algún producto no tiene stock suficiente, la operación fallará.`}
+      onConfirmar={handleAprobar}
+    />
+    <ConfirmacionDialog
+      open={confirmarEliminar}
+      onOpenChange={setConfirmarEliminar}
+      titulo="¿Eliminar cotización?"
+      descripcion={`Se eliminará la cotización ${cotizacion.numero}.`}
+      onConfirmar={handleEliminar}
+    />
+    </>
   );
 }
 
