@@ -56,6 +56,10 @@ export interface ChatConHerramientasParams {
   modelo: string;
   temperatura?: number;
   maxTokens?: number;
+  /** Turno de cierre: el modelo ve el historial de tools pero no puede llamar
+   *  más — debe responder en texto. Lo usa el tool loop al agotar iteraciones
+   *  para redactar con lo que ya ejecutó en vez de caer en un texto genérico. */
+  forzarTexto?: boolean;
 }
 
 export interface ChatConHerramientasResult {

@@ -9,7 +9,21 @@ import { NOMBRE_FINALIZAR_ATENCION_WORKFLOW } from "@/ai/tools/providers/finaliz
 // "Atención IA" de los Workflows reutilice exactamente la misma canalización
 // y reciba un resultado estructurado en vez de un "fire and forget".
 
-const MAX_ITERACIONES_TOOL = 5;
+// Con ~19 herramientas disponibles (las del agente + las operativas siempre
+// disponibles + buscar_productos + finalizar_atencion_workflow) y proveedores
+// que llaman de a una por turno, 5 iteraciones se agotaban explorando antes de
+// poder redactar la respuesta.
+const MAX_ITERACIONES_TOOL = 10;
+
+const MENSAJE_RESPALDO_GENERICO =
+  "Lo siento, no pude completar tu solicitud en este momento. ¿Puedo ayudarte con algo más?";
+
+// Acciones cuyo resultado el cliente sí debe ver reflejado: si alguna se
+// ejecutó con éxito, la respuesta de respaldo nunca puede decir "no pude".
+const HERRAMIENTAS_ACCION_VISIBLE = ["crear_cotizacion", "crear_pedido"];
+
+const INSTRUCCION_CIERRE =
+  "Ya ejecutaste todas las herramientas que necesitabas. Redacta ahora la respuesta final para el cliente con la información que obtuviste. Solo el texto del mensaje, sin explicaciones.";
 
 export interface ParamsRespuestaIA {
   instanciaId: string;
@@ -359,6 +373,8 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<Resulta
   };
 
   const herramientasEjecutadas: string[] = [];
+  // Mensajes de las acciones comerciales que sí se concretaron en este turno.
+  const accionesConcretadas: string[] = [];
   let motivoTransferencia: string | undefined;
   let productoIdentificadoId: string | undefined;
   let usoIAId: string | undefined;
@@ -395,6 +411,11 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<Resulta
         const res = await ejecutarHerramienta(llamada.name, llamada.input, toolCtx);
         herramientasEjecutadas.push(llamada.name);
 
+        if (HERRAMIENTAS_ACCION_VISIBLE.includes(llamada.name) && res.ok) {
+          const mensaje = (res.data as Record<string, unknown> | undefined)?.mensaje;
+          if (typeof mensaje === "string") accionesConcretadas.push(mensaje);
+        }
+
         // research.md Decisión 3 — motivo de transferencia de ESTA respuesta.
         if (llamada.name === "transferir_a_humano" && res.ok) {
           const motivo = (res.data as Record<string, unknown> | undefined)?.motivo;
@@ -429,14 +450,43 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<Resulta
     } as MensajeIATool);
   }
 
-  // Si se agotaron las iteraciones, devolver fallback
-  console.warn(`[GenerarRespuestaIA] Máximo de iteraciones de tool calling alcanzado (${MAX_ITERACIONES_TOOL})`);
-  return {
-    contenido: "Lo siento, no pude completar tu solicitud en este momento. ¿Puedo ayudarte con algo más?",
-    usoIAId,
-    herramientasEjecutadas,
-    motivoTransferencia,
-    productoIdentificadoId,
-    finalizacion,
-  };
+  // Iteraciones agotadas: un último turno con las herramientas bloqueadas,
+  // para que el modelo redacte con los resultados que ya tiene en el
+  // historial. Sin este cierre el cliente recibía un texto genérico de
+  // disculpa aunque la acción que pidió (p.ej. crear_cotizacion) sí se
+  // hubiera ejecutado.
+  console.warn(`[GenerarRespuestaIA] Máximo de iteraciones de tool calling alcanzado (${MAX_ITERACIONES_TOOL}) — turno de cierre`);
+
+  const comun = { herramientasEjecutadas, motivoTransferencia, productoIdentificadoId, finalizacion };
+
+  try {
+    const cierre = await params.generarConHerramientas({
+      instanciaId: params.instanciaId,
+      agenteIAConfigId: params.agenteId,
+      tarea: "CHAT",
+      mensajes: [...mensajes, { rol: "user", contenido: INSTRUCCION_CIERRE }],
+      herramientas: definiciones,
+      forzarTexto: true,
+      entidadTipo: "conversacion",
+      entidadId: params.conversacionId,
+    });
+    if (cierre.contenido?.trim()) {
+      return { ...comun, contenido: cierre.contenido, usoIAId: cierre.usoIAId };
+    }
+    console.warn("[GenerarRespuestaIA] El turno de cierre no devolvió texto");
+  } catch (err) {
+    // No se propaga: el turno de cierre es una mejora sobre el respaldo, no
+    // puede convertir una respuesta degradada en un reintento del consumidor.
+    console.error("[GenerarRespuestaIA] Error en el turno de cierre:", err);
+  }
+
+  return { ...comun, contenido: respaldoTrasAgotarIteraciones(accionesConcretadas), usoIAId };
+}
+
+/** Qué decirle al cliente cuando ni el tool loop ni el turno de cierre
+ *  produjeron texto: si una acción comercial se concretó, se le informa —
+ *  disculparse por algo que sí se hizo es peor que no responder. */
+function respaldoTrasAgotarIteraciones(accionesConcretadas: string[]): string {
+  if (accionesConcretadas.length === 0) return MENSAJE_RESPALDO_GENERICO;
+  return `${accionesConcretadas.join("\n")}\n\n¿Puedo ayudarte con algo más?`;
 }

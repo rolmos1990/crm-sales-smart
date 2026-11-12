@@ -23,6 +23,8 @@ export interface SolicitudConHerramientas {
   entidadId?: string;
   // 010-enrutamiento-modelos-ia-por-objetivo
   requiereRazonamientoSuperior?: boolean;
+  /** Turno de cierre del tool loop: prohíbe nuevas tool calls. */
+  forzarTexto?: boolean;
 }
 
 export type RespuestaConHerramientas = ChatConHerramientasResult & { usoIAId: string };
@@ -161,6 +163,7 @@ export async function generarConHerramientas(
       modelo,
       temperatura,
       maxTokens: solicitud.maxTokens,
+      forzarTexto: solicitud.forzarTexto,
     });
     registrarExito(proveedorId);
   } catch (err) {

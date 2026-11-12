@@ -100,7 +100,10 @@ export class AnthropicProvider implements IProveedorIA {
       max_tokens: params.maxTokens ?? 2048,
       temperature: params.temperatura ?? 0.7,
       ...(systemMsg ? { system: systemMsg.contenido as string } : {}),
+      // Se mantienen declaradas aunque el turno sea de cierre: la API rechaza
+      // un historial con bloques tool_use/tool_result si no hay `tools`.
       tools: params.herramientas,
+      ...(params.forzarTexto ? { tool_choice: { type: "none" as const } } : {}),
       messages: convertirMensajesConTool(conversacion),
     });
 

@@ -963,9 +963,10 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
   };
 }
 
-// 015-herramientas-operativas-inventario-envios-acciones — confirma un
-// documento generado por IA en modo borrador (accionesComercialesModoBorrador).
-// Idempotente: confirmar dos veces no es un error.
+// 015-herramientas-operativas-inventario-envios-acciones — confirma una
+// cotización generada por IA. Toda cotización que arma el agente nace
+// pendiente (ver crear-cotizacion.tool.ts), así que este es el único camino
+// para darla por válida. Idempotente: confirmar dos veces no es un error.
 export async function confirmarCotizacionGeneradaPorIA(id: string): Promise<ResultadoAccion> {
   const auth = await requirePermisoAction("cotizaciones", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };

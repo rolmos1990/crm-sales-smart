@@ -102,7 +102,7 @@ export class NvidiaProvider implements IProveedorIA {
       top_p: 0.95,
       messages: convertirMensajesConTool(params.mensajes),
       tools: convertirHerramientas(params.herramientas),
-      tool_choice: "auto",
+      tool_choice: params.forzarTexto ? "none" : "auto",
     });
 
     const tiempoMs = Date.now() - inicio;

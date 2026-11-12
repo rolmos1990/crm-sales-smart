@@ -67,16 +67,6 @@ const CrearCotizacionTool: IProveedorTool = {
     const moneda = await obtenerMonedaPrincipal(ctx.instanciaId);
     const impuestoPct = parsed.data.impuesto ?? 18;
 
-    // 015-herramientas-operativas-inventario-envios-acciones — default false
-    // preserva la creación directa actual (FR-016/SC-003).
-    const agente = ctx.agenteId
-      ? await prisma.agenteIAConfig.findUnique({
-          where: { id: ctx.agenteId },
-          select: { accionesComercialesModoBorrador: true },
-        })
-      : null;
-    const modoBorrador = agente?.accionesComercialesModoBorrador ?? false;
-
     const lineasConCalculo = parsed.data.lineas.map((l, i) => {
       const descuentoFactor = 1 - (l.descuento ?? 0) / 100;
       const subtotal = l.cantidad * l.precioUnitario * descuentoFactor;
@@ -99,7 +89,7 @@ const CrearCotizacionTool: IProveedorTool = {
           moneda,
           lineas: lineasConCalculo.length,
           generadoPorIA: true,
-          pendienteConfirmacion: modoBorrador,
+          pendienteConfirmacion: true,
           previsualizado: true,
           mensaje: `[Simulación] Cotización por ${moneda} ${total.toFixed(2)} — no se creó ningún registro real.`,
         },
@@ -116,7 +106,11 @@ const CrearCotizacionTool: IProveedorTool = {
       moneda,
       notas: parsed.data.notas ?? null,
       generadoPorIA: true,
-      confirmadoPorHumano: !modoBorrador,
+      // Una cotización que armó la IA nunca nace dada por válida: queda
+      // pendiente de que un humano la confirme desde la lista
+      // (confirmarCotizacionGeneradaPorIA), que es lo que la UI muestra como
+      // "generado por IA · pendiente".
+      confirmadoPorHumano: false,
       lineas: {
         create: lineasConCalculo.map((l) => ({
           descripcion: l.descripcion,
@@ -165,10 +159,8 @@ const CrearCotizacionTool: IProveedorTool = {
         moneda,
         lineas: lineasConCalculo.length,
         generadoPorIA: true,
-        pendienteConfirmacion: modoBorrador,
-        mensaje: modoBorrador
-          ? `Cotización #${cotizacion.numero} preparada por S/ ${total.toFixed(2)} — queda sujeta a confirmación antes de enviarse.`
-          : `Cotización #${cotizacion.numero} creada exitosamente por S/ ${total.toFixed(2)}.`,
+        pendienteConfirmacion: true,
+        mensaje: `Cotización #${cotizacion.numero} preparada por ${moneda} ${total.toFixed(2)} — queda sujeta a confirmación antes de enviarse.`,
       },
     };
   },

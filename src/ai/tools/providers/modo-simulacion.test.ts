@@ -4,7 +4,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // ninguna de las 6 tools que escriben debe invocar prisma.create/update/
 // createMany. Un único archivo cubre las 6 (T008), con mocks compartidos.
 
-const cotizacionCountMock = vi.fn();
+const cotizacionFindFirstMock = vi.fn();
 const cotizacionCreateMock = vi.fn();
 const pedidoCountMock = vi.fn();
 const pedidoCreateMock = vi.fn();
@@ -22,7 +22,7 @@ const agenteIAConfigFindUniqueMock = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
-    cotizacion: { count: (...a: unknown[]) => cotizacionCountMock(...a), create: (...a: unknown[]) => cotizacionCreateMock(...a) },
+    cotizacion: { findFirst: (...a: unknown[]) => cotizacionFindFirstMock(...a), create: (...a: unknown[]) => cotizacionCreateMock(...a) },
     pedido: { count: (...a: unknown[]) => pedidoCountMock(...a), create: (...a: unknown[]) => pedidoCreateMock(...a) },
     oportunidad: { findFirst: (...a: unknown[]) => oportunidadFindFirstMock(...a) },
     producto: { findMany: (...a: unknown[]) => productoFindManyMock(...a) },
@@ -59,7 +59,7 @@ const ctxSimulado = {
 
 describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => {
   beforeEach(() => {
-    cotizacionCountMock.mockReset();
+    cotizacionFindFirstMock.mockReset().mockResolvedValue(null);
     cotizacionCreateMock.mockReset();
     pedidoCountMock.mockReset();
     pedidoCreateMock.mockReset();
@@ -76,12 +76,12 @@ describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => 
     agenteIAConfigFindUniqueMock.mockReset().mockResolvedValue({ accionesComercialesModoBorrador: false });
   });
 
-  it("crear_cotizacion: no llama a cotizacion.count ni .create, devuelve previsualizado: true", async () => {
+  it("crear_cotizacion: no llama a cotizacion.findFirst ni .create, devuelve previsualizado: true", async () => {
     const tool = registroHerramientas.get("crear_cotizacion")!;
     const resultado = await tool.execute({ lineas: [{ descripcion: "X", cantidad: 1, precioUnitario: 100 }] }, ctxSimulado);
     expect(resultado.ok).toBe(true);
     expect((resultado.data as { previsualizado: boolean }).previsualizado).toBe(true);
-    expect(cotizacionCountMock).not.toHaveBeenCalled();
+    expect(cotizacionFindFirstMock).not.toHaveBeenCalled();
     expect(cotizacionCreateMock).not.toHaveBeenCalled();
   });
 
@@ -128,7 +128,6 @@ describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => 
   });
 
   it("sin modoSimulacion (comportamiento real): crear_cotizacion SÍ escribe (retrocompatibilidad)", async () => {
-    cotizacionCountMock.mockResolvedValue(0);
     cotizacionCreateMock.mockResolvedValue({ id: "cot-1", numero: "00001" });
     const tool = registroHerramientas.get("crear_cotizacion")!;
     const { modoSimulacion, ...ctxReal } = ctxSimulado;

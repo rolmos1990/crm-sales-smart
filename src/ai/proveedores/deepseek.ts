@@ -94,7 +94,7 @@ export class DeepSeekProvider implements IProveedorIA {
       temperature: params.temperatura ?? 0.7,
       messages: convertirMensajesConTool(params.mensajes),
       tools: convertirHerramientas(params.herramientas),
-      tool_choice: "auto",
+      tool_choice: params.forzarTexto ? "none" : "auto",
     });
 
     const tiempoMs = Date.now() - inicio;
