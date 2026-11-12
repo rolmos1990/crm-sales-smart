@@ -30,6 +30,7 @@ export default async function EditorWorkflowPage({ params }: { params: Promise<{
         descripcion: workflow.descripcion,
         estado: workflow.estado,
         versionPublicada: workflow.versionPublicada?.numero ?? null,
+        actualizadoEn: workflow.actualizadoEn,
         definicion: definicion.success ? definicion.data : definicionInicial(),
       }}
       opciones={opciones}

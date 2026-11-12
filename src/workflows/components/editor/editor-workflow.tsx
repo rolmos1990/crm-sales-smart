@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   Background,
-  Controls,
+  BackgroundVariant,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -23,10 +23,12 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ChevronRight,
   Cloud,
   CloudOff,
   Library,
   Loader2,
+  Map as MapaIcono,
   Pencil,
   Redo2,
   ShieldCheck,
@@ -37,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMediaQuery } from "@/shared/hooks/use-media-query";
+import { FechaHora } from "@/shared/fechas/fecha-hora";
 import { cn } from "@/lib/utils";
 import type { EstadoWorkflow } from "@/generated/prisma/enums";
 import { CATALOGO_NODOS, salidasDeNodo } from "../../definicion/catalogo-nodos";
@@ -45,10 +48,11 @@ import { validarEstructura, type ResultadoValidacion } from "../../definicion/va
 import { actualizarDatosWorkflow, guardarBorradorWorkflow, publicarWorkflow, validarWorkflow } from "../../actions";
 import type { OpcionesEditor } from "../../queries";
 import { DialogoDatosWorkflow } from "../dialogo-datos-workflow";
-import { ESTILO_ESTADO } from "../estilos";
+import { ESTILO_CATEGORIA, ESTILO_ESTADO } from "../estilos";
 import { BibliotecaNodos, TIPO_ARRASTRE } from "./biblioteca-nodos";
+import { ControlesLienzo, type ModoLienzo } from "./controles-lienzo";
 import { duplicarNodos, estadoInicial, generarId, quitarNodos, reducerEditor } from "./estado-editor";
-import { NodoWorkflowFlow, type NodoFlow } from "./nodo-workflow";
+import { NodoWorkflowFlow, type DatosNodoFlow, type NodoFlow } from "./nodo-workflow";
 import { PanelPropiedades } from "./panel-propiedades";
 import { PanelValidacion } from "./panel-validacion";
 import { resumenNodo } from "./resumen-nodo";
@@ -64,6 +68,7 @@ export interface DatosEditorWorkflow {
   descripcion: string | null;
   estado: EstadoWorkflow;
   versionPublicada: number | null;
+  actualizadoEn: Date;
   definicion: DefinicionWorkflow;
 }
 
@@ -99,6 +104,9 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
   const [validacion, setValidacion] = useState<ResultadoValidacion | null>(null);
   const [bibliotecaAbierta, setBibliotecaAbierta] = useState(false);
   const [renombrando, setRenombrando] = useState(false);
+  const [modoLienzo, setModoLienzo] = useState<ModoLienzo>("seleccion");
+  const [mapaVisible, setMapaVisible] = useState(true);
+  const [actualizadoEn, setActualizadoEn] = useState(workflow.actualizadoEn);
   const [publicando, startPublicar] = useTransition();
   const [validando, startValidar] = useTransition();
   const portapapeles = useRef<{ nodos: NodoWorkflow[]; conexiones: DefinicionWorkflow["conexiones"] } | null>(null);
@@ -123,7 +131,8 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
       setGuardado("guardando");
       const r = await guardarBorradorWorkflow(workflow.id, def);
       setGuardado(r.exito ? "guardado" : "error");
-      if (!r.exito) toast.error(r.error);
+      if (r.exito) setActualizadoEn(new Date());
+      else toast.error(r.error);
     }, AUTOGUARDADO_MS);
     return () => clearTimeout(t);
     // def cambia junto con revision; revision es la señal.
@@ -203,12 +212,23 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
   );
 
   // ── Atajos de teclado ─────────────────────────────────────────────────────
+  // Herramientas del lienzo: también en solo lectura, porque solo navegan.
+  useEffect(() => {
+    const manejar = (e: KeyboardEvent) => {
+      if (esCampoDeTexto(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tecla = e.key.toLowerCase();
+      if (tecla === "v") setModoLienzo("seleccion");
+      else if (tecla === "h") setModoLienzo("mano");
+    };
+    window.addEventListener("keydown", manejar);
+    return () => window.removeEventListener("keydown", manejar);
+  }, []);
+
   useEffect(() => {
     if (soloLectura) return;
     const manejar = (e: KeyboardEvent) => {
       if (esCampoDeTexto(e.target)) return;
-      const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
       const tecla = e.key.toLowerCase();
       if (tecla === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -398,33 +418,52 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
   return (
     <div className="flex h-full flex-col" data-slot="editor-workflow">
       {/* Barra superior */}
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-card px-3 py-2">
         <Link
           href="/crm/workflows"
           aria-label="Volver a Workflows"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-muted hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
+
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <h1 className="truncate text-base font-semibold">{datos.nombre}</h1>
+          <nav aria-label="Ruta" className="flex min-w-0 items-center gap-1">
+            <Link href="/crm/workflows" className="hidden shrink-0 text-sm text-text-tertiary transition-colors hover:text-foreground sm:inline">
+              Workflows
+            </Link>
+            <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-text-disabled sm:block" />
+            <h1 className="truncate text-sm font-semibold text-foreground">{datos.nombre}</h1>
+          </nav>
           {!soloLectura && (
-            <button type="button" aria-label="Renombrar" onClick={() => setRenombrando(true)} className="text-muted-foreground hover:text-foreground">
+            <button
+              type="button"
+              aria-label="Renombrar"
+              onClick={() => setRenombrando(true)}
+              className="shrink-0 text-text-tertiary transition-colors hover:text-foreground"
+            >
               <Pencil className="h-3.5 w-3.5" />
             </button>
           )}
           <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium", estiloEstado.clase)}>
+            {datos.version ? `v${datos.version} · ` : ""}
             {estiloEstado.etiqueta}
-            {datos.version ? ` · v${datos.version}` : ""}
           </span>
           {hayBorradorSinPublicar && (
-            <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">Cambios sin publicar</span>
+            <span className="hidden shrink-0 rounded-full border border-warning/40 px-2 py-0.5 text-[11px] font-medium text-warning sm:inline">
+              Cambios sin publicar
+            </span>
           )}
+          <span className="hidden shrink-0 items-center gap-1 text-[11px] text-text-tertiary xl:flex">
+            Última actualización: <FechaHora valor={actualizadoEn} modo="relativa" />,{" "}
+            <FechaHora valor={actualizadoEn} modo="hora" />
+          </span>
         </div>
 
         {!soloLectura && (
           <div className="flex items-center gap-1">
             <IndicadorGuardado estado={guardado} />
+            <div className="mx-1 hidden h-5 w-px bg-border md:block" />
             <BotonIcono etiqueta="Deshacer (Ctrl+Z)" disabled={estado.pasado.length === 0} onClick={() => dispatch({ tipo: "DESHACER" })}>
               <Undo2 className="h-4 w-4" />
             </BotonIcono>
@@ -436,7 +475,7 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
                 <Library className="h-4 w-4" />
               </BotonIcono>
             )}
-            <Button type="button" variant="outline" size="sm" onClick={validar} disabled={validando}>
+            <Button type="button" variant="outline" size="sm" className="ml-1" onClick={validar} disabled={validando}>
               {validando ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
               <span className="hidden sm:inline">Validar</span>
             </Button>
@@ -457,7 +496,7 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
         )}
 
         {/* Lienzo */}
-        <div className="relative min-w-0 flex-1" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+        <div className="relative min-w-0 flex-1 bg-surface-1" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
           <ReactFlow<NodoFlow>
             nodes={nodos}
             edges={aristas}
@@ -476,17 +515,45 @@ function Editor({ workflow, opciones, puedeModificar }: { workflow: DatosEditorW
             nodesConnectable={!soloLectura}
             deleteKeyCode={soloLectura ? null : ["Backspace", "Delete"]}
             multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+            // En modo selección el arrastre dibuja una caja y el lienzo se
+            // mueve con los botones medio/derecho (o con Espacio).
+            panOnDrag={modoLienzo === "mano" ? true : [1, 2]}
+            selectionOnDrag={modoLienzo === "seleccion"}
             colorMode={resolvedTheme === "dark" ? "dark" : "light"}
             defaultEdgeOptions={{ type: "smoothstep" }}
             fitView
             fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
             minZoom={0.2}
             proOptions={{ hideAttribution: true }}
+            className={cn(modoLienzo === "mano" && "[&_.react-flow__pane]:cursor-grab")}
           >
-            <Background gap={20} size={1} />
-            <Controls showInteractive={false} />
-            {esEscritorio && <MiniMap pannable zoomable className="!bg-card" />}
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} className="opacity-70" />
+            <ControlesLienzo modo={modoLienzo} onModo={setModoLienzo} />
+            {esEscritorio && mapaVisible && (
+              <MiniMap
+                pannable
+                zoomable
+                ariaLabel="Mapa del Workflow"
+                className="!m-3 overflow-hidden !rounded-xl !border !border-border !bg-card shadow-md"
+                maskColor={resolvedTheme === "dark" ? "rgba(8,14,20,0.55)" : "rgba(32,40,48,0.08)"}
+                nodeColor={(n) => ESTILO_CATEGORIA[CATALOGO_NODOS[(n.data as DatosNodoFlow).nodo.tipo].categoria].colorVar}
+                nodeBorderRadius={4}
+              />
+            )}
           </ReactFlow>
+
+          {esEscritorio && (
+            <BotonIcono
+              etiqueta={mapaVisible ? "Ocultar el mapa" : "Mostrar el mapa"}
+              onClick={() => setMapaVisible((v) => !v)}
+              className={cn(
+                "absolute bottom-3 z-10 h-8 w-8 border border-border bg-card shadow-md hover:bg-card-hover",
+                mapaVisible ? "right-[14rem]" : "right-3",
+              )}
+            >
+              <MapaIcono className="h-4 w-4" />
+            </BotonIcono>
+          )}
 
           {validacion && (
             <div className="absolute inset-x-3 bottom-0 z-10 mx-auto max-w-2xl">
