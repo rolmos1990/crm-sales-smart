@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma } from "@/generated/prisma/client";
 import { registroHerramientas } from "@/ai/tools/registry";
 import {
   ENTREGA_INPUT_SCHEMA,
@@ -8,6 +9,14 @@ import {
   sinDatosDeEntrega,
 } from "@/ai/tools/shared/resolver-entrega-ia";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
+
+/** true si el error es el unique constraint (instanciaId, numero) — ver el
+ *  mismo problema resuelto en generarNumeroPedido (sales/pedidos/queries.ts). */
+function esErrorNumeroDuplicado(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
+
+const MAX_INTENTOS_NUMERO = 3;
 
 const LineaSchema = z.object({
   productoId: z.string().optional(),
@@ -63,6 +72,9 @@ const CrearPedidoTool: IProveedorTool = {
     if (!ctx.contactoId) return { ok: false, error: "Se requiere un contacto activo para crear el pedido" };
 
     const { prisma } = await import("@/shared/db/prisma");
+    // El mismo generador que usa crearPedido: la numeracion es una sola serie
+    // PED-<anio>-<consecutivo>, venga de un usuario o del agente.
+    const { generarNumeroPedido } = await import("@/sales/pedidos/queries");
     const { obtenerMonedaPrincipal } = await import("@/configuracion/empresa/queries");
     const moneda = await obtenerMonedaPrincipal(ctx.instanciaId);
     const impuestoPct = parsed.data.impuesto ?? 18;
@@ -121,38 +133,49 @@ const CrearPedidoTool: IProveedorTool = {
       };
     }
 
-    const count = await prisma.pedido.count({ where: { instanciaId: ctx.instanciaId } });
-    const numero = String(count + 1).padStart(5, "0");
-
-    const pedido = await prisma.pedido.create({
-      data: {
-        instanciaId: ctx.instanciaId,
-        contactoId: ctx.contactoId,
-        oportunidadId: ctx.oportunidadId ?? null,
-        numero,
-        subtotal,
-        impuesto: impuestoMonto,
-        costoEnvio,
-        total,
-        moneda,
-        entrega: entregaResuelta ? { create: entregaResuelta.datos } : undefined,
-        notas: parsed.data.notas ?? null,
-        generadoPorIA: true,
-        confirmadoPorHumano: !modoBorrador,
-        lineas: {
-          create: lineasConCalculo.map((l) => ({
-            descripcion: l.descripcion,
-            cantidad: l.cantidad,
-            precioUnitario: l.precioUnitario,
-            descuento: l.descuento ?? 0,
-            subtotal: l.subtotal,
-            total: l.subtotal,
-            orden: l.orden,
-            productoId: l.productoId ?? null,
-          })),
-        },
+    // generarNumeroPedido se recalcula en cada intento: si dos creaciones
+    // concurrentes leyeran el mismo "ultimo numero" antes de que cualquiera
+    // termine su `create`, la segunda choca con el unique (instanciaId,
+    // numero) — se reintenta con un numero fresco. Mismo patron que
+    // crearPedido (sales/pedidos/actions.ts).
+    const datosPedido = {
+      instanciaId: ctx.instanciaId,
+      contactoId: ctx.contactoId,
+      oportunidadId: ctx.oportunidadId ?? null,
+      subtotal,
+      impuesto: impuestoMonto,
+      costoEnvio,
+      total,
+      moneda,
+      entrega: entregaResuelta ? { create: entregaResuelta.datos } : undefined,
+      notas: parsed.data.notas ?? null,
+      generadoPorIA: true,
+      confirmadoPorHumano: !modoBorrador,
+      lineas: {
+        create: lineasConCalculo.map((l) => ({
+          descripcion: l.descripcion,
+          cantidad: l.cantidad,
+          precioUnitario: l.precioUnitario,
+          descuento: l.descuento ?? 0,
+          subtotal: l.subtotal,
+          total: l.subtotal,
+          orden: l.orden,
+          productoId: l.productoId ?? null,
+        })),
       },
-    });
+    };
+
+    let pedido: Awaited<ReturnType<typeof prisma.pedido.create<{ data: typeof datosPedido & { numero: string } }>>> | undefined;
+    for (let intento = 1; intento <= MAX_INTENTOS_NUMERO; intento++) {
+      const numero = await generarNumeroPedido(ctx.instanciaId);
+      try {
+        pedido = await prisma.pedido.create({ data: { ...datosPedido, numero } });
+        break;
+      } catch (e) {
+        if (!esErrorNumeroDuplicado(e) || intento === MAX_INTENTOS_NUMERO) throw e;
+      }
+    }
+    if (!pedido) throw new Error("No se pudo generar un número de pedido único");
 
     return {
       ok: true,
@@ -169,8 +192,8 @@ const CrearPedidoTool: IProveedorTool = {
         generadoPorIA: true,
         pendienteConfirmacion: modoBorrador,
         mensaje: modoBorrador
-          ? `Pedido #${numero} preparado por S/ ${total.toFixed(2)} — queda sujeto a confirmación antes de procesarse.`
-          : `Pedido #${numero} registrado exitosamente por S/ ${total.toFixed(2)}.`,
+          ? `Pedido #${pedido.numero} preparado por S/ ${total.toFixed(2)} — queda sujeto a confirmación antes de procesarse.`
+          : `Pedido #${pedido.numero} registrado exitosamente por S/ ${total.toFixed(2)}.`,
       },
     };
   },

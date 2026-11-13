@@ -72,6 +72,9 @@ const CrearCotizacionTool: IProveedorTool = {
     if (!ctx.contactoId) return { ok: false, error: "Se requiere un contacto activo para crear la cotización" };
 
     const { prisma } = await import("@/shared/db/prisma");
+    // El mismo generador que usa crearCotizacion: la numeracion es una sola
+    // serie COT-<anio>-<consecutivo>, venga de un usuario o del agente.
+    const { generarNumeroCotizacion } = await import("@/sales/cotizaciones/queries");
     const { obtenerMonedaPrincipal } = await import("@/configuracion/empresa/queries");
     const moneda = await obtenerMonedaPrincipal(ctx.instanciaId);
     const impuestoPct = parsed.data.impuesto ?? 18;
@@ -158,13 +161,7 @@ const CrearCotizacionTool: IProveedorTool = {
     // con un número fresco por si dos creaciones concurrentes coinciden.
     let cotizacion: Awaited<ReturnType<typeof prisma.cotizacion.create<{ data: typeof datosCotizacion & { numero: string } }>>> | undefined;
     for (let intento = 1; intento <= MAX_INTENTOS_NUMERO; intento++) {
-      const ultima = await prisma.cotizacion.findFirst({
-        where: { instanciaId: ctx.instanciaId, NOT: { numero: { contains: "-" } } },
-        orderBy: { numero: "desc" },
-        select: { numero: true },
-      });
-      const ultimoConsecutivo = ultima ? parseInt(ultima.numero, 10) || 0 : 0;
-      const numero = String(ultimoConsecutivo + 1).padStart(5, "0");
+      const numero = await generarNumeroCotizacion(ctx.instanciaId);
       try {
         cotizacion = await prisma.cotizacion.create({ data: { ...datosCotizacion, numero } });
         break;

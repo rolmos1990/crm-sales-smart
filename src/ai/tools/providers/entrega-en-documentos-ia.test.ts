@@ -9,7 +9,7 @@ import type { EntregaResueltaIA } from "@/ai/tools/shared/resolver-entrega-ia";
 
 const cotizacionFindFirstMock = vi.fn();
 const cotizacionCreateMock = vi.fn();
-const pedidoCountMock = vi.fn();
+const pedidoFindFirstMock = vi.fn();
 const pedidoCreateMock = vi.fn();
 const agenteIAConfigFindUniqueMock = vi.fn();
 const resolverEntregaIAMock = vi.fn();
@@ -21,7 +21,7 @@ vi.mock("@/shared/db/prisma", () => ({
       create: (...a: unknown[]) => cotizacionCreateMock(...a),
     },
     pedido: {
-      count: (...a: unknown[]) => pedidoCountMock(...a),
+      findFirst: (...a: unknown[]) => pedidoFindFirstMock(...a),
       create: (...a: unknown[]) => pedidoCreateMock(...a),
     },
     agenteIAConfig: { findUnique: (...a: unknown[]) => agenteIAConfigFindUniqueMock(...a) },
@@ -74,7 +74,7 @@ beforeEach(() => {
   cotizacionCreateMock.mockReset().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
     Promise.resolve({ id: "cot-1", numero: "00001", ...data }),
   );
-  pedidoCountMock.mockReset().mockResolvedValue(0);
+  pedidoFindFirstMock.mockReset().mockResolvedValue(null);
   pedidoCreateMock.mockReset().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
     Promise.resolve({ id: "ped-1", numero: "00001", ...data }),
   );

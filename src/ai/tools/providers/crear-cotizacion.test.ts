@@ -55,3 +55,35 @@ describe("crear_cotizacion — queda siempre pendiente de confirmación humana",
     expect(mensaje).not.toContain("S/");
   });
 });
+
+// Antes la tool numeraba por su cuenta y, peor, filtraba
+// `NOT: { numero: { contains: "-" } }`: eso arrancaba una serie paralela
+// ("00001") separada de las COT-<anio>-<consecutivo> que crea un usuario.
+describe("crear_cotizacion — numeracion", () => {
+  beforeEach(() => {
+    agenteIAConfigFindUniqueMock.mockReset();
+    cotizacionFindFirstMock.mockReset().mockResolvedValue(null);
+    cotizacionCreateMock.mockReset().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve({ id: "cot-1", ...data }),
+    );
+  });
+
+  it("usa el mismo formato COT-<anio>-<consecutivo> que crearCotizacion", async () => {
+    cotizacionFindFirstMock.mockResolvedValue({ numero: `COT-${new Date().getFullYear()}-0166` });
+    const tool = registroHerramientas.get("crear_cotizacion")!;
+
+    const resultado = await tool.execute(argsBase, ctxBase);
+
+    const numero = cotizacionCreateMock.mock.calls[0][0].data.numero as string;
+    expect(numero).toBe(`COT-${new Date().getFullYear()}-0167`);
+    expect((resultado.data as { numero: string }).numero).toBe(numero);
+  });
+
+  it("continua la serie compartida: no excluye los numeros con guion", async () => {
+    const tool = registroHerramientas.get("crear_cotizacion")!;
+
+    await tool.execute(argsBase, ctxBase);
+
+    expect(cotizacionFindFirstMock.mock.calls[0][0].where).toEqual({ instanciaId: "instancia-1" });
+  });
+});
