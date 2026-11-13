@@ -222,6 +222,14 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   };
 
   const [enviando, startEnviando] = useTransition();
+
+  // Cotización escrita en el compositor desde el panel lateral. El contador
+  // es el token de reinyección (ver InputMensaje.textoExterno).
+  const [textoChat, setTextoChat] = useState<{ texto: string; n: number } | null>(null);
+  const escribirEnChat = useCallback(
+    (texto: string) => setTextoChat((p) => ({ texto, n: (p?.n ?? 0) + 1 })),
+    [],
+  );
   const [accionando, startAccion] = useTransition();
   const [marcandoLeido, startMarcarLeido] = useTransition();
   const [idsLeidosLocal, setIdsLeidosLocal] = useState<Set<string>>(new Set());
@@ -1010,6 +1018,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 )}
 
                 <InputMensaje
+                  textoExterno={textoChat}
                   conversacionId={seleccionada}
                   cuentas={cuentas}
                   cuentaSeleccionadaId={cuentaSeleccionadaId}
@@ -1046,6 +1055,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                   conversacion={convActiva}
                   onContactoActualizado={handleContactoActualizado}
                   onConversacionActualizada={handleConversacionActualizada}
+                  onTextoAlChat={escribirEnChat}
                 />
               </div>
             )}
@@ -1058,6 +1068,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               conversacion={convActiva}
               onContactoActualizado={handleContactoActualizado}
               onConversacionActualizada={handleConversacionActualizada}
+              onTextoAlChat={escribirEnChat}
             />
           </div>
         )

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo, useCallback, useTransition } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect, useTransition } from "react";
 import { Send, Lock, Paperclip, X, ImageIcon, Loader2, Sparkles, Smile } from "lucide-react";
 import { toast } from "sonner";
 import { generarSugerenciaIA } from "../actions-ia";
@@ -28,6 +28,18 @@ interface InputMensajeProps {
     mediaUrl?: string;
   }) => Promise<void>;
   enviando?: boolean;
+  /**
+   * Texto que un panel externo carga en el compositor — hoy, el botón de
+   * "enviar cotización al chat" del Inbox y del Workspace.
+   *
+   * Es un objeto con `n` en vez de un string suelto a propósito: si el
+   * usuario borra el texto y vuelve a tocar el mismo botón, el string no
+   * cambia y el efecto no se dispararía. `n` hace de token de reinyección.
+   *
+   * No pisa lo ya escrito: se agrega al final, porque suele haber un saludo
+   * redactado antes de adjuntar la cotización.
+   */
+  textoExterno?: { texto: string; n: number } | null;
 }
 
 async function fetchPlantillas(instanciaId: string): Promise<PlantillaItem[]> {
@@ -43,6 +55,7 @@ export function InputMensaje({
   onCambiarCuenta,
   onEnviar,
   enviando = false,
+  textoExterno = null,
 }: InputMensajeProps) {
   const [texto, setTexto] = useState("");
   const [esNota, setEsNota] = useState(false);
@@ -53,6 +66,25 @@ export function InputMensaje({
   const [emojiPickerAbierto, setEmojiPickerAbierto] = useState(false);
   const [generandoIA, startGenerandoIA] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Carga en el compositor el texto que mandó un panel externo. Depende solo
+  // de `n` — ver textoExterno: el mismo texto dos veces seguidas tiene que
+  // volver a entrar.
+  const ultimoExternoRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!textoExterno || ultimoExternoRef.current === textoExterno.n) return;
+    ultimoExternoRef.current = textoExterno.n;
+
+    setTexto((actual) => (actual.trim() ? `${actual.trimEnd()}\n\n${textoExterno.texto}` : textoExterno.texto));
+    // El cursor al final, listo para seguir escribiendo o ajustar.
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [textoExterno]);
 
   // Inserta el emoji en la posición del cursor (no solo al final) y devuelve
   // el foco al textarea con el cursor justo después del emoji insertado.

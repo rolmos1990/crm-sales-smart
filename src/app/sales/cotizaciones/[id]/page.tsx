@@ -139,8 +139,20 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
             impuesto={impuesto}
             total={total}
             notas={cotizacion.notas}
+            costoEnvio={costoEnvio}
             destinatario={destinatario}
             lineas={lineasParaCopiar}
+            entrega={
+              entrega
+                ? {
+                    transportistaNombre: entrega.transportista?.nombre,
+                    servicioNombre: entrega.servicioTransportista?.nombre,
+                    ciudad: entrega.ciudad,
+                    estadoProvinciaNombre: entrega.estadoProvincia?.nombre,
+                    costoEnvioConfirmado: entrega.costoEnvioConfirmado,
+                  }
+                : null
+            }
           />
           <BotonAprobarCotizacion cotizacionId={id} estado={cotizacion.estado} />
           {cotizacion.estado === "APROBADA" && (cotizacion as any).pedidos?.length === 0 && (

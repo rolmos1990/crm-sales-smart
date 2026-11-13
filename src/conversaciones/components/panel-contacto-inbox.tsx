@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { esLid, formatearIdentificadorWA } from "@/lib/whatsapp-utils";
 import { actualizarContacto, buscarContactosAction } from "@/crm/contactos/actions";
 import { actualizarOportunidad, obtenerOportunidadesAnterioresContactoAction } from "@/crm/oportunidades/actions";
+import { obtenerCotizacionesPorOportunidadAction } from "@/sales/cotizaciones/actions";
+import { BotonCotizacionAlChat } from "@/sales/cotizaciones/components/boton-cotizacion-al-chat";
 import type { ActualizarOportunidadInput } from "@/crm/oportunidades/schema";
 import { obtenerTagsAction } from "@/crm/tags/actions";
 import { SelectorTags } from "@/crm/tags/components/selector-tags";
@@ -35,8 +37,12 @@ interface BuscarResultado {
   empresa: { id: string; nombre: string } | null;
 }
 
+type CotizacionEnPanel = { id: string; numero: string; total: number; moneda: string; estado: string };
+
 interface PanelContactoInboxProps {
   conversacion: ConversacionResumen;
+  /** Escribe texto en el compositor del chat; ausente = sin chat a la vista. */
+  onTextoAlChat?: (texto: string) => void;
   onContactoActualizado: (conversacionId: string, nuevoContacto: Contacto) => void;
   /** Se llama tras clasificar o editar la oportunidad activa, para que el
    *  padre refresque esta conversación (trae la oportunidad recién creada,
@@ -207,6 +213,60 @@ function CampoEditableTexto({
         {valor || placeholder}
       </span>
     </button>
+  );
+}
+
+
+// ── Cotizaciones de la oportunidad activa ────────────────────────────────────
+// El panel mostraba datos del contacto y la oportunidad, pero no las
+// cotizaciones: para mandarle una al cliente había que salir del Inbox,
+// abrirla y copiar el texto a mano. Acá solo se listan y se ofrece escribirlas
+// en el compositor — crear y editar siguen viviendo en Cotizaciones y en el
+// Workspace, que es donde corresponde.
+function CotizacionesDeOportunidad({
+  oportunidadId,
+  onTextoAlChat,
+}: {
+  oportunidadId: string;
+  onTextoAlChat?: (texto: string) => void;
+}) {
+  const [cotizaciones, setCotizaciones] = useState<CotizacionEnPanel[]>([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    let vivo = true;
+    setCargando(true);
+    obtenerCotizacionesPorOportunidadAction(oportunidadId)
+      .then((c) => { if (vivo) setCotizaciones(c as CotizacionEnPanel[]); })
+      .catch(() => { if (vivo) setCotizaciones([]); })
+      .finally(() => { if (vivo) setCargando(false); });
+    return () => { vivo = false; };
+  }, [oportunidadId]);
+
+  if (cargando || cotizaciones.length === 0) return null;
+
+  return (
+    <>
+      <div className="pt-2 pb-1 px-3">
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Cotizaciones</p>
+      </div>
+      <div className="px-3 pb-2 space-y-1.5">
+        {cotizaciones.map((c) => (
+          <div key={c.id} className="flex items-center gap-2 rounded-lg bg-muted border border-border-subtle px-2.5 py-1.5">
+            <span className="text-xs font-mono text-text-secondary truncate">{c.numero}</span>
+            <span className="text-xs text-muted-foreground tabular-nums ml-auto shrink-0">
+              {c.moneda} {Number(c.total).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+            </span>
+            <BotonCotizacionAlChat
+              cotizacionId={c.id}
+              numero={c.numero}
+              onTexto={onTextoAlChat ?? (() => {})}
+              deshabilitado={!onTextoAlChat}
+            />
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -490,7 +550,7 @@ function SeccionOportunidadesAnteriores({
   );
 }
 
-export function PanelContactoInbox({ conversacion, onContactoActualizado, onConversacionActualizada }: PanelContactoInboxProps) {
+export function PanelContactoInbox({ conversacion, onContactoActualizado, onConversacionActualizada, onTextoAlChat }: PanelContactoInboxProps) {
   const contacto = conversacion.contacto;
   const [vinculando, startVinculando] = useTransition();
   const [busqueda, setBusqueda] = useState("");

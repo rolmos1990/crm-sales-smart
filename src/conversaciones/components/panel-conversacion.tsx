@@ -24,6 +24,8 @@ interface PanelConversacionProps {
   cuentas: CuentaCanalResumen[];
   conversacionesIniciales: ConversacionResumen[];
   puedeMod?: boolean;
+  /** Texto que un panel externo carga en el compositor — ver InputMensaje. */
+  textoExterno?: { texto: string; n: number } | null;
 }
 
 async function fetchMensajesRecientes(conversacionId: string): Promise<MensajeConMeta[]> {
@@ -51,6 +53,7 @@ export function PanelConversacion({
   cuentas,
   conversacionesIniciales,
   puedeMod = true,
+  textoExterno = null,
 }: PanelConversacionProps) {
   const queryClient = useQueryClient();
   const [conversaciones, setConversaciones] = useState<ConversacionResumen[]>(conversacionesIniciales);
@@ -322,6 +325,7 @@ export function PanelConversacion({
       {/* Input de mensaje */}
       {!sinConversacion && (
         <InputMensaje
+          textoExterno={textoExterno}
           conversacionId={conversacionActiva ?? ""}
           cuentas={cuentas}
           cuentaSeleccionadaId={cuentaSeleccionadaId}

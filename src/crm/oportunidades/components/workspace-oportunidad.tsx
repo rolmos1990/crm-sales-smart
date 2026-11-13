@@ -56,6 +56,7 @@ import {
 import type { ConversacionResumen, CuentaCanalResumen } from "@/conversaciones/types";
 import { MONEDAS } from "@/shared/moneda/constants";
 import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
+import { BotonCotizacionAlChat } from "@/sales/cotizaciones/components/boton-cotizacion-al-chat";
 import { SheetEditarCotizacion } from "@/sales/cotizaciones/components/sheet-editar-cotizacion";
 import {
   cambiarEstadoCotizacion,
@@ -322,6 +323,11 @@ function WorkspaceContenido({
   } | null>(null);
   const camposSeccionRef = useRef<HTMLDivElement>(null);
   const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>(diferida?.cotizaciones ?? []);
+
+  // Texto que el botón de cotización deja escrito en el compositor del chat.
+  // El contador es el token de reinyección (ver InputMensaje.textoExterno).
+  const [textoChat, setTextoChat] = useState<{ texto: string; n: number } | null>(null);
+  const escribirEnChat = (texto: string) => setTextoChat((p) => ({ texto, n: (p?.n ?? 0) + 1 }));
 
   // Sincroniza cotizaciones cuando llegan los datos diferidos
   useEffect(() => {
@@ -628,6 +634,7 @@ function WorkspaceContenido({
               telefonoContacto={contactoPrincipal?.telefonoPrincipal ?? null}
               cuentas={diferida.cuentasCanal}
               conversacionesIniciales={diferida.conversaciones}
+              textoExterno={textoChat}
             />
           ) : (
             <div className="flex flex-col flex-1 p-4 gap-3 animate-pulse">
@@ -988,6 +995,11 @@ function WorkspaceContenido({
                                     />
                                   </>
                                 )}
+                                <BotonCotizacionAlChat
+                                  cotizacionId={c.id}
+                                  numero={c.numero}
+                                  onTexto={escribirEnChat}
+                                />
                                 <a
                                   href={`/sales/cotizaciones/${c.id}`}
                                   target="_blank"

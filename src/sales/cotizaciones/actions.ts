@@ -12,6 +12,7 @@ import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
 import type { CrearCotizacionInput } from "./schema";
 import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad, obtenerCotizacionPorId } from "./queries";
+import { construirTextoCotizacion } from "./texto-cotizacion";
 import { generarPedidoDesdeCotizacion } from "./services/generar-pedido-desde-cotizacion.service";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
@@ -625,6 +626,63 @@ export async function cambiarEstadoCotizacion(id: string, estado: string): Promi
   } catch {
     return { exito: false, error: "Error al cambiar el estado" };
   }
+}
+
+/**
+ * Cotización lista para pegar en el chat: el servidor arma el texto y el
+ * cliente solo lo recibe. Así el Inbox y el Workspace no tienen que cargarse
+ * la cotización entera (líneas, destinatario, entrega con sus relaciones)
+ * solo para formatearla, y el texto es el mismo que produce "Copiar texto"
+ * en la ficha — un único formateador, en texto-cotizacion.ts.
+ */
+export async function obtenerTextoCotizacionAction(
+  cotizacionId: string,
+): Promise<ResultadoAccion<string>> {
+  const auth = await requirePermisoAction("cotizaciones", "ver");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  const cotizacion = await obtenerCotizacionPorId(cotizacionId, auth.sesion.instanciaId);
+  if (!cotizacion) return { exito: false, error: "Cotización no encontrada" };
+
+  const metadata = cotizacion.metadata as Record<string, unknown> | null;
+  const destinatario = metadata?.destinatario as Record<string, string> | undefined;
+  const entrega = cotizacion.entrega;
+
+  const texto = construirTextoCotizacion({
+    numero: cotizacion.numero,
+    moneda: cotizacion.moneda,
+    fechaEmision: cotizacion.fechaEmision,
+    fechaVencimiento: cotizacion.fechaVencimiento,
+    subtotal: Number(cotizacion.subtotal),
+    impuesto: Number(cotizacion.impuesto),
+    costoEnvio: Number(cotizacion.costoEnvio ?? 0),
+    total: Number(cotizacion.total),
+    notas: cotizacion.notas,
+    // Si la cotización no guardó destinatario propio, el del contacto.
+    destinatario: destinatario ?? {
+      nombre: cotizacion.contacto?.nombre,
+      apellido: cotizacion.contacto?.apellido,
+    },
+    lineas: cotizacion.lineas.map((l) => ({
+      descripcion: l.descripcion,
+      productoNombre: l.producto?.nombre ?? null,
+      cantidad: Number(l.cantidad),
+      precioUnitario: Number(l.precioUnitario),
+      descuento: Number(l.descuento),
+      subtotal: Number(l.subtotal),
+    })),
+    entrega: entrega
+      ? {
+          transportistaNombre: entrega.transportista?.nombre,
+          servicioNombre: entrega.servicioTransportista?.nombre,
+          ciudad: entrega.ciudad,
+          estadoProvinciaNombre: entrega.estadoProvincia?.nombre,
+          costoEnvioConfirmado: entrega.costoEnvioConfirmado,
+        }
+      : null,
+  });
+
+  return { exito: true, datos: texto };
 }
 
 export async function obtenerCotizacionesPorOportunidadAction(oportunidadId: string) {
