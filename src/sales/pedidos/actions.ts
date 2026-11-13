@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/shared/db/prisma";
+import { resolverPaisId } from "@/shared/entregas/resolver-costo-envio";
 import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
@@ -537,6 +538,11 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
 
   const esNueva = !pedido.entrega;
   const nuevaFechaEstimada = fechaEstimada ? new Date(fechaEstimada) : null;
+  // En modo UN_SOLO_PAIS el formulario no pide país, así que llega vacío y la
+  // entrega quedaría sin él: el selector de provincia se abre sin lista la
+  // próxima vez. resolverPaisId sin nombre devuelve el país de operación de
+  // la instancia (null en MULTIPAIS) — mismo criterio que en cotizaciones.
+  const paisIdEntrega = campos.paisId || (await resolverPaisId(prisma, auth.sesion.instanciaId, null));
   const nuevoCostoEnvio = costoEnvio ?? 0;
   const nuevoTotal = Number(pedido.subtotal) + Number(pedido.impuesto) + nuevoCostoEnvio;
 
@@ -554,11 +560,13 @@ export async function actualizarEntregaPedido(datos: unknown): Promise<Resultado
       create: {
         pedidoId,
         ...campos,
+        paisId: paisIdEntrega,
         transportistaId: transportistaId ?? null,
         fechaEstimada: nuevaFechaEstimada,
       },
       update: {
         ...campos,
+        paisId: paisIdEntrega,
         transportistaId: transportistaId ?? null,
         fechaEstimada: nuevaFechaEstimada,
       },

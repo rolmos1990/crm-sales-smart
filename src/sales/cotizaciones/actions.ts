@@ -20,6 +20,7 @@ import { obtenerProductosCatalogo } from "@/shared/productos/queries";
 import { obtenerMonedaPrincipal, obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import { isoDesdePais } from "@/shared/lib/pais-iso";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
+import { resolverPaisId } from "@/shared/entregas/resolver-costo-envio";
 import { resolverCodigoEfectivo, ocultarCodigo } from "@/shared/lib/codigo-sensible";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
 import type { ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
@@ -128,6 +129,19 @@ function esErrorNumeroDuplicado(err: unknown): boolean {
 }
 
 const MAX_INTENTOS_NUMERO_COTIZACION = 3;
+
+/**
+ * País del destino. En modo UN_SOLO_PAIS el formulario no pide país (FR-011),
+ * así que llegaba vacío y la entrega quedaba guardada sin él —a diferencia de
+ * las que crea el agente, que sí lo resuelven—. Eso dejaba el selector de
+ * provincia sin lista al reabrir y el país sin mostrar en la ficha.
+ * resolverPaisId sin nombre devuelve justo el país de operación de la
+ * instancia, o null en MULTIPAIS.
+ */
+async function resolverPaisIdEntrega(paisIdElegido: string | null | undefined, instanciaId: string) {
+  if (paisIdElegido) return paisIdElegido;
+  return resolverPaisId(prisma, instanciaId, null);
+}
 
 /**
  * 022-transportistas-zonas-tarifas — resuelve el costo de envío final de
@@ -295,7 +309,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
           fechaEstimada: entrega!.fechaEstimada || null,
           observaciones: entrega!.observaciones || null,
           // 019-cobertura-geografica-envios
-          paisId: entrega!.paisId || null,
+          paisId: await resolverPaisIdEntrega(entrega!.paisId, sesion.instanciaId),
           estadoProvinciaId: entrega!.estadoProvinciaId || null,
           ciudad: entrega!.ciudad || null,
           // 022-transportistas-zonas-tarifas
@@ -457,7 +471,7 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
         fechaEstimada: entrega.fechaEstimada || null,
         observaciones: entrega.observaciones || null,
         // 019-cobertura-geografica-envios
-        paisId: entrega.paisId || null,
+        paisId: await resolverPaisIdEntrega(entrega.paisId, sesion.instanciaId),
         estadoProvinciaId: entrega.estadoProvinciaId || null,
         ciudad: entrega.ciudad || null,
         // 022-transportistas-zonas-tarifas

@@ -6,6 +6,7 @@ import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { queryKeys } from "@/shared/query-keys";
 import { listarEstadosProvincia } from "@/shared/entregas/queries-geografia";
 import { generarSlug } from "@/shared/lib/slug";
+import { debeLimpiarEstadoProvincia } from "@/shared/entregas/debe-limpiar-estado-provincia";
 
 interface SelectorEstadoProvinciaProps {
   /** Si es null, el selector queda deshabilitado con placeholder de guía. */
@@ -26,13 +27,19 @@ export function SelectorEstadoProvincia({ paisId, value, onChange, disabled }: S
   });
 
   // Si el país cambia, el estado/provincia elegido ya no aplica — se limpia
-  // para no dejar guardado un valor que no pertenece al país actual.
+  // para no dejar guardado un valor que no pertenece al país actual. El
+  // criterio exacto (y por qué resolver el país por primera vez NO cuenta
+  // como un cambio) vive en debeLimpiarEstadoProvincia, con sus tests.
   const paisAnterior = useRef(paisId);
   useEffect(() => {
-    if (paisAnterior.current !== paisId) {
-      paisAnterior.current = paisId;
-      if (value !== null) onChange(null);
-    }
+    if (paisAnterior.current === paisId) return;
+    const limpiar = debeLimpiarEstadoProvincia({
+      paisAnterior: paisAnterior.current,
+      paisActual: paisId,
+      estadoProvinciaActual: value,
+    });
+    paisAnterior.current = paisId;
+    if (limpiar) onChange(null);
   }, [paisId, value, onChange]);
 
   const opciones: OpcionCombobox[] = (estados ?? []).map((e) => ({
