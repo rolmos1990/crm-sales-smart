@@ -48,6 +48,7 @@ const ENTREGA_RESUELTA: EntregaResueltaIA = {
     metodoEntrega: "COURIER_EXTERNO",
     estadoEntrega: "PENDIENTE",
     transportistaId: "transp-1",
+    nombreDestinatario: null,
     observaciones: null,
     paisId: "pais-pa",
     estadoProvinciaId: "ep-chiriqui",

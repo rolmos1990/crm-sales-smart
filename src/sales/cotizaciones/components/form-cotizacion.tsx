@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, Minus, X, FileText, Mail, Phone, Pencil, Package,
+  Plus, Trash2, Minus, X, FileText, Mail, Phone, Pencil, Package, HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { DecimalInput } from "@/components/ui/decimal-input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1013,6 +1014,35 @@ export function FormCotizacion({
                     todavía no existen a esa altura; se completan recién en el
                     Pedido al aprobar (ver aprobarCotizacion). */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField control={form.control} name="entrega.nombreDestinatario" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        Nombre del destinatario <span className="text-muted-foreground font-normal">(opcional)</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            {/* Sin `asChild`: el Tooltip es de Base UI, no de
+                                Radix (ver docs/selects.md y el patrón de
+                                pedidos-filtros.tsx). */}
+                            <TooltipTrigger
+                              type="button"
+                              tabIndex={-1}
+                              className="inline-flex text-muted-foreground hover:text-foreground"
+                            >
+                              <HelpCircle className="h-3.5 w-3.5" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs text-xs">
+                              Nombre de quien recibe el pedido. Déjalo vacío si lo recibe el mismo cliente.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="Quien recibe el pedido" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
                   <FormField control={form.control} name="entrega.fechaEstimada" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Fecha estimada de entrega <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>

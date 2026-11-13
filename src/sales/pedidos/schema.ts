@@ -81,6 +81,8 @@ export const ActualizarEntregaPedidoSchema = z.object({
   metodoEntrega:   MetodoEntregaEnum,
   estadoEntrega:   EstadoEntregaEnum,
   transportistaId: z.string().nullable().optional(),
+  // Quién recibe el envío. Opcional: casi siempre recibe el comprador.
+  nombreDestinatario: z.string().max(200).optional().or(z.literal("")),
   numeroGuia:      z.string().max(120).optional().or(z.literal("")),
   urlSeguimiento:  z.string().url("URL de seguimiento inválida").optional().or(z.literal("")),
   fechaEstimada:   z.string().datetime({ offset: true }).optional().nullable(),

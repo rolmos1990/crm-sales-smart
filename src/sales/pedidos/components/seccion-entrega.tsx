@@ -1,4 +1,4 @@
-import { Truck, MapPin, Hash, Link2, Calendar, FileText, Lock, Banknote } from "lucide-react";
+import { Truck, MapPin, Hash, Link2, Calendar, FileText, Lock, Banknote , UserRound} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { obtenerTransportistas } from "@/sales/transportistas/queries";
 import { FormEntrega } from "./form-entrega";
@@ -16,6 +16,7 @@ const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 interface EntregaConTransportista {
+  nombreDestinatario?: string | null;
   id: string;
   metodoEntrega: string;
   estadoEntrega: string;
@@ -116,6 +117,7 @@ export async function SeccionEntrega({
               label="Transportista"
               valor={entrega.transportista?.nombre}
             />
+            <CampoInfo icono={UserRound} label="Recibe" valor={entrega.nombreDestinatario} />
             <CampoInfo icono={Hash} label="N° de guía" valor={entrega.numeroGuia} />
             <CampoInfo
               icono={Calendar}

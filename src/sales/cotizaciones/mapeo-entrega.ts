@@ -15,6 +15,7 @@ export interface EntregaGuardada {
   metodoEntrega: string;
   estadoEntrega: string;
   transportistaId: string | null;
+  nombreDestinatario: string | null;
   fechaEstimada: Date | string | null;
   observaciones: string | null;
   paisId: string | null;
@@ -42,6 +43,7 @@ export function entregaGuardadaAFormulario(
       CrearCotizacionInput["entrega"]
     >["estadoEntrega"],
     transportistaId: entrega?.transportistaId ?? null,
+    nombreDestinatario: entrega?.nombreDestinatario ?? "",
     fechaEstimada: entrega?.fechaEstimada ? new Date(entrega.fechaEstimada) : undefined,
     observaciones: entrega?.observaciones ?? "",
     costoEnvio,

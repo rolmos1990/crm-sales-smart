@@ -241,6 +241,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
     // una fila vacía por defecto, o de un bloque que no corresponde.
     const hayEntrega = tipoCumplimiento === "FISICO" && entrega && (
       entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId ||
+      entrega.nombreDestinatario ||
       entrega.estadoProvinciaId || entrega.zonaEntregaId || entrega.tarifaTransportistaZonaId ||
       entrega.costoManual !== undefined || entrega.costoEnvioConfirmado === false
     );
@@ -290,6 +291,7 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
           metodoEntrega: entrega!.metodoEntrega || "COURIER_EXTERNO",
           estadoEntrega: entrega!.estadoEntrega || "PENDIENTE",
           transportistaId: entrega!.transportistaId || null,
+          nombreDestinatario: entrega!.nombreDestinatario || null,
           fechaEstimada: entrega!.fechaEstimada || null,
           observaciones: entrega!.observaciones || null,
           // 019-cobertura-geografica-envios
@@ -443,6 +445,7 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
 
       const hayEntrega = tipoCumplimiento === "FISICO" && (
         entrega.metodoEntrega || entrega.fechaEstimada || entrega.observaciones || entrega.transportistaId ||
+        entrega.nombreDestinatario ||
         entrega.estadoProvinciaId || entrega.zonaEntregaId || entrega.tarifaTransportistaZonaId ||
         entrega.costoManual !== undefined || entrega.costoEnvioConfirmado === false
       );
@@ -450,6 +453,7 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
         metodoEntrega: entrega.metodoEntrega || "COURIER_EXTERNO",
         estadoEntrega: entrega.estadoEntrega || "PENDIENTE",
         transportistaId: entrega.transportistaId || null,
+        nombreDestinatario: entrega.nombreDestinatario || null,
         fechaEstimada: entrega.fechaEstimada || null,
         observaciones: entrega.observaciones || null,
         // 019-cobertura-geografica-envios
@@ -673,6 +677,7 @@ export async function obtenerTextoCotizacionAction(
     })),
     entrega: entrega
       ? {
+          nombreDestinatario: entrega.nombreDestinatario,
           transportistaNombre: entrega.transportista?.nombre,
           servicioNombre: entrega.servicioTransportista?.nombre,
           ciudad: entrega.ciudad,

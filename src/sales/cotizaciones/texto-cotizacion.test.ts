@@ -135,3 +135,30 @@ describe("construirTextoCotizacion", () => {
     expect(construirTextoCotizacion(BASE).split("\n")[0]).toBe("📋 COTIZACIÓN 00001");
   });
 });
+
+describe("nombre del destinatario", () => {
+  it("se muestra como 'Recibe' dentro del bloque de entrega", () => {
+    const texto = construirTextoCotizacion({
+      ...BASE,
+      entrega: { ...BASE.entrega!, nombreDestinatario: "Doña Marta (vecina)" },
+    });
+
+    expect(texto).toContain("Recibe: Doña Marta (vecina)");
+    // Va antes del destino: primero quién, después dónde.
+    expect(texto.indexOf("Recibe:")).toBeLessThan(texto.indexOf("Destino:"));
+  });
+
+  it("sin destinatario no aparece la línea", () => {
+    expect(construirTextoCotizacion(BASE)).not.toContain("Recibe:");
+  });
+
+  it("abre el bloque de entrega aunque sea el único dato", () => {
+    const texto = construirTextoCotizacion({
+      ...BASE,
+      entrega: { nombreDestinatario: "Recepción del edificio" },
+    });
+
+    expect(texto).toContain("ENTREGA:");
+    expect(texto).toContain("Recibe: Recepción del edificio");
+  });
+});

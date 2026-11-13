@@ -25,6 +25,7 @@ const CAMPOS_SNAPSHOT = [
   "metodoEntrega",
   "estadoEntrega",
   "transportistaId",
+  "nombreDestinatario",
   "fechaEstimada",
   "observaciones",
   // 019-cobertura-geografica-envios — destino

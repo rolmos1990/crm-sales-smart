@@ -46,6 +46,8 @@ export interface DestinatarioCotizacionTexto {
 }
 
 export interface EntregaCotizacionTexto {
+  /** Quién recibe el envío, si no es el mismo cliente. */
+  nombreDestinatario?: string | null;
   transportistaNombre?: string | null;
   servicioNombre?: string | null;
   ciudad?: string | null;
@@ -111,9 +113,10 @@ export function construirTextoCotizacion(c: CotizacionTexto): string {
   // entrega a medias confundiría más que ayudar.
   const envio = c.entrega;
   const destino = [envio?.ciudad, envio?.estadoProvinciaNombre].filter(Boolean).join(", ");
-  if (envio && (destino || envio.transportistaNombre)) {
+  if (envio && (destino || envio.transportistaNombre || envio.nombreDestinatario)) {
     partes.push("");
     partes.push("ENTREGA:");
+    if (envio.nombreDestinatario) partes.push(`Recibe: ${envio.nombreDestinatario}`);
     if (destino) partes.push(`Destino: ${destino}`);
     if (envio.transportistaNombre) {
       const servicio = envio.servicioNombre ? ` (${envio.servicioNombre})` : "";

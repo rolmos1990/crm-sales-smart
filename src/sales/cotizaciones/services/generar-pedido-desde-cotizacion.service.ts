@@ -142,6 +142,7 @@ export async function generarPedidoDesdeCotizacion(
             metodoEntrega:   cotizacion.entrega.metodoEntrega,
             estadoEntrega:   cotizacion.entrega.estadoEntrega,
             transportistaId: cotizacion.entrega.transportistaId,
+            nombreDestinatario: cotizacion.entrega.nombreDestinatario,
             fechaEstimada:   cotizacion.entrega.fechaEstimada,
             observaciones:   cotizacion.entrega.observaciones,
             // 019-cobertura-geografica-envios

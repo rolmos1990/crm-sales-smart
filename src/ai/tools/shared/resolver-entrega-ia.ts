@@ -44,6 +44,7 @@ export const EntregaIASchema = z.object({
   sectorOCodigoPostal: z.string().optional(),
   transportista: z.string().optional(),
   servicio: z.string().optional(),
+  nombreDestinatario: z.string().max(200).optional(),
   observaciones: z.string().max(500).optional(),
 });
 
@@ -54,6 +55,7 @@ export interface DatosEntregaPersistibles {
   metodoEntrega: MetodoEntregaIA;
   estadoEntrega: "PENDIENTE";
   transportistaId: string | null;
+  nombreDestinatario: string | null;
   observaciones: string | null;
   paisId: string | null;
   estadoProvinciaId: string | null;
@@ -125,6 +127,7 @@ export async function resolverEntregaIA(
 
   const base = {
     estadoEntrega: "PENDIENTE" as const,
+    nombreDestinatario: entrega.nombreDestinatario ?? null,
     observaciones: entrega.observaciones ?? null,
     paisId,
     estadoProvinciaId,
@@ -244,6 +247,7 @@ export function describirEntrega(entrega: EntregaResueltaIA, moneda: string): Re
   return {
     entrega: {
       metodoEntrega: entrega.datos.metodoEntrega,
+      nombreDestinatario: entrega.datos.nombreDestinatario,
       transportista: entrega.transportistaNombre,
       servicio: entrega.servicioNombre,
       costoEnvio: entrega.costoEnvio,
@@ -279,6 +283,11 @@ export const ENTREGA_INPUT_SCHEMA = {
       description: "Nombre del transportista tal como lo devolvió consultar_opciones_envio — necesario si más de uno cubre el destino",
     },
     servicio: { type: "string", description: "Nombre del servicio del transportista tal como lo devolvió consultar_opciones_envio" },
+    nombreDestinatario: {
+      type: "string",
+      description:
+        "Opcional — nombre de quien recibe el envío, si el cliente indicó que lo recibe otra persona (un familiar, recepción, el encargado del local). No lo completes con el nombre del cliente.",
+    },
     observaciones: { type: "string", description: "Notas de entrega (referencias de dirección, horarios, etc.)" },
   },
   required: [],

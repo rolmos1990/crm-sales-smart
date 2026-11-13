@@ -4,12 +4,13 @@ import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { InputFecha } from "@/shared/fechas/components/input-fecha";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +47,7 @@ interface EntregaActual {
   metodoEntrega:  string;
   estadoEntrega:  string;
   transportistaId?: string | null;
+  nombreDestinatario?: string | null;
   numeroGuia?:    string | null;
   urlSeguimiento?: string | null;
   fechaEstimada?: Date | string | null;
@@ -74,6 +76,7 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
       metodoEntrega:   (entrega?.metodoEntrega ?? "COURIER_EXTERNO") as ActualizarEntregaPedidoInput["metodoEntrega"],
       estadoEntrega:   (entrega?.estadoEntrega ?? "PENDIENTE") as ActualizarEntregaPedidoInput["estadoEntrega"],
       transportistaId: entrega?.transportistaId ?? null,
+      nombreDestinatario: entrega?.nombreDestinatario ?? "",
       numeroGuia:      entrega?.numeroGuia ?? "",
       urlSeguimiento:  entrega?.urlSeguimiento ?? "",
       fechaEstimada:   entrega?.fechaEstimada
@@ -346,6 +349,37 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
               <FormLabel>URL de seguimiento</FormLabel>
               <FormControl>
                 <Input placeholder="https://..." {...field} value={field.value ?? ""} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="nombreDestinatario"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center gap-1.5">
+                Nombre del destinatario <span className="text-stone-400 font-normal">(opcional)</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    {/* Sin `asChild`: Tooltip es de Base UI, no de Radix. */}
+                    <TooltipTrigger
+                      type="button"
+                      tabIndex={-1}
+                      className="inline-flex text-stone-400 hover:text-stone-200"
+                    >
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Nombre de quien recibe el pedido. Déjalo vacío si lo recibe el mismo cliente.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </FormLabel>
+              <FormControl>
+                <Input placeholder="Quien recibe el pedido" {...field} value={field.value ?? ""} />
               </FormControl>
               <FormMessage />
             </FormItem>

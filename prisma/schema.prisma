@@ -1456,6 +1456,13 @@ model EntregaCotizacion {
 
   ciudad String?
 
+  // Quién recibe físicamente el envío. Distinto del `destinatario` que vive
+  // en Cotizacion.metadata: ese es el cliente al que va dirigida la
+  // cotización (sección "Información general"), y quien recibe en la puerta
+  // puede ser otra persona — recepción, un familiar, el encargado del local.
+  // Opcional: la inmensa mayoría de los envíos van a nombre del comprador.
+  nombreDestinatario String?
+
   // 022-transportistas-zonas-tarifas — snapshot de envío (FR-041/046, ver
   // data-model.md). corregimiento/sectorOCodigoPostal son nuevos niveles de
   // destino junto a ciudad (distrito/ciudad).
@@ -1983,6 +1990,9 @@ model EntregaPedido {
   estadoProvincia   EstadoProvincia? @relation(fields: [estadoProvinciaId], references: [id])
 
   ciudad String?
+
+  // Quién recibe físicamente el envío — ver EntregaCotizacion.nombreDestinatario.
+  nombreDestinatario String?
 
   // 022-transportistas-zonas-tarifas — snapshot inmutable de envío copiado
   // desde EntregaCotizacion al convertir en pedido (FR-046/047).

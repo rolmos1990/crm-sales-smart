@@ -8,6 +8,7 @@ const GUARDADA: EntregaGuardada = {
   metodoEntrega: "COURIER_EXTERNO",
   estadoEntrega: "PENDIENTE",
   transportistaId: "transp-uno",
+  nombreDestinatario: "Doña Marta (vecina)",
   fechaEstimada: null,
   observaciones: "Dejar en portería",
   paisId: "pais-pa",
@@ -28,6 +29,7 @@ describe("entregaGuardadaAFormulario", () => {
 
     expect(r).toMatchObject({
       transportistaId: "transp-uno",
+      nombreDestinatario: "Doña Marta (vecina)",
       paisId: "pais-pa",
       estadoProvinciaId: "ep-chiriqui",
       ciudad: "Volcán",
@@ -69,6 +71,7 @@ describe("entregaGuardadaAFormulario", () => {
     expect(r.metodoEntrega).toBe("COURIER_EXTERNO");
     expect(r.estadoEntrega).toBe("PENDIENTE");
     expect(r.transportistaId).toBeNull();
+    expect(r.nombreDestinatario).toBe("");
     expect(r.estadoProvinciaId).toBeNull();
     // Por defecto confirmado: una cotización sin entrega no debe bloquear la
     // conversión a pedido (ver aprobarCotizacion, FR-040).

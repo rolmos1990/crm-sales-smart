@@ -49,6 +49,9 @@ export const EntregaCotizacionSchema = z.object({
   metodoEntrega: MetodoEntregaEnum.optional(),
   estadoEntrega: EstadoEntregaEnum.optional(),
   transportistaId: z.string().nullable().optional(),
+  // Quién recibe el envío — distinto del `destinatario` de arriba, que es el
+  // cliente al que va dirigida la cotización. Opcional.
+  nombreDestinatario: z.string().max(200).optional().or(z.literal("")),
   fechaEstimada: z.date().optional().nullable(),
   observaciones: z.string().max(500).optional().or(z.literal("")),
   // Se suma al total de la cotización (lo que paga el cliente) pero vive en

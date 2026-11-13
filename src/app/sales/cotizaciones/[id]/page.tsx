@@ -70,6 +70,7 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
   const costoEnvio = Number((cotizacion as any).costoEnvio ?? 0);
   const entrega = (cotizacion as any).entrega as {
     metodoEntrega: string; observaciones: string | null; ciudad: string | null;
+    nombreDestinatario: string | null;
     corregimiento: string | null; sectorOCodigoPostal: string | null; costoEnvioConfirmado: boolean;
     transportista: { nombre: string } | null; pais: { nombre: string } | null;
     estadoProvincia: { nombre: string } | null; zonaEntrega: { nombre: string } | null;
@@ -145,6 +146,7 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
             entrega={
               entrega
                 ? {
+                    nombreDestinatario: entrega.nombreDestinatario,
                     transportistaNombre: entrega.transportista?.nombre,
                     servicioNombre: entrega.servicioTransportista?.nombre,
                     ciudad: entrega.ciudad,
@@ -284,6 +286,7 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
             <DatoEntrega etiqueta="Método" valor={METODO_ENTREGA_LABELS[entrega.metodoEntrega] ?? entrega.metodoEntrega} />
+            <DatoEntrega etiqueta="Recibe" valor={entrega.nombreDestinatario} />
             <DatoEntrega etiqueta="Transportista" valor={entrega.transportista?.nombre} />
             <DatoEntrega etiqueta="Servicio" valor={entrega.servicioTransportista?.nombre} />
             <DatoEntrega etiqueta="Zona" valor={entrega.zonaEntrega?.nombre} />
