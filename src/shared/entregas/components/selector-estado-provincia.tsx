@@ -6,11 +6,22 @@ import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { queryKeys } from "@/shared/query-keys";
 import { listarEstadosProvincia, listarCoberturaPorProvincia } from "@/shared/entregas/queries-geografia";
 import { generarSlug } from "@/shared/lib/slug";
+import { filtrarProvincia } from "@/shared/entregas/filtro-provincia";
 import { debeLimpiarEstadoProvincia } from "@/shared/entregas/debe-limpiar-estado-provincia";
 
 interface SelectorEstadoProvinciaProps {
   /** Si es null, el selector queda deshabilitado con placeholder de guía. */
   paisId: string | null;
+  /**
+   * Acota los lugares que alimentan la búsqueda a los que cubre este
+   * transportista. Sin él se consideran los de todos — es el estado normal
+   * mientras no se eligió transportista.
+   *
+   * No reduce la lista de provincias: esa sale del catálogo de geografía y
+   * siempre está completa, así que se puede elegir una a mano aunque el
+   * transportista no la cubra.
+   */
+  transportistaId?: string | null;
   value: string | null;
   onChange: (estadoProvinciaId: string | null) => void;
   disabled?: boolean;
@@ -18,7 +29,7 @@ interface SelectorEstadoProvinciaProps {
 
 // 019-cobertura-geografica-envios — Combobox de estado/provincia,
 // dependiente del país elegido (contracts/selector-geografico.md).
-export function SelectorEstadoProvincia({ paisId, value, onChange, disabled }: SelectorEstadoProvinciaProps) {
+export function SelectorEstadoProvincia({ paisId, transportistaId, value, onChange, disabled }: SelectorEstadoProvinciaProps) {
   const { data: estados } = useQuery({
     queryKey: queryKeys.geografia.estados(paisId ?? ""),
     queryFn: () => listarEstadosProvincia(paisId!),
@@ -32,8 +43,8 @@ export function SelectorEstadoProvincia({ paisId, value, onChange, disabled }: S
   // Falla en silencio a propósito — es una ayuda de búsqueda, no un requisito
   // para elegir la provincia.
   const { data: cobertura } = useQuery({
-    queryKey: queryKeys.geografia.cobertura(paisId ?? ""),
-    queryFn: () => listarCoberturaPorProvincia(paisId!),
+    queryKey: queryKeys.geografia.cobertura(paisId ?? "", transportistaId ?? undefined),
+    queryFn: () => listarCoberturaPorProvincia(paisId!, transportistaId ?? undefined),
     enabled: !!paisId,
     staleTime: 5 * 60 * 1000,
   });
@@ -81,10 +92,11 @@ export function SelectorEstadoProvincia({ paisId, value, onChange, disabled }: S
   return (
     <Combobox
       opciones={opciones}
+      filtro={filtrarProvincia}
       valor={value ?? undefined}
       onChange={(v) => onChange(v || null)}
       placeholder={paisId ? "Selecciona un estado/provincia..." : "Elige un país primero"}
-      placeholderBusqueda="Buscar estado o provincia..."
+      placeholderBusqueda="Buscar por provincia, distrito o alias..."
       mensajeVacio="Ningún estado/provincia coincide."
       disabled={disabled || !paisId}
     />

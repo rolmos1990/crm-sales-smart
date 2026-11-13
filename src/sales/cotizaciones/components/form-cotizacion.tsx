@@ -915,6 +915,7 @@ export function FormCotizacion({
                       <FormControl>
                         <SelectorEstadoProvincia
                           paisId={modoGeografico?.modoGeografico === "UN_SOLO_PAIS" ? modoGeografico.paisOperacionId : paisEntregaId ?? null}
+                          transportistaId={transportistaIdEntrega}
                           value={field.value ?? null}
                           onChange={field.onChange}
                         />

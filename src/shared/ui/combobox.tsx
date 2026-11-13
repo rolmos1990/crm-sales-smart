@@ -25,6 +25,15 @@ export interface OpcionCombobox {
 
 interface ComboboxProps {
   opciones: OpcionCombobox[];
+  /**
+   * Reemplaza el filtro difuso de cmdk. Devuelve 0 para ocultar la opción y
+   * un número mayor para ordenarla (más alto = más arriba).
+   *
+   * Hace falta cuando las opciones llevan muchas palabras clave: cmdk
+   * puntúa por subsecuencia sobre todas juntas, así que "Coclé" terminaba
+   * coincidiendo con provincias que solo compartían letras sueltas.
+   */
+  filtro?: (valor: string, busqueda: string, keywords?: string[]) => number;
   valor?: string;
   onChange: (valor: string) => void;
   placeholder?: string;
@@ -44,6 +53,7 @@ interface ComboboxProps {
 
 export function Combobox({
   opciones,
+  filtro,
   valor,
   onChange,
   placeholder = "Seleccionar...",
@@ -112,7 +122,7 @@ export function Combobox({
       <PopoverContent className="w-full p-0" align="start">
         {/* Con búsqueda en servidor, el filtrado ya viene hecho — cmdk no
             debe volver a filtrar localmente sobre esos resultados. */}
-        <Command shouldFilter={!onBuscar}>
+        <Command shouldFilter={!onBuscar} {...(filtro ? { filter: filtro } : {})}>
           <CommandInput
             placeholder={placeholderBusqueda}
             {...(onBuscar ? { value: busqueda, onValueChange: setBusqueda } : {})}

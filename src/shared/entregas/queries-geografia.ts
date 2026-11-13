@@ -41,15 +41,31 @@ export async function listarEstadosProvincia(paisId: string) {
  * esto hay que saber de antemano a qué provincia pertenece cada lugar, que es
  * justo lo que uno no recuerda al cotizar.
  *
- * No se filtra por transportista a propósito: al elegir la provincia todavía
- * no se sabe cuál va a repartir — las opciones de envío se resuelven después.
+ * Con `transportistaId` se limita a las zonas de ese transportista: una vez
+ * elegido, ofrecer lugares que no cubre es ruido. Sin él (todavía no se
+ * eligió) se consideran las de todos, porque las opciones de envío se
+ * resuelven después.
+ *
+ * Acota solo las palabras de búsqueda y el subtítulo: la lista de provincias
+ * sale del catálogo de geografía y sigue completa, así que siempre se puede
+ * elegir una a mano aunque el transportista no la cubra.
  */
-export async function listarCoberturaPorProvincia(paisId: string): Promise<CoberturaProvincia[]> {
+export async function listarCoberturaPorProvincia(
+  paisId: string,
+  transportistaId?: string,
+): Promise<CoberturaProvincia[]> {
   const sesion = await requireSesion();
 
   const [ubicaciones, estados] = await Promise.all([
     prisma.zonaEntregaUbicacion.findMany({
-      where: { paisId, zonaEntrega: { instanciaId: sesion.instanciaId, activa: true } },
+      where: {
+        paisId,
+        zonaEntrega: {
+          instanciaId: sesion.instanciaId,
+          activa: true,
+          ...(transportistaId ? { transportistaId } : {}),
+        },
+      },
       select: {
         provinciaEstado: true,
         distritoCiudad: true,

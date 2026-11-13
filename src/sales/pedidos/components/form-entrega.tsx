@@ -277,6 +277,7 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
                 <FormControl>
                   <SelectorEstadoProvincia
                     paisId={modoGeografico?.modoGeografico === "UN_SOLO_PAIS" ? modoGeografico.paisOperacionId : paisEntregaId ?? null}
+                    transportistaId={transportistaIdSeleccionado}
                     value={field.value ?? null}
                     onChange={field.onChange}
                   />
