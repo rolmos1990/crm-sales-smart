@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { registroHerramientas } from "@/ai/tools/registry";
 import { resolverCostoEnvio } from "@/shared/entregas/resolver-costo-envio";
-import { transferirAHumanoInterno } from "@/ai/tools/shared/transferir-a-humano-interno";
+import { resolverSinCoincidenciaClara } from "@/ai/tools/shared/resolver-ambiguedad-envio";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
 
 // 019-cobertura-geografica-envios — mismo motor de resolución que
@@ -19,7 +19,7 @@ const ValidarCoberturaTool: IProveedorTool = {
   definition: {
     name: "validar_cobertura",
     description:
-      "Valida si una ubicación (país/estado/ciudad) tiene cobertura de entrega, y con qué métodos. Si no hay una coincidencia clara, transfiere la conversación a un humano automáticamente.",
+      "Valida si una ubicación (país/estado/ciudad) tiene cobertura de entrega, y con qué métodos. Si la provincia está cubierta pero la cobertura se define por distrito, devuelve los distritos disponibles para que se los preguntes al cliente. Solo si no hay forma de resolver el destino transfiere la conversación a un humano.",
     input_schema: {
       type: "object",
       properties: {
@@ -40,15 +40,14 @@ const ValidarCoberturaTool: IProveedorTool = {
     const resolucion = await resolverCostoEnvio({ instanciaId: ctx.instanciaId, ...parsed.data });
 
     if (resolucion.estado === "SIN_COINCIDENCIA_CLARA") {
-      await transferirAHumanoInterno(ctx, `Sin coincidencia clara de cobertura: ${resolucion.motivo}`);
-      return {
-        ok: true,
-        data: {
-          transferidoAHumano: true,
-          mensaje:
-            "No fue posible determinar con claridad si hay cobertura para esa ubicación. La conversación fue transferida a un asesor — no confirmes ni descartes cobertura al cliente.",
-        },
-      };
+      // Antes de escalar: si solo falta saber el distrito, preguntarlo.
+      return resolverSinCoincidenciaClara({
+        ctx,
+        destino: parsed.data,
+        motivo: `Sin coincidencia clara de cobertura: ${resolucion.motivo}`,
+        mensajeEscalacion:
+          "No fue posible determinar con claridad si hay cobertura para esa ubicación. La conversación fue transferida a un asesor — no confirmes ni descartes cobertura al cliente.",
+      });
     }
 
     if (!resolucion.cubierto) {

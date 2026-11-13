@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { registroHerramientas } from "@/ai/tools/registry";
 import { resolverCostoEnvio } from "@/shared/entregas/resolver-costo-envio";
-import { transferirAHumanoInterno } from "@/ai/tools/shared/transferir-a-humano-interno";
+import { resolverSinCoincidenciaClara } from "@/ai/tools/shared/resolver-ambiguedad-envio";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
 
 // 019-cobertura-geografica-envios — reemplaza el match por nombre de zona
@@ -21,7 +21,7 @@ const CalcularCostoEnvioTool: IProveedorTool = {
   definition: {
     name: "calcular_costo_envio",
     description:
-      "Calcula el costo de envío real para una ubicación (país/estado/ciudad) y método/transportista opcionales, según la configuración real del negocio. Si no hay una coincidencia clara, transfiere la conversación a un humano automáticamente.",
+      "Calcula el costo de envío real para una ubicación (país/estado/ciudad) y método/transportista opcionales, según la configuración real del negocio. Si la provincia está cubierta pero el precio depende del distrito, devuelve los distritos disponibles para que se los preguntes al cliente. Solo si no hay forma de resolver el destino transfiere la conversación a un humano.",
     input_schema: {
       type: "object",
       properties: {
@@ -42,15 +42,14 @@ const CalcularCostoEnvioTool: IProveedorTool = {
     const resolucion = await resolverCostoEnvio({ instanciaId: ctx.instanciaId, ...parsed.data });
 
     if (resolucion.estado === "SIN_COINCIDENCIA_CLARA") {
-      await transferirAHumanoInterno(ctx, `Sin coincidencia clara de costo de envío: ${resolucion.motivo}`);
-      return {
-        ok: true,
-        data: {
-          transferidoAHumano: true,
-          mensaje:
-            "No fue posible determinar un costo de envío exacto para esa ubicación. La conversación fue transferida a un asesor — no informes ningún costo estimado al cliente.",
-        },
-      };
+      // Antes de escalar: si solo falta saber el distrito, preguntarlo.
+      return resolverSinCoincidenciaClara({
+        ctx,
+        destino: parsed.data,
+        motivo: `Sin coincidencia clara de costo de envío: ${resolucion.motivo}`,
+        mensajeEscalacion:
+          "No fue posible determinar un costo de envío exacto para esa ubicación. La conversación fue transferida a un asesor — no informes ningún costo estimado al cliente.",
+      });
     }
 
     if (!resolucion.cubierto) {

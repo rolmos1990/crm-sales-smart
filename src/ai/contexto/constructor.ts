@@ -54,6 +54,14 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
       ? prisma.agenteIAConfig.findUnique({
           where: { id: agenteIAConfigId },
           select: {
+            // Bloque único de instrucciones (Rol · Estilo · Proceso ·
+            // Reglas). Es LA fuente del prompt de todo agente migrado: sin
+            // él, construirSystemPrompt cae al camino previo a la 009 y el
+            // texto que el negocio escribe en el modal no llega nunca al
+            // modelo. El simulador sí lo cargaba (lee la fila entera), así
+            // que el agente se comportaba distinto ahí que en producción.
+            instruccionesAgente: true,
+
             sistemaPrompt: true,
             personalidad: true,
             objetivo: true,
@@ -144,6 +152,7 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
       { instanciaId, conversacionId, contactoId, oportunidadId, agenteIAConfigId },
       {
         configAgente: {
+          instruccionesAgente: agenteConfig.instruccionesAgente,
           objetivo: agenteConfig.objetivo,
           personalidad: agenteConfig.personalidad,
           especialidad: agenteConfig.especialidad,

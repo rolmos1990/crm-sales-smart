@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { registroHerramientas } from "@/ai/tools/registry";
 import { resolverCostoEnvio } from "@/shared/entregas/resolver-costo-envio";
-import { transferirAHumanoInterno } from "@/ai/tools/shared/transferir-a-humano-interno";
+import { resolverSinCoincidenciaClara } from "@/ai/tools/shared/resolver-ambiguedad-envio";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
 
 // 019-cobertura-geografica-envios — mismo motor de resolución que
@@ -21,7 +21,7 @@ const EstimarFechaEntregaTool: IProveedorTool = {
   definition: {
     name: "estimar_fecha_entrega",
     description:
-      "Estima el rango de días de entrega para una ubicación (y opcionalmente un método/transportista puntual), según la configuración real. Si no hay una coincidencia clara, transfiere la conversación a un humano automáticamente.",
+      "Estima el rango de días de entrega para una ubicación (y opcionalmente un método/transportista puntual), según la configuración real. Si la provincia está cubierta pero el plazo depende del distrito, devuelve los distritos disponibles para que se los preguntes al cliente. Solo si no hay forma de resolver el destino transfiere la conversación a un humano.",
     input_schema: {
       type: "object",
       properties: {
@@ -42,15 +42,14 @@ const EstimarFechaEntregaTool: IProveedorTool = {
     const resolucion = await resolverCostoEnvio({ instanciaId: ctx.instanciaId, ...parsed.data });
 
     if (resolucion.estado === "SIN_COINCIDENCIA_CLARA") {
-      await transferirAHumanoInterno(ctx, `Sin coincidencia clara para estimar fecha de entrega: ${resolucion.motivo}`);
-      return {
-        ok: true,
-        data: {
-          transferidoAHumano: true,
-          mensaje:
-            "No fue posible determinar una fecha estimada de entrega clara para esa ubicación. La conversación fue transferida a un asesor — no informes ninguna fecha estimada al cliente.",
-        },
-      };
+      // Antes de escalar: si solo falta saber el distrito, preguntarlo.
+      return resolverSinCoincidenciaClara({
+        ctx,
+        destino: parsed.data,
+        motivo: `Sin coincidencia clara para estimar fecha de entrega: ${resolucion.motivo}`,
+        mensajeEscalacion:
+          "No fue posible determinar una fecha estimada de entrega clara para esa ubicación. La conversación fue transferida a un asesor — no informes ninguna fecha estimada al cliente.",
+      });
     }
 
     if (!resolucion.cubierto) {

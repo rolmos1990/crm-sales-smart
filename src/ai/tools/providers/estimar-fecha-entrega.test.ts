@@ -1,8 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const resolverCostoEnvioMock = vi.fn();
+const listarCiudadesCubiertasMock = vi.fn().mockResolvedValue([]);
 vi.mock("@/shared/entregas/resolver-costo-envio", () => ({
   resolverCostoEnvio: (...a: unknown[]) => resolverCostoEnvioMock(...a),
+  // Por defecto sin distritos que ofrecer: así los casos de abajo siguen
+  // comprobando la escalación tal como antes de que se pudiera preguntar
+  // la ciudad.
+  listarCiudadesCubiertasPorProvincia: (...a: unknown[]) => listarCiudadesCubiertasMock(...a),
 }));
 
 const transferirAHumanoInternoMock = vi.fn().mockResolvedValue(undefined);
