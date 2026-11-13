@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { queryKeys } from "@/shared/query-keys";
-import { listarEstadosProvincia } from "@/shared/entregas/queries-geografia";
+import { listarEstadosProvincia, listarCoberturaPorProvincia } from "@/shared/entregas/queries-geografia";
 import { generarSlug } from "@/shared/lib/slug";
 import { debeLimpiarEstadoProvincia } from "@/shared/entregas/debe-limpiar-estado-provincia";
 
@@ -26,6 +26,23 @@ export function SelectorEstadoProvincia({ paisId, value, onChange, disabled }: S
     staleTime: 24 * 60 * 60 * 1000,
   });
 
+  // Lugares cubiertos por cada provincia (distritos, corregimientos, sectores
+  // y alias de las zonas cargadas). Permite encontrar "Chiriquí" escribiendo
+  // "Boquete": al cotizar uno recuerda el lugar, no a qué provincia pertenece.
+  // Falla en silencio a propósito — es una ayuda de búsqueda, no un requisito
+  // para elegir la provincia.
+  const { data: cobertura } = useQuery({
+    queryKey: queryKeys.geografia.cobertura(paisId ?? ""),
+    queryFn: () => listarCoberturaPorProvincia(paisId!),
+    enabled: !!paisId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const lugaresPorProvincia = useMemo(
+    () => new Map((cobertura ?? []).map((c) => [c.estadoProvinciaId, c.lugares])),
+    [cobertura],
+  );
+
   // Si el país cambia, el estado/provincia elegido ya no aplica — se limpia
   // para no dejar guardado un valor que no pertenece al país actual. El
   // criterio exacto (y por qué resolver el país por primera vez NO cuenta
@@ -42,11 +59,24 @@ export function SelectorEstadoProvincia({ paisId, value, onChange, disabled }: S
     if (limpiar) onChange(null);
   }, [paisId, value, onChange]);
 
-  const opciones: OpcionCombobox[] = (estados ?? []).map((e) => ({
-    valor: e.id,
-    etiqueta: e.codigo ? `${e.nombre} (${e.codigo})` : e.nombre,
-    busqueda: [e.codigo, generarSlug(e.nombre)].filter((v): v is string => !!v),
-  }));
+  const opciones: OpcionCombobox[] = (estados ?? []).map((e) => {
+    const lugares = lugaresPorProvincia.get(e.id) ?? [];
+    return {
+      valor: e.id,
+      etiqueta: e.codigo ? `${e.nombre} (${e.codigo})` : e.nombre,
+      // Se muestran algunos para que se entienda POR QUÉ apareció al buscar
+      // un distrito; el resto solo alimenta la búsqueda.
+      subtitulo: lugares.length > 0 ? `Cubre ${resumirLugares(lugares)}` : undefined,
+      busqueda: [
+        e.codigo,
+        generarSlug(e.nombre),
+        // Crudo y en slug: cmdk puntúa mejor el texto natural, y el slug
+        // cubre las diferencias de tildes y mayúsculas.
+        ...lugares,
+        ...lugares.map(generarSlug),
+      ].filter((v): v is string => !!v),
+    };
+  });
 
   return (
     <Combobox
@@ -59,4 +89,13 @@ export function SelectorEstadoProvincia({ paisId, value, onChange, disabled }: S
       disabled={disabled || !paisId}
     />
   );
+}
+
+const MAX_LUGARES_VISIBLES = 3;
+
+/** "Boquete, David, Volcán y 5 más" — el subtítulo del Combobox es una línea. */
+function resumirLugares(lugares: string[]): string {
+  const visibles = lugares.slice(0, MAX_LUGARES_VISIBLES).join(", ");
+  const resto = lugares.length - MAX_LUGARES_VISIBLES;
+  return resto > 0 ? `${visibles} y ${resto} más` : visibles;
 }

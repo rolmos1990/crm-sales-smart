@@ -25,6 +25,7 @@ export const queryKeys = {
   geografia: {
     paises: () => ["geografia", "paises"] as const,
     estados: (paisId: string) => ["geografia", "estados", paisId] as const,
+    cobertura: (paisId: string) => ["geografia", "cobertura", paisId] as const,
     modo: () => ["geografia", "modo"] as const,
   },
   pedidos: {
