@@ -16,7 +16,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { duplicarTarifa, eliminarTarifa, toggleTarifa } from "../tarifas/actions";
 import { zonasSinTarifaDelTransportista } from "../zonas/zonas-sin-tarifa";
-import { eliminarZonaEntrega } from "../zonas/actions";
+import { eliminarZonasSinUsar, eliminarZonaEntrega } from "../zonas/actions";
+import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { BotonExportarDestinos } from "./boton-exportar-destinos";
 import { WizardImportacionDestinos } from "../importacion-destinos/components/wizard-importacion-destinos";
 import { DialogAliasUbicacion } from "./dialog-alias-ubicacion";
@@ -257,7 +258,7 @@ export function SeccionZonasTarifas({
           <div className="flex flex-wrap items-center gap-2">
             {puedeAgregar ? (
               <>
-                <DialogZonaEntrega paisId={paisId!} paisLabel={paisLabel!} onCreada={(z) => setZonas((prev) => [...prev, z])} />
+                <DialogZonaEntrega transportistaId={transportistaId} paisId={paisId!} paisLabel={paisLabel!} onCreada={(z) => setZonas((prev) => [...prev, z])} />
                 <Button type="button" className="h-10 gap-1.5" onClick={abrirNuevaTarifa} disabled={zonas.length === 0}>
                   <Plus className="h-4 w-4" />
                   Agregar tarifa
@@ -295,10 +296,31 @@ export function SeccionZonasTarifas({
         <div className="rounded-xl border border-dashed border-border p-3 space-y-2">
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
             <MapPinPlus className="h-3.5 w-3.5" />
-            {zonasSinTarifa.length === 1
-              ? "Esta zona no la cubre este transportista"
-              : `Estas ${zonasSinTarifa.length} zonas no las cubre este transportista`}{" "}
-            — las zonas son del catálogo de la empresa y se comparten entre transportistas; agregá una tarifa para que aparezcan en la tabla
+            <span className="flex-1">
+              {zonasSinTarifa.length === 1 ? "Zona sin tarifa" : `${zonasSinTarifa.length} zonas sin tarifa`}
+              {" "}— agregales una tarifa para que aparezcan en la tabla
+            </span>
+            {puedeModificar && zonasSinTarifa.length > 1 && (
+              <ConfirmacionDialog
+                trigger={
+                  <button
+                    type="button"
+                    className="shrink-0 rounded px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-danger-muted hover:text-danger"
+                  >
+                    Eliminar las que no uso
+                  </button>
+                }
+                titulo="¿Eliminar las zonas sin usar?"
+                descripcion="Se eliminarán las zonas de este transportista que no tienen tarifa y no aparecen en ninguna cotización ni pedido. Las demás quedan intactas."
+                onConfirmar={async () => {
+                  const r = await eliminarZonasSinUsar(transportistaId);
+                  if (r.exito) {
+                    toast.success(`${r.data} zona(s) eliminada(s)`);
+                    setZonas((prev) => prev.filter((z) => !zonasSinTarifa.some((s) => s.id === z.id)));
+                  } else toast.error(r.error);
+                }}
+              />
+            )}
           </p>
           {zonasSinTarifa.map((z) => (
             <div key={z.id} className="flex items-center justify-between gap-2 rounded-lg bg-card px-3 py-2">

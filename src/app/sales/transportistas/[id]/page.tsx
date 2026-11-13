@@ -17,11 +17,11 @@ export default async function TransportistaDetallePage({ params }: { params: Pro
   const transportista = await obtenerTransportista(id, sesion.instanciaId);
   if (!transportista) notFound();
 
-  // 023-transportistas-por-pais — el catálogo de zonas se filtra al país del
-  // transportista (research.md Decisión 1); con "país pendiente" no se
-  // filtra (la UI deshabilita agregar zonas/tarifas en ese estado igual).
+  // Las zonas son de este transportista (ver ZonaEntrega.transportistaId).
+  // 023-transportistas-por-pais — además se filtran a su país; con "país
+  // pendiente" no se filtra (la UI deshabilita agregar zonas/tarifas igual).
   const [zonas, tarifas, promedio, moneda] = await Promise.all([
-    listarZonasEntrega(sesion.instanciaId, undefined, transportista.paisId ?? undefined),
+    listarZonasEntrega(sesion.instanciaId, id, undefined, transportista.paisId ?? undefined),
     listarTarifas(id),
     obtenerPromedioTarifas(id),
     obtenerMonedaPrincipal(sesion.instanciaId),

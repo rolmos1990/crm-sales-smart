@@ -101,13 +101,22 @@ async function resolverServicio(tx: typeof prisma, transportistaId: string, nomb
   return creado.id;
 }
 
-async function resolverZona(tx: typeof prisma, instanciaId: string, nombre: string): Promise<string> {
+// Dentro del transportista, nunca en el catálogo de la empresa: reutilizar
+// una zona por nombre entre transportistas era lo que hacía que importar
+// destinos para uno le cambiara la cobertura a otro (ver
+// ZonaEntrega.transportistaId en schema.prisma).
+async function resolverZona(
+  tx: typeof prisma,
+  instanciaId: string,
+  transportistaId: string,
+  nombre: string,
+): Promise<string> {
   const existente = await tx.zonaEntrega.findFirst({
-    where: { instanciaId, nombre: { equals: nombre, mode: "insensitive" } },
+    where: { transportistaId, nombre: { equals: nombre, mode: "insensitive" } },
     select: { id: true },
   });
   if (existente) return existente.id;
-  const creada = await tx.zonaEntrega.create({ data: { instanciaId, nombre } });
+  const creada = await tx.zonaEntrega.create({ data: { instanciaId, transportistaId, nombre } });
   return creada.id;
 }
 
@@ -270,7 +279,7 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
             actualizadosLote++;
           } else {
             // NUEVO, o POSIBLE_DUPLICADO resuelto como "crear nuevo".
-            zonaEntregaId = await resolverZona(tx as typeof prisma, auth.sesion.instanciaId, parsed.zonaNombre);
+            zonaEntregaId = await resolverZona(tx as typeof prisma, auth.sesion.instanciaId, transportistaId, parsed.zonaNombre);
             const nueva = await (tx as typeof prisma).zonaEntregaUbicacion.create({
               data: {
                 zonaEntregaId,

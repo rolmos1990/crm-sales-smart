@@ -1,15 +1,15 @@
-// Qué zonas del catálogo no cubre este transportista.
+// Qué zonas del transportista todavía no tienen tarifa.
 //
-// Las zonas son de la empresa, no del transportista: la misma "Coclé" la
-// pueden cubrir varios, cada uno con su tarifa. Así que "sin tarifa" acá
-// siempre significa "sin tarifa DE ESTE transportista", nunca "sin tarifa de
-// nadie".
+// Desde que las zonas son de un transportista (ver ZonaEntrega.transportistaId),
+// `zonas` y `tarifas` son del mismo dueño y esto es simplemente "las que
+// quedan por configurar" — una lista corta y accionable. Antes las zonas eran
+// de la empresa y acá aparecían también las de otros transportistas.
 //
 // Se extrajo del componente al aparecer un aviso que listaba zonas que la
-// tabla de abajo ya mostraba con su tarifa. La causa estaba en el componente
-// (una lista de zonas vieja comparada contra tarifas nuevas), pero el
-// criterio en sí merecía quedar fijado con tests: es fácil invertirlo o
-// compararlo contra el conjunto equivocado sin que nada falle.
+// tabla de abajo ya mostraba con su tarifa (una lista de zonas vieja
+// comparada contra tarifas nuevas). El criterio merecía quedar fijado con
+// tests: es fácil invertirlo o compararlo contra el conjunto equivocado sin
+// que nada falle.
 
 export function zonasSinTarifaDelTransportista<Z extends { id: string }>(
   zonas: readonly Z[],

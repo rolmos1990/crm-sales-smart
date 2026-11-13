@@ -15,11 +15,23 @@ export async function crearZonaEntrega(datos: unknown): Promise<ResultadoAccion<
   const auth = await requirePermisoAction("transportistas", "modificar");
   if (!auth.ok) return { exito: false, error: auth.error };
 
-  const existente = await prisma.zonaEntrega.findFirst({
-    where: { instanciaId: auth.sesion.instanciaId, nombre: { equals: validado.data.nombre, mode: "insensitive" } },
+  // El transportista tiene que ser de esta instancia: el id viene del cliente.
+  const transportista = await prisma.transportista.findFirst({
+    where: { id: validado.data.transportistaId, instanciaId: auth.sesion.instanciaId },
     select: { id: true },
   });
-  if (existente) return { exito: false, error: "Ya existe una zona con ese nombre" };
+  if (!transportista) return { exito: false, error: "Transportista no encontrado" };
+
+  // Único por transportista, no por empresa: otro transportista puede tener
+  // una zona con el mismo nombre y es correcto.
+  const existente = await prisma.zonaEntrega.findFirst({
+    where: {
+      transportistaId: validado.data.transportistaId,
+      nombre: { equals: validado.data.nombre, mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+  if (existente) return { exito: false, error: "Este transportista ya tiene una zona con ese nombre" };
 
   try {
     const zona = await prisma.zonaEntrega.create({
@@ -27,6 +39,7 @@ export async function crearZonaEntrega(datos: unknown): Promise<ResultadoAccion<
         nombre: validado.data.nombre,
         descripcion: validado.data.descripcion || null,
         instanciaId: auth.sesion.instanciaId,
+        transportistaId: validado.data.transportistaId,
         ubicaciones: {
           create: validado.data.ubicaciones.map((u) => {
             // 024-alias-ubicaciones-transportistas — nombreVisible/nombreNormalizado
@@ -64,19 +77,20 @@ export async function editarZonaEntrega(datos: unknown): Promise<ResultadoAccion
 
   const zona = await prisma.zonaEntrega.findFirst({
     where: { id, instanciaId: auth.sesion.instanciaId },
-    select: { id: true, ubicaciones: { select: { id: true } } },
+    select: { id: true, transportistaId: true, ubicaciones: { select: { id: true } } },
   });
   if (!zona) return { exito: false, error: "Zona no encontrada" };
 
+  // Dentro del mismo transportista: otro puede tener una zona igual.
   const duplicada = await prisma.zonaEntrega.findFirst({
     where: {
-      instanciaId: auth.sesion.instanciaId,
+      transportistaId: zona.transportistaId,
       nombre: { equals: nombre, mode: "insensitive" },
       NOT: { id },
     },
     select: { id: true },
   });
-  if (duplicada) return { exito: false, error: "Ya existe una zona con ese nombre" };
+  if (duplicada) return { exito: false, error: "Este transportista ya tiene una zona con ese nombre" };
 
   // Reconciliación por id: las ubicaciones que siguen estando se actualizan en
   // su sitio y solo se borran las que el usuario quitó. Borrarlas todas y
@@ -144,4 +158,43 @@ export async function eliminarZonaEntrega(id: string): Promise<ResultadoAccion> 
   await prisma.zonaEntrega.delete({ where: { id } });
   revalidatePath("/sales/transportistas");
   return { exito: true };
+}
+
+/**
+ * Elimina de una vez las zonas de un transportista que no tienen tarifa ni
+ * quedaron referenciadas por una cotización o un pedido.
+ *
+ * Alternativa a borrarlas una por una desde el aviso de "zonas sin tarifa",
+ * que después de una importación a medias puede listar decenas. Nunca toca
+ * una zona con tarifa (para eso está desactivarla) ni una que aparezca en un
+ * documento ya emitido: ahí el id es parte del rastro de por qué se cobró ese
+ * envío.
+ */
+export async function eliminarZonasSinUsar(transportistaId: string): Promise<ResultadoAccion<number>> {
+  const auth = await requirePermisoAction("transportistas", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  const borrables = await prisma.zonaEntrega.findMany({
+    where: {
+      transportistaId,
+      instanciaId: auth.sesion.instanciaId,
+      tarifas: { none: {} },
+      entregasCotizacion: { none: {} },
+      entregasPedido: { none: {} },
+    },
+    select: { id: true },
+  });
+
+  if (borrables.length === 0) {
+    return { exito: false, error: "No hay zonas sin usar para eliminar" };
+  }
+
+  // Las ubicaciones y sus alias caen por ON DELETE CASCADE.
+  const { count } = await prisma.zonaEntrega.deleteMany({
+    where: { id: { in: borrables.map((z) => z.id) } },
+  });
+
+  revalidatePath("/sales/transportistas");
+  revalidatePath(`/sales/transportistas/${transportistaId}`);
+  return { exito: true, data: count };
 }

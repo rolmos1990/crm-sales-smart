@@ -15,7 +15,10 @@ const ubicacionDeleteManyMock = vi.fn();
 const ubicacionUpdateMock = vi.fn();
 const ubicacionCreateMock = vi.fn();
 
+const transportistaFindFirstMock = vi.fn();
+
 const modelos = {
+  transportista: { findFirst: (...a: unknown[]) => transportistaFindFirstMock(...a) },
   zonaEntrega: {
     findFirst: (...a: unknown[]) => zonaFindFirstMock(...a),
     findMany: (...a: unknown[]) => zonaFindManyMock(...a),
@@ -44,6 +47,7 @@ const UBICACION_BASE = { paisId: "pais-1", provinciaEstado: "Lima" };
 describe("zonas/actions (022, Historia 1)", () => {
   beforeEach(() => {
     requirePermisoActionMock.mockClear().mockResolvedValue({ ok: true, sesion: sesionMock });
+    transportistaFindFirstMock.mockReset().mockResolvedValue({ id: "transp-1" });
     zonaFindFirstMock.mockReset().mockResolvedValue(null);
     zonaFindManyMock.mockReset().mockResolvedValue([]);
     zonaCreateMock.mockReset().mockResolvedValue({ id: "zona-1", nombre: "Lima Norte" });
@@ -57,6 +61,7 @@ describe("zonas/actions (022, Historia 1)", () => {
   describe("crearZonaEntrega", () => {
     it("crea una zona con varias ubicaciones", async () => {
       const resultado = await crearZonaEntrega({
+        transportistaId: "transp-1",
         nombre: "Lima Norte",
         ubicaciones: [UBICACION_BASE, { paisId: "pais-1", provinciaEstado: "Callao" }],
       });
@@ -215,5 +220,74 @@ describe("zonas/actions (022, Historia 1)", () => {
       expect(resultado.exito).toBe(true);
       expect(zonaDeleteMock).toHaveBeenCalledWith({ where: { id: "zona-1" } });
     });
+  });
+});
+
+// El cambio de modelo: las zonas son de un transportista, no de la empresa.
+// Lo que se prueba acá es el aislamiento — que importar o crear zonas para uno
+// no pueda alcanzar las de otro.
+describe("zonas por transportista", () => {
+  beforeEach(() => {
+    requirePermisoActionMock.mockClear().mockResolvedValue({ ok: true, sesion: sesionMock });
+    transportistaFindFirstMock.mockReset().mockResolvedValue({ id: "transp-1" });
+    zonaFindFirstMock.mockReset().mockResolvedValue(null);
+    zonaCreateMock.mockReset().mockResolvedValue({ id: "zona-1", nombre: "Coclé" });
+    ubicacionCreateMock.mockReset();
+  });
+
+  it("la zona nace ligada a su transportista", async () => {
+    await crearZonaEntrega({
+      transportistaId: "transp-1",
+      nombre: "Coclé",
+      ubicaciones: [UBICACION_BASE],
+    });
+
+    expect(zonaCreateMock.mock.calls[0][0].data).toMatchObject({
+      transportistaId: "transp-1",
+      instanciaId: "instancia-1",
+    });
+  });
+
+  it("el duplicado se busca dentro del transportista, no de la empresa", async () => {
+    await crearZonaEntrega({ transportistaId: "transp-1", nombre: "Coclé", ubicaciones: [UBICACION_BASE] });
+
+    expect(zonaFindFirstMock.mock.calls[0][0].where).toMatchObject({ transportistaId: "transp-1" });
+    expect(zonaFindFirstMock.mock.calls[0][0].where).not.toHaveProperty("instanciaId");
+  });
+
+  it("dos transportistas pueden tener cada uno su zona con el mismo nombre", async () => {
+    // Para transp-2 no hay ninguna "Coclé" aunque transp-1 sí la tenga.
+    zonaFindFirstMock.mockResolvedValue(null);
+    transportistaFindFirstMock.mockResolvedValue({ id: "transp-2" });
+
+    const r = await crearZonaEntrega({ transportistaId: "transp-2", nombre: "Coclé", ubicaciones: [UBICACION_BASE] });
+
+    expect(r.exito).toBe(true);
+  });
+
+  it("un transportista de otra instancia no sirve — el id viene del cliente", async () => {
+    transportistaFindFirstMock.mockResolvedValue(null);
+
+    const r = await crearZonaEntrega({ transportistaId: "ajeno", nombre: "Coclé", ubicaciones: [UBICACION_BASE] });
+
+    expect(r.exito).toBe(false);
+    expect(zonaCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("editar no puede mover la zona a otro transportista", async () => {
+    zonaFindFirstMock.mockReset()
+      .mockResolvedValueOnce({ id: "zona-1", transportistaId: "transp-1", ubicaciones: [] })
+      .mockResolvedValueOnce(null);
+    zonaUpdateMock.mockReset().mockResolvedValue({ id: "zona-1", nombre: "Coclé" });
+
+    await editarZonaEntrega({
+      id: "zona-1",
+      // Aunque el cliente lo mande, el schema de edición no lo acepta.
+      transportistaId: "transp-2",
+      nombre: "Coclé",
+      ubicaciones: [UBICACION_BASE],
+    });
+
+    expect(zonaUpdateMock.mock.calls[0][0].data).not.toHaveProperty("transportistaId");
   });
 });

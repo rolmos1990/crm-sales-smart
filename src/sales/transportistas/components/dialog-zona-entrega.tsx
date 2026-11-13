@@ -18,6 +18,8 @@ import { CrearZonaEntregaSchema, type CrearZonaEntregaInput } from "../zonas/sch
 import { EditorUbicacionesZona, type UbicacionEditable } from "./editor-ubicaciones-zona";
 
 interface DialogZonaEntregaProps {
+  /** La zona nace ligada a este transportista — ver ZonaEntrega.transportistaId. */
+  transportistaId: string;
   // 023-transportistas-por-pais — el país ya no se elige acá: viene fijo
   // del transportista (research.md Decisión 1 / FR-004).
   paisId: string;
@@ -30,11 +32,12 @@ interface DialogZonaEntregaProps {
 // 022-transportistas-zonas-tarifas — crear una zona sin salir del flujo de
 // configuración de tarifas (FR-012); usado desde SeccionZonasTarifas. La
 // edición vive en DialogEditarZona, que comparte el editor de ubicaciones.
-export function DialogZonaEntrega({ paisId, paisLabel, onCreada }: DialogZonaEntregaProps) {
+export function DialogZonaEntrega({ transportistaId, paisId, paisLabel, onCreada }: DialogZonaEntregaProps) {
   const [abierto, setAbierto] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const valoresIniciales = (): CrearZonaEntregaInput => ({
+    transportistaId,
     nombre: "",
     descripcion: "",
     ubicaciones: [{ paisId, provinciaEstado: "", distritoCiudad: "" }],

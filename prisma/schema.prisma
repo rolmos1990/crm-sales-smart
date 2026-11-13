@@ -1752,6 +1752,7 @@ model Transportista {
 
   // 022-transportistas-zonas-tarifas — reemplaza coberturaGeografica (retirada, ver ZonaEntrega/TarifaTransportistaZona)
   servicios   ServicioTransportista[]
+  zonas       ZonaEntrega[]
   tarifas     TarifaTransportistaZona[]
   condiciones CondicionesTransportista?
 
@@ -1774,13 +1775,30 @@ model ZonaEntrega {
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
+  // Las zonas son de UN transportista, no del catálogo de la empresa.
+  //
+  // Antes eran compartidas (@@unique([instanciaId, nombre])) con la idea de
+  // que "Coclé" es el mismo lugar reparta quien reparta, y cada transportista
+  // le ponía su tarifa. En la práctica eso significaba que importar destinos
+  // para un transportista modificaba la cobertura de otro: resolverZona
+  // reutilizaba la zona existente por nombre y le agregaba las ubicaciones
+  // del archivo, así que el otro transportista pasaba a cubrir lugares que
+  // nadie le configuró. Además, la pestaña de un transportista listaba las
+  // zonas de todos los demás como "sin tarifa".
+  //
+  // Cascade igual que TarifaTransportistaZona: borrar un transportista se
+  // lleva sus zonas.
+  transportistaId String
+  transportista   Transportista @relation(fields: [transportistaId], references: [id], onDelete: Cascade)
+
   ubicaciones        ZonaEntregaUbicacion[]
   tarifas            TarifaTransportistaZona[]
   entregasCotizacion EntregaCotizacion[]
   entregasPedido     EntregaPedido[]
 
-  @@unique([instanciaId, nombre])
+  @@unique([transportistaId, nombre])
   @@index([instanciaId])
+  @@index([transportistaId])
 }
 
 // Un punto geográfico dentro de una zona (FR-010/FR-011). País es catálogo

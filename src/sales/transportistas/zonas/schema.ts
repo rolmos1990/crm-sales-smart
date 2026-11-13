@@ -11,10 +11,18 @@ export const UbicacionZonaSchema = z.object({
   sectorOCodigoPostal: z.string().max(150).optional().or(z.literal("")),
 });
 
-export const CrearZonaEntregaSchema = z.object({
+const ZonaEntregaBaseSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio").max(100),
   descripcion: z.string().max(300).optional().or(z.literal("")),
   ubicaciones: z.array(UbicacionZonaSchema).min(1, "Agrega al menos una ubicación"),
+});
+
+export const CrearZonaEntregaSchema = ZonaEntregaBaseSchema.extend({
+  // Las zonas son de un transportista, no del catálogo de la empresa — ver
+  // ZonaEntrega.transportistaId en schema.prisma. Solo al crear: editar no
+  // puede mover una zona de un transportista a otro (sus tarifas y las
+  // cotizaciones que la referencian quedarían apuntando a otro dueño).
+  transportistaId: z.string().min(1, "Falta el transportista"),
 });
 
 // Al editar, cada ubicación viaja con su `id` cuando ya existe: la acción las
@@ -25,7 +33,7 @@ export const UbicacionZonaEdicionSchema = UbicacionZonaSchema.extend({
   id: z.string().min(1).optional(),
 });
 
-export const EditarZonaEntregaSchema = CrearZonaEntregaSchema.extend({
+export const EditarZonaEntregaSchema = ZonaEntregaBaseSchema.extend({
   id: z.string().min(1),
   ubicaciones: z.array(UbicacionZonaEdicionSchema).min(1, "Agrega al menos una ubicación"),
 });
