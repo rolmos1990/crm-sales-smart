@@ -1159,6 +1159,11 @@ function WorkspaceContenido({
                   email: (contactoPrincipal as any)?.email ?? undefined,
                 }}
                 onPlegar={() => setCotizacionVisible(false)}
+                onDescartar={() => {
+                  // Desmonta de verdad: se va el panel, el riel y el borrador.
+                  setCotizacionVisible(false);
+                  setCotizacionMontada(false);
+                }}
                 onCreada={() => {
                   // Recién acá se descarta el borrador: ante un error,
                   // FormCotizacion deja el panel abierto con los datos.

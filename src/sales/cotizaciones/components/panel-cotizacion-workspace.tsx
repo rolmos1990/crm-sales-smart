@@ -29,6 +29,8 @@ interface PanelCotizacionWorkspaceProps {
   onCreada: () => void;
   /** Plegar: oculta el panel sin perder lo cargado. */
   onPlegar: () => void;
+  /** Descartar: saca la cotización de la pantalla y pierde el borrador. */
+  onDescartar: () => void;
 }
 
 type DatosFormulario = Awaited<ReturnType<typeof obtenerDatosFormularioCotizacion>>;
@@ -40,6 +42,7 @@ export function PanelCotizacionWorkspace({
   destinatario,
   onCreada,
   onPlegar,
+  onDescartar,
 }: PanelCotizacionWorkspaceProps) {
   const [datos, setDatos] = useState<DatosFormulario | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +98,7 @@ export function PanelCotizacionWorkspace({
             // borrador — ver el comentario de arriba.
             onCerrar={onPlegar}
             accionCerrar="plegar"
+            onDescartar={onDescartar}
           />
         </div>
       )}

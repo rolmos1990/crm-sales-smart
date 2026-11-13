@@ -29,6 +29,7 @@ import { obtenerCostoSugerido } from "@/shared/entregas/actions";
 import { obtenerOpcionesEnvioAction, listarCiudadesCubiertasAction } from "@/sales/transportistas/tarifas/actions";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { CampoCodigoLicencia } from "@/shared/ui/campo-codigo-licencia";
 import type { FiltroCatalogo, ProductoCatalogo, TipoProducto } from "@/shared/productos/types";
@@ -83,6 +84,12 @@ interface FormCotizacionProps {
    * Workspace es "plegar": el formulario queda montado y el borrador vivo.
    */
   accionCerrar?: "cerrar" | "plegar";
+  /**
+   * Descarta el borrador y saca la cotización de la pantalla. Distinto de
+   * `onCerrar`, que en el panel solo pliega: sin esto no habría forma de
+   * abandonar una cotización empezada por error.
+   */
+  onDescartar?: () => void;
   /** Datos del contacto de la oportunidad para el toggle "Usar información del contacto" */
   contactoOrigen?: Partial<DestinatarioCotizacionInput>;
   /** Cuando viene del pipeline, el contacto ya está fijado y no se puede cambiar */
@@ -160,6 +167,7 @@ export function FormCotizacion({
   monedaDefault = "PEN",
   defaultCountryCode = "PA",
   accionCerrar = "cerrar",
+  onDescartar,
 }: FormCotizacionProps) {
   const router = useRouter();
   const hayContactoOrigen = tieneContactoOrigen(contactoOrigen);
@@ -426,7 +434,27 @@ export function FormCotizacion({
 
   const cerrar = () => (onCerrar ? onCerrar() : router.back());
 
+  // Descartar pide confirmación solo si hay algo cargado: abrir la cotización
+  // por error y cerrarla enseguida no debería costar un diálogo.
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false);
+  const hayAlgoCargado = form.formState.isDirty;
+  const pedirDescarte = () => (hayAlgoCargado ? setConfirmarDescarte(true) : onDescartar?.());
+
   return (
+    <>
+    <ConfirmacionDialog
+      open={confirmarDescarte}
+      onOpenChange={setConfirmarDescarte}
+      titulo="¿Descartar esta cotización?"
+      descripcion="Se perderá lo que cargaste. La conversación y la oportunidad quedan como están."
+      variante="destructive"
+      textoConfirmar="Descartar"
+      textoCancelar="Seguir editando"
+      onConfirmar={() => {
+        setConfirmarDescarte(false);
+        onDescartar?.();
+      }}
+    />
     <Form {...form}>
       <form onSubmit={form.handleSubmit(guardar)} className="flex flex-col flex-1 min-h-0">
         {/* ── Header ─────────────────────────────────────────────── */}
@@ -445,6 +473,19 @@ export function FormCotizacion({
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {onDescartar && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={pedirDescarte}
+                disabled={form.formState.isSubmitting}
+                title="Descartar esta cotización y volver a la conversación"
+                className="text-muted-foreground hover:text-danger"
+              >
+                Descartar
+              </Button>
+            )}
             <Button type="submit" variant="outline" size="sm" disabled={form.formState.isSubmitting}>
               Guardar borrador
             </Button>
@@ -1353,5 +1394,6 @@ export function FormCotizacion({
         </div>
       </form>
     </Form>
+    </>
   );
 }
