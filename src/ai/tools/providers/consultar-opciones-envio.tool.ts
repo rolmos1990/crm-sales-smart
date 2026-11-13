@@ -8,8 +8,15 @@ import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/typ
 // encontradas con su nivel de confianza (contracts/ai-tools.md), incluso
 // ante AMBIGUA/SIN_COINCIDENCIA, para que el agente decida cómo seguir la
 // conversación (pedir precisión, comparar opciones, etc.).
+// El campo se llama `estadoProvincia` en DestinoEnvioZona y en las otras tres
+// tools de envío. Acá se llamaba `provinciaEstado` y se pasaba con un spread:
+// TypeScript no marca la propiedad sobrante, así que la provincia llegaba
+// `undefined` al resolver y NINGUNA ubicación con provincia configurada podía
+// coincidir — la tool devolvía SIN_COINCIDENCIA siempre. Se acepta el nombre
+// viejo como alias para no romper el modelo que ya aprendió a mandarlo.
 const ArgsSchema = z.object({
   pais: z.string().optional(),
+  estadoProvincia: z.string().optional(),
   provinciaEstado: z.string().optional(),
   distritoCiudad: z.string().optional(),
   corregimiento: z.string().optional(),
@@ -42,7 +49,7 @@ const ConsultarOpcionesEnvioTool: IProveedorTool = {
       type: "object",
       properties: {
         pais: { type: "string", description: "Nombre del país — opcional si el negocio opera en un solo país" },
-        provinciaEstado: { type: "string", description: "Nombre de la provincia/estado de destino" },
+        estadoProvincia: { type: "string", description: "Nombre del estado/provincia de destino" },
         distritoCiudad: { type: "string", description: "Opcional — refina la coincidencia" },
         corregimiento: { type: "string", description: "Opcional — refina la coincidencia" },
       },
@@ -54,7 +61,14 @@ const ConsultarOpcionesEnvioTool: IProveedorTool = {
     const parsed = ArgsSchema.safeParse(args);
     if (!parsed.success) return { ok: false, error: "Argumentos inválidos para consultar_opciones_envio" };
 
-    const resultado = await obtenerOpcionesEnvioConConfianza({ instanciaId: ctx.instanciaId, ...parsed.data });
+    const { pais, estadoProvincia, provinciaEstado, distritoCiudad, corregimiento } = parsed.data;
+    const resultado = await obtenerOpcionesEnvioConConfianza({
+      instanciaId: ctx.instanciaId,
+      pais,
+      estadoProvincia: estadoProvincia ?? provinciaEstado,
+      distritoCiudad,
+      corregimiento,
+    });
 
     if (resultado.opciones.length === 0) {
       return {

@@ -242,6 +242,69 @@ export async function obtenerCandidatosEnvioPorZona(destino: DestinoEnvioZona): 
     }));
 }
 
+/**
+ * Ciudades/distritos con cobertura real dentro de una provincia.
+ *
+ * Existe para un caso concreto: si todas las zonas que cubren una provincia
+ * definen `distritoCiudad`, elegir solo la provincia no resuelve ninguna
+ * tarifa — y no debe resolverla, porque el precio difiere por ciudad (en
+ * Bocas del Toro, Changuinola $8.50 vs Isla Colón $10.50). Sin esta lista la
+ * UI solo podía decir "sin transportistas configurados", que es falso y manda
+ * a reconfigurar algo que ya está bien.
+ *
+ * Aplica los mismos filtros que obtenerCandidatosEnvioPorZona (zona y tarifa
+ * activas, transportista activo, vigencia) para no ofrecer una ciudad que
+ * después no devuelva ninguna opción.
+ */
+export async function listarCiudadesCubiertasPorProvincia(destino: DestinoEnvioZona): Promise<string[]> {
+  const { prisma } = await import("@/shared/db/prisma");
+
+  const paisId = await resolverPaisId(prisma, destino.instanciaId, destino.pais);
+  if (!paisId || !destino.estadoProvincia) return [];
+
+  const ubicaciones = await prisma.zonaEntregaUbicacion.findMany({
+    where: { paisId, zonaEntrega: { instanciaId: destino.instanciaId, activa: true } },
+    select: { zonaEntregaId: true, provinciaEstado: true, distritoCiudad: true },
+  });
+
+  const provinciaDestino = generarSlug(destino.estadoProvincia);
+  const nucleoDestino = nucleoAdministrativo(provinciaDestino);
+  const enLaProvincia = ubicaciones.filter((u) => {
+    if (!u.distritoCiudad?.trim()) return false;
+    if (!u.provinciaEstado) return true; // comodín de provincia
+    const slug = generarSlug(u.provinciaEstado);
+    return slug === provinciaDestino || nucleoAdministrativo(slug) === nucleoDestino;
+  });
+  if (enLaProvincia.length === 0) return [];
+
+  const ahora = new Date();
+  const tarifas = await prisma.tarifaTransportistaZona.findMany({
+    where: {
+      zonaEntregaId: { in: [...new Set(enLaProvincia.map((u) => u.zonaEntregaId))] },
+      activa: true,
+      instanciaId: destino.instanciaId,
+      transportista: {
+        activo: true,
+        ...(destino.transportistaId ? { id: destino.transportistaId } : {}),
+      },
+      OR: [{ vigenteDesde: null }, { vigenteDesde: { lte: ahora } }],
+    },
+    select: { zonaEntregaId: true, vigenteHasta: true },
+  });
+  const zonasConTarifa = new Set(
+    tarifas.filter((t) => !t.vigenteHasta || t.vigenteHasta >= ahora).map((t) => t.zonaEntregaId),
+  );
+
+  // Deduplicadas por slug, conservando el texto tal como está configurado.
+  const porSlug = new Map<string, string>();
+  for (const u of enLaProvincia) {
+    if (!zonasConTarifa.has(u.zonaEntregaId)) continue;
+    const ciudad = u.distritoCiudad!.trim();
+    if (ciudad) porSlug.set(generarSlug(ciudad), ciudad);
+  }
+  return [...porSlug.values()].sort((a, b) => a.localeCompare(b, "es"));
+}
+
 // 024-alias-ubicaciones-transportistas — matching con alias y coincidencia
 // aproximada (research.md §4). Deliberadamente NO comparte código con
 // obtenerCandidatosEnvioPorZona: esta última queda intacta línea por línea
@@ -277,6 +340,32 @@ interface AliasNivel {
 
 type ResultadoNivel = { coincide: false } | { coincide: true; confianza: ConfianzaMatch };
 
+// El catálogo de geografía guarda los nombres administrativos completos
+// ("Bocas del Toro Province", "Coclé Province"), pero nadie escribe así en una
+// conversación. La similitud tampoco salva la diferencia — "Bocas del Toro"
+// vs "Bocas del Toro Province" da 0.61 contra un umbral de 0.75, y "Coclé"
+// vs "Coclé Province" apenas 0.36 — así que sin esto ninguna provincia de
+// Panamá coincidía al escribirla de forma natural.
+//
+// Se aplica SOLO al comparar: `normalizarUbicacion` no cambia, porque sus
+// resultados están persistidos en ZonaEntregaUbicacion.nombreNormalizado y en
+// AliasUbicacion.valorNormalizado, y tocarla dejaría esas filas desalineadas
+// hasta un backfill.
+const SUFIJOS_ADMINISTRATIVOS = [
+  "province", "provincia", "department", "departamento",
+  "region", "state", "estado", "comarca", "district", "distrito",
+];
+
+// `normalizarUbicacion` colapsa todo lo no alfanumérico a "-", así que los
+// límites de palabra son guiones: "Bocas del Toro Province" → "bocas-del-toro-province".
+function nucleoAdministrativo(normalizado: string): string {
+  for (const sufijo of SUFIJOS_ADMINISTRATIVOS) {
+    if (normalizado.endsWith(`-${sufijo}`)) return normalizado.slice(0, -(sufijo.length + 1));
+    if (normalizado.startsWith(`${sufijo}-`)) return normalizado.slice(sufijo.length + 1);
+  }
+  return normalizado;
+}
+
 // Evalúa UN nivel geográfico (ej. provinciaEstado) del destino contra el
 // mismo nivel de una ubicación configurada. Un nivel vacío en la ubicación
 // sigue siendo comodín (EXACTA); un nivel definido que el destino no aporta
@@ -291,10 +380,17 @@ function evaluarNivel(
   if (!valorDestino) return { coincide: false };
 
   const destinoNormalizado = normalizarUbicacion(valorDestino);
-  if (normalizarUbicacion(valorUbicacion) === destinoNormalizado) return { coincide: true, confianza: "EXACTA" };
+  const ubicacionNormalizada = normalizarUbicacion(valorUbicacion);
+  if (ubicacionNormalizada === destinoNormalizado) return { coincide: true, confianza: "EXACTA" };
   if (aliasesDelCampo.some((a) => a.valorNormalizado === destinoNormalizado)) return { coincide: true, confianza: "ALIAS" };
 
-  const candidatos = [normalizarUbicacion(valorUbicacion), ...aliasesDelCampo.map((a) => a.valorNormalizado)];
+  // "Bocas del Toro" ≡ "Bocas del Toro Province": el sufijo administrativo no
+  // desambigua nada, así que la coincidencia sigue siendo EXACTA.
+  if (nucleoAdministrativo(ubicacionNormalizada) === nucleoAdministrativo(destinoNormalizado)) {
+    return { coincide: true, confianza: "EXACTA" };
+  }
+
+  const candidatos = [ubicacionNormalizada, ...aliasesDelCampo.map((a) => a.valorNormalizado)];
   const mejorSimilitud = Math.max(...candidatos.map((c) => similitud(destinoNormalizado, c)));
   if (destinoNormalizado.length >= 3 && mejorSimilitud >= UMBRAL_SIMILITUD_APROXIMADA) {
     return { coincide: true, confianza: "PROBABLE" };

@@ -118,6 +118,36 @@ describe("consultar_opciones_envio (024, Historia 1/3/5)", () => {
     expect(data.mensaje).toBeDefined();
   });
 
+  // El bug que esto protege: la tool declaraba `provinciaEstado` y lo pasaba
+  // con un spread a un destino cuyo campo es `estadoProvincia`. La provincia
+  // llegaba undefined y ninguna ubicación con provincia configurada podía
+  // coincidir — SIN_COINCIDENCIA siempre, con el transportista bien cargado.
+  describe("nombre del campo de provincia que llega al motor", () => {
+    beforeEach(() => {
+      obtenerOpcionesEnvioConConfianzaMock.mockResolvedValue({ confianza: "EXACTA", opciones: [opcion()] });
+    });
+
+    it("pasa `estadoProvincia` al motor, no una propiedad que este ignora", async () => {
+      const tool = registroHerramientas.get("consultar_opciones_envio")!;
+      await tool.execute({ estadoProvincia: "Bocas del Toro", distritoCiudad: "Changuinola" }, ctx);
+      expect(obtenerOpcionesEnvioConConfianzaMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          instanciaId: "instancia-1",
+          estadoProvincia: "Bocas del Toro",
+          distritoCiudad: "Changuinola",
+        }),
+      );
+    });
+
+    it("sigue aceptando el nombre viejo `provinciaEstado` como alias", async () => {
+      const tool = registroHerramientas.get("consultar_opciones_envio")!;
+      await tool.execute({ provinciaEstado: "Bocas del Toro" }, ctx);
+      expect(obtenerOpcionesEnvioConConfianzaMock).toHaveBeenCalledWith(
+        expect.objectContaining({ estadoProvincia: "Bocas del Toro" }),
+      );
+    });
+  });
+
   it("argumentos inválidos: error sin invocar el motor de matching", async () => {
     const tool = registroHerramientas.get("consultar_opciones_envio")!;
     const resultado = await tool.execute({ pais: 123 }, ctx);

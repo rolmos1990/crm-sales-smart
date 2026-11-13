@@ -217,6 +217,85 @@ describe("obtenerCandidatosEnvioPorZona (022, Historia 2/7 — research.md Decis
   });
 });
 
+// Elegir solo la provincia no resuelve tarifa cuando todas las zonas definen
+// distrito — y no debe resolverla, porque el precio difiere por ciudad. Esta
+// lista es lo que permite a la UI ofrecer las ciudades en vez de afirmar que
+// no hay transportistas configurados.
+describe("listarCiudadesCubiertasPorProvincia", () => {
+  const UBICACIONES_BOCAS = [
+    { zonaEntregaId: "zona-8-50", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Changuinola" },
+    { zonaEntregaId: "zona-8-50", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Almirante" },
+    { zonaEntregaId: "zona-10-50", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Isla Colón" },
+    { zonaEntregaId: "zona-otra", provinciaEstado: "Coclé Province", distritoCiudad: "Penonomé" },
+  ];
+
+  beforeEach(() => {
+    paisFindManyMock.mockReset().mockResolvedValue([{ id: "pais-1", nombre: "Panama" }]);
+    zonaUbicacionFindManyMock.mockReset().mockResolvedValue(UBICACIONES_BOCAS);
+    tarifaFindManyMock.mockReset().mockResolvedValue([
+      { zonaEntregaId: "zona-8-50", vigenteHasta: null },
+      { zonaEntregaId: "zona-10-50", vigenteHasta: null },
+    ]);
+    configFindUniqueMock.mockReset().mockResolvedValue(null);
+  });
+
+  it("lista las ciudades de la provincia pedida, ordenadas y sin las de otras provincias", async () => {
+    const { listarCiudadesCubiertasPorProvincia } = await import("./resolver-costo-envio");
+    const ciudades = await listarCiudadesCubiertasPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+    expect(ciudades).toEqual(["Almirante", "Changuinola", "Isla Colón"]);
+  });
+
+  it("acepta la provincia sin el sufijo administrativo", async () => {
+    const { listarCiudadesCubiertasPorProvincia } = await import("./resolver-costo-envio");
+    const ciudades = await listarCiudadesCubiertasPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro",
+    });
+    expect(ciudades).toEqual(["Almirante", "Changuinola", "Isla Colón"]);
+  });
+
+  it("omite las ciudades cuya zona no tiene ninguna tarifa activa", async () => {
+    tarifaFindManyMock.mockResolvedValue([{ zonaEntregaId: "zona-8-50", vigenteHasta: null }]);
+    const { listarCiudadesCubiertasPorProvincia } = await import("./resolver-costo-envio");
+    const ciudades = await listarCiudadesCubiertasPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+    expect(ciudades).toEqual(["Almirante", "Changuinola"]);
+  });
+
+  it("omite las tarifas ya vencidas", async () => {
+    tarifaFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "zona-8-50", vigenteHasta: new Date("2020-01-01") },
+      { zonaEntregaId: "zona-10-50", vigenteHasta: null },
+    ]);
+    const { listarCiudadesCubiertasPorProvincia } = await import("./resolver-costo-envio");
+    const ciudades = await listarCiudadesCubiertasPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+    expect(ciudades).toEqual(["Isla Colón"]);
+  });
+
+  it("devuelve vacío en una provincia sin cobertura — ahí el mensaje de 'sin transportistas' sí corresponde", async () => {
+    const { listarCiudadesCubiertasPorProvincia } = await import("./resolver-costo-envio");
+    const ciudades = await listarCiudadesCubiertasPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Guna Yala",
+    });
+    expect(ciudades).toEqual([]);
+  });
+
+  it("ignora las ubicaciones sin distrito — esas ya coinciden con la provincia sola", async () => {
+    zonaUbicacionFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "zona-8-50", provinciaEstado: "Bocas del Toro Province", distritoCiudad: null },
+    ]);
+    const { listarCiudadesCubiertasPorProvincia } = await import("./resolver-costo-envio");
+    const ciudades = await listarCiudadesCubiertasPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+    expect(ciudades).toEqual([]);
+  });
+});
+
 // 024-alias-ubicaciones-transportistas (T019) — niveles de confianza
 // EXACTA/ALIAS/PROBABLE/AMBIGUA/SIN_COINCIDENCIA.
 describe("obtenerOpcionesEnvioConConfianza (024, Historia 1/3/5 — research.md §4)", () => {
@@ -284,6 +363,61 @@ describe("obtenerOpcionesEnvioConConfianza (024, Historia 1/3/5 — research.md 
     const { obtenerOpcionesEnvioConConfianza } = await import("./resolver-costo-envio");
     const resultado = await obtenerOpcionesEnvioConConfianza({ instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "La Chorera" });
     expect(resultado.confianza).toBe("PROBABLE");
+  });
+
+  // El catálogo de geografía guarda "Bocas del Toro Province"; ningún cliente
+  // escribe el sufijo. Antes ni la igualdad ni la similitud lo salvaban
+  // (0.61 contra un umbral de 0.75), así que ninguna provincia de Panamá
+  // coincidía al nombrarla de forma natural.
+  describe("sufijo administrativo del catálogo de geografía", () => {
+    const UBICACION_BOCAS = {
+      zonaEntregaId: "zona-1",
+      provinciaEstado: "Bocas del Toro Province",
+      distritoCiudad: "Changuinola",
+      corregimiento: null,
+      sectorOCodigoPostal: null,
+      aliases: [],
+    };
+
+    beforeEach(() => {
+      zonaUbicacionFindManyMock.mockResolvedValue([UBICACION_BOCAS]);
+    });
+
+    it("la provincia sin el sufijo coincide EXACTA", async () => {
+      const { obtenerOpcionesEnvioConConfianza } = await import("./resolver-costo-envio");
+      const resultado = await obtenerOpcionesEnvioConConfianza({
+        instanciaId: "instancia-1", pais: "Panama",
+        estadoProvincia: "Bocas del Toro", distritoCiudad: "Changuinola",
+      });
+      expect(resultado.confianza).toBe("EXACTA");
+      expect(resultado.opciones).toHaveLength(1);
+    });
+
+    it("la provincia con el sufijo sigue coincidiendo EXACTA", async () => {
+      const { obtenerOpcionesEnvioConConfianza } = await import("./resolver-costo-envio");
+      const resultado = await obtenerOpcionesEnvioConConfianza({
+        instanciaId: "instancia-1", pais: "Panama",
+        estadoProvincia: "Bocas del Toro Province", distritoCiudad: "Changuinola",
+      });
+      expect(resultado.confianza).toBe("EXACTA");
+    });
+
+    it("quitar el sufijo no vuelve coincidente una provincia distinta", async () => {
+      const { obtenerOpcionesEnvioConConfianza } = await import("./resolver-costo-envio");
+      const resultado = await obtenerOpcionesEnvioConConfianza({
+        instanciaId: "instancia-1", pais: "Panama",
+        estadoProvincia: "Darién", distritoCiudad: "Changuinola",
+      });
+      expect(resultado).toEqual({ confianza: "SIN_COINCIDENCIA", opciones: [] });
+    });
+
+    it("sigue exigiendo el distrito cuando la ubicación lo tiene configurado", async () => {
+      const { obtenerOpcionesEnvioConConfianza } = await import("./resolver-costo-envio");
+      const resultado = await obtenerOpcionesEnvioConConfianza({
+        instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro",
+      });
+      expect(resultado).toEqual({ confianza: "SIN_COINCIDENCIA", opciones: [] });
+    });
   });
 
   it("SIN_COINCIDENCIA cuando el texto no se parece a ningún destino configurado", async () => {

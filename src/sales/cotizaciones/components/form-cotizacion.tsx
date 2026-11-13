@@ -25,7 +25,7 @@ import { SelectorPais } from "@/shared/entregas/components/selector-pais";
 import { SelectorEstadoProvincia } from "@/shared/entregas/components/selector-estado-provincia";
 import { obtenerModoGeograficoAction } from "@/configuracion/empresa/actions";
 import { obtenerCostoSugerido } from "@/shared/entregas/actions";
-import { obtenerOpcionesEnvioAction } from "@/sales/transportistas/tarifas/actions";
+import { obtenerOpcionesEnvioAction, listarCiudadesCubiertasAction } from "@/sales/transportistas/tarifas/actions";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -256,6 +256,26 @@ export function FormCotizacion({
       .finally(() => { if (!cancelado) setCargandoOpciones(false); });
     return () => { cancelado = true; };
   }, [estadoProvinciaEntregaId, ciudadEntrega, paisEntregaId, modoGeografico]);
+
+  // Si la provincia sola no resolvió ninguna tarifa, puede ser que sí haya
+  // cobertura pero el precio dependa de la ciudad (todas las zonas de esa
+  // provincia definen distrito). Se consultan las ciudades cubiertas para
+  // ofrecerlas, en vez de afirmar que no hay transportistas configurados.
+  const [ciudadesCubiertas, setCiudadesCubiertas] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!estadoProvinciaEntregaId || cargandoOpciones || opcionesEnvio.length > 0) {
+      setCiudadesCubiertas([]);
+      return;
+    }
+    let cancelado = false;
+    const paisIdEfectivo = modoGeografico?.modoGeografico === "UN_SOLO_PAIS" ? modoGeografico.paisOperacionId : paisEntregaId;
+    listarCiudadesCubiertasAction({
+      paisId: paisIdEfectivo,
+      estadoProvinciaId: estadoProvinciaEntregaId,
+    }).then((ciudades) => { if (!cancelado) setCiudadesCubiertas(ciudades); });
+    return () => { cancelado = true; };
+  }, [estadoProvinciaEntregaId, paisEntregaId, modoGeografico, cargandoOpciones, opcionesEnvio.length]);
 
   function elegirOpcionEnvio(opcion: (typeof opcionesEnvio)[number]) {
     form.setValue("entrega.transportistaId", opcion.transportistaId);
@@ -890,7 +910,14 @@ export function FormCotizacion({
                   )} />
                   <FormField control={form.control} name="entrega.ciudad" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Ciudad <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                      {/* Deja de ser opcional cuando la cobertura de esa
+                          provincia está definida ciudad por ciudad. */}
+                      <FormLabel>
+                        Ciudad{" "}
+                        <span className="text-muted-foreground font-normal">
+                          {ciudadesCubiertas.length > 0 ? "(necesaria para cotizar el envío)" : "(opcional)"}
+                        </span>
+                      </FormLabel>
                       <FormControl>
                         <Input placeholder="Ciudad" {...field} value={field.value ?? ""} />
                       </FormControl>
@@ -941,11 +968,33 @@ export function FormCotizacion({
                           </li>
                         ))}
                       </ul>
-                    ) : !cargandoOpciones ? (
+                    ) : cargandoOpciones ? null : ciudadesCubiertas.length > 0 ? (
+                      // Hay cobertura en la provincia, pero el precio depende
+                      // de la ciudad: se ofrecen las que están configuradas en
+                      // vez de decir que no hay transportistas.
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Este destino se cotiza por ciudad. Elige una para ver las opciones y su precio:
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ciudadesCubiertas.map((ciudad) => (
+                            <Button
+                              key={ciudad}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => form.setValue("entrega.ciudad", ciudad, { shouldDirty: true })}
+                            >
+                              {ciudad}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
                       <p className="text-sm text-muted-foreground">
                         Sin transportistas configurados para este destino — costo de entrega por confirmar.
                       </p>
-                    ) : null}
+                    )}
 
                     <div className="flex items-center gap-2 pt-1 border-t border-border">
                       <Checkbox

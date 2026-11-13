@@ -305,3 +305,30 @@ export async function obtenerOpcionesEnvioAction(destino: {
     transportistaId: destino.transportistaId ?? null,
   });
 }
+
+/** Ciudades con cobertura dentro de una provincia — se consulta solo cuando
+ *  la provincia sola no resolvió ninguna opción, para distinguir "no hay
+ *  cobertura" de "el costo depende de la ciudad". */
+export async function listarCiudadesCubiertasAction(destino: {
+  estadoProvinciaId?: string | null;
+  paisId?: string | null;
+  transportistaId?: string | null;
+}): Promise<string[]> {
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return [];
+  if (!destino.estadoProvinciaId) return [];
+
+  const [pais, estado] = await Promise.all([
+    destino.paisId ? prisma.pais.findUnique({ where: { id: destino.paisId }, select: { nombre: true } }) : null,
+    prisma.estadoProvincia.findUnique({ where: { id: destino.estadoProvinciaId }, select: { nombre: true } }),
+  ]);
+  if (!estado) return [];
+
+  const { listarCiudadesCubiertasPorProvincia } = await import("@/shared/entregas/resolver-costo-envio");
+  return listarCiudadesCubiertasPorProvincia({
+    instanciaId: auth.sesion.instanciaId,
+    pais: pais?.nombre ?? null,
+    estadoProvincia: estado.nombre,
+    transportistaId: destino.transportistaId ?? null,
+  });
+}
