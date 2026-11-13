@@ -8,9 +8,12 @@
  * el vínculo. Después el pedido nacía sin oportunidad y el disparador "Cerrar
  * oportunidad relacionada" no tenía a quién cerrar.
  *
- * Solo repara lo inequívoco: una cotización sin oportunidad cuyo contacto
- * tiene EXACTAMENTE una. Con dos o más no se adivina — se informa y se deja.
- * También propaga el vínculo al pedido que ya haya generado.
+ * Hace dos pasadas:
+ *   1. Cotización sin oportunidad cuyo contacto tiene EXACTAMENTE una. Con dos
+ *      o más no se adivina — se informa y se deja.
+ *   2. Pedido sin oportunidad cuya cotización sí la tiene: generados antes de
+ *      que generarPedidoDesdeCotizacion copiara el campo. Acá no hay nada que
+ *      adivinar, solo propagar.
  *
  * Idempotente: solo toca `oportunidadId IS NULL`.
  *
@@ -28,8 +31,12 @@ interface PrismaLike {
   cotizacion: { findMany: (args: any) => Promise<any[]>; update: (args: any) => Promise<unknown> };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   oportunidad: { findMany: (args: any) => Promise<any[]> };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  pedido: { updateMany: (args: any) => Promise<{ count: number }> };
+  pedido: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findMany: (args: any) => Promise<any[]>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updateMany: (args: any) => Promise<{ count: number }>;
+  };
 }
 
 export async function ejecutarBackfill(prisma: PrismaLike, opciones: { dryRun?: boolean } = {}) {
@@ -71,11 +78,37 @@ export async function ejecutarBackfill(prisma: PrismaLike, opciones: { dryRun?: 
     console.log(`  ${opciones.dryRun ? "·" : "✓"} ${cot.numero} → "${ops[0].titulo}"`);
   }
 
+  // Segunda pasada: pedidos sin oportunidad cuya cotización SÍ la tiene. Son
+  // los generados antes de que generarPedidoDesdeCotizacion copiara el campo
+  // (ver el comentario "antes se perdía porque nunca se asignaba acá"). No
+  // depende de la pasada anterior: la cotización ya tenía el vínculo y solo
+  // falta propagarlo, así que no hay nada que adivinar.
+  const pedidosHuerfanos = await prisma.pedido.findMany({
+    where: { oportunidadId: null, cotizacion: { oportunidadId: { not: null } } },
+    select: { id: true, numero: true, cotizacion: { select: { numero: true, oportunidadId: true } } },
+    orderBy: { creadoEn: "asc" },
+  });
+
+  let pedidosVinculados = 0;
+  for (const ped of pedidosHuerfanos) {
+    const oportunidadId = ped.cotizacion?.oportunidadId;
+    if (!oportunidadId) continue;
+    if (!opciones.dryRun) {
+      await prisma.pedido.updateMany({
+        where: { id: ped.id, oportunidadId: null },
+        data: { oportunidadId },
+      });
+    }
+    pedidosVinculados++;
+    console.log(`  ${opciones.dryRun ? "·" : "✓"} ${ped.numero} hereda la oportunidad de ${ped.cotizacion?.numero}`);
+  }
+
   console.log(
-    `\nListo: ${vinculadas} vinculada(s)${opciones.dryRun ? " (dry-run, nada se escribió)" : ""}` +
+    `\nListo: ${vinculadas} cotización(es) vinculada(s) · ${pedidosVinculados} pedido(s) propagado(s)` +
+      `${opciones.dryRun ? " (dry-run, nada se escribió)" : ""}` +
       ` · ${ambiguas} ambigua(s) · ${sinOportunidad} sin oportunidad del contacto.`,
   );
-  return { vinculadas, ambiguas, sinOportunidad, total: huerfanas.length };
+  return { vinculadas, pedidosVinculados, ambiguas, sinOportunidad, total: huerfanas.length };
 }
 
 async function main() {

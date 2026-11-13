@@ -4,6 +4,7 @@ import { ejecutarBackfill } from "./backfill-oportunidad-cotizacion";
 function prismaFalso(
   cotizaciones: { id: string; numero: string; contactoId: string }[],
   oportunidadesPorContacto: Record<string, { id: string; titulo: string }[]>,
+  pedidosHuerfanos: { id: string; numero: string; cotizacion: { numero: string; oportunidadId: string | null } }[] = [],
 ) {
   const updates: { id: string; oportunidadId: string }[] = [];
   const pedidoUpdates: unknown[] = [];
@@ -25,6 +26,7 @@ function prismaFalso(
         ),
       },
       pedido: {
+        findMany: vi.fn().mockResolvedValue(pedidosHuerfanos),
         updateMany: vi.fn((args: unknown) => {
           pedidoUpdates.push(args);
           return Promise.resolve({ count: 1 });
@@ -86,6 +88,44 @@ describe("backfill del vínculo cotización → oportunidad", () => {
     expect(r.vinculadas).toBe(1);
     expect(updates).toEqual([]);
     expect(pedidoUpdates).toEqual([]);
+  });
+
+  // Segunda pasada: pedidos generados antes de que
+  // generarPedidoDesdeCotizacion copiara el campo. La cotización ya tiene el
+  // vínculo; solo falta bajarlo al pedido.
+  it("propaga a un pedido huérfano cuya cotización sí tiene oportunidad", async () => {
+    const { prisma, pedidoUpdates } = prismaFalso([], {}, [
+      { id: "p9", numero: "PED-0009", cotizacion: { numero: "COT-0009", oportunidadId: "op-9" } },
+    ]);
+
+    const r = await ejecutarBackfill(prisma);
+
+    expect(r.pedidosVinculados).toBe(1);
+    expect(pedidoUpdates).toEqual([
+      { where: { id: "p9", oportunidadId: null }, data: { oportunidadId: "op-9" } },
+    ]);
+  });
+
+  it("--dry-run tampoco escribe en la segunda pasada", async () => {
+    const { prisma, pedidoUpdates } = prismaFalso([], {}, [
+      { id: "p9", numero: "PED-0009", cotizacion: { numero: "COT-0009", oportunidadId: "op-9" } },
+    ]);
+
+    const r = await ejecutarBackfill(prisma, { dryRun: true });
+
+    expect(r.pedidosVinculados).toBe(1);
+    expect(pedidoUpdates).toEqual([]);
+  });
+
+  it("solo mira pedidos sin oportunidad cuya cotización sí la tiene", async () => {
+    const { prisma } = prismaFalso([], {});
+
+    await ejecutarBackfill(prisma);
+
+    expect(prisma.pedido.findMany.mock.calls[0][0].where).toEqual({
+      oportunidadId: null,
+      cotizacion: { oportunidadId: { not: null } },
+    });
   });
 
   it("solo busca cotizaciones sin oportunidad y con contacto", async () => {
