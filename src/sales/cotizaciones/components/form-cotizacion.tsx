@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   Plus, Trash2, Minus, X, FileText, Mail, Phone, Pencil, Package, HelpCircle, PanelRightClose,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,11 @@ import { SelectorEstadoProvincia } from "@/shared/entregas/components/selector-e
 import { obtenerModoGeograficoAction } from "@/configuracion/empresa/actions";
 import { obtenerCostoSugerido } from "@/shared/entregas/actions";
 import { obtenerOpcionesEnvioAction, listarCiudadesCubiertasAction } from "@/sales/transportistas/tarifas/actions";
+import {
+  camposRequeridosFaltantes,
+  describirCamposFaltantes,
+  requisitosDeCondiciones,
+} from "@/shared/entregas/requisitos-transportista";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmacionDialog } from "@/shared/ui/confirmacion-dialog";
@@ -62,6 +68,8 @@ export interface TransportistaResumen {
   nombre: string;
   tipo: string;
   activo: boolean;
+  /** null cuando nunca se configuraron: en ese caso no exige nada (ver requisitosDeCondiciones). */
+  condiciones?: { requiereDireccionCompleta: boolean; requiereIdentificacion: boolean } | null;
 }
 
 interface FormCotizacionProps {
@@ -206,6 +214,7 @@ export function FormCotizacion({
       entrega: {
         metodoEntrega: "COURIER_EXTERNO", estadoEntrega: "PENDIENTE", costoEnvio: 0,
         paisId: null, estadoProvinciaId: null, ciudad: "",
+        direccionEntrega: "", identificacion: "",
         // 022-transportistas-zonas-tarifas
         corregimiento: "", sectorOCodigoPostal: "",
         zonaEntregaId: null, zonaAsignadaManualmente: false,
@@ -254,6 +263,8 @@ export function FormCotizacion({
   const estadoProvinciaEntregaId = form.watch("entrega.estadoProvinciaId");
   const transportistaIdEntrega = form.watch("entrega.transportistaId");
   const ciudadEntrega = form.watch("entrega.ciudad");
+  const direccionEntregaValor = form.watch("entrega.direccionEntrega");
+  const identificacionValor = form.watch("entrega.identificacion");
 
   // 022-transportistas-zonas-tarifas — opciones de envío resueltas por zona
   // (FR-036/037), ordenadas por precio ascendente. Distinto del "Sugerir"
@@ -408,6 +419,18 @@ export function FormCotizacion({
   };
 
   const transportistasFiltrados = transportistas.filter((t) => t.activo && t.tipo === metodoEntrega);
+
+  // Qué datos extra exige el transportista elegido. Se muestran los campos y
+  // se avisa si faltan, pero nunca se bloquea el guardado: una cotización se
+  // redacta mientras se le pregunta al cliente. El bloqueo ocurre al aprobar
+  // (aprobarCotizacion), mismo criterio que el costo de envío por confirmar.
+  const transportistaElegido = transportistas.find((t) => t.id === transportistaIdEntrega);
+  const requisitos = requisitosDeCondiciones(transportistaElegido?.condiciones);
+  const faltantesEntrega = camposRequeridosFaltantes(requisitos, {
+    direccionEntrega: direccionEntregaValor,
+    identificacion: identificacionValor,
+  });
+  const avisoRequisitos = describirCamposFaltantes(faltantesEntrega, transportistaElegido?.nombre);
 
   const guardar = async (datos: CrearCotizacionInput) => {
     if (modoEdicion) {
@@ -990,6 +1013,53 @@ export function FormCotizacion({
                     </FormItem>
                   )} />
                 </div>
+
+                {/* Campos que exige el transportista elegido (ver
+                    requisitos-transportista.ts). Aparecen solo si los pide:
+                    un courier que entrega en su oficina no necesita calle. */}
+                {(requisitos.requiereDireccionCompleta || requisitos.requiereIdentificacion) && (
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
+                    <p className="text-xs text-muted-foreground">
+                      Datos que {transportistaElegido?.nombre ?? "el transportista"} necesita para entregar.
+                    </p>
+
+                    {requisitos.requiereDireccionCompleta && (
+                      <FormField control={form.control} name="entrega.direccionEntrega" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Dirección de entrega</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              rows={2}
+                              placeholder="Calle, número, edificio, referencia..."
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )} />
+                    )}
+
+                    {requisitos.requiereIdentificacion && (
+                      <FormField control={form.control} name="entrega.identificacion" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Identificación de quien recibe</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Cédula, pasaporte o RUC" {...field} value={field.value ?? ""} />
+                          </FormControl>
+                        </FormItem>
+                      )} />
+                    )}
+
+                    {/* No bloquea el guardado — avisa que la cotización no se
+                        va a poder aprobar hasta completarlo. */}
+                    {avisoRequisitos && (
+                      <p className="flex items-start gap-2 text-xs text-warning">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{avisoRequisitos}. Podés guardar igual, pero hace falta para aprobar la cotización.</span>
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* 022-transportistas-zonas-tarifas — opciones de envío
                     resueltas por zona (FR-036/037): lista los transportistas

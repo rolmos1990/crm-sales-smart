@@ -162,6 +162,8 @@ export async function generarPedidoDesdeCotizacion(
             // para recibirlos acá; sin copiarlos, el pedido nacía sin la zona
             // ni la tarifa con las que se cotizó y operaciones perdía el
             // rastro de por qué se cobró ese monto.
+            direccionEntrega:          cotizacion.entrega.direccionEntrega,
+            identificacion:            cotizacion.entrega.identificacion,
             corregimiento:             cotizacion.entrega.corregimiento,
             sectorOCodigoPostal:       cotizacion.entrega.sectorOCodigoPostal,
             zonaEntregaId:             cotizacion.entrega.zonaEntregaId,

@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { generarSlug } from "@/shared/lib/slug";
 import {
+  camposRequeridosFaltantes,
+  describirCamposFaltantes,
+  type CampoRequerido,
+} from "@/shared/entregas/requisitos-transportista";
+import {
   nucleoAdministrativo,
   obtenerOpcionesEnvioConConfianza,
   resolverPaisId,
@@ -42,6 +47,11 @@ export const EntregaIASchema = z.object({
   distritoCiudad: z.string().optional(),
   corregimiento: z.string().optional(),
   sectorOCodigoPostal: z.string().optional(),
+  // Exigidos por las condiciones del transportista elegido. El agente los
+  // pide en la conversación; si no los tiene, el documento se crea igual y
+  // la tool le devuelve qué falta (ver camposRequeridosFaltantes).
+  direccionEntrega: z.string().max(400).optional(),
+  identificacion: z.string().max(60).optional(),
   transportista: z.string().optional(),
   servicio: z.string().optional(),
   nombreDestinatario: z.string().max(200).optional(),
@@ -60,6 +70,8 @@ export interface DatosEntregaPersistibles {
   paisId: string | null;
   estadoProvinciaId: string | null;
   ciudad: string | null;
+  direccionEntrega: string | null;
+  identificacion: string | null;
   corregimiento: string | null;
   sectorOCodigoPostal: string | null;
   zonaEntregaId: string | null;
@@ -80,6 +92,14 @@ export interface EntregaResueltaIA {
   servicioNombre: string | null;
   /** Motivo por el que no se pudo fijar transportista/tarifa, para devolvérselo al agente. */
   motivoSinConfirmar: string | null;
+  /**
+   * Campos que el transportista resuelto exige y el agente no aportó. El
+   * documento se crea igual (decisión de producto: no trabar al agente) pero
+   * la tool le avisa qué pedirle al cliente, y aprobarCotizacion lo bloquea
+   * después. Vacío cuando no hay transportista resuelto: sin transportista no
+   * se sabe qué exige.
+   */
+  camposFaltantes: CampoRequerido[];
 }
 
 /** Transportistas y servicios se comparan por nombre literal — no son nombres administrativos. */
@@ -132,6 +152,8 @@ export async function resolverEntregaIA(
     paisId,
     estadoProvinciaId,
     ciudad: entrega.distritoCiudad ?? null,
+    direccionEntrega: entrega.direccionEntrega ?? null,
+    identificacion: entrega.identificacion ?? null,
     corregimiento: entrega.corregimiento ?? null,
     sectorOCodigoPostal: entrega.sectorOCodigoPostal ?? null,
     zonaAsignadaManualmente: false as const,
@@ -157,6 +179,7 @@ export async function resolverEntregaIA(
       transportistaNombre: null,
       servicioNombre: null,
       motivoSinConfirmar: null,
+      camposFaltantes: [],
     };
   }
 
@@ -176,6 +199,7 @@ export async function resolverEntregaIA(
     transportistaNombre: null,
     servicioNombre: null,
     motivoSinConfirmar: motivo,
+    camposFaltantes: [],
   });
 
   const resultado = await obtenerOpcionesEnvioConConfianza({
@@ -216,7 +240,11 @@ export async function resolverEntregaIA(
   }
 
   const opcion = filtrados[0];
+
   return {
+    // Los requisitos viajan en la opción ya resuelta — misma fuente que vio el
+    // agente al cotizar con consultar_opciones_envio, sin una query extra.
+    camposFaltantes: camposRequeridosFaltantes(opcion, base),
     datos: {
       ...base,
       // El tipo de transportista usa el mismo enum que MetodoEntrega (ver
@@ -258,6 +286,14 @@ export function describirEntrega(entrega: EntregaResueltaIA, moneda: string): Re
       : {
           avisoEntrega: `${entrega.motivoSinConfirmar}. El documento quedó con el destino registrado y el costo de entrega por confirmar (${moneda} 0.00): no informes un costo de envío al cliente y avisale que un asesor se lo confirma.`,
         }),
+    // El documento se creó, pero no se puede aprobar sin estos datos: se le
+    // dice al agente exactamente qué pedir en la conversación.
+    ...(entrega.camposFaltantes.length > 0
+      ? {
+          datosPendientes: entrega.camposFaltantes,
+          avisoDatosPendientes: `${describirCamposFaltantes(entrega.camposFaltantes, entrega.transportistaNombre)} para poder entregar. Pedíselos al cliente en la conversación: sin eso, el documento no se puede aprobar.`,
+        }
+      : {}),
   };
 }
 
@@ -265,7 +301,7 @@ export function describirEntrega(entrega: EntregaResueltaIA, moneda: string): Re
 export const ENTREGA_INPUT_SCHEMA = {
   type: "object",
   description:
-    "Método de entrega del documento. Completalo con los mismos valores que devolvió consultar_opciones_envio (nombres, nunca IDs): el servidor vuelve a resolver el destino y asigna transportista, zona, tarifa y costo. Si no lo mandás, el documento queda sin entrega y un humano tiene que cargarla a mano.",
+    "Método de entrega del documento. Completalo con los mismos valores que devolvió consultar_opciones_envio (nombres, nunca IDs): el servidor vuelve a resolver el destino y asigna transportista, zona, tarifa y costo. Si no lo mandás, el documento queda sin entrega y un humano tiene que cargarla a mano. Algunos transportistas exigen además direccionEntrega y/o identificacion: consultar_opciones_envio te dice cuáles en `requiere`.",
   properties: {
     metodoEntrega: {
       type: "string",
@@ -287,6 +323,16 @@ export const ENTREGA_INPUT_SCHEMA = {
       type: "string",
       description:
         "Opcional — nombre de quien recibe el envío, si el cliente indicó que lo recibe otra persona (un familiar, recepción, el encargado del local). No lo completes con el nombre del cliente.",
+    },
+    direccionEntrega: {
+      type: "string",
+      description:
+        "Dirección exacta de entrega (calle, número, edificio, referencias). Solo la exigen algunos transportistas — consultar_opciones_envio lo indica en `requiere`. Es distinta del distrito/ciudad: esto es la puerta a la que se entrega.",
+    },
+    identificacion: {
+      type: "string",
+      description:
+        "Identificación de quien recibe (cédula, pasaporte o RUC, según el país). Solo la exigen algunos transportistas — consultar_opciones_envio lo indica en `requiere`. Texto libre, copiá tal cual lo que dio el cliente.",
     },
     observaciones: { type: "string", description: "Notas de entrega (referencias de dirección, horarios, etc.)" },
   },

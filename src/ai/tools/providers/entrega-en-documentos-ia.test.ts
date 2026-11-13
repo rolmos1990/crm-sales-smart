@@ -53,6 +53,8 @@ const ENTREGA_RESUELTA: EntregaResueltaIA = {
     paisId: "pais-pa",
     estadoProvinciaId: "ep-chiriqui",
     ciudad: "David",
+    direccionEntrega: null,
+    identificacion: null,
     corregimiento: null,
     sectorOCodigoPostal: null,
     zonaEntregaId: "zona-1",
@@ -67,6 +69,7 @@ const ENTREGA_RESUELTA: EntregaResueltaIA = {
   transportistaNombre: "Uno Express",
   servicioNombre: "Estándar",
   motivoSinConfirmar: null,
+  camposFaltantes: [],
 };
 
 beforeEach(() => {

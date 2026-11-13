@@ -32,6 +32,7 @@ export async function guardarCondicionesTransportista(datos: unknown): Promise<R
     permiteEntregaMismoDia: campos.permiteEntregaMismoDia,
     pesoMaximoKg: campos.pesoMaximoKg ?? null,
     requiereDireccionCompleta: campos.requiereDireccionCompleta,
+    requiereIdentificacion: campos.requiereIdentificacion,
     permiteArticulosFragiles: campos.permiteArticulosFragiles,
     permitePagoContraEntrega: campos.permitePagoContraEntrega,
     observaciones: campos.observaciones || null,

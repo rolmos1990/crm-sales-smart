@@ -21,6 +21,8 @@ export interface EntregaGuardada {
   paisId: string | null;
   estadoProvinciaId: string | null;
   ciudad: string | null;
+  direccionEntrega: string | null;
+  identificacion: string | null;
   corregimiento: string | null;
   sectorOCodigoPostal: string | null;
   zonaEntregaId: string | null;
@@ -51,6 +53,9 @@ export function entregaGuardadaAFormulario(
     paisId: entrega?.paisId ?? null,
     estadoProvinciaId: entrega?.estadoProvinciaId ?? null,
     ciudad: entrega?.ciudad ?? "",
+    // Lo que falte aca no solo no se muestra: se borra al guardar.
+    direccionEntrega: entrega?.direccionEntrega ?? "",
+    identificacion: entrega?.identificacion ?? "",
     // 022-transportistas-zonas-tarifas — snapshot de envío.
     corregimiento: entrega?.corregimiento ?? "",
     sectorOCodigoPostal: entrega?.sectorOCodigoPostal ?? "",

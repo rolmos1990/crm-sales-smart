@@ -51,6 +51,7 @@ export interface EntregaCotizacionTexto {
   transportistaNombre?: string | null;
   servicioNombre?: string | null;
   ciudad?: string | null;
+  direccionEntrega?: string | null;
   estadoProvinciaNombre?: string | null;
   /** false = "por confirmar": no se anuncia un costo que todavía no es firme. */
   costoEnvioConfirmado?: boolean;
@@ -117,6 +118,7 @@ export function construirTextoCotizacion(c: CotizacionTexto): string {
     partes.push("");
     partes.push("ENTREGA:");
     if (envio.nombreDestinatario) partes.push(`Recibe: ${envio.nombreDestinatario}`);
+    if (envio.direccionEntrega) partes.push(`Dirección: ${envio.direccionEntrega}`);
     if (destino) partes.push(`Destino: ${destino}`);
     if (envio.transportistaNombre) {
       const servicio = envio.servicioNombre ? ` (${envio.servicioNombre})` : "";

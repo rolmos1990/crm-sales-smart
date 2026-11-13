@@ -42,6 +42,8 @@ function opcion(over: Partial<OpcionEnvioConConfianza> = {}): OpcionEnvioConConf
     aceptaPagoContraEntrega: true,
     diasEntrega: [],
     horaLimiteMismoDia: null,
+    requiereDireccionCompleta: false,
+    requiereIdentificacion: false,
     ...over,
   };
 }
@@ -213,3 +215,100 @@ describe("describirEntrega", () => {
     expect(avisoEntrega).toContain("no informes un costo de envío al cliente");
   });
 });
+
+// Decisión de producto: el agente no se traba. Si el transportista exige
+// dirección o identificación y el cliente todavía no las dio, el documento se
+// crea igual y la tool le devuelve qué pedir — el bloqueo real ocurre recién
+// en aprobarCotizacion.
+describe("resolverEntregaIA — datos que exige el transportista", () => {
+  const EXIGENTE = { requiereDireccionCompleta: true, requiereIdentificacion: true };
+
+  it("sin los datos, resuelve el envío igual y reporta qué falta", async () => {
+    obtenerOpcionesEnvioConConfianzaMock.mockResolvedValue({
+      confianza: "EXACTA",
+      opciones: [opcion(EXIGENTE)],
+    });
+
+    const r = await resolverEntregaIA("instancia-1", { estadoProvincia: "Chiriquí", distritoCiudad: "David" });
+
+    // El costo sí quedó resuelto: lo que falta no impide cotizar.
+    expect(r.confirmado).toBe(true);
+    expect(r.costoEnvio).toBe(8.5);
+    expect(r.camposFaltantes).toEqual(["direccionEntrega", "identificacion"]);
+  });
+
+  it("con los datos que mandó el agente, no falta nada y se persisten", async () => {
+    obtenerOpcionesEnvioConConfianzaMock.mockResolvedValue({
+      confianza: "EXACTA",
+      opciones: [opcion(EXIGENTE)],
+    });
+
+    const r = await resolverEntregaIA("instancia-1", {
+      estadoProvincia: "Chiriquí",
+      distritoCiudad: "David",
+      direccionEntrega: "Calle 4ta, casa 12",
+      identificacion: "8-888-8888",
+    });
+
+    expect(r.camposFaltantes).toEqual([]);
+    expect(r.datos.direccionEntrega).toBe("Calle 4ta, casa 12");
+    expect(r.datos.identificacion).toBe("8-888-8888");
+  });
+
+  it("un transportista que no los exige no los pide aunque vengan vacíos", async () => {
+    obtenerOpcionesEnvioConConfianzaMock.mockResolvedValue({ confianza: "EXACTA", opciones: [opcion()] });
+
+    const r = await resolverEntregaIA("instancia-1", { estadoProvincia: "Chiriquí", distritoCiudad: "David" });
+
+    expect(r.camposFaltantes).toEqual([]);
+  });
+
+  it("sin transportista resuelto no se inventa qué exige", async () => {
+    obtenerOpcionesEnvioConConfianzaMock.mockResolvedValue({ confianza: "SIN_COINCIDENCIA", opciones: [] });
+
+    const r = await resolverEntregaIA("instancia-1", { estadoProvincia: "Narnia" });
+
+    expect(r.confirmado).toBe(false);
+    expect(r.camposFaltantes).toEqual([]);
+  });
+});
+
+describe("describirEntrega — aviso de datos pendientes", () => {
+  it("le dice al agente qué pedir, nombrando al transportista", () => {
+    const d = describirEntrega(
+      {
+        datos: { direccionEntrega: null, identificacion: null } as never,
+        costoEnvio: 8.5,
+        confirmado: true,
+        transportistaNombre: "ServiEntrega",
+        servicioNombre: "Estándar",
+        motivoSinConfirmar: null,
+        camposFaltantes: ["direccionEntrega"],
+      },
+      "USD",
+    );
+
+    expect(d.datosPendientes).toEqual(["direccionEntrega"]);
+    expect(d.avisoDatosPendientes).toContain("ServiEntrega requiere dirección de entrega");
+    expect(d.avisoDatosPendientes).toContain("no se puede aprobar");
+  });
+
+  it("sin nada pendiente no agrega ruido a la respuesta", () => {
+    const d = describirEntrega(
+      {
+        datos: {} as never,
+        costoEnvio: 8.5,
+        confirmado: true,
+        transportistaNombre: "UnoExpress",
+        servicioNombre: "Estándar",
+        motivoSinConfirmar: null,
+        camposFaltantes: [],
+      },
+      "USD",
+    );
+
+    expect(d.datosPendientes).toBeUndefined();
+    expect(d.avisoDatosPendientes).toBeUndefined();
+  });
+});
+

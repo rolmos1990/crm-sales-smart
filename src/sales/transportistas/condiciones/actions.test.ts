@@ -28,6 +28,7 @@ const DATOS_BASE = {
   tiempoPreparacionDias: 1,
   permiteEntregaMismoDia: true,
   requiereDireccionCompleta: true,
+  requiereIdentificacion: false,
   permiteArticulosFragiles: true,
   permitePagoContraEntrega: false,
 };

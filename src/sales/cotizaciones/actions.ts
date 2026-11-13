@@ -11,6 +11,10 @@ import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
 import type { CrearCotizacionInput } from "./schema";
+import {
+  camposRequeridosFaltantes,
+  describirCamposFaltantes,
+} from "@/shared/entregas/requisitos-transportista";
 import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad, obtenerCotizacionPorId } from "./queries";
 import { construirTextoCotizacion } from "./texto-cotizacion";
 import { cotizacionADefaultValues } from "./mapeo-entrega";
@@ -313,6 +317,9 @@ export async function crearCotizacion(datos: unknown): Promise<ResultadoAccion<C
           paisId: await resolverPaisIdEntrega(entrega!.paisId, sesion.instanciaId),
           estadoProvinciaId: entrega!.estadoProvinciaId || null,
           ciudad: entrega!.ciudad || null,
+          // Exigidos segun las condiciones del transportista (requisitos-transportista.ts).
+          direccionEntrega: entrega!.direccionEntrega || null,
+          identificacion: entrega!.identificacion || null,
           // 022-transportistas-zonas-tarifas
           corregimiento: entrega!.corregimiento || null,
           sectorOCodigoPostal: entrega!.sectorOCodigoPostal || null,
@@ -475,6 +482,9 @@ export async function actualizarCotizacion(id: string, datos: unknown): Promise<
         paisId: await resolverPaisIdEntrega(entrega.paisId, sesion.instanciaId),
         estadoProvinciaId: entrega.estadoProvinciaId || null,
         ciudad: entrega.ciudad || null,
+        // Exigidos segun las condiciones del transportista (requisitos-transportista.ts).
+        direccionEntrega: entrega.direccionEntrega || null,
+        identificacion: entrega.identificacion || null,
         // 022-transportistas-zonas-tarifas
         corregimiento: entrega.corregimiento || null,
         sectorOCodigoPostal: entrega.sectorOCodigoPostal || null,
@@ -740,7 +750,19 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<voi
             producto: { select: { id: true, nombre: true, manejaStock: true, cantidadDisponible: true } },
           },
         },
-        entrega: { select: { costoEnvioConfirmado: true } },
+        entrega: {
+          select: {
+            costoEnvioConfirmado: true,
+            direccionEntrega: true,
+            identificacion: true,
+            transportista: {
+              select: {
+                nombre: true,
+                condiciones: { select: { requiereDireccionCompleta: true, requiereIdentificacion: true } },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -758,6 +780,21 @@ export async function aprobarCotizacion(id: string): Promise<ResultadoAccion<voi
       if (!config?.permiteConvertirSinConfirmarCostoEnvio) {
         return { exito: false, error: "Confirma el costo de envío antes de convertir esta cotización en pedido" };
       }
+    }
+
+    // Mismo criterio que el costo de envío: la cotización se redacta libre
+    // —el formulario solo avisa— pero no se convierte en pedido sin los datos
+    // que el transportista necesita para entregar. Única fuente del criterio:
+    // requisitos-transportista.ts, compartida con el formulario y el agente.
+    const faltantesEntrega = camposRequeridosFaltantes(
+      cotizacion.entrega?.transportista?.condiciones,
+      cotizacion.entrega,
+    );
+    if (faltantesEntrega.length > 0) {
+      return {
+        exito: false,
+        error: `${describirCamposFaltantes(faltantesEntrega, cotizacion.entrega?.transportista?.nombre)} para poder entregar. Completalo en la cotización antes de aprobarla.`,
+      };
     }
 
     // Validar stock antes de hacer cualquier cambio. Un combo se valida contra

@@ -320,6 +320,11 @@ export interface OpcionEnvioConConfianza extends CandidatoEnvioZona {
   aceptaPagoContraEntrega: boolean;
   diasEntrega: unknown;
   horaLimiteMismoDia: string | null;
+  // Qué datos extra del cliente exige este transportista para poder entregar
+  // (ver requisitos-transportista.ts). Viajan con la opción para que el
+  // agente los pida antes de cotizar, sin una query extra.
+  requiereDireccionCompleta: boolean;
+  requiereIdentificacion: boolean;
 }
 
 export interface ResultadoOpcionesEnvio {
@@ -494,6 +499,8 @@ export async function obtenerOpcionesEnvioConConfianza(destino: DestinoEnvioZona
       aceptaPagoContraEntrega: t.transportista.condiciones?.permitePagoContraEntrega ?? false,
       diasEntrega: t.transportista.condiciones?.diasEntrega ?? [],
       horaLimiteMismoDia: t.transportista.condiciones?.horaLimiteMismoDia ?? null,
+      requiereDireccionCompleta: t.transportista.condiciones?.requiereDireccionCompleta ?? false,
+      requiereIdentificacion: t.transportista.condiciones?.requiereIdentificacion ?? false,
     }))
     .sort((a, b) => a.precioCliente - b.precioCliente);
 

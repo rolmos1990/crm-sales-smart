@@ -95,6 +95,12 @@ export const ActualizarEntregaPedidoSchema = z.object({
   paisId:            z.string().nullable().optional(),
   estadoProvinciaId: z.string().nullable().optional(),
   ciudad:            z.string().max(150).optional().or(z.literal("")),
+  // Exigidos (y solo mostrados) cuando el transportista elegido los marca en
+  // sus condiciones — ver requisitos-transportista.ts. Nunca obligatorios acá:
+  // se avisa en el formulario y se bloquea recién al aprobar la cotización,
+  // igual que "costo de entrega por confirmar".
+  direccionEntrega: z.string().max(400).optional().or(z.literal("")),
+  identificacion: z.string().max(60).optional().or(z.literal("")),
 });
 
 // Sin campos obligatorios a propósito — el Flujo de Venta resuelve después

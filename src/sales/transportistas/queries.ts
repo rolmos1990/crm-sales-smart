@@ -7,6 +7,9 @@ export async function obtenerTransportistas(instanciaId: string) {
     include: {
       // 023-transportistas-por-pais — bandera/nombre en la lista (FR-003)
       pais: true,
+      // Los formularios de cotización y pedido deciden con esto qué campos
+      // extra mostrar al elegir el transportista (requisitos-transportista.ts).
+      condiciones: { select: { requiereDireccionCompleta: true, requiereIdentificacion: true } },
       _count: { select: { tarifas: { where: { activa: true } } } },
     },
   });

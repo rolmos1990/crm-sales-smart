@@ -18,6 +18,7 @@ export const CondicionesTransportistaSchema = z.object({
   permiteEntregaMismoDia: z.boolean(),
   pesoMaximoKg: z.number().min(0).optional().nullable(),
   requiereDireccionCompleta: z.boolean(),
+  requiereIdentificacion: z.boolean(),
   permiteArticulosFragiles: z.boolean(),
   permitePagoContraEntrega: z.boolean(),
   observaciones: z.string().max(1000).optional().or(z.literal("")),

@@ -71,6 +71,7 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
   const entrega = (cotizacion as any).entrega as {
     metodoEntrega: string; observaciones: string | null; ciudad: string | null;
     nombreDestinatario: string | null;
+    direccionEntrega: string | null; identificacion: string | null;
     corregimiento: string | null; sectorOCodigoPostal: string | null; costoEnvioConfirmado: boolean;
     transportista: { nombre: string } | null; pais: { nombre: string } | null;
     estadoProvincia: { nombre: string } | null; zonaEntrega: { nombre: string } | null;
@@ -150,6 +151,11 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
                     transportistaNombre: entrega.transportista?.nombre,
                     servicioNombre: entrega.servicioTransportista?.nombre,
                     ciudad: entrega.ciudad,
+                    // La identificación NO viaja al texto que se le manda al
+                    // cliente: es un dato operativo del transportista y ese
+                    // texto se pega en WhatsApp. La dirección sí, para que el
+                    // cliente pueda confirmarla.
+                    direccionEntrega: entrega.direccionEntrega,
                     estadoProvinciaNombre: entrega.estadoProvincia?.nombre,
                     costoEnvioConfirmado: entrega.costoEnvioConfirmado,
                   }
@@ -294,7 +300,15 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
             <DatoEntrega etiqueta="Provincia" valor={entrega.estadoProvincia?.nombre} />
             <DatoEntrega etiqueta="Ciudad / Distrito" valor={entrega.ciudad} />
             <DatoEntrega etiqueta="Corregimiento" valor={entrega.corregimiento} />
+            {/* Solo aparecen si el transportista los exigía al cargarlos. */}
+            <DatoEntrega etiqueta="Identificación" valor={entrega.identificacion} />
             <DatoEntrega etiqueta="Sector / Código postal" valor={entrega.sectorOCodigoPostal} />
+            {entrega.direccionEntrega && (
+              <div className="sm:col-span-2">
+                <p className="text-muted-foreground text-xs">Dirección de entrega</p>
+                <p className="whitespace-pre-line text-foreground">{entrega.direccionEntrega}</p>
+              </div>
+            )}
             {entrega.observaciones && (
               <div className="sm:col-span-2">
                 <p className="text-muted-foreground text-xs">Observaciones</p>

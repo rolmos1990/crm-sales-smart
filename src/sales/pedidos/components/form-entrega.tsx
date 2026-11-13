@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2, HelpCircle } from "lucide-react";
+import { AlertTriangle, Loader2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -24,6 +24,11 @@ import { obtenerCostoSugerido } from "@/shared/entregas/actions";
 import { actualizarEntregaPedido } from "../actions";
 import { ActualizarEntregaPedidoSchema, type ActualizarEntregaPedidoInput } from "../schema";
 import type { Transportista } from "@/sales/transportistas/types";
+import {
+  camposRequeridosFaltantes,
+  describirCamposFaltantes,
+  requisitosDeCondiciones,
+} from "@/shared/entregas/requisitos-transportista";
 
 const METODO_LABELS: Record<string, string> = {
   COURIER_EXTERNO:      "Courier externo",
@@ -56,12 +61,17 @@ interface EntregaActual {
   paisId?: string | null;
   estadoProvinciaId?: string | null;
   ciudad?: string | null;
+  direccionEntrega?: string | null;
+  identificacion?: string | null;
 }
 
 interface FormEntregaProps {
   pedidoId: string;
   entrega?: EntregaActual | null;
-  transportistas: Transportista[];
+  /** Viene de obtenerTransportistas, que incluye las condiciones. */
+  transportistas: (Transportista & {
+    condiciones?: { requiereDireccionCompleta: boolean; requiereIdentificacion: boolean } | null;
+  })[];
   /** Vive en Pedido.costoEnvio, no en EntregaPedido — ver actions.ts. */
   costoEnvio: number;
 }
@@ -87,6 +97,8 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
       paisId:            entrega?.paisId ?? null,
       estadoProvinciaId: entrega?.estadoProvinciaId ?? null,
       ciudad:            entrega?.ciudad ?? "",
+      direccionEntrega:  entrega?.direccionEntrega ?? "",
+      identificacion:    entrega?.identificacion ?? "",
     },
   });
 
@@ -125,6 +137,16 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
   const paisEntregaId = form.watch("paisId");
   const estadoProvinciaEntregaId = form.watch("estadoProvinciaId");
   const transportistaIdSeleccionado = form.watch("transportistaId");
+
+  // Mismo criterio que el formulario de cotización: se muestran los campos que
+  // el transportista exige y se avisa si faltan, sin bloquear el guardado.
+  const transportistaElegido = transportistas.find((t) => t.id === transportistaIdSeleccionado);
+  const requisitos = requisitosDeCondiciones(transportistaElegido?.condiciones);
+  const faltantesEntrega = camposRequeridosFaltantes(requisitos, {
+    direccionEntrega: form.watch("direccionEntrega"),
+    identificacion: form.watch("identificacion"),
+  });
+  const avisoRequisitos = describirCamposFaltantes(faltantesEntrega, transportistaElegido?.nombre);
 
   async function sugerirCostoEnvio() {
     if (!estadoProvinciaEntregaId) {
@@ -298,6 +320,54 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
             )}
           />
         </div>
+
+        {/* Lo que exige el transportista elegido — ver requisitos-transportista.ts. */}
+        {(requisitos.requiereDireccionCompleta || requisitos.requiereIdentificacion) && (
+          <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
+            <p className="text-xs text-muted-foreground">
+              Datos que {transportistaElegido?.nombre ?? "el transportista"} necesita para entregar.
+            </p>
+
+            {requisitos.requiereDireccionCompleta && (
+              <FormField
+                control={form.control}
+                name="direccionEntrega"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Dirección de entrega</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} placeholder="Calle, número, edificio, referencia..." {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {requisitos.requiereIdentificacion && (
+              <FormField
+                control={form.control}
+                name="identificacion"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Identificación de quien recibe</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Cédula, pasaporte o RUC" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {avisoRequisitos && (
+              <p className="flex items-start gap-2 text-xs text-warning">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{avisoRequisitos}.</span>
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <FormField

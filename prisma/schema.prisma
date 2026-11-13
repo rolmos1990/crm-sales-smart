@@ -1456,6 +1456,16 @@ model EntregaCotizacion {
 
   ciudad String?
 
+  // Exigidos por CondicionesTransportista del transportista elegido:
+  // requiereDireccionCompleta pide direccionEntrega (la calle, no solo la
+  // ciudad) y requiereIdentificacion pide identificacion (texto libre: cédula,
+  // pasaporte o RUC, según el país). Nullable y nunca bloquean el guardado
+  // —se avisa en el formulario— pero sí bloquean aprobarCotizacion, igual
+  // que "costo de entrega por confirmar".
+  direccionEntrega String?
+  identificacion   String?
+
+
   // Quién recibe físicamente el envío. Distinto del `destinatario` que vive
   // en Cotizacion.metadata: ese es el cliente al que va dirigida la
   // cotización (sección "Información general"), y quien recibe en la puerta
@@ -1939,7 +1949,11 @@ model CondicionesTransportista {
   tiempoPreparacionDias     Int      @default(0)
   permiteEntregaMismoDia    Boolean  @default(true)
   pesoMaximoKg              Decimal?
+  // Qué datos del cliente exige este transportista para poder entregar. Se
+  // piden en el formulario de cotización/pedido al elegirlo y se validan al
+  // aprobar (ver requisitos-transportista.ts, fuente única del criterio).
   requiereDireccionCompleta Boolean  @default(true)
+  requiereIdentificacion    Boolean  @default(false)
   permiteArticulosFragiles  Boolean  @default(true)
   permitePagoContraEntrega  Boolean  @default(false)
   observaciones             String?
@@ -2008,6 +2022,16 @@ model EntregaPedido {
   estadoProvincia   EstadoProvincia? @relation(fields: [estadoProvinciaId], references: [id])
 
   ciudad String?
+
+  // Exigidos por CondicionesTransportista del transportista elegido:
+  // requiereDireccionCompleta pide direccionEntrega (la calle, no solo la
+  // ciudad) y requiereIdentificacion pide identificacion (texto libre: cédula,
+  // pasaporte o RUC, según el país). Nullable y nunca bloquean el guardado
+  // —se avisa en el formulario— pero sí bloquean aprobarCotizacion, igual
+  // que "costo de entrega por confirmar".
+  direccionEntrega String?
+  identificacion   String?
+
 
   // Quién recibe físicamente el envío — ver EntregaCotizacion.nombreDestinatario.
   nombreDestinatario String?

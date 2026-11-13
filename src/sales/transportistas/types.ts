@@ -41,6 +41,7 @@ export const CONDICIONES_POR_DEFECTO = {
   tiempoPreparacionDias: 0,
   permiteEntregaMismoDia: true,
   requiereDireccionCompleta: true,
+  requiereIdentificacion: false,
   permiteArticulosFragiles: true,
   permitePagoContraEntrega: false,
 };

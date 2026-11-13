@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Form, FormControl, FormField, FormItem, FormLabel,
+  Form, FormControl, FormDescription, FormField, FormItem, FormLabel,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -44,6 +44,7 @@ function valoresIniciales(transportistaId: string, condiciones: CondicionesTrans
     permiteEntregaMismoDia: condiciones?.permiteEntregaMismoDia ?? true,
     pesoMaximoKg: condiciones?.pesoMaximoKg != null ? Number(condiciones.pesoMaximoKg) : undefined,
     requiereDireccionCompleta: condiciones?.requiereDireccionCompleta ?? true,
+    requiereIdentificacion: condiciones?.requiereIdentificacion ?? false,
     permiteArticulosFragiles: condiciones?.permiteArticulosFragiles ?? true,
     permitePagoContraEntrega: condiciones?.permitePagoContraEntrega ?? false,
     observaciones: condiciones?.observaciones ?? "",
@@ -192,6 +193,9 @@ export function SeccionCondicionesTransportista({ transportistaId, transportista
               )}
             />
 
+            {/* Estos dos deciden qué campos extra aparecen en la cotización y
+                el pedido al elegir este transportista (ver
+                requisitos-transportista.ts). */}
             <FormField
               control={form.control}
               name="requiereDireccionCompleta"
@@ -203,6 +207,27 @@ export function SeccionCondicionesTransportista({ transportistaId, transportista
                     </FormControl>
                     <span className="text-sm text-foreground">Requiere dirección completa</span>
                   </label>
+                  <FormDescription>
+                    Al elegirlo se pide la dirección de entrega, además de la ciudad.
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="requiereIdentificacion"
+              render={({ field }) => (
+                <FormItem>
+                  <label className="flex items-center gap-2.5">
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <span className="text-sm text-foreground">Requiere identificación</span>
+                  </label>
+                  <FormDescription>
+                    Al elegirlo se pide la identificación de quien recibe (cédula, pasaporte o RUC).
+                  </FormDescription>
                 </FormItem>
               )}
             />

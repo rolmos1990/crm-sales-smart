@@ -144,6 +144,66 @@ describe("cotizaciones/actions — envío por tarifa/costo manual (022, Historia
     });
   });
 
+  // El formulario deja guardar sin estos datos (solo avisa) y el agente crea
+  // igual: la aprobación es la única puerta que los exige. Si este bloqueo se
+  // cae, el pedido nace sin lo que el transportista necesita para entregar.
+  describe("aprobarCotizacion — datos que exige el transportista", () => {
+    const exigente = (over: Record<string, unknown> = {}) => ({
+      id: "cotizacion-1", numero: "COT-2026-0001", estado: "BORRADOR", lineas: [], oportunidadId: null,
+      entrega: {
+        costoEnvioConfirmado: true,
+        direccionEntrega: null,
+        identificacion: null,
+        transportista: {
+          nombre: "ServiEntrega",
+          condiciones: { requiereDireccionCompleta: true, requiereIdentificacion: false },
+        },
+        ...over,
+      },
+    });
+
+    it("bloquea si falta la dirección que el transportista exige", async () => {
+      cotizacionFindFirstMock.mockResolvedValue(exigente());
+
+      const resultado = await aprobarCotizacion("cotizacion-1");
+
+      expect(resultado.exito).toBe(false);
+      expect(resultado.exito === false && resultado.error).toContain("ServiEntrega requiere dirección de entrega");
+      expect(cotizacionUpdateMock).not.toHaveBeenCalled();
+      expect(publicarMock).not.toHaveBeenCalled();
+    });
+
+    it("con el dato cargado aprueba normalmente", async () => {
+      cotizacionFindFirstMock.mockResolvedValue(exigente({ direccionEntrega: "Calle 4ta, casa 12" }));
+
+      const resultado = await aprobarCotizacion("cotizacion-1");
+
+      expect(resultado.exito).toBe(true);
+      expect(publicarMock).toHaveBeenCalled();
+    });
+
+    it("un transportista sin condiciones configuradas no bloquea nada", async () => {
+      cotizacionFindFirstMock.mockResolvedValue(
+        exigente({ transportista: { nombre: "UnoExpress", condiciones: null } }),
+      );
+
+      const resultado = await aprobarCotizacion("cotizacion-1");
+
+      expect(resultado.exito).toBe(true);
+    });
+
+    it("una cotización sin entrega sigue aprobándose como antes", async () => {
+      cotizacionFindFirstMock.mockResolvedValue({
+        id: "cotizacion-1", numero: "COT-2026-0001", estado: "BORRADOR", lineas: [], oportunidadId: null,
+        entrega: null,
+      });
+
+      const resultado = await aprobarCotizacion("cotizacion-1");
+
+      expect(resultado.exito).toBe(true);
+    });
+  });
+
   describe("aprobarCotizacion — confirmación de costo de envío (FR-040)", () => {
     it("bloquea la conversión si costoEnvioConfirmado=false y la empresa no lo permite", async () => {
       cotizacionFindFirstMock.mockResolvedValue({

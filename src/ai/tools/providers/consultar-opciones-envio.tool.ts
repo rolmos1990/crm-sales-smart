@@ -90,6 +90,13 @@ const ConsultarOpcionesEnvioTool: IProveedorTool = {
       diasEntrega: o.diasEntrega,
       horaLimiteMismoDia: o.horaLimiteMismoDia,
       confianza: o.confianza,
+      // Qué datos extra hay que pedirle al cliente si elige esta opción. Se
+      // informan acá para que el agente los junte durante la conversación, en
+      // vez de descubrirlo recién al crear el documento.
+      requiere: [
+        ...(o.requiereDireccionCompleta ? ["direccionEntrega"] : []),
+        ...(o.requiereIdentificacion ? ["identificacion"] : []),
+      ],
     }));
 
     // Solo PROBABLE/AMBIGUA necesitan aclaración acá — EXACTA y ALIAS son
