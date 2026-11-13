@@ -9,6 +9,7 @@ import { normalizarUbicacion } from "@/shared/entregas/normalizar-ubicacion";
 import { RevisarImportacionDestinosSchema, ConfirmarImportacionDestinosSchema, FilaDestinoImportSchema } from "./schema";
 import type { ResultadoAccion } from "../types";
 import type { EstadoFilaImportDestino, FilaRevisionDestino, ResumenRevisionDestinos } from "./types";
+import type { DestinoExportable } from "./utils/filas-exportacion-destinos";
 
 // 024-alias-ubicaciones-transportistas (FR-012) — clasifica una fila según
 // los candidatos geográficos encontrados (research.md §7):
@@ -347,4 +348,90 @@ export async function confirmarImportacionDestinosAction(datos: unknown): Promis
   revalidatePath("/sales/transportistas");
   revalidatePath(`/sales/transportistas/${transportistaId}`);
   return { exito: true, data: { creados, actualizados } };
+}
+
+/**
+ * Destinos de un transportista listos para bajar a archivo: una fila por
+ * tarifa, con la ubicación y los alias de su zona.
+ *
+ * Devuelve datos, no un archivo: armar el CSV/Excel es del cliente (ver
+ * descargar-destinos.ts), igual que con la plantilla de ejemplo.
+ *
+ * Una zona con varias ubicaciones produce una fila por ubicación: así es como
+ * la importación las entiende de vuelta (una fila = una ubicación + su
+ * tarifa). Si la zona no tiene ninguna, igual sale una fila con los niveles
+ * geográficos vacíos para no perder la tarifa.
+ */
+export async function exportarDestinosTransportistaAction(
+  transportistaId: string,
+): Promise<ResultadoAccion<{ transportistaNombre: string; destinos: DestinoExportable[] }>> {
+  const auth = await requirePermisoAction("transportistas", "ver");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  const transportista = await prisma.transportista.findFirst({
+    where: { id: transportistaId, instanciaId: auth.sesion.instanciaId },
+    select: { nombre: true },
+  });
+  if (!transportista) return { exito: false, error: "Transportista no encontrado" };
+
+  const tarifas = await prisma.tarifaTransportistaZona.findMany({
+    where: { transportistaId, instanciaId: auth.sesion.instanciaId },
+    select: {
+      costoInterno: true,
+      precioCliente: true,
+      tiempoMinimoDias: true,
+      tiempoMaximoDias: true,
+      servicioTransportista: { select: { nombre: true } },
+      zonaEntrega: {
+        select: {
+          nombre: true,
+          ubicaciones: {
+            select: {
+              provinciaEstado: true,
+              distritoCiudad: true,
+              corregimiento: true,
+              sectorOCodigoPostal: true,
+              aliases: { select: { valor: true } },
+            },
+            orderBy: [{ provinciaEstado: "asc" }, { distritoCiudad: "asc" }],
+          },
+        },
+      },
+    },
+    orderBy: [{ zonaEntrega: { nombre: "asc" } }, { servicioTransportista: { nombre: "asc" } }],
+  });
+
+  const destinos: DestinoExportable[] = [];
+  for (const tarifa of tarifas) {
+    const comun = {
+      zonaNombre: tarifa.zonaEntrega.nombre,
+      servicioNombre: tarifa.servicioTransportista.nombre,
+      costoInterno: Number(tarifa.costoInterno),
+      precioCliente: Number(tarifa.precioCliente),
+      tiempoMinimoDias: tarifa.tiempoMinimoDias,
+      tiempoMaximoDias: tarifa.tiempoMaximoDias,
+    };
+
+    if (tarifa.zonaEntrega.ubicaciones.length === 0) {
+      destinos.push({
+        ...comun,
+        provinciaEstado: null, distritoCiudad: null, corregimiento: null,
+        sectorOCodigoPostal: null, alias: [],
+      });
+      continue;
+    }
+
+    for (const u of tarifa.zonaEntrega.ubicaciones) {
+      destinos.push({
+        ...comun,
+        provinciaEstado: u.provinciaEstado,
+        distritoCiudad: u.distritoCiudad,
+        corregimiento: u.corregimiento,
+        sectorOCodigoPostal: u.sectorOCodigoPostal,
+        alias: u.aliases.map((a) => a.valor),
+      });
+    }
+  }
+
+  return { exito: true, data: { transportistaNombre: transportista.nombre, destinos } };
 }

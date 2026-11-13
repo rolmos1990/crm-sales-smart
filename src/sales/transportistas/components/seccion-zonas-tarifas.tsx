@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { duplicarTarifa, eliminarTarifa, toggleTarifa } from "../tarifas/actions";
 import { eliminarZonaEntrega } from "../zonas/actions";
+import { BotonExportarDestinos } from "./boton-exportar-destinos";
 import { WizardImportacionDestinos } from "../importacion-destinos/components/wizard-importacion-destinos";
 import { DialogAliasUbicacion } from "./dialog-alias-ubicacion";
 import { DialogEditarZona, type ZonaEditable } from "./dialog-editar-zona";
@@ -254,6 +255,7 @@ export function SeccionZonasTarifas({
                   <Upload className="h-4 w-4" />
                   Importar destinos
                 </Button>
+                <BotonExportarDestinos transportistaId={transportistaId} deshabilitado={tarifas.length === 0} />
               </>
             ) : (
               <TooltipProvider>

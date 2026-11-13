@@ -11,6 +11,7 @@ import type {
   ColumnaDestino, DecisionFilaDestino, FilaRevisionDestino, MapeoColumnasDestino, PasoImportacionDestinos, ResumenRevisionDestinos,
 } from "../types";
 import { COLUMNAS_DESTINO_REQUERIDAS } from "../types";
+import { automapearColumnasDestino } from "../utils/automapeo-columnas";
 import { PasoArchivo } from "./paso-archivo";
 import { PasoMapeoColumnas } from "./paso-mapeo-columnas";
 import { PasoRevision } from "./paso-revision";
@@ -125,7 +126,11 @@ export function WizardImportacionDestinos({ transportistaId, paisId, abierto, on
           <PasoArchivo
             onArchivoParseado={(datos) => {
               setDatosArchivo(datos);
-              setMapeo(Object.fromEntries(datos.encabezados.map((h) => [h, ""])));
+              // Propuesta inicial por nombre de encabezado: un archivo bajado
+              // con "Exportar destinos" (o la plantilla de ejemplo) llega ya
+              // mapeado y el paso se reduce a confirmar. Lo que no reconoce
+              // queda en "Ignorar", para que el usuario lo elija.
+              setMapeo(automapearColumnasDestino(datos.encabezados));
               setPaso("mapeo");
             }}
           />
