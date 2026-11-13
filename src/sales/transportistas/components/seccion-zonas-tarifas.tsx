@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition , useEffect} from "react";
 import { toast } from "sonner";
 import { ChevronDown, Coins, Copy, MapPinPlus, MoreHorizontal, Pencil, Percent, Plus, Power, Search, Tag, Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { duplicarTarifa, eliminarTarifa, toggleTarifa } from "../tarifas/actions";
+import { zonasSinTarifaDelTransportista } from "../zonas/zonas-sin-tarifa";
 import { eliminarZonaEntrega } from "../zonas/actions";
 import { BotonExportarDestinos } from "./boton-exportar-destinos";
 import { WizardImportacionDestinos } from "../importacion-destinos/components/wizard-importacion-destinos";
@@ -69,7 +70,17 @@ export function SeccionZonasTarifas({
 }: SeccionZonasTarifasProps) {
   const paisLabel = pais ? `${pais.banderaEmoji ? `${pais.banderaEmoji} ` : ""}${pais.nombre}`.trim() : null;
   const puedeAgregar = puedeModificar && paisId != null;
+  // `zonas` es estado local porque crear/eliminar una zona actualiza la lista
+  // al instante, sin esperar al servidor. Pero `zonasIniciales` se renueva en
+  // cada revalidatePath —y la importación de destinos revalida esta página—,
+  // así que hay que re-sincronizar: si no, el estado queda desfasado de
+  // `tarifas`, que sí es prop y llega fresco. Esa mezcla de una lista vieja
+  // con tarifas nuevas era lo que dejaba el aviso de "zonas sin tarifa"
+  // mostrando zonas que la tabla de abajo ya listaba con su tarifa.
   const [zonas, setZonas] = useState(zonasIniciales);
+  useEffect(() => {
+    setZonas(zonasIniciales);
+  }, [zonasIniciales]);
   const [busqueda, setBusqueda] = useState("");
   const [dialogTarifaAbierto, setDialogTarifaAbierto] = useState(false);
   const [tarifaEnEdicion, setTarifaEnEdicion] = useState<TarifaExistente | undefined>(undefined);
@@ -141,10 +152,10 @@ export function SeccionZonasTarifas({
     [tarifas, zonaEnEdicionId],
   );
 
-  const zonasSinTarifa = useMemo(() => {
-    const idsConTarifa = new Set(tarifas.map((t) => t.zonaEntrega.id));
-    return zonasFiltradas.filter((z) => !idsConTarifa.has(z.id));
-  }, [zonasFiltradas, tarifas]);
+  const zonasSinTarifa = useMemo(
+    () => zonasSinTarifaDelTransportista(zonasFiltradas, tarifas),
+    [zonasFiltradas, tarifas],
+  );
 
   function abrirNuevaTarifa() {
     setTarifaEnEdicion(undefined);
@@ -284,7 +295,10 @@ export function SeccionZonasTarifas({
         <div className="rounded-xl border border-dashed border-border p-3 space-y-2">
           <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
             <MapPinPlus className="h-3.5 w-3.5" />
-            {zonasSinTarifa.length === 1 ? "Zona sin tarifa" : "Zonas sin tarifa"} — agrégales una tarifa para que aparezcan en la tabla
+            {zonasSinTarifa.length === 1
+              ? "Esta zona no la cubre este transportista"
+              : `Estas ${zonasSinTarifa.length} zonas no las cubre este transportista`}{" "}
+            — las zonas son del catálogo de la empresa y se comparten entre transportistas; agregá una tarifa para que aparezcan en la tabla
           </p>
           {zonasSinTarifa.map((z) => (
             <div key={z.id} className="flex items-center justify-between gap-2 rounded-lg bg-card px-3 py-2">
