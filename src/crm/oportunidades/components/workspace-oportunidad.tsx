@@ -9,6 +9,7 @@ import {
   X, Phone, Video, Search, MoreHorizontal, ExternalLink, Loader2,
   ChevronDown, Building2, Layers, Mail, Globe,
   Save, Tag as TagIcon, User, FileText, CheckCircle2, Trash2, Workflow,
+  PanelRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -58,7 +59,6 @@ import { MONEDAS } from "@/shared/moneda/constants";
 import { PanelCotizacionWorkspace } from "@/sales/cotizaciones/components/panel-cotizacion-workspace";
 import { RielCotizacion } from "@/sales/cotizaciones/components/riel-cotizacion";
 import { BotonCotizacionAlChat } from "@/sales/cotizaciones/components/boton-cotizacion-al-chat";
-import { SheetEditarCotizacion } from "@/sales/cotizaciones/components/sheet-editar-cotizacion";
 import {
   cambiarEstadoCotizacion,
   aprobarCotizacion,
@@ -329,9 +329,25 @@ function WorkspaceContenido({
   // true mientras haya borrador: el formulario no se desmonta al plegar, solo
   // se oculta, así se puede buscar algo en la conversación sin perder lo
   // cargado. Se desmonta únicamente cuando la cotización se creó bien.
-  const [cotizacionMontada, setCotizacionMontada] = useState(false);
+  // `null` = sin panel. `{ id }` = editando esa cotización; `{}` = una nueva.
+  const [panelCotizacion, setPanelCotizacion] = useState<{ id?: string } | null>(null);
   const [cotizacionVisible, setCotizacionVisible] = useState(false);
-  const abrirCotizacion = () => { setCotizacionMontada(true); setCotizacionVisible(true); };
+  const cotizacionMontada = panelCotizacion !== null;
+  // Reemplazar una cotización NUEVA sin crear perdería el borrador; con una ya
+  // guardada no se pierde nada, así que solo esa se confirma.
+  const [reemplazoPendiente, setReemplazoPendiente] = useState<{ id?: string } | null>(null);
+
+  const abrirPanelCotizacion = (destino: { id?: string }) => {
+    const hayBorradorNuevo = panelCotizacion !== null && panelCotizacion.id === undefined;
+    const esOtro = panelCotizacion?.id !== destino.id;
+    if (hayBorradorNuevo && esOtro) {
+      setReemplazoPendiente(destino);
+      return;
+    }
+    setPanelCotizacion(destino);
+    setCotizacionVisible(true);
+  };
+  const abrirCotizacion = () => abrirPanelCotizacion({});
 
   // Texto que el botón de cotización deja escrito en el compositor del chat.
   // El contador es el token de reinyección (ver InputMensaje.textoExterno).
@@ -616,8 +632,10 @@ function WorkspaceContenido({
                 className="gap-1.5"
               >
                 <FileText className="h-3.5 w-3.5" />
-                {cotizacionMontada ? "Cotización en edición" : "Nueva cotización"}
-                {cotizacionMontada && <span className="h-1.5 w-1.5 rounded-full bg-success-text" aria-hidden />}
+                {cotizacionMontada && panelCotizacion?.id === undefined ? "Cotización en edición" : "Nueva cotización"}
+                {cotizacionMontada && panelCotizacion?.id === undefined && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-success-text" aria-hidden />
+                )}
               </Button>
             )}
             <div className="w-px h-5 bg-border mx-1" />
@@ -987,10 +1005,18 @@ function WorkspaceContenido({
                               <div className="flex items-center gap-0.5 shrink-0">
                                 {puedeModCotizaciones && c.estado === "BORRADOR" && (
                                   <>
-                                    <SheetEditarCotizacion
-                                      cotizacionId={c.id}
-                                      onActualizada={refrescarCotizaciones}
-                                    />
+                                    {/* Abre en el panel lateral, no en un modal:
+                                        se puede consultar la conversación sin
+                                        perder lo que se está editando. */}
+                                    <button
+                                      type="button"
+                                      onClick={() => abrirPanelCotizacion({ id: c.id })}
+                                      title="Abrir en el panel lateral"
+                                      aria-label={`Abrir la cotización ${c.numero} en el panel lateral`}
+                                      className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary-muted transition-colors"
+                                    >
+                                      <PanelRight className="h-3 w-3" />
+                                    </button>
                                     <ConfirmacionDialog
                                       trigger={
                                         <button
@@ -1149,6 +1175,8 @@ function WorkspaceContenido({
               style={{ width: "60%" }}
             >
               <PanelCotizacionWorkspace
+                key={panelCotizacion?.id ?? "nueva"}
+                cotizacionId={panelCotizacion?.id}
                 oportunidadId={oportunidad.id}
                 contactoId={contactoPrincipal?.id}
                 empresaId={(oportunidad as any).empresaId ?? undefined}
@@ -1162,13 +1190,13 @@ function WorkspaceContenido({
                 onDescartar={() => {
                   // Desmonta de verdad: se va el panel, el riel y el borrador.
                   setCotizacionVisible(false);
-                  setCotizacionMontada(false);
+                  setPanelCotizacion(null);
                 }}
                 onCreada={() => {
                   // Recién acá se descarta el borrador: ante un error,
                   // FormCotizacion deja el panel abierto con los datos.
                   setCotizacionVisible(false);
-                  setCotizacionMontada(false);
+                  setPanelCotizacion(null);
                   refrescarCotizaciones();
                 }}
               />
@@ -1176,6 +1204,21 @@ function WorkspaceContenido({
           </>
         )}
       </div>
+
+      <ConfirmacionDialog
+        open={reemplazoPendiente !== null}
+        onOpenChange={(abierto) => { if (!abierto) setReemplazoPendiente(null); }}
+        titulo="¿Descartar la cotización nueva?"
+        descripcion="Tenés una cotización nueva sin crear. Si abrís otra, se pierde lo que cargaste."
+        variante="destructive"
+        textoConfirmar="Descartar y abrir"
+        textoCancelar="Seguir con la nueva"
+        onConfirmar={() => {
+          setPanelCotizacion(reemplazoPendiente);
+          setCotizacionVisible(true);
+          setReemplazoPendiente(null);
+        }}
+      />
 
       <DialogCamposRequeridos
         open={bloqueoPendiente !== null}
