@@ -35,7 +35,17 @@ export async function obtenerCotizacionPorId(id: string, instanciaId: string) {
           entregaDigital: { select: SELECT_ENTREGA_DIGITAL_LINEA },
         },
       },
-      entrega: { include: { transportista: { select: { id: true, nombre: true, tipo: true } } } },
+      entrega: {
+        include: {
+          transportista: { select: { id: true, nombre: true, tipo: true } },
+          // Nombres del destino y del snapshot de envío, para mostrarlos en
+          // la ficha de la cotización sin una segunda consulta.
+          pais: { select: { nombre: true } },
+          estadoProvincia: { select: { nombre: true } },
+          zonaEntrega: { select: { nombre: true } },
+          servicioTransportista: { select: { nombre: true } },
+        },
+      },
       // Solo para saber si ya se generó el pedido (ej. mostrar "Reintentar"
       // cuando quedó APROBADA sin pedido por una falla en el manejador async).
       pedidos: { select: { id: true, numero: true } },

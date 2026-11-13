@@ -148,6 +148,19 @@ export async function generarPedidoDesdeCotizacion(
             paisId:            cotizacion.entrega.paisId,
             estadoProvinciaId: cotizacion.entrega.estadoProvinciaId,
             ciudad:            cotizacion.entrega.ciudad,
+            // 022-transportistas-zonas-tarifas — snapshot inmutable de envío
+            // (FR-046/047). EntregaPedido declara estos campos justamente
+            // para recibirlos acá; sin copiarlos, el pedido nacía sin la zona
+            // ni la tarifa con las que se cotizó y operaciones perdía el
+            // rastro de por qué se cobró ese monto.
+            corregimiento:             cotizacion.entrega.corregimiento,
+            sectorOCodigoPostal:       cotizacion.entrega.sectorOCodigoPostal,
+            zonaEntregaId:             cotizacion.entrega.zonaEntregaId,
+            zonaAsignadaManualmente:   cotizacion.entrega.zonaAsignadaManualmente,
+            servicioTransportistaId:   cotizacion.entrega.servicioTransportistaId,
+            tarifaTransportistaZonaId: cotizacion.entrega.tarifaTransportistaZonaId,
+            costoInternoEnvio:         cotizacion.entrega.costoInternoEnvio,
+            costoEnvioConfirmado:      cotizacion.entrega.costoEnvioConfirmado,
             // La cotización no captura número de guía ni URL de seguimiento
             // (todavía no existen a esa altura) — quedan vacíos en el
             // pedido, listos para completarse ahí.

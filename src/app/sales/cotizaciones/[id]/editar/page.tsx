@@ -12,6 +12,7 @@ import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import { isoDesdePais } from "@/shared/lib/pais-iso";
 import type { CrearCotizacionInput } from "@/sales/cotizaciones/schema";
+import { entregaGuardadaAFormulario, type EntregaGuardada } from "@/sales/cotizaciones/mapeo-entrega";
 
 export default async function EditarCotizacionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -84,10 +85,7 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
     ? Math.round((Number(cotizacion.impuesto) / subtotalNum) * 1000) / 10
     : 0;
 
-  const entregaGuardada = (cotizacion as any).entrega as {
-    metodoEntrega: string; estadoEntrega: string; transportistaId: string | null;
-    fechaEstimada: Date | string | null; observaciones: string | null;
-  } | null;
+  const entregaGuardada = (cotizacion as any).entrega as EntregaGuardada | null;
 
   const defaultValues: Partial<CrearCotizacionInput> = {
     moneda: cotizacion.moneda,
@@ -108,15 +106,7 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
       telefono: destinatarioGuardado?.telefono ?? "",
       email: destinatarioGuardado?.email ?? "",
     },
-    entrega: {
-      metodoEntrega: entregaGuardada?.metodoEntrega ?? "COURIER_EXTERNO",
-      estadoEntrega: entregaGuardada?.estadoEntrega ?? "PENDIENTE",
-      transportistaId: entregaGuardada?.transportistaId ?? null,
-      fechaEstimada: entregaGuardada?.fechaEstimada ? new Date(entregaGuardada.fechaEstimada) : undefined,
-      observaciones: entregaGuardada?.observaciones ?? "",
-      // Vive en Cotizacion.costoEnvio (no en EntregaCotizacion) — ver schema.ts.
-      costoEnvio: Number((cotizacion as any).costoEnvio ?? 0),
-    } as CrearCotizacionInput["entrega"],
+    entrega: entregaGuardadaAFormulario(entregaGuardada, Number((cotizacion as any).costoEnvio ?? 0)),
   };
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));

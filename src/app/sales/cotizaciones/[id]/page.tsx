@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowLeft, FileText, Building2, User, Pencil, Phone, Mail } from "lucide-react";
+import { ArrowLeft, FileText, Building2, User, Pencil, Phone, Mail, Truck } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +68,13 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
   const subtotal = Number(cotizacion.subtotal);
   const impuesto = Number(cotizacion.impuesto);
   const costoEnvio = Number((cotizacion as any).costoEnvio ?? 0);
+  const entrega = (cotizacion as any).entrega as {
+    metodoEntrega: string; observaciones: string | null; ciudad: string | null;
+    corregimiento: string | null; sectorOCodigoPostal: string | null; costoEnvioConfirmado: boolean;
+    transportista: { nombre: string } | null; pais: { nombre: string } | null;
+    estadoProvincia: { nombre: string } | null; zonaEntrega: { nombre: string } | null;
+    servicioTransportista: { nombre: string } | null;
+  } | null;
   const total = Number(cotizacion.total);
 
   const lineasParaCopiar = lineas.map((l: any) => ({
@@ -252,6 +259,42 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
         </CardContent>
       </Card>
 
+      {/* La ficha no mostraba nada del envío: el destino y el transportista
+          quedaban guardados pero invisibles, y solo se veía el monto en los
+          totales. */}
+      {entrega && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+              <Truck className="h-4 w-4" />
+              Entrega
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+            <DatoEntrega etiqueta="Método" valor={METODO_ENTREGA_LABELS[entrega.metodoEntrega] ?? entrega.metodoEntrega} />
+            <DatoEntrega etiqueta="Transportista" valor={entrega.transportista?.nombre} />
+            <DatoEntrega etiqueta="Servicio" valor={entrega.servicioTransportista?.nombre} />
+            <DatoEntrega etiqueta="Zona" valor={entrega.zonaEntrega?.nombre} />
+            <DatoEntrega etiqueta="País" valor={entrega.pais?.nombre} />
+            <DatoEntrega etiqueta="Provincia" valor={entrega.estadoProvincia?.nombre} />
+            <DatoEntrega etiqueta="Ciudad / Distrito" valor={entrega.ciudad} />
+            <DatoEntrega etiqueta="Corregimiento" valor={entrega.corregimiento} />
+            <DatoEntrega etiqueta="Sector / Código postal" valor={entrega.sectorOCodigoPostal} />
+            {entrega.observaciones && (
+              <div className="sm:col-span-2">
+                <p className="text-muted-foreground text-xs">Observaciones</p>
+                <p className="whitespace-pre-wrap">{entrega.observaciones}</p>
+              </div>
+            )}
+            {!entrega.costoEnvioConfirmado && (
+              <p className="sm:col-span-2 text-xs text-amber-600 dark:text-amber-500">
+                Costo de entrega por confirmar — hay que resolverlo antes de convertir en pedido.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {cotizacion.notas && (
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Notas</CardTitle></CardHeader>
@@ -260,6 +303,25 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+const METODO_ENTREGA_LABELS: Record<string, string> = {
+  COURIER_EXTERNO: "Courier externo",
+  MENSAJERO_PROPIO: "Mensajero propio",
+  RETIRO_TIENDA: "Retiro en tienda",
+  DIGITAL: "Entrega digital",
+  INSTALACION_SERVICIO: "Instalación / Servicio",
+};
+
+/** Un dato del bloque de entrega; se omite si no hay valor. */
+function DatoEntrega({ etiqueta, valor }: { etiqueta: string; valor?: string | null }) {
+  if (!valor) return null;
+  return (
+    <div>
+      <p className="text-muted-foreground text-xs">{etiqueta}</p>
+      <p className="font-medium">{valor}</p>
     </div>
   );
 }
