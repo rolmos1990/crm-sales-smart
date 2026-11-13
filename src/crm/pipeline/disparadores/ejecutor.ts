@@ -76,10 +76,24 @@ async function registrarFallo(job: { id: string; intentos: number }, err: unknow
   return { exito: false };
 }
 
-async function registrarExito(jobId: string): Promise<{ exito: true }> {
+/**
+ * @param omitido Por qué el disparador no hizo nada pese a ejecutarse bien.
+ *   Varios tipos tienen salidas de no-op legítimas (un pedido sin oportunidad
+ *   vinculada, una etapa destino que no existe) y sin esto el job quedaba en
+ *   COMPLETADO con `{ ok: true }`, indistinguible de uno que sí actuó —
+ *   diagnosticar "el disparador no hace nada" obligaba a reconstruirlo a mano
+ *   desde la base.
+ */
+async function registrarExito(jobId: string, omitido?: string): Promise<{ exito: true }> {
   await prisma.disparadorJob.update({
     where: { id: jobId },
-    data: { estado: "COMPLETADO", procesadoEn: new Date(), bloqueadoHasta: null, error: null, resultado: { ok: true } },
+    data: {
+      estado: "COMPLETADO",
+      procesadoEn: new Date(),
+      bloqueadoHasta: null,
+      error: null,
+      resultado: omitido ? { ok: true, omitido } : { ok: true },
+    },
   });
   return { exito: true };
 }
@@ -208,6 +222,13 @@ async function ejecutarJobPedido(
   job: JobConDisparador,
   pedidoId: string,
 ): Promise<{ exito: boolean }> {
+  // Por qué el disparador no hizo nada pese a ejecutarse bien: varios tipos
+  // tienen no-ops legítimos (un pedido sin oportunidad vinculada, una etapa
+  // destino inexistente). Queda en el job — ver registrarExito. Sin esto, "el
+  // disparador no cierra la oportunidad" y "el pedido no tiene ninguna
+  // vinculada" se ven exactamente igual desde afuera.
+  let omitido: string | undefined;
+
   try {
     const payload = job.payload as Record<string, unknown>;
     const instanciaId = (payload.instanciaId as string | undefined) ?? null;
@@ -351,8 +372,12 @@ async function ejecutarJobPedido(
                 ...(cfg.resultado === "GANADA" ? { esGanado: true } : { esPerdido: true }),
               },
             });
-            // Anti-loop: no mover si ya está en la etapa destino
-            if (stageDestino && oportunidad.stageId !== stageDestino.id) {
+            if (!stageDestino) {
+              omitido = `El pipeline de la oportunidad no tiene ninguna etapa marcada como ${cfg.resultado === "GANADA" ? "Ganada" : "Perdida"}`;
+            } else if (oportunidad.stageId === stageDestino.id) {
+              // Anti-loop: ya estaba en la etapa destino.
+              omitido = "La oportunidad ya estaba en la etapa destino";
+            } else {
               // Mismo servicio que el Kanban (D7). Sin validar campos
               // requeridos: este cierre automático nunca los exigió y un
               // pedido entregado no debe quedar con la oportunidad abierta
@@ -371,7 +396,9 @@ async function ejecutarJobPedido(
           } else {
             // Oportunidad sin pipeline dinámico: usa el sistema legado de etapa fija
             const etapaDestino = cfg.resultado === "GANADA" ? "GANADO" : "PERDIDO";
-            if (oportunidad.etapa !== etapaDestino) {
+            if (oportunidad.etapa === etapaDestino) {
+              omitido = "La oportunidad ya estaba en la etapa destino";
+            } else {
               await prisma.oportunidad.update({
                 where: { id: oportunidadId },
                 data: {
@@ -383,13 +410,18 @@ async function ejecutarJobPedido(
               await cerrarConversacionesDeOportunidad(oportunidadId);
             }
           }
+        } else {
+          omitido = "La oportunidad vinculada al pedido ya no existe";
         }
+      } else {
+        // No todos los pedidos vienen de una oportunidad (los creados a mano o
+        // desde una cotización sin oportunidad), así que esto no es un error.
+        omitido = "El pedido no tiene una oportunidad vinculada";
       }
-      // Pedido sin oportunidad relacionada: no-op silencioso (no todos los pedidos vienen de una)
     }
     // ASIGNAR_USUARIO y ASIGNAR_ETIQUETA: skip silencioso para pedidos
 
-    return await registrarExito(job.id);
+    return await registrarExito(job.id, omitido);
   } catch (err) {
     return registrarFallo(job, err);
   }
