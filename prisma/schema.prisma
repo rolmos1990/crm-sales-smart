@@ -2897,6 +2897,13 @@ model ConfiguracionIA {
   limiteTokensDiarios Int?
   limiteTokensMensual Int?
   fallbackHabilitado  Boolean         @default(true)
+
+  // Respaldo de la ventana de espera para cuando la etapa dispara la IA sin
+  // agente asignado (agenteIAConfigId undefined en OrquestarIASuscriptor), o
+  // cuando el agente no define el suyo.
+  esperarAntesDeResponder Boolean @default(false)
+  segundosEsperaRespuesta Int     @default(5)
+
   creadoEn            DateTime        @default(now())
   actualizadoEn       DateTime        @updatedAt
 
@@ -2977,6 +2984,14 @@ model AgenteIAConfig {
   // 015-herramientas-operativas-inventario-envios-acciones — default false
   // preserva la creación directa actual de cotizaciones/pedidos por IA.
   accionesComercialesModoBorrador Boolean @default(false)
+
+  // Ventana de espera antes de responder: el agente aguarda a que el cliente
+  // termine de escribir y contesta UNA vez por todos los mensajes del tramo,
+  // en vez de uno por mensaje. null = heredar el valor de ConfiguracionIA de
+  // la instancia; default false preserva el comportamiento actual (responde
+  // apenas llega cada mensaje).
+  esperarAntesDeResponder Boolean? @default(false)
+  segundosEsperaRespuesta Int?
 
   // 028-respuestas-guia-catalogo-ia — respuestas guía por intención
   // (RespuestaGuiaSchema[] en src/configuracion/ia/agente-schema.ts) y

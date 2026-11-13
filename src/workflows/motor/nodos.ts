@@ -234,6 +234,15 @@ const asignarHumano: EjecutorNodo<ConfigNodo<"ASIGNAR_HUMANO">> = {
 // ── IA ──────────────────────────────────────────────────────────────────────
 
 async function responderIA(c: ConfigNodo<"ATENCION_IA">, ctx: CtxNodo) {
+  // Delay en respuesta (ver ventana-espera.ts). Acá no se descarta el turno
+  // si llegan más mensajes: el motor de Workflows controla sus propios
+  // turnos, así que solo se espera a que el cliente termine de escribir —
+  // el historial que lee el prompt ya incluye todo lo que mandó mientras tanto.
+  if (c.delayRespuesta?.activo) {
+    const { esperar } = await import("@/ai/respuesta/ventana-espera");
+    await esperar(c.delayRespuesta.segundos * 1000);
+  }
+
   const instrucciones = [c.objetivo && `Objetivo de esta atención: ${c.objetivo}`, c.instrucciones && (await texto(c.instrucciones, ctx))]
     .filter(Boolean)
     .join("\n\n");

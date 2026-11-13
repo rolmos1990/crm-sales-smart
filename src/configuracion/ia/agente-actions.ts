@@ -115,6 +115,8 @@ export async function cargarConfigAgenteIA(usuarioId: string) {
       // 028-respuestas-guia-catalogo-ia
       respuestasGuia: true,
       catalogoEnContexto: true,
+      esperarAntesDeResponder: true,
+      segundosEsperaRespuesta: true,
       limiteCatalogoContexto: true,
     },
   });

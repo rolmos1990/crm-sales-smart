@@ -101,6 +101,12 @@ export const AgenteIAConfigSchema = z.object({
     .nullable()
     .optional(),
   catalogoEnContexto: z.boolean().optional(),
+
+  // Delay en respuesta: esperar a que el cliente termine de escribir antes de
+  // contestar (ver src/ai/respuesta/ventana-espera.ts). null = heredar el
+  // valor de la instancia.
+  esperarAntesDeResponder: z.boolean().nullable().optional(),
+  segundosEsperaRespuesta: z.number().int().min(1).max(60).nullable().optional(),
   limiteCatalogoContexto: z.number().int().min(1).max(100).optional(),
 });
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_SEGUNDOS_ESPERA, SEGUNDOS_ESPERA_DEFECTO } from "@/ai/respuesta/ventana-espera";
 import { TipoDisparadorWorkflow } from "@/generated/prisma/enums";
 import { ArbolCondicionesSchema } from "@/sales/flujo-venta/schema";
 
@@ -144,6 +145,16 @@ export const ConfigAtencionIASchema = z.object({
   maxInteracciones: z.number().int().min(1).max(50).default(10),
   maxTokens: z.number().int().min(100).optional(),
   inactividad: DuracionSchema.optional(),
+  // Delay en respuesta: espera a que el cliente termine de escribir y
+  // contesta una vez por todo el tramo, en vez de una por mensaje. No usa
+  // DuracionSchema porque su unidad mínima es el minuto y acá se habla de
+  // segundos. Ausente = sin espera (comportamiento previo).
+  delayRespuesta: z
+    .object({
+      activo: z.boolean().default(false),
+      segundos: z.number().int().min(1).max(MAX_SEGUNDOS_ESPERA).default(SEGUNDOS_ESPERA_DEFECTO),
+    })
+    .optional(),
 });
 
 export const ConfigMoverEtapaSchema = z.object({

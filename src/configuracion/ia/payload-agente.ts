@@ -41,6 +41,8 @@ export function construirPayloadAgenteIA(datos: AgenteIAConfigInput) {
     // estos campos: se restaura sin respuestas guía y con el catálogo activo.
     respuestasGuia: datos.respuestasGuia ?? Prisma.JsonNull,
     catalogoEnContexto: datos.catalogoEnContexto ?? true,
+    esperarAntesDeResponder: datos.esperarAntesDeResponder ?? false,
+    segundosEsperaRespuesta: datos.segundosEsperaRespuesta ?? null,
     limiteCatalogoContexto: datos.limiteCatalogoContexto ?? 30,
   };
 }

@@ -133,6 +133,9 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
       conversacionId,
       instanciaId,
       agenteIAConfigId,
+      // Lo necesita la ventana de espera para saber si este comando quedó
+      // obsoleto porque el cliente siguió escribiendo (ver ventana-espera.ts).
+      mensajeId,
     });
   }
 }

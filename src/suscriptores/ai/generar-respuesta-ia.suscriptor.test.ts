@@ -6,11 +6,16 @@ const conversacionFindUniqueMock = vi.fn();
 const agenteIAConfigFindUniqueMock = vi.fn();
 const mensajeFindFirstMock = vi.fn();
 
+// Sin fila de ConfiguracionIA la ventana de espera queda apagada, que es el
+// estado de estos tests: cubren el gate de autonomía, no el delay.
+const configuracionIAFindUniqueMock = vi.fn().mockResolvedValue(null);
+
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
     conversacion: { findUnique: (...a: unknown[]) => conversacionFindUniqueMock(...a) },
     agenteIAConfig: { findUnique: (...a: unknown[]) => agenteIAConfigFindUniqueMock(...a), findFirst: vi.fn() },
     mensajeConversacion: { findFirst: (...a: unknown[]) => mensajeFindFirstMock(...a) },
+    configuracionIA: { findUnique: (...a: unknown[]) => configuracionIAFindUniqueMock(...a) },
   },
 }));
 
@@ -189,5 +194,53 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2) 
     expect(generarConHerramientasMock).toHaveBeenCalledTimes(1);
     expect(generarRespuestaMock).not.toHaveBeenCalled();
     expect(enviarMensajeMock).toHaveBeenCalledWith(expect.objectContaining({ contenido: "Sí, tenemos disponibilidad." }));
+  });
+});
+
+// Ventana de espera: el cliente manda "Hola", "¿Tienen disponible?" y "la
+// esfera azul" seguidos. Cada mensaje publica su comando; solo el del último
+// debe responder, y con los tres en el historial.
+describe("GenerarRespuestaIASuscriptor — delay en respuesta", () => {
+  const envelopeConMensaje = (mensajeId: string) =>
+    ({ payload: { conversacionId: "conv-1", instanciaId: "instancia-1", mensajeId } }) as never;
+
+  beforeEach(() => {
+    conversacionFindUniqueMock.mockReset().mockResolvedValue({
+      contactoId: "contacto-1",
+      instanciaId: "instancia-1",
+      oportunidades: [],
+    });
+    agenteIAConfigFindUniqueMock.mockReset().mockResolvedValue({ herramientas: null });
+    // 1 segundo para no alargar la suite; el valor real sale de la config.
+    configuracionIAFindUniqueMock.mockReset().mockResolvedValue({
+      esperarAntesDeResponder: true,
+      segundosEsperaRespuesta: 1,
+    });
+    // El mismo findFirst sirve a dos usos: el chequeo de obsolescencia (lee
+    // `id`) y el último mensaje para el contexto (lee `contenido`).
+    mensajeFindFirstMock.mockReset().mockResolvedValue({ id: "msg-3", contenido: "la esfera azul" });
+    generarConHerramientasMock.mockReset().mockResolvedValue({ tipo: "texto", contenido: "Sí, tenemos.", usoIAId: "uso-1" });
+    enviarMensajeMock.mockReset().mockResolvedValue({ ok: true, mensaje: { id: "m1" } });
+    obtenerAutonomiaPorAgenteMock.mockReset().mockResolvedValue([]);
+    ensamblarYPersistirRegistroMock.mockReset().mockResolvedValue("registro-1");
+  });
+
+  it("descarta el comando de un mensaje que ya no es el último — no responde dos veces", async () => {
+    await new GenerarRespuestaIASuscriptor().manejar(envelopeConMensaje("msg-1"));
+
+    expect(enviarMensajeMock).not.toHaveBeenCalled();
+  });
+
+  it("el comando del último mensaje sí responde", async () => {
+    await new GenerarRespuestaIASuscriptor().manejar(envelopeConMensaje("msg-3"));
+
+    expect(enviarMensajeMock).toHaveBeenCalledOnce();
+  });
+
+  it("con la espera apagada responde sin consultar si quedó obsoleto", async () => {
+    configuracionIAFindUniqueMock.mockResolvedValue({ esperarAntesDeResponder: false });
+    await new GenerarRespuestaIASuscriptor().manejar(envelopeConMensaje("msg-1"));
+
+    expect(enviarMensajeMock).toHaveBeenCalledOnce();
   });
 });

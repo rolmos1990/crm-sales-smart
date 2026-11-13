@@ -77,6 +77,8 @@ describe("OrquestarIASuscriptor — atención humana", () => {
       conversacionId: "conv-1",
       instanciaId: "instancia-1",
       agenteIAConfigId: undefined,
+      // Lo consume la ventana de espera para descartarse si llega otro mensaje.
+      mensajeId: "msg-1",
     });
   });
 });

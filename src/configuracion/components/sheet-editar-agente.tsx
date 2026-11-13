@@ -38,6 +38,7 @@ import {
   Gauge,
   PlayCircle,
   Maximize2,
+  Timer,
   Minimize2,
   RotateCcw,
   type LucideIcon,
@@ -76,6 +77,7 @@ import {
 } from "@/configuracion/ia/agente-schema";
 import { plantillaDeTipo, TIPO_AGENTE_POR_DEFECTO } from "@/configuracion/ia/plantillas-agente";
 import { MAX_INSTRUCCIONES_AGENTE } from "@/configuracion/ia/agente-schema";
+import { MAX_SEGUNDOS_ESPERA, SEGUNDOS_ESPERA_DEFECTO } from "@/ai/respuesta/ventana-espera";
 import type { TipoAgenteIA } from "@/generated/prisma/enums";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 import { SeccionVersionesAgente } from "./seccion-versiones-agente";
@@ -444,6 +446,8 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
       respuestasGuia: null,
       catalogoEnContexto: true,
       limiteCatalogoContexto: 30,
+      esperarAntesDeResponder: false,
+      segundosEsperaRespuesta: null,
     },
   });
 
@@ -451,6 +455,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   const herramientasActivas = formIA.watch("herramientas") ?? [];
   const configuracionTono = formIA.watch("configuracionTono");
   const catalogoEnContexto = formIA.watch("catalogoEnContexto") ?? true;
+  const esperarAntesDeResponder = formIA.watch("esperarAntesDeResponder") ?? false;
 
   const herramientasFiltradas = HERRAMIENTAS_DISPONIBLES.filter(({ label, descripcion }) => {
     const q = busquedaHerramienta.trim().toLowerCase();
@@ -494,6 +499,8 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             respuestasGuia: (config.respuestasGuia as RespuestaGuiaInput[] | null) ?? null,
             catalogoEnContexto: config.catalogoEnContexto,
             limiteCatalogoContexto: config.limiteCatalogoContexto,
+            esperarAntesDeResponder: config.esperarAntesDeResponder,
+            segundosEsperaRespuesta: config.segundosEsperaRespuesta,
           });
         }
       })
@@ -822,6 +829,54 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         </FormItem>
                       )}
                     />
+                  </SeccionConfig>
+
+                  {/* ── Sección: Delay en respuesta ── */}
+                  <SeccionConfig
+                    Icono={Timer}
+                    titulo="Delay en respuesta"
+                    descripcion="Espera a que el cliente termine de escribir y responde una sola vez por todo lo que mandó, en vez de contestar cada mensaje por separado."
+                    accion={
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-xs", esperarAntesDeResponder ? "text-lime-300" : "text-stone-500")}>
+                          {esperarAntesDeResponder ? "Activo" : "Desactivado"}
+                        </span>
+                        <Switch
+                          checked={esperarAntesDeResponder}
+                          onCheckedChange={(v) => formIA.setValue("esperarAntesDeResponder", v, { shouldDirty: true })}
+                          aria-label="Esperar antes de responder"
+                        />
+                      </div>
+                    }
+                  >
+                    {esperarAntesDeResponder && (
+                      <FormField
+                        control={formIA.control}
+                        name="segundosEsperaRespuesta"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-wrap items-center gap-2 space-y-0 border-t border-white/8 pt-3">
+                            <FormLabel className="text-stone-400 text-xs font-normal">
+                              Segundos desde el último mensaje
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={MAX_SEGUNDOS_ESPERA}
+                                value={field.value ?? SEGUNDOS_ESPERA_DEFECTO}
+                                onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
+                                className="h-8 w-20 border-white/10 bg-white/5 text-sm text-stone-50"
+                              />
+                            </FormControl>
+                            <p className="basis-full text-[11px] text-stone-500">
+                              Si el cliente escribe de nuevo, la cuenta vuelve a empezar. Sumá este tiempo al que
+                              tarda el agente en redactar.
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                   </SeccionConfig>
 
                   {/* ── Sección: Catálogo con precios (028) ── */}
