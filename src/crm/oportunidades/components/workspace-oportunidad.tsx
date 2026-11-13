@@ -55,7 +55,8 @@ import {
 } from "@/conversaciones/actions";
 import type { ConversacionResumen, CuentaCanalResumen } from "@/conversaciones/types";
 import { MONEDAS } from "@/shared/moneda/constants";
-import { SheetNuevaCotizacion } from "@/sales/cotizaciones/components/sheet-nueva-cotizacion";
+import { PanelCotizacionWorkspace } from "@/sales/cotizaciones/components/panel-cotizacion-workspace";
+import { RielCotizacion } from "@/sales/cotizaciones/components/riel-cotizacion";
 import { BotonCotizacionAlChat } from "@/sales/cotizaciones/components/boton-cotizacion-al-chat";
 import { SheetEditarCotizacion } from "@/sales/cotizaciones/components/sheet-editar-cotizacion";
 import {
@@ -324,6 +325,14 @@ function WorkspaceContenido({
   const camposSeccionRef = useRef<HTMLDivElement>(null);
   const [cotizaciones, setCotizaciones] = useState<CotizacionResumen[]>(diferida?.cotizaciones ?? []);
 
+  // Cotización como panel lateral, no como Sheet. `montada` se mantiene en
+  // true mientras haya borrador: el formulario no se desmonta al plegar, solo
+  // se oculta, así se puede buscar algo en la conversación sin perder lo
+  // cargado. Se desmonta únicamente cuando la cotización se creó bien.
+  const [cotizacionMontada, setCotizacionMontada] = useState(false);
+  const [cotizacionVisible, setCotizacionVisible] = useState(false);
+  const abrirCotizacion = () => { setCotizacionMontada(true); setCotizacionVisible(true); };
+
   // Texto que el botón de cotización deja escrito en el compositor del chat.
   // El contador es el token de reinyección (ver InputMensaje.textoExterno).
   const [textoChat, setTextoChat] = useState<{ texto: string; n: number } | null>(null);
@@ -591,22 +600,25 @@ function WorkspaceContenido({
             </button>
             <div className="w-px h-5 bg-border mx-1" />
             {puedeMod && (
-              <SheetNuevaCotizacion
-                oportunidadId={oportunidad.id}
-                oportunidadTitulo={oportunidad.titulo}
-                contactoId={contactoPrincipal?.id}
-                empresaId={(oportunidad as any).empresaId ?? undefined}
-                destinatario={{
-                  nombre: contactoPrincipal?.nombre,
-                  apellido: contactoPrincipal?.apellido,
-                  telefono: (contactoPrincipal as any)?.telefonoPrincipal ?? undefined,
-                  email: (contactoPrincipal as any)?.email ?? undefined,
-                }}
-                onCreada={() => {
-                  refrescarCotizaciones();
-                  setSecciones((prev) => ({ ...prev, cotizaciones: true }));
-                }}
-              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={abrirCotizacion}
+                disabled={!contactoPrincipal?.id}
+                title={
+                  !contactoPrincipal?.id
+                    ? "Agrega un contacto a la oportunidad para crear una cotización"
+                    : cotizacionMontada
+                      ? "Retomar la cotización en edición"
+                      : undefined
+                }
+                className="gap-1.5"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                {cotizacionMontada ? "Cotización en edición" : "Nueva cotización"}
+                {cotizacionMontada && <span className="h-1.5 w-1.5 rounded-full bg-success-text" aria-hidden />}
+              </Button>
             )}
             <div className="w-px h-5 bg-border mx-1" />
             <button
@@ -624,8 +636,8 @@ function WorkspaceContenido({
       {/* ── CUERPO PRINCIPAL ──────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
 
-        {/* Panel Chat — 68% ─────────────────────────────────────────────── */}
-        <div className="flex flex-col min-w-0" style={{ width: "68%" }}>
+        {/* Panel Chat — 68%, o 40% con la cotización abierta ───────────── */}
+        <div className="flex flex-col min-w-0" style={{ width: cotizacionVisible ? "40%" : "68%" }}>
           {diferida ? (
             <PanelConversacion
               oportunidadId={oportunidad.id}
@@ -670,8 +682,12 @@ function WorkspaceContenido({
           )}
         </div>
 
-        {/* Panel Info — 32% ─────────────────────────────────────────────── */}
-        <div className="flex flex-col overflow-hidden" style={{ width: "32%" }}>
+        {/* Panel Info — 32%; se oculta (no se desmonta) con la cotización
+            abierta, para no perder lo editado en la oportunidad. */}
+        <div
+          className={cn("flex flex-col overflow-hidden", cotizacionVisible && "hidden")}
+          style={{ width: "32%" }}
+        >
           <Form {...form}>
             <form
               id="form-workspace"
@@ -1121,6 +1137,39 @@ function WorkspaceContenido({
             </form>
           </Form>
         </div>
+
+        {/* Cotización: riel cuando está plegada, panel cuando está abierta.
+            El panel NO se desmonta al plegar — solo se oculta — para conservar
+            el borrador mientras se consulta la conversación. */}
+        {cotizacionMontada && (
+          <>
+            {!cotizacionVisible && <RielCotizacion onExpandir={() => setCotizacionVisible(true)} />}
+            <div
+              className={cn("flex flex-col overflow-hidden", !cotizacionVisible && "hidden")}
+              style={{ width: "60%" }}
+            >
+              <PanelCotizacionWorkspace
+                oportunidadId={oportunidad.id}
+                contactoId={contactoPrincipal?.id}
+                empresaId={(oportunidad as any).empresaId ?? undefined}
+                destinatario={{
+                  nombre: contactoPrincipal?.nombre,
+                  apellido: contactoPrincipal?.apellido,
+                  telefono: (contactoPrincipal as any)?.telefonoPrincipal ?? undefined,
+                  email: (contactoPrincipal as any)?.email ?? undefined,
+                }}
+                onPlegar={() => setCotizacionVisible(false)}
+                onCreada={() => {
+                  // Recién acá se descarta el borrador: ante un error,
+                  // FormCotizacion deja el panel abierto con los datos.
+                  setCotizacionVisible(false);
+                  setCotizacionMontada(false);
+                  refrescarCotizaciones();
+                }}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <DialogCamposRequeridos

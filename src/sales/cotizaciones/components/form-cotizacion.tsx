@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  Plus, Trash2, Minus, X, FileText, Mail, Phone, Pencil, Package, HelpCircle,
+  Plus, Trash2, Minus, X, FileText, Mail, Phone, Pencil, Package, HelpCircle, PanelRightClose,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,6 +78,11 @@ interface FormCotizacionProps {
   onSuccess?: () => void;
   /** Cierra el sheet (modal) o navega atrás (página) — unifica ambas experiencias. */
   onCerrar?: () => void;
+  /**
+   * Qué significa el botón de arriba a la derecha. En el panel lateral del
+   * Workspace es "plegar": el formulario queda montado y el borrador vivo.
+   */
+  accionCerrar?: "cerrar" | "plegar";
   /** Datos del contacto de la oportunidad para el toggle "Usar información del contacto" */
   contactoOrigen?: Partial<DestinatarioCotizacionInput>;
   /** Cuando viene del pipeline, el contacto ya está fijado y no se puede cambiar */
@@ -154,6 +159,7 @@ export function FormCotizacion({
   empresaFija = false,
   monedaDefault = "PEN",
   defaultCountryCode = "PA",
+  accionCerrar = "cerrar",
 }: FormCotizacionProps) {
   const router = useRouter();
   const hayContactoOrigen = tieneContactoOrigen(contactoOrigen);
@@ -452,12 +458,17 @@ export function FormCotizacion({
                 ? modoEdicion ? "Guardando..." : "Creando..."
                 : modoEdicion ? "Guardar cambios" : "Crear cotización"}
             </Button>
+            {/* En el panel lateral del Workspace cerrar significa PLEGAR: el
+                borrador sigue vivo, así que una X (que se lee como
+                "descartar") confundiría. */}
             <button
               type="button"
               onClick={cerrar}
+              title={accionCerrar === "plegar" ? "Plegar — no se pierde lo cargado" : "Cerrar"}
+              aria-label={accionCerrar === "plegar" ? "Plegar la cotización" : "Cerrar"}
               className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
-              <X className="h-4 w-4" />
+              {accionCerrar === "plegar" ? <PanelRightClose className="h-4 w-4" /> : <X className="h-4 w-4" />}
             </button>
           </div>
         </div>
