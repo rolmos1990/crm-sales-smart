@@ -88,3 +88,27 @@ describe("entregaGuardadaAFormulario", () => {
     expect(r.zonaAsignadaManualmente).toBe(true);
   });
 });
+
+// Este mapeo tiene DOS consumidores: la página /sales/cotizaciones/[id]/editar
+// y obtenerDatosEdicionCotizacionAction (el Sheet y el panel del Workspace).
+// Estuvo duplicado y costó caro: se agregó `nombreDestinatario` a la página y
+// a la copia no, así que abrir una cotización desde el panel cargaba el campo
+// vacío y guardar lo borraba. El test exige que ninguno de los dos vuelva a
+// armar el objeto por su cuenta.
+describe("un solo mapeo para los dos caminos de edición", () => {
+  const FUENTES = [
+    "src/app/sales/cotizaciones/[id]/editar/page.tsx",
+    "src/sales/cotizaciones/actions.ts",
+  ] as const;
+
+  it.each(FUENTES)("%s usa entregaGuardadaAFormulario", async (ruta) => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const fuente = readFileSync(join(process.cwd(), ruta), "utf8");
+
+    expect(fuente).toContain("entregaGuardadaAFormulario(");
+    // Si alguien vuelve a armar el objeto a mano, estas claves reaparecen
+    // sueltas en el archivo y el mapeo se puede separar otra vez.
+    expect(fuente).not.toContain("metodoEntrega: entregaGuardada?.metodoEntrega");
+  });
+});

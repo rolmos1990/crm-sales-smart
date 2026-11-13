@@ -13,6 +13,7 @@ import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
 import type { CrearCotizacionInput } from "./schema";
 import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad, obtenerCotizacionPorId } from "./queries";
 import { construirTextoCotizacion } from "./texto-cotizacion";
+import { entregaGuardadaAFormulario, type EntregaGuardada } from "./mapeo-entrega";
 import { generarPedidoDesdeCotizacion } from "./services/generar-pedido-desde-cotizacion.service";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
@@ -936,9 +937,11 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
   ]);
   if (!cotizacion) return null;
 
-  // Mismo mapeo que la página /sales/cotizaciones/[id]/editar — mantenido acá
-  // en paralelo porque esa página sigue existiendo como acceso directo fuera
-  // del Workspace (ej. enlace desde el módulo de Cotizaciones).
+  // El mapeo de la entrega es el MISMO que usa la página
+  // /sales/cotizaciones/[id]/editar: entregaGuardadaAFormulario. Estuvo
+  // duplicado acá y costó caro — se agregó `nombreDestinatario` a la página y
+  // a esta copia no, así que abrir una cotización desde el Sheet o el panel
+  // cargaba el campo vacío y guardar lo borraba.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const metadata = (cotizacion as any).metadata as Record<string, unknown> | null;
   const destinatarioGuardado = metadata?.destinatario as Record<string, string> | undefined;
@@ -975,15 +978,7 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
     : 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const entregaGuardada = (cotizacion as any).entrega as {
-    metodoEntrega: string; estadoEntrega: string; transportistaId: string | null;
-    fechaEstimada: Date | string | null; observaciones: string | null;
-    paisId: string | null; estadoProvinciaId: string | null; ciudad: string | null;
-    corregimiento: string | null; sectorOCodigoPostal: string | null;
-    zonaEntregaId: string | null; zonaAsignadaManualmente: boolean;
-    servicioTransportistaId: string | null; tarifaTransportistaZonaId: string | null;
-    costoEnvioConfirmado: boolean;
-  } | null;
+  const entregaGuardada = (cotizacion as any).entrega as EntregaGuardada | null;
 
   const defaultValues: Partial<CrearCotizacionInput> = {
     moneda: cotizacion.moneda,
@@ -999,26 +994,8 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
       telefono: destinatarioGuardado?.telefono ?? "",
       email: destinatarioGuardado?.email ?? "",
     },
-    entrega: {
-      metodoEntrega: entregaGuardada?.metodoEntrega ?? "COURIER_EXTERNO",
-      estadoEntrega: entregaGuardada?.estadoEntrega ?? "PENDIENTE",
-      transportistaId: entregaGuardada?.transportistaId ?? null,
-      fechaEstimada: entregaGuardada?.fechaEstimada ? new Date(entregaGuardada.fechaEstimada) : undefined,
-      observaciones: entregaGuardada?.observaciones ?? "",
-      paisId: entregaGuardada?.paisId ?? null,
-      estadoProvinciaId: entregaGuardada?.estadoProvinciaId ?? null,
-      ciudad: entregaGuardada?.ciudad ?? "",
-      // 022-transportistas-zonas-tarifas
-      corregimiento: entregaGuardada?.corregimiento ?? "",
-      sectorOCodigoPostal: entregaGuardada?.sectorOCodigoPostal ?? "",
-      zonaEntregaId: entregaGuardada?.zonaEntregaId ?? null,
-      zonaAsignadaManualmente: entregaGuardada?.zonaAsignadaManualmente ?? false,
-      servicioTransportistaId: entregaGuardada?.servicioTransportistaId ?? null,
-      tarifaTransportistaZonaId: entregaGuardada?.tarifaTransportistaZonaId ?? null,
-      costoEnvioConfirmado: entregaGuardada?.costoEnvioConfirmado ?? true,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      costoEnvio: Number((cotizacion as any).costoEnvio ?? 0),
-    } as CrearCotizacionInput["entrega"],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    entrega: entregaGuardadaAFormulario(entregaGuardada, Number((cotizacion as any).costoEnvio ?? 0)),
   };
 
   const { contactosDetalle, contactos } = await asegurarContactoIncluido(
