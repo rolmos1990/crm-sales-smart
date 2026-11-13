@@ -111,6 +111,16 @@ export function FormEntrega({ pedidoId, entrega, transportistas, costoEnvio }: F
   useEffect(() => {
     obtenerModoGeograficoAction().then(setModoGeografico);
   }, []);
+
+  // Mismo criterio que el formulario de cotización: con un solo país se
+  // completa solo con el de operación, sin mostrar el campo.
+  useEffect(() => {
+    if (modoGeografico?.modoGeografico !== "UN_SOLO_PAIS") return;
+    const paisOperacion = modoGeografico.paisOperacionId;
+    if (!paisOperacion || form.getValues("paisId") === paisOperacion) return;
+    form.setValue("paisId", paisOperacion);
+  }, [modoGeografico, form]);
+
   const [sugiriendoCosto, setSugiriendoCosto] = useState(false);
   const paisEntregaId = form.watch("paisId");
   const estadoProvinciaEntregaId = form.watch("estadoProvinciaId");

@@ -223,6 +223,18 @@ export function FormCotizacion({
   useEffect(() => {
     obtenerModoGeograficoAction().then(setModoGeografico);
   }, []);
+
+  // Con un solo país no se pregunta el país: se completa solo con el de
+  // operación apenas se conoce el modo, sin que el usuario vea el campo. Así
+  // el destino queda completo en la base —antes se guardaba con paisId
+  // nulo— y la provincia no depende de una resolución asíncrona al reabrir.
+  // Una cotización vieja sin país se repara sola al volver a guardarla.
+  useEffect(() => {
+    if (modoGeografico?.modoGeografico !== "UN_SOLO_PAIS") return;
+    const paisOperacion = modoGeografico.paisOperacionId;
+    if (!paisOperacion || form.getValues("entrega.paisId") === paisOperacion) return;
+    form.setValue("entrega.paisId", paisOperacion);
+  }, [modoGeografico, form]);
   const [sugiriendoCosto, setSugiriendoCosto] = useState(false);
   const paisEntregaId = form.watch("entrega.paisId");
   const estadoProvinciaEntregaId = form.watch("entrega.estadoProvinciaId");
