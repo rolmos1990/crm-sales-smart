@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entregaGuardadaAFormulario, type EntregaGuardada } from "./mapeo-entrega";
+import { cotizacionADefaultValues, entregaGuardadaAFormulario, type EntregaGuardada } from "./mapeo-entrega";
 
 // La cotización del caso real: Chiriquí / Volcán con UnoExpress, servicio
 // Estándar, zona y tarifa resueltas. Todo eso estaba guardado y el
@@ -101,14 +101,64 @@ describe("un solo mapeo para los dos caminos de edición", () => {
     "src/sales/cotizaciones/actions.ts",
   ] as const;
 
-  it.each(FUENTES)("%s usa entregaGuardadaAFormulario", async (ruta) => {
+  it.each(FUENTES)("%s usa cotizacionADefaultValues", async (ruta) => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const fuente = readFileSync(join(process.cwd(), ruta), "utf8");
 
-    expect(fuente).toContain("entregaGuardadaAFormulario(");
-    // Si alguien vuelve a armar el objeto a mano, estas claves reaparecen
+    expect(fuente).toContain("cotizacionADefaultValues(");
+    // Si alguien vuelve a armar los valores a mano, estas claves reaparecen
     // sueltas en el archivo y el mapeo se puede separar otra vez.
     expect(fuente).not.toContain("metodoEntrega: entregaGuardada?.metodoEntrega");
+    expect(fuente).not.toContain("oportunidadId: cotizacion.oportunidadId");
+  });
+});
+
+// El vínculo con la oportunidad se perdía al editar: FormCotizacion no lo
+// expone como campo, solo reenvía lo que recibe, y actualizarCotizacion
+// escribe lo que le llega. Faltaba en el mapeo del Sheet/panel, así que editar
+// una cotización nacida en el Pipeline le cortaba la oportunidad — y después
+// el disparador "Cerrar oportunidad relacionada" no tenía a quién cerrar.
+describe("cotizacionADefaultValues", () => {
+  const COTIZACION = {
+    moneda: "USD",
+    subtotal: 100,
+    impuesto: 7,
+    costoEnvio: 5,
+    notas: "Entregar por la mañana",
+    contactoId: "cont-1",
+    empresaId: "emp-1",
+    oportunidadId: "op-1",
+    fechaVencimiento: null,
+    metadata: { destinatario: { nombre: "Ana", apellido: "Ruiz" } },
+    lineas: [{ productoId: "p1", cantidad: 2, precioUnitario: 50, descuento: 0, descripcion: null }],
+    entrega: GUARDADA,
+  };
+
+  it("conserva el vínculo con la oportunidad", () => {
+    expect(cotizacionADefaultValues(COTIZACION).oportunidadId).toBe("op-1");
+  });
+
+  it("una cotización sin oportunidad queda sin vínculo, no en undefined", () => {
+    expect(cotizacionADefaultValues({ ...COTIZACION, oportunidadId: null }).oportunidadId).toBe("");
+  });
+
+  it("recalcula el % de impuesto desde el monto guardado", () => {
+    // 7 sobre 100 = 7%
+    expect(cotizacionADefaultValues(COTIZACION).impuesto).toBe(7);
+  });
+
+  it("sin subtotal no divide por cero", () => {
+    expect(cotizacionADefaultValues({ ...COTIZACION, subtotal: 0 }).impuesto).toBe(0);
+  });
+
+  it("trae el destinatario de metadata y la entrega completa", () => {
+    const r = cotizacionADefaultValues(COTIZACION);
+    expect(r.destinatario).toMatchObject({ nombre: "Ana", apellido: "Ruiz" });
+    expect(r.entrega).toMatchObject({ nombreDestinatario: "Doña Marta (vecina)", costoEnvio: 5 });
+  });
+
+  it("una cotización sin líneas arranca con una vacía, no con cero", () => {
+    expect(cotizacionADefaultValues({ ...COTIZACION, lineas: [] }).lineas).toHaveLength(1);
   });
 });

@@ -13,7 +13,7 @@ import { CrearCotizacionSchema, ActualizarCotizacionSchema } from "./schema";
 import type { CrearCotizacionInput } from "./schema";
 import { generarNumeroCotizacion, obtenerCotizacionesPorOportunidad, obtenerCotizacionPorId } from "./queries";
 import { construirTextoCotizacion } from "./texto-cotizacion";
-import { entregaGuardadaAFormulario, type EntregaGuardada } from "./mapeo-entrega";
+import { cotizacionADefaultValues } from "./mapeo-entrega";
 import { generarPedidoDesdeCotizacion } from "./services/generar-pedido-desde-cotizacion.service";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
@@ -937,66 +937,12 @@ export async function obtenerDatosEdicionCotizacionAction(cotizacionId: string):
   ]);
   if (!cotizacion) return null;
 
-  // El mapeo de la entrega es el MISMO que usa la página
-  // /sales/cotizaciones/[id]/editar: entregaGuardadaAFormulario. Estuvo
-  // duplicado acá y costó caro — se agregó `nombreDestinatario` a la página y
-  // a esta copia no, así que abrir una cotización desde el Sheet o el panel
-  // cargaba el campo vacío y guardar lo borraba.
+  // Los valores iniciales los arma cotizacionADefaultValues, compartida con la
+  // página /sales/cotizaciones/[id]/editar. Estuvo duplicada acá y costó dos
+  // bugs del mismo tipo: faltaban `nombreDestinatario` y `oportunidadId`, y lo
+  // que falta en estos valores no solo no se muestra — se borra al guardar.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const metadata = (cotizacion as any).metadata as Record<string, unknown> | null;
-  const destinatarioGuardado = metadata?.destinatario as Record<string, string> | undefined;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lineasParaForm = ((cotizacion as any).lineas ?? []).map((l: any) => ({
-    productoId: l.productoId ?? "",
-    varianteId: l.varianteId ?? "",
-    descripcion: l.descripcion ?? "",
-    cantidad: Number(l.cantidad),
-    precioUnitario: Number(l.precioUnitario),
-    descuento: Number(l.descuento),
-    // Por línea, no por documento — ver EntregaDigitalCotizacion. Sin
-    // `codigo` real: solo si ya hay uno configurado (tieneCodigoConfigurado,
-    // via ocultarCodigo en queries.ts), nunca el valor.
-    entregaDigital: l.entregaDigital ? {
-      metodo: l.entregaDigital.metodo ?? undefined,
-      email: l.entregaDigital.email ?? "",
-      url: l.entregaDigital.url ?? "",
-      archivo: l.entregaDigital.archivo ?? "",
-      usuarioAcceso: l.entregaDigital.usuarioAcceso ?? "",
-      fechaEntrega: l.entregaDigital.fechaEntrega ? new Date(l.entregaDigital.fechaEntrega) : undefined,
-      fechaExpiracion: l.entregaDigital.fechaExpiracion ? new Date(l.entregaDigital.fechaExpiracion) : undefined,
-      instrucciones: l.entregaDigital.instrucciones ?? "",
-      observaciones: l.entregaDigital.observaciones ?? "",
-      codigoAccion: l.entregaDigital.tieneCodigoConfigurado ? "CONSERVAR" as const : undefined,
-      codigoNuevo: "",
-    } : undefined,
-  }));
-
-  const subtotalNum = Number(cotizacion.subtotal);
-  const impuestoPorcentaje = subtotalNum > 0
-    ? Math.round((Number(cotizacion.impuesto) / subtotalNum) * 1000) / 10
-    : 0;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const entregaGuardada = (cotizacion as any).entrega as EntregaGuardada | null;
-
-  const defaultValues: Partial<CrearCotizacionInput> = {
-    moneda: cotizacion.moneda,
-    impuesto: impuestoPorcentaje,
-    notas: cotizacion.notas ?? "",
-    contactoId: cotizacion.contactoId ?? "",
-    empresaId: cotizacion.empresaId ?? "",
-    fechaVencimiento: cotizacion.fechaVencimiento ? new Date(cotizacion.fechaVencimiento) : undefined,
-    lineas: lineasParaForm.length > 0 ? lineasParaForm : [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
-    destinatario: {
-      nombre: destinatarioGuardado?.nombre ?? "",
-      apellido: destinatarioGuardado?.apellido ?? "",
-      telefono: destinatarioGuardado?.telefono ?? "",
-      email: destinatarioGuardado?.email ?? "",
-    },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    entrega: entregaGuardadaAFormulario(entregaGuardada, Number((cotizacion as any).costoEnvio ?? 0)),
-  };
+  const defaultValues = cotizacionADefaultValues(cotizacion as any);
 
   const { contactosDetalle, contactos } = await asegurarContactoIncluido(
     cotizacion.contactoId ?? "",

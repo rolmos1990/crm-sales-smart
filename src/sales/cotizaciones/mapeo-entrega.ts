@@ -61,3 +61,101 @@ export function entregaGuardadaAFormulario(
     costoEnvioConfirmado: entrega?.costoEnvioConfirmado ?? true,
   };
 }
+
+// ── Valores iniciales del formulario de edición ─────────────────────────────
+//
+// Lo arman DOS caminos: la página /sales/cotizaciones/[id]/editar y
+// obtenerDatosEdicionCotizacionAction (el Sheet y el panel del Workspace).
+// Estuvieron duplicados carácter por carácter y costó dos bugs del mismo tipo,
+// porque el formulario reenvía lo que recibe y actualizarCotizacion escribe lo
+// que le llega: lo que falte acá no se muestra Y SE BORRA al guardar.
+//
+//   - `nombreDestinatario` faltaba en la copia del action.
+//   - `oportunidadId` también: editar una cotización nacida en el Pipeline le
+//     cortaba el vínculo con su oportunidad, y después el disparador de
+//     "Cerrar oportunidad relacionada" no tenía a quién cerrar.
+//
+// Por eso ahora hay una sola función: agregar un campo al formulario y
+// olvidarse de un camino vuelve a ser imposible.
+
+/** Lo que estos valores necesitan de la cotización ya cargada. */
+export interface CotizacionParaEdicion {
+  moneda: string;
+  subtotal: unknown;
+  impuesto: unknown;
+  costoEnvio?: unknown;
+  notas: string | null;
+  contactoId: string | null;
+  empresaId: string | null;
+  oportunidadId: string | null;
+  fechaVencimiento: Date | string | null;
+  metadata: unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  lineas: any[];
+  entrega: EntregaGuardada | null;
+}
+
+const LINEA_VACIA = { descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 };
+
+export function cotizacionADefaultValues(
+  cotizacion: CotizacionParaEdicion,
+): Partial<CrearCotizacionInput> {
+  // El % de IGV no se guarda como tal —solo el monto ya calculado—, así que se
+  // recalcula desde subtotal/impuesto para no perder el valor original: sin
+  // esto el form caería al 0% de una cotización nueva y cambiaría el impuesto
+  // sin que el usuario lo haya tocado.
+  const subtotal = Number(cotizacion.subtotal);
+  const impuestoPorcentaje =
+    subtotal > 0 ? Math.round((Number(cotizacion.impuesto) / subtotal) * 1000) / 10 : 0;
+
+  const metadata = cotizacion.metadata as Record<string, unknown> | null;
+  const destinatario = metadata?.destinatario as Record<string, string> | undefined;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lineas = (cotizacion.lineas ?? []).map((l: any) => ({
+    productoId: l.productoId ?? "",
+    varianteId: l.varianteId ?? "",
+    descripcion: l.descripcion ?? "",
+    cantidad: Number(l.cantidad),
+    precioUnitario: Number(l.precioUnitario),
+    descuento: Number(l.descuento),
+    // Por línea, no por documento — ver EntregaDigitalCotizacion. Sin
+    // `codigo` real: solo si ya hay uno configurado (tieneCodigoConfigurado,
+    // via ocultarCodigo en queries.ts), nunca el valor.
+    entregaDigital: l.entregaDigital
+      ? {
+          metodo: l.entregaDigital.metodo ?? undefined,
+          email: l.entregaDigital.email ?? "",
+          url: l.entregaDigital.url ?? "",
+          archivo: l.entregaDigital.archivo ?? "",
+          usuarioAcceso: l.entregaDigital.usuarioAcceso ?? "",
+          fechaEntrega: l.entregaDigital.fechaEntrega ? new Date(l.entregaDigital.fechaEntrega) : undefined,
+          fechaExpiracion: l.entregaDigital.fechaExpiracion ? new Date(l.entregaDigital.fechaExpiracion) : undefined,
+          instrucciones: l.entregaDigital.instrucciones ?? "",
+          observaciones: l.entregaDigital.observaciones ?? "",
+          codigoAccion: l.entregaDigital.tieneCodigoConfigurado ? ("CONSERVAR" as const) : undefined,
+          codigoNuevo: "",
+        }
+      : undefined,
+  }));
+
+  return {
+    moneda: cotizacion.moneda,
+    impuesto: impuestoPorcentaje,
+    notas: cotizacion.notas ?? "",
+    contactoId: cotizacion.contactoId ?? "",
+    empresaId: cotizacion.empresaId ?? "",
+    // FormCotizacion no expone esto como campo editable, solo lo reenvía: si
+    // no viene, el guardado corta el vínculo con la oportunidad.
+    oportunidadId: cotizacion.oportunidadId ?? "",
+    fechaVencimiento: cotizacion.fechaVencimiento ? new Date(cotizacion.fechaVencimiento) : undefined,
+    lineas: lineas.length > 0 ? lineas : [LINEA_VACIA],
+    destinatario: {
+      nombre: destinatario?.nombre ?? "",
+      apellido: destinatario?.apellido ?? "",
+      telefono: destinatario?.telefono ?? "",
+      email: destinatario?.email ?? "",
+    },
+    entrega: entregaGuardadaAFormulario(cotizacion.entrega, Number(cotizacion.costoEnvio ?? 0)),
+  };
+}

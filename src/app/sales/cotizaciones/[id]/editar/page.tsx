@@ -11,8 +11,7 @@ import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import { isoDesdePais } from "@/shared/lib/pais-iso";
-import type { CrearCotizacionInput } from "@/sales/cotizaciones/schema";
-import { entregaGuardadaAFormulario, type EntregaGuardada } from "@/sales/cotizaciones/mapeo-entrega";
+import { cotizacionADefaultValues } from "@/sales/cotizaciones/mapeo-entrega";
 
 export default async function EditarCotizacionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -47,67 +46,12 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
   // Solo se puede editar mientras la cotización siga en borrador (no enviada)
   if (cotizacion.estado !== "BORRADOR") redirect(`/sales/cotizaciones/${id}`);
 
-  const metadata = (cotizacion as any).metadata as Record<string, unknown> | null;
-  const destinatarioGuardado = metadata?.destinatario as Record<string, string> | undefined;
-
-  const lineasParaForm = ((cotizacion as any).lineas ?? []).map((l: any) => ({
-    productoId: l.productoId ?? "",
-    varianteId: l.varianteId ?? "",
-    descripcion: l.descripcion ?? "",
-    cantidad: Number(l.cantidad),
-    precioUnitario: Number(l.precioUnitario),
-    descuento: Number(l.descuento),
-    // Por línea, no por documento — ver EntregaDigitalCotizacion. Sin
-    // `codigo` real: solo si ya hay uno configurado (tieneCodigoConfigurado,
-    // via ocultarCodigo en queries.ts), nunca el valor.
-    entregaDigital: l.entregaDigital ? {
-      metodo: l.entregaDigital.metodo ?? undefined,
-      email: l.entregaDigital.email ?? "",
-      url: l.entregaDigital.url ?? "",
-      archivo: l.entregaDigital.archivo ?? "",
-      usuarioAcceso: l.entregaDigital.usuarioAcceso ?? "",
-      fechaEntrega: l.entregaDigital.fechaEntrega ? new Date(l.entregaDigital.fechaEntrega) : undefined,
-      fechaExpiracion: l.entregaDigital.fechaExpiracion ? new Date(l.entregaDigital.fechaExpiracion) : undefined,
-      instrucciones: l.entregaDigital.instrucciones ?? "",
-      observaciones: l.entregaDigital.observaciones ?? "",
-      codigoAccion: l.entregaDigital.tieneCodigoConfigurado ? "CONSERVAR" as const : undefined,
-      codigoNuevo: "",
-    } : undefined,
-  }));
-
-  // El % de IGV no se guarda como tal — solo el monto ya calculado — así que
-  // se recalcula desde subtotal/impuesto para no perder el valor original al
-  // editar (si no se hiciera esto, el form caería siempre al 0% por defecto
-  // de una cotización nueva, cambiando de hecho el impuesto sin que el
-  // usuario lo haya tocado).
-  const subtotalNum = Number(cotizacion.subtotal);
-  const impuestoPorcentaje = subtotalNum > 0
-    ? Math.round((Number(cotizacion.impuesto) / subtotalNum) * 1000) / 10
-    : 0;
-
-  const entregaGuardada = (cotizacion as any).entrega as EntregaGuardada | null;
-
-  const defaultValues: Partial<CrearCotizacionInput> = {
-    moneda: cotizacion.moneda,
-    impuesto: impuestoPorcentaje,
-    notas: cotizacion.notas ?? "",
-    contactoId: cotizacion.contactoId ?? "",
-    empresaId: cotizacion.empresaId ?? "",
-    // Sin esto, el form cae al valor por defecto ("" — sin oportunidad) y
-    // cualquier guardado borra el enlace de una cotización que sí nació
-    // desde el Workspace de una oportunidad (ver FormCotizacion, que no
-    // expone esto como campo editable — solo lo preserva).
-    oportunidadId: cotizacion.oportunidadId ?? "",
-    fechaVencimiento: cotizacion.fechaVencimiento ? new Date(cotizacion.fechaVencimiento) : undefined,
-    lineas: lineasParaForm.length > 0 ? lineasParaForm : [{ descripcion: "", productoId: "", cantidad: 1, precioUnitario: 0, descuento: 0 }],
-    destinatario: {
-      nombre: destinatarioGuardado?.nombre ?? "",
-      apellido: destinatarioGuardado?.apellido ?? "",
-      telefono: destinatarioGuardado?.telefono ?? "",
-      email: destinatarioGuardado?.email ?? "",
-    },
-    entrega: entregaGuardadaAFormulario(entregaGuardada, Number((cotizacion as any).costoEnvio ?? 0)),
-  };
+  // Mismo mapeo que usa obtenerDatosEdicionCotizacionAction (el Sheet y el
+  // panel del Workspace) — ver cotizacionADefaultValues: tenerlo duplicado ya
+  // costó dos bugs en los que un campo faltaba de un lado y se borraba al
+  // guardar.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const defaultValues = cotizacionADefaultValues(cotizacion as any);
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
 
