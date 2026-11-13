@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { TextareaConReferencias } from "@/shared/ui/textarea-con-referencias";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { crearAgenteConIA, crearUsuario } from "@/configuracion/usuarios/actions";
@@ -356,9 +357,11 @@ export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAge
                         <FormItem>
                           <FormLabel className="text-stone-300">Instrucciones del agente</FormLabel>
                           <FormControl>
-                            <Textarea
-                              {...field}
+                            <TextareaConReferencias
+                              name={field.name}
+                              onBlur={field.onBlur}
                               value={field.value ?? ""}
+                              onChange={field.onChange}
                               rows={10}
                               className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-600 font-mono text-xs leading-relaxed"
                             />

@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { TextareaConReferencias } from "@/shared/ui/textarea-con-referencias";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -159,12 +160,12 @@ function TarjetaRespuestaGuia({
             {respuesta.formato.length}/{MAX_FORMATO}
           </span>
         </div>
-        <Textarea
+        <TextareaConReferencias
           ref={formatoRef}
           value={respuesta.formato}
           maxLength={MAX_FORMATO}
           rows={3}
-          onChange={(e) => onCambiar({ formato: e.target.value })}
+          onChange={(valor) => onCambiar({ formato: valor })}
           placeholder="¡Hola {nombreCliente}! El {producto} está a {precio} {moneda}. ¿Te lo separo?"
           className="resize-y border-white/10 bg-white/5 text-sm text-stone-50 placeholder:text-stone-500"
         />

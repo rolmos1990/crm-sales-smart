@@ -23,6 +23,7 @@
 // las reglas obligatorias (capas 1-3), nunca antes ni mezclado con ellas.
 
 import { construirSystemPrompt, type ConfigAgenteParaPrompt, type ContextoDinamicoPrompt } from "@/ai/prompt/builder";
+import { expandirReferenciasAgente } from "@/configuracion/referencias/expandir";
 import { producirCapaEstrategia } from "./capas/estrategia-activa";
 import { producirCapaPerfilCliente } from "./capas/perfil-cliente";
 import { producirCapaDatosConocidosFaltantes, producirCapaInfoOperativa } from "./capas/placeholders";
@@ -118,7 +119,15 @@ export async function construirContextoCompuesto(
     .filter((c): c is string => Boolean(c))
     .join("\n\n");
 
-  const systemPrompt = construirSystemPrompt(datos.configAgente, datos.contextoDinamico, {
+  // Referencias `@tipo:clave` escritas en las instrucciones / respuestas guía
+  // (ver src/configuracion/referencias/). Se expanden ACÁ y no dentro de
+  // construirSystemPrompt porque resolverlas necesita I/O, y este es el único
+  // punto por el que pasan tanto el flujo real como el simulador. Sin ningún
+  // `@` en los textos devuelve el mismo objeto sin consultar nada: el prompt
+  // queda byte-idéntico al de antes de esta feature.
+  const configAgente = await expandirReferenciasAgente(datos.configAgente, insumos.instanciaId);
+
+  const systemPrompt = construirSystemPrompt(configAgente, datos.contextoDinamico, {
     contenidoEstrategia,
     contenidoPerfilCliente,
     contenidoReservado: contenidoReservado || null,

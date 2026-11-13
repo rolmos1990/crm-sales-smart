@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { TextareaConReferencias } from "@/shared/ui/textarea-con-referencias";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { editarUsuario } from "@/configuracion/usuarios/actions";
@@ -665,9 +666,11 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Textarea
-                              {...field}
+                            <TextareaConReferencias
+                              name={field.name}
+                              onBlur={field.onBlur}
                               value={field.value ?? ""}
+                              onChange={field.onChange}
                               rows={16}
                               placeholder="# Rol y objetivo…"
                               className="border-white/10 bg-white/5 font-mono text-xs leading-relaxed text-stone-50 placeholder:text-stone-500"
