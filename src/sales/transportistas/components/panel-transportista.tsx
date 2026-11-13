@@ -14,9 +14,11 @@ interface PanelTransportistaProps {
   transportista: TransportistaConPais & { zonasActivas: number };
   servicios: { id: string; nombre: string }[];
   condiciones: CondicionesTransportista | null;
-  zonas: { id: string; nombre: string }[];
+  zonas: Parameters<typeof SeccionZonasTarifas>[0]["zonasIniciales"];
   tarifas: Parameters<typeof SeccionZonasTarifas>[0]["tarifas"];
   promedio: { costoPromedio: number; margenPromedio: number; cantidad: number };
+  /** Código ISO de la moneda principal de la empresa, para formatear importes. */
+  moneda: string;
   puedeVerCostos: boolean;
   puedeModificar: boolean;
 }
@@ -24,10 +26,15 @@ interface PanelTransportistaProps {
 // 022-transportistas-zonas-tarifas — panel de configuración completo
 // (FR-003): encabezado + pestañas Información/Zonas y tarifas/Condiciones.
 export function PanelTransportista({
-  transportista, servicios, condiciones, zonas, tarifas, promedio, puedeVerCostos, puedeModificar,
+  transportista, servicios, condiciones, zonas, tarifas, promedio, moneda, puedeVerCostos, puedeModificar,
 }: PanelTransportistaProps) {
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
+    // La tabla de "Zonas y tarifas" necesita más ancho que un formulario;
+    // Información y Condiciones conservan el suyo acotándose más abajo.
+    // `w-full` es necesario junto a `mx-auto`: sin él, el margen automático
+    // desactiva el stretch del flex del layout y la caja crece con su
+    // contenido más ancho (la tabla de tarifas) en vez de dejarla desplazarse.
+    <div className="flex w-full flex-col gap-6 p-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-3">
         <Link href="/sales/transportistas" className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />
@@ -63,7 +70,7 @@ export function PanelTransportista({
           <TabsTrigger value="condiciones">Condiciones</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="informacion" className="mt-5">
+        <TabsContent value="informacion" className="mt-5 max-w-4xl">
           <SeccionInformacionTransportista transportista={transportista} puedeModificar={puedeModificar} />
         </TabsContent>
 
@@ -76,12 +83,13 @@ export function PanelTransportista({
             servicios={servicios}
             tarifas={tarifas}
             promedio={promedio}
+            moneda={moneda}
             puedeVerCostos={puedeVerCostos}
             puedeModificar={puedeModificar}
           />
         </TabsContent>
 
-        <TabsContent value="condiciones" className="mt-5">
+        <TabsContent value="condiciones" className="mt-5 max-w-4xl">
           <SeccionCondicionesTransportista
             transportistaId={transportista.id}
             transportistaNombre={transportista.nombre}

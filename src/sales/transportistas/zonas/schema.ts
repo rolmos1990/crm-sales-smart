@@ -17,5 +17,20 @@ export const CrearZonaEntregaSchema = z.object({
   ubicaciones: z.array(UbicacionZonaSchema).min(1, "Agrega al menos una ubicación"),
 });
 
+// Al editar, cada ubicación viaja con su `id` cuando ya existe: la acción las
+// reconcilia una por una en vez de borrarlas y recrearlas, porque
+// AliasUbicacion cuelga de ZonaEntregaUbicacion con onDelete Cascade y
+// recrearlas perdería los alias configurados para ese destino.
+export const UbicacionZonaEdicionSchema = UbicacionZonaSchema.extend({
+  id: z.string().min(1).optional(),
+});
+
+export const EditarZonaEntregaSchema = CrearZonaEntregaSchema.extend({
+  id: z.string().min(1),
+  ubicaciones: z.array(UbicacionZonaEdicionSchema).min(1, "Agrega al menos una ubicación"),
+});
+
 export type UbicacionZonaInput = z.infer<typeof UbicacionZonaSchema>;
 export type CrearZonaEntregaInput = z.infer<typeof CrearZonaEntregaSchema>;
+export type UbicacionZonaEdicionInput = z.infer<typeof UbicacionZonaEdicionSchema>;
+export type EditarZonaEntregaInput = z.infer<typeof EditarZonaEntregaSchema>;

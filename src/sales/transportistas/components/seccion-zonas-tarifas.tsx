@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Copy, MapPinPlus, Pencil, Plus, Power, Search, Tag, Trash2, Upload } from "lucide-react";
+import { ChevronDown, Coins, Copy, MapPinPlus, MoreHorizontal, Pencil, Percent, Plus, Power, Search, Tag, Trash2, Upload } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -14,14 +18,19 @@ import { duplicarTarifa, eliminarTarifa, toggleTarifa } from "../tarifas/actions
 import { eliminarZonaEntrega } from "../zonas/actions";
 import { WizardImportacionDestinos } from "../importacion-destinos/components/wizard-importacion-destinos";
 import { DialogAliasUbicacion } from "./dialog-alias-ubicacion";
+import { DialogEditarZona, type ZonaEditable } from "./dialog-editar-zona";
 import { DialogTarifa, type TarifaExistente } from "./dialog-tarifa";
 import { DialogZonaEntrega } from "./dialog-zona-entrega";
+
+/** Máximo de etiquetas de cobertura antes de resumir el resto en "+N más". */
+const MAX_ETIQUETAS_COBERTURA = 3;
 
 interface TarifaFila {
   id: string;
   zonaEntrega: { id: string; nombre: string };
-  // 023-transportistas-por-pais — provincia/estado real de catálogo (FR-007)
-  ubicacion: string;
+  // 023-transportistas-por-pais — ubicaciones reales de catálogo (FR-007),
+  // ya deduplicadas para presentación por `resumirCobertura` en la página.
+  cobertura: { etiqueta: string; detalle: string }[];
   servicioTransportista: { id: string; nombre: string };
   costoInterno: number;
   precioCliente: number;
@@ -38,10 +47,14 @@ interface SeccionZonasTarifasProps {
   // deshabilita agregar zonas/tarifas nuevas hasta completarlo.
   pais: { nombre: string; banderaEmoji: string | null } | null;
   paisId: string | null;
-  zonasIniciales: { id: string; nombre: string }[];
+  /** Catálogo de zonas del país del transportista, con sus ubicaciones para
+   *  poder editarlas sin una consulta extra al abrir el modal. */
+  zonasIniciales: ZonaEditable[];
   servicios: { id: string; nombre: string }[];
   tarifas: TarifaFila[];
   promedio: { costoPromedio: number; margenPromedio: number; cantidad: number };
+  /** Código ISO de la moneda principal de la empresa (no hay moneda por tarifa). */
+  moneda: string;
   puedeVerCostos: boolean;
   puedeModificar: boolean;
 }
@@ -51,7 +64,7 @@ interface SeccionZonasTarifasProps {
 // el permiso "transportistas-costos" (US5, Fase 7 — no implementado en esta
 // pasada; se deja el flag `puedeVerCostos` cableado para esa historia).
 export function SeccionZonasTarifas({
-  transportistaId, pais, paisId, zonasIniciales, servicios, tarifas, promedio, puedeVerCostos, puedeModificar,
+  transportistaId, pais, paisId, zonasIniciales, servicios, tarifas, promedio, moneda, puedeVerCostos, puedeModificar,
 }: SeccionZonasTarifasProps) {
   const paisLabel = pais ? `${pais.banderaEmoji ? `${pais.banderaEmoji} ` : ""}${pais.nombre}`.trim() : null;
   const puedeAgregar = puedeModificar && paisId != null;
@@ -63,7 +76,35 @@ export function SeccionZonasTarifas({
   const [isPending, startTransition] = useTransition();
   // 024-alias-ubicaciones-transportistas
   const [zonaAliasSeleccionada, setZonaAliasSeleccionada] = useState<{ id: string; nombre: string } | null>(null);
+  const [zonaEnEdicionId, setZonaEnEdicionId] = useState<string | null>(null);
   const [wizardImportacionAbierto, setWizardImportacionAbierto] = useState(false);
+  /** Ids de las tarifas cuya cobertura completa está desplegada. */
+  const [coberturasAbiertas, setCoberturasAbiertas] = useState<ReadonlySet<string>>(new Set());
+
+  // No hay moneda por tarifa: los importes están en la moneda principal de la
+  // empresa. Un código inválido haría explotar a Intl, de ahí el respaldo.
+  const formatearImporte = useMemo(() => {
+    try {
+      const formato = new Intl.NumberFormat("es-PE", {
+        style: "currency",
+        currency: moneda,
+        currencyDisplay: "narrowSymbol",
+      });
+      return (valor: number) => formato.format(valor);
+    } catch {
+      return (valor: number) => `${moneda} ${valor.toFixed(2)}`;
+    }
+  }, [moneda]);
+
+  const totalColumnas = 5 + (puedeVerCostos ? 2 : 0);
+
+  const alternarCobertura = useCallback((tarifaId: string) => {
+    setCoberturasAbiertas((prev) => {
+      const siguiente = new Set(prev);
+      if (!siguiente.delete(tarifaId)) siguiente.add(tarifaId);
+      return siguiente;
+    });
+  }, []);
 
   const zonasFiltradas = useMemo(
     () => (busqueda ? zonas.filter((z) => z.nombre.toLowerCase().includes(busqueda.toLowerCase())) : zonas),
@@ -79,6 +120,26 @@ export function SeccionZonasTarifas({
   // propia (la tabla lista tarifas, no zonas): sin esto, "Agregar zona" deja
   // la zona invisible hasta que se le agregue una tarifa. Se muestran acá
   // aparte, con un atajo directo para agregarle la primera tarifa.
+  const zonaEnEdicion = useMemo(
+    () => zonas.find((z) => z.id === zonaEnEdicionId) ?? null,
+    [zonas, zonaEnEdicionId],
+  );
+
+  const tarifasDeLaZonaEnEdicion = useMemo(
+    () =>
+      tarifas
+        .filter((t) => t.zonaEntrega.id === zonaEnEdicionId)
+        .map((t) => ({
+          id: t.id,
+          servicioTransportistaId: t.servicioTransportista.id,
+          costoInterno: t.costoInterno,
+          precioCliente: t.precioCliente,
+          tiempoMinimoDias: t.tiempoMinimoDias,
+          tiempoMaximoDias: t.tiempoMaximoDias,
+        })),
+    [tarifas, zonaEnEdicionId],
+  );
+
   const zonasSinTarifa = useMemo(() => {
     const idsConTarifa = new Set(tarifas.map((t) => t.zonaEntrega.id));
     return zonasFiltradas.filter((z) => !idsConTarifa.has(z.id));
@@ -147,39 +208,50 @@ export function SeccionZonasTarifas({
   return (
     <div className="flex flex-col gap-4">
       {puedeVerCostos && (
-        <div className="grid grid-cols-2 gap-3 sm:max-w-sm">
-          <div className="rounded-xl border border-border bg-card p-3">
-            <p className="text-xs text-muted-foreground">Costo promedio</p>
-            <p className="text-lg font-semibold text-foreground">{promedio.costoPromedio.toFixed(2)}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:max-w-xl">
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+            <div className="rounded-xl bg-primary-subtle p-2.5">
+              <Coins aria-hidden className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Costo promedio</p>
+              <p className="text-2xl font-semibold tabular-nums text-foreground">{formatearImporte(promedio.costoPromedio)}</p>
+            </div>
           </div>
-          <div className="rounded-xl border border-border bg-card p-3">
-            <p className="text-xs text-muted-foreground">Margen promedio</p>
-            <p className="text-lg font-semibold text-foreground">{promedio.margenPromedio.toFixed(2)}</p>
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+            <div className="rounded-xl bg-primary-subtle p-2.5">
+              <Percent aria-hidden className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Margen promedio</p>
+              <p className="text-2xl font-semibold tabular-nums text-foreground">{formatearImporte(promedio.margenPromedio)}</p>
+            </div>
           </div>
         </div>
       )}
 
-      <div className="flex items-center gap-2 flex-wrap justify-between">
-        <div className="relative w-64">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full sm:w-72">
+          <Search aria-hidden className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar zona..."
-            className="pl-8"
+            aria-label="Buscar zona"
+            className="h-10 pl-9"
           />
         </div>
         {puedeModificar && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {puedeAgregar ? (
               <>
                 <DialogZonaEntrega paisId={paisId!} paisLabel={paisLabel!} onCreada={(z) => setZonas((prev) => [...prev, z])} />
-                <Button type="button" size="sm" className="gap-1.5" onClick={abrirNuevaTarifa} disabled={zonas.length === 0}>
-                  <Plus className="h-3.5 w-3.5" />
+                <Button type="button" className="h-10 gap-1.5" onClick={abrirNuevaTarifa} disabled={zonas.length === 0}>
+                  <Plus className="h-4 w-4" />
                   Agregar tarifa
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setWizardImportacionAbierto(true)}>
-                  <Upload className="h-3.5 w-3.5" />
+                <Button type="button" variant="outline" className="h-10 gap-1.5" onClick={() => setWizardImportacionAbierto(true)}>
+                  <Upload className="h-4 w-4" />
                   Importar destinos
                 </Button>
               </>
@@ -187,12 +259,12 @@ export function SeccionZonasTarifas({
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger className="flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled>
-                      <Plus className="h-3.5 w-3.5" />
+                    <Button type="button" variant="outline" className="h-10 gap-1.5" disabled>
+                      <Plus className="h-4 w-4" />
                       Agregar zona
                     </Button>
-                    <Button type="button" size="sm" className="gap-1.5" disabled>
-                      <Plus className="h-3.5 w-3.5" />
+                    <Button type="button" className="h-10 gap-1.5" disabled>
+                      <Plus className="h-4 w-4" />
                       Agregar tarifa
                     </Button>
                   </TooltipTrigger>
@@ -232,6 +304,17 @@ export function SeccionZonasTarifas({
                     <Button
                       type="button"
                       variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setZonaEnEdicionId(z.id)}
+                      aria-label={`Editar la zona ${z.nombre}`}
+                      title="Editar zona"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
                       size="sm"
                       className="h-7 gap-1.5 text-xs"
                       onClick={() => abrirNuevaTarifaParaZona(z.id)}
@@ -258,92 +341,179 @@ export function SeccionZonasTarifas({
         </div>
       )}
 
-      <div className="rounded-xl border border-border overflow-x-auto">
-        <Table>
+      {/* `min-w` + scroll horizontal: en pantallas angostas las columnas se
+          desplazan en bloque en vez de aplastar nombres e importes. */}
+      <div className="min-w-0 overflow-x-auto rounded-xl border border-border">
+        <Table className="min-w-[56rem]">
           <TableHeader>
-            <TableRow>
-              <TableHead>Zona</TableHead>
-              <TableHead>Estado/Provincia</TableHead>
-              <TableHead>Servicio</TableHead>
-              {puedeVerCostos && <TableHead className="text-right">Costo</TableHead>}
-              <TableHead className="text-right">Precio cliente</TableHead>
-              {puedeVerCostos && <TableHead className="text-right">Margen</TableHead>}
-              <TableHead>Entrega</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-12 px-4 text-sm">Zona</TableHead>
+              {/* `w-full` reparte a esta columna todo el ancho que sobra: es
+                  la única de contenido variable y la que antes se cortaba. */}
+              <TableHead className="h-12 w-full px-4 text-sm">Cobertura</TableHead>
+              <TableHead className="h-12 px-4 text-sm">Servicio</TableHead>
+              {puedeVerCostos && <TableHead className="h-12 px-4 text-right text-sm">Costo</TableHead>}
+              <TableHead className="h-12 px-4 text-right text-sm">Precio cliente</TableHead>
+              {puedeVerCostos && <TableHead className="h-12 px-4 text-right text-sm">Margen</TableHead>}
+              <TableHead className="h-12 px-4 text-right text-sm">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {tarifasVisibles.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={totalColumnas} className="py-10 text-center text-sm text-muted-foreground">
                   Sin tarifas configuradas
                 </TableCell>
               </TableRow>
             ) : (
-              tarifasVisibles.map((t) => (
-                <TableRow key={t.id} className={!t.activa ? "opacity-50" : undefined}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-1">
-                      <span>{t.zonaEntrega.nombre}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setZonaAliasSeleccionada({ id: t.zonaEntrega.id, nombre: t.zonaEntrega.nombre })}
-                        aria-label="Administrar alias de este destino"
-                        title="Alias"
-                      >
-                        <Tag className="h-3 w-3 text-muted-foreground" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{t.ubicacion}</TableCell>
-                  <TableCell>{t.servicioTransportista.nombre}</TableCell>
-                  {puedeVerCostos && <TableCell className="text-right tabular-nums">{t.costoInterno.toFixed(2)}</TableCell>}
-                  <TableCell className="text-right tabular-nums">{t.precioCliente.toFixed(2)}</TableCell>
-                  {puedeVerCostos && (
-                    <TableCell className={`text-right tabular-nums ${t.margen < 0 ? "text-danger" : ""}`}>
-                      {t.margen.toFixed(2)}
-                    </TableCell>
-                  )}
-                  <TableCell className="text-muted-foreground text-sm">
-                    {t.tiempoMinimoDias != null || t.tiempoMaximoDias != null
-                      ? `${t.tiempoMinimoDias ?? "?"}-${t.tiempoMaximoDias ?? "?"} días`
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={t.activa ? "default" : "outline"}>{t.activa ? "Activa" : "Inactiva"}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {puedeModificar && (
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={isPending} onClick={() => abrirEdicion(t)} aria-label="Editar tarifa">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={isPending} onClick={() => handleDuplicar(t.id)} aria-label="Duplicar tarifa">
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={isPending} onClick={() => handleToggle(t.id)} aria-label={t.activa ? "Desactivar" : "Activar"}>
-                          <Power className="h-3.5 w-3.5" />
-                        </Button>
+              tarifasVisibles.map((t) => {
+                const abierta = coberturasAbiertas.has(t.id);
+                const visibles = abierta ? t.cobertura : t.cobertura.slice(0, MAX_ETIQUETAS_COBERTURA);
+                const ocultas = t.cobertura.length - visibles.length;
+                const entrega =
+                  t.tiempoMinimoDias != null || t.tiempoMaximoDias != null
+                    ? `${t.tiempoMinimoDias ?? "?"}-${t.tiempoMaximoDias ?? "?"} días`
+                    : null;
+                return (
+                  <TableRow key={t.id} className={cn("align-middle", !t.activa && "opacity-60")}>
+                    <TableCell className="px-4 py-4">
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium text-foreground">{t.zonaEntrega.nombre}</span>
                         <Button
+                          type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
-                          disabled={isPending || t.usada}
-                          title={t.usada ? "Ya fue usada — solo puede desactivarse" : "Eliminar"}
-                          onClick={() => handleEliminar(t.id)}
-                          aria-label="Eliminar tarifa"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => setZonaAliasSeleccionada({ id: t.zonaEntrega.id, nombre: t.zonaEntrega.nombre })}
+                          aria-label={`Administrar alias de ${t.zonaEntrega.nombre}`}
+                          title="Alias"
                         >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          <Tag className="h-3.5 w-3.5 text-muted-foreground" />
                         </Button>
                       </div>
+                      {!t.activa && (
+                        <Badge variant="outline" className="mt-1">Inactiva</Badge>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="px-4 py-4 whitespace-normal">
+                      {t.cobertura.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      ) : (
+                        <div id={`cobertura-${t.id}`} className="flex flex-wrap items-center gap-1.5">
+                          {visibles.map((u) => (
+                            <Badge key={u.etiqueta} variant="secondary" title={u.detalle} className="h-6 px-2">
+                              {u.etiqueta}
+                            </Badge>
+                          ))}
+                          {ocultas > 0 && (
+                            <Badge
+                              render={<button type="button" onClick={() => alternarCobertura(t.id)} />}
+                              className="h-6 cursor-pointer px-2"
+                              aria-expanded={abierta}
+                              aria-controls={`cobertura-${t.id}`}
+                            >
+                              + {ocultas} más
+                            </Badge>
+                          )}
+                          {t.cobertura.length > MAX_ETIQUETAS_COBERTURA && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              onClick={() => alternarCobertura(t.id)}
+                              aria-expanded={abierta}
+                              aria-controls={`cobertura-${t.id}`}
+                              aria-label={
+                                abierta
+                                  ? `Ocultar la cobertura completa de ${t.zonaEntrega.nombre}`
+                                  : `Ver las ${t.cobertura.length} ubicaciones de ${t.zonaEntrega.nombre}`
+                              }
+                            >
+                              <ChevronDown
+                                aria-hidden
+                                className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", abierta && "rotate-180")}
+                              />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="px-4 py-4">
+                      <span className="text-sm text-foreground">{t.servicioTransportista.nombre}</span>
+                      {entrega && <p className="text-xs text-muted-foreground">{entrega}</p>}
+                    </TableCell>
+
+                    {puedeVerCostos && (
+                      <TableCell className="px-4 py-4 text-right text-sm tabular-nums text-muted-foreground">
+                        {formatearImporte(t.costoInterno)}
+                      </TableCell>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))
+                    <TableCell className="px-4 py-4 text-right text-sm font-medium tabular-nums text-foreground">
+                      {formatearImporte(t.precioCliente)}
+                    </TableCell>
+                    {puedeVerCostos && (
+                      <TableCell
+                        className={cn(
+                          "px-4 py-4 text-right text-sm font-medium tabular-nums",
+                          t.margen < 0 ? "text-danger" : "text-primary",
+                        )}
+                      >
+                        {formatearImporte(t.margen)}
+                      </TableCell>
+                    )}
+
+                    <TableCell className="px-4 py-4 text-right">
+                      {/* Una sola acción primaria (editar) más un menú con el
+                          resto, en vez de cuatro iconos por fila. */}
+                      {puedeModificar && (
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={isPending}
+                            onClick={() => setZonaEnEdicionId(t.zonaEntrega.id)}
+                            aria-label={`Editar la zona ${t.zonaEntrega.nombre} y sus tarifas`}
+                            title="Editar zona y tarifas"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              className="inline-flex size-8 items-center justify-center rounded-lg outline-none transition-all hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                              aria-label={`Más acciones para la tarifa de ${t.zonaEntrega.nombre}`}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => abrirEdicion(t)}>
+                                <Tag className="mr-2 h-4 w-4" />Editar solo esta tarifa
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDuplicar(t.id)}>
+                                <Copy className="mr-2 h-4 w-4" />Duplicar tarifa
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggle(t.id)}>
+                                <Power className="mr-2 h-4 w-4" />{t.activa ? "Desactivar" : "Activar"}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                disabled={t.usada}
+                                onClick={() => handleEliminar(t.id)}
+                                title={t.usada ? "Ya fue usada — solo puede desactivarse" : undefined}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />Eliminar tarifa
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -359,6 +529,25 @@ export function SeccionZonasTarifas({
         onOpenChange={setDialogTarifaAbierto}
         onGuardada={() => {}}
       />
+
+      {zonaEnEdicion && paisId && paisLabel && (
+        <DialogEditarZona
+          zona={zonaEnEdicion}
+          tarifas={tarifasDeLaZonaEnEdicion}
+          servicios={servicios}
+          paisId={paisId}
+          paisLabel={paisLabel}
+          moneda={moneda}
+          abierto={zonaEnEdicionId != null}
+          onOpenChange={(abierto) => {
+            if (!abierto) setZonaEnEdicionId(null);
+          }}
+          onAgregarTarifa={(zonaId) => {
+            setZonaEnEdicionId(null);
+            abrirNuevaTarifaParaZona(zonaId);
+          }}
+        />
+      )}
 
       {zonaAliasSeleccionada && (
         <DialogAliasUbicacion

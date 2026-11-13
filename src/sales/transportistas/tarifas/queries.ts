@@ -9,12 +9,20 @@ export async function listarTarifas(transportistaId: string) {
     where: { transportistaId },
     include: {
       // 023-transportistas-por-pais — ubicaciones+país para mostrar la
-      // provincia/estado real en la columna "Estado/Provincia" (FR-007)
+      // cobertura real de la zona (FR-007). `distritoCiudad` es el nivel más
+      // específico: sin él, una zona con ocho distritos de la misma provincia
+      // repetía ocho veces el mismo texto en la tabla.
       zonaEntrega: {
         select: {
           id: true,
           nombre: true,
-          ubicaciones: { select: { provinciaEstado: true, pais: { select: { nombre: true, banderaEmoji: true } } } },
+          ubicaciones: {
+            select: {
+              provinciaEstado: true,
+              distritoCiudad: true,
+              pais: { select: { nombre: true, banderaEmoji: true } },
+            },
+          },
         },
       },
       servicioTransportista: { select: { id: true, nombre: true } },

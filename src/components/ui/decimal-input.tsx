@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-interface DecimalInputProps {
+// `id` y los aria-* los inyecta FormControl vía Slot para asociar el
+// <label>: hay que reenviarlos al input real o la etiqueta no apunta a nada.
+interface DecimalInputProps
+  extends Omit<React.ComponentProps<typeof Input>, "value" | "onChange" | "type" | "inputMode"> {
   value: number | undefined | null;
   onChange: (valor: number) => void;
-  className?: string;
-  placeholder?: string;
-  disabled?: boolean;
 }
 
 const aTexto = (v: number | undefined | null) =>
@@ -21,7 +21,7 @@ const aTexto = (v: number | undefined | null) =>
  * bloquea la coma al escribirla, lo que en la práctica impedía cargar
  * decimales a usuarios acostumbrados al formato es-PE/es-*.
  */
-export function DecimalInput({ value, onChange, className, placeholder, disabled }: DecimalInputProps) {
+export function DecimalInput({ value, onChange, className, ...props }: DecimalInputProps) {
   const [texto, setTexto] = useState(aTexto(value));
 
   // Sincroniza cuando el valor cambia desde afuera (reset del form, producto
@@ -48,12 +48,11 @@ export function DecimalInput({ value, onChange, className, placeholder, disabled
 
   return (
     <Input
+      {...props}
       type="text"
       inputMode="decimal"
       value={texto}
       onChange={handleChange}
-      disabled={disabled}
-      placeholder={placeholder}
       className={cn(className)}
     />
   );

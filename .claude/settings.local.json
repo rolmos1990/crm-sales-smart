@@ -329,7 +329,11 @@
       "Bash(dig +short db.tdgcoadccolyplhikbrr.supabase.co AAAA)",
       "Bash(dig +short aws-1-us-west-2.pooler.supabase.com A)",
       "Bash(grep -o \"modal[^,]\\\\{0,60\\\\}\" node_modules/@base-ui/react/dialog/root/DialogRoot.d.ts)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(sed -i '' 's|flex w-full flex-col gap-6 p-6 max-w-6xl mx-auto|flex w-full flex-col gap-6 p-6 max-w-7xl mx-auto|' src/sales/transportistas/components/panel-transportista.tsx)",
+      "Bash(sed -i '' 's|w-full p-6 max-w-6xl mx-auto|w-full p-6 max-w-7xl mx-auto|' src/app/verif-tarifas/page.tsx)",
+      "Bash(grep -o \"keepMounted[^;]\\\\{0,80\\\\}\" node_modules/@base-ui/react/tabs/panel/TabsPanel.d.ts)",
+      "Bash(xargs -I{} echo \"errores en archivos tocados: {}\")"
     ],
     "additionalDirectories": [
       "/Users/ramonolmos/Repositories/crm-sales-smart/src/app/crm/contactos/[id]",
