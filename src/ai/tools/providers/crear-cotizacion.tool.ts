@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { registroHerramientas } from "@/ai/tools/registry";
+import {
+  ENTREGA_INPUT_SCHEMA,
+  EntregaIASchema,
+  describirEntrega,
+  resolverEntregaIA,
+  sinDatosDeEntrega,
+} from "@/ai/tools/shared/resolver-entrega-ia";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
 
 /** true si el error es el unique constraint (instanciaId, numero) — ver el
@@ -23,6 +30,7 @@ const ArgsSchema = z.object({
   lineas: z.array(LineaSchema).min(1),
   notas: z.string().optional(),
   impuesto: z.number().min(0).max(100).optional(),
+  entrega: EntregaIASchema.optional(),
 });
 
 const CrearCotizacionTool: IProveedorTool = {
@@ -30,7 +38,7 @@ const CrearCotizacionTool: IProveedorTool = {
   definition: {
     name: "crear_cotizacion",
     description:
-      "Crea una cotización con los productos solicitados por el cliente. Usar cuando el cliente pide un presupuesto o cotización formal.",
+      "Crea una cotización con los productos solicitados por el cliente. Usar cuando el cliente pide un presupuesto o cotización formal. Si la venta se entrega a domicilio, incluí SIEMPRE el bloque `entrega` con el destino y el transportista que ya cotizaste con consultar_opciones_envio: sin él la cotización queda sin método de entrega y un humano tiene que completarla antes de poder convertirla en pedido.",
     input_schema: {
       type: "object",
       properties: {
@@ -51,6 +59,7 @@ const CrearCotizacionTool: IProveedorTool = {
         },
         notas: { type: "string", description: "Notas adicionales para el cliente" },
         impuesto: { type: "number", description: "Porcentaje de impuesto (default 18)" },
+        entrega: ENTREGA_INPUT_SCHEMA,
       },
       required: ["lineas"],
     },
@@ -75,7 +84,20 @@ const CrearCotizacionTool: IProveedorTool = {
 
     const subtotal = lineasConCalculo.reduce((acc, l) => acc + l.subtotal, 0);
     const impuestoMonto = subtotal * (impuestoPct / 100);
-    const total = subtotal + impuestoMonto;
+
+    // El destino se vuelve a resolver contra el mismo motor que usó el
+    // agente al cotizar el envío, así el costo que se persiste es por
+    // construcción el que ya se le informó al cliente — ver
+    // resolver-entrega-ia.ts. Sin bloque `entrega` no se crea ninguna fila,
+    // que es el comportamiento que tenía esta tool antes.
+    const entregaArgs = parsed.data.entrega;
+    const entregaResuelta = sinDatosDeEntrega(entregaArgs)
+      ? null
+      : await resolverEntregaIA(ctx.instanciaId, entregaArgs);
+
+    const costoEnvio = entregaResuelta?.costoEnvio ?? 0;
+    const total = subtotal + impuestoMonto + costoEnvio;
+    const resumenEntrega = entregaResuelta ? describirEntrega(entregaResuelta, moneda) : {};
 
     // 018-simulador-agente — misma lógica de cálculo de arriba, sin tocar
     // Prisma (FR-006/FR-007): reutiliza el 100% de la validación/cálculo.
@@ -85,9 +107,11 @@ const CrearCotizacionTool: IProveedorTool = {
         data: {
           subtotal,
           impuesto: impuestoMonto,
+          costoEnvio,
           total,
           moneda,
           lineas: lineasConCalculo.length,
+          ...resumenEntrega,
           generadoPorIA: true,
           pendienteConfirmacion: true,
           previsualizado: true,
@@ -102,8 +126,10 @@ const CrearCotizacionTool: IProveedorTool = {
       oportunidadId: ctx.oportunidadId ?? null,
       subtotal,
       impuesto: impuestoMonto,
+      costoEnvio,
       total,
       moneda,
+      entrega: entregaResuelta ? { create: entregaResuelta.datos } : undefined,
       notas: parsed.data.notas ?? null,
       generadoPorIA: true,
       // Una cotización que armó la IA nunca nace dada por válida: queda
@@ -155,9 +181,11 @@ const CrearCotizacionTool: IProveedorTool = {
         numero: cotizacion.numero,
         subtotal,
         impuesto: impuestoMonto,
+        costoEnvio,
         total,
         moneda,
         lineas: lineasConCalculo.length,
+        ...resumenEntrega,
         generadoPorIA: true,
         pendienteConfirmacion: true,
         mensaje: `Cotización #${cotizacion.numero} preparada por ${moneda} ${total.toFixed(2)} — queda sujeta a confirmación antes de enviarse.`,

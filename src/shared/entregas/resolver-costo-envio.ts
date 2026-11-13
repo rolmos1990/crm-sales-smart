@@ -149,7 +149,7 @@ type PrismaClientType = typeof import("@/shared/db/prisma").prisma;
 
 // 024-alias-ubicaciones-transportistas — extraído sin cambiar su
 // comportamiento, para reutilizarlo también en obtenerOpcionesEnvioConConfianza.
-async function resolverPaisId(
+export async function resolverPaisId(
   prisma: PrismaClientType,
   instanciaId: string,
   pais?: string | null
@@ -358,7 +358,7 @@ const SUFIJOS_ADMINISTRATIVOS = [
 
 // `normalizarUbicacion` colapsa todo lo no alfanumérico a "-", así que los
 // límites de palabra son guiones: "Bocas del Toro Province" → "bocas-del-toro-province".
-function nucleoAdministrativo(normalizado: string): string {
+export function nucleoAdministrativo(normalizado: string): string {
   for (const sufijo of SUFIJOS_ADMINISTRATIVOS) {
     if (normalizado.endsWith(`-${sufijo}`)) return normalizado.slice(0, -(sufijo.length + 1));
     if (normalizado.startsWith(`${sufijo}-`)) return normalizado.slice(sufijo.length + 1);

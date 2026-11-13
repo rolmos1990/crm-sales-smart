@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { registroHerramientas } from "@/ai/tools/registry";
+import {
+  ENTREGA_INPUT_SCHEMA,
+  EntregaIASchema,
+  describirEntrega,
+  resolverEntregaIA,
+  sinDatosDeEntrega,
+} from "@/ai/tools/shared/resolver-entrega-ia";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
 
 const LineaSchema = z.object({
@@ -14,6 +21,7 @@ const ArgsSchema = z.object({
   lineas: z.array(LineaSchema).min(1),
   notas: z.string().optional(),
   impuesto: z.number().min(0).max(100).optional(),
+  entrega: EntregaIASchema.optional(),
 });
 
 const CrearPedidoTool: IProveedorTool = {
@@ -21,7 +29,7 @@ const CrearPedidoTool: IProveedorTool = {
   definition: {
     name: "crear_pedido",
     description:
-      "Registra un pedido de compra del cliente. Usar cuando el cliente confirma que quiere comprar y hay acuerdo de precio.",
+      "Registra un pedido de compra del cliente. Usar cuando el cliente confirma que quiere comprar y hay acuerdo de precio. Si el pedido se entrega a domicilio, incluí SIEMPRE el bloque `entrega` con el destino y el transportista que ya cotizaste con consultar_opciones_envio: sin él el pedido queda sin método de entrega y operaciones no puede despacharlo.",
     input_schema: {
       type: "object",
       properties: {
@@ -42,6 +50,7 @@ const CrearPedidoTool: IProveedorTool = {
         },
         notas: { type: "string", description: "Notas adicionales del pedido" },
         impuesto: { type: "number", description: "Porcentaje de impuesto (default 18)" },
+        entrega: ENTREGA_INPUT_SCHEMA,
       },
       required: ["lineas"],
     },
@@ -77,7 +86,19 @@ const CrearPedidoTool: IProveedorTool = {
 
     const subtotal = lineasConCalculo.reduce((acc, l) => acc + l.subtotal, 0);
     const impuestoMonto = subtotal * (impuestoPct / 100);
-    const total = subtotal + impuestoMonto;
+
+    // Mismo criterio que crear_cotizacion: el destino se vuelve a resolver
+    // en el servidor contra el motor que usó el agente al cotizar el envío
+    // (ver resolver-entrega-ia.ts). Sin bloque `entrega` no se crea ninguna
+    // fila, que es el comportamiento que tenía esta tool antes.
+    const entregaArgs = parsed.data.entrega;
+    const entregaResuelta = sinDatosDeEntrega(entregaArgs)
+      ? null
+      : await resolverEntregaIA(ctx.instanciaId, entregaArgs);
+
+    const costoEnvio = entregaResuelta?.costoEnvio ?? 0;
+    const total = subtotal + impuestoMonto + costoEnvio;
+    const resumenEntrega = entregaResuelta ? describirEntrega(entregaResuelta, moneda) : {};
 
     // 018-simulador-agente — misma lógica de cálculo de arriba, sin tocar
     // Prisma (FR-006/FR-007): reutiliza el 100% de la validación/cálculo.
@@ -87,9 +108,11 @@ const CrearPedidoTool: IProveedorTool = {
         data: {
           subtotal,
           impuesto: impuestoMonto,
+          costoEnvio,
           total,
           moneda,
           lineas: lineasConCalculo.length,
+          ...resumenEntrega,
           generadoPorIA: true,
           pendienteConfirmacion: modoBorrador,
           previsualizado: true,
@@ -109,8 +132,10 @@ const CrearPedidoTool: IProveedorTool = {
         numero,
         subtotal,
         impuesto: impuestoMonto,
+        costoEnvio,
         total,
         moneda,
+        entrega: entregaResuelta ? { create: entregaResuelta.datos } : undefined,
         notas: parsed.data.notas ?? null,
         generadoPorIA: true,
         confirmadoPorHumano: !modoBorrador,
@@ -136,9 +161,11 @@ const CrearPedidoTool: IProveedorTool = {
         numero: pedido.numero,
         subtotal,
         impuesto: impuestoMonto,
+        costoEnvio,
         total,
         moneda,
         lineas: lineasConCalculo.length,
+        ...resumenEntrega,
         generadoPorIA: true,
         pendienteConfirmacion: modoBorrador,
         mensaje: modoBorrador
