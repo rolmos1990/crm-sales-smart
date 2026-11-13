@@ -116,6 +116,14 @@ export async function generarPedidoDesdeCotizacion(
         impuesto:           cotizacion.impuesto,
         costoEnvio:         cotizacion.costoEnvio,
         total:              cotizacion.total,
+        // `EntregaPedido.fechaEstimada` (seguimiento del envío) y
+        // `Pedido.fechaEntrega` (columna "Entrega estimada" del listado,
+        // su filtro y los KPIs) son campos distintos que deben mantenerse
+        // en sync — el mismo criterio que ya aplicaba actualizarEntregaPedido.
+        // Acá se copiaba solo el primero, así que un pedido aprobado desde una
+        // cotización con fecha nacía mostrando "—" en el listado y quedaba
+        // fuera del filtro por fecha de entrega.
+        fechaEntrega:       cotizacion.entrega?.fechaEstimada ?? null,
         notas:              cotizacion.notas,
         contactoId:         cotizacion.contactoId,
         empresaId:          cotizacion.empresaId,

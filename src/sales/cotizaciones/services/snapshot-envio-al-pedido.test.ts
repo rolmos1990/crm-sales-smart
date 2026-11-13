@@ -61,4 +61,12 @@ describe("generarPedidoDesdeCotizacion — snapshot de envío", () => {
   it("el costo de envío viaja en la raíz del pedido, no en la entrega", () => {
     expect(FUENTE).toContain("costoEnvio:         cotizacion.costoEnvio");
   });
+
+  // Pedido.fechaEntrega es lo que leen la columna "Entrega estimada", su
+  // filtro y los KPIs; EntregaPedido.fechaEstimada es el seguimiento del
+  // envío. Copiar solo el segundo deja el pedido mostrando "—" en el
+  // listado — pasó con 37 pedidos en producción.
+  it("la fecha estimada también llega a Pedido.fechaEntrega, que es la del listado", () => {
+    expect(FUENTE).toContain("fechaEntrega:       cotizacion.entrega?.fechaEstimada");
+  });
 });
