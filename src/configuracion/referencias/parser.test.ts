@@ -4,6 +4,7 @@ import {
   extraerReferencias,
   MAX_CARACTERES_CONTENIDO,
   reemplazarTokens,
+  segmentarPorReferencias,
   sinReferencias,
 } from "./parser";
 import type { ReferenciaResuelta } from "./tipos";
@@ -110,5 +111,49 @@ describe("construirBloqueReferencias", () => {
     ]);
     expect(bloque).not.toContain("[B]");
     expect(bloque).toContain("[A]");
+  });
+});
+
+describe("segmentarPorReferencias", () => {
+  // La capa de resaltado se superpone al textarea carácter por carácter: si
+  // los segmentos no reconstruyen el texto exacto, las dos capas se
+  // desalinean y el cursor deja de caer donde se ve.
+  const reconstruye = (texto: string) =>
+    segmentarPorReferencias(texto)
+      .map((s) => s.texto)
+      .join("");
+
+  it.each([
+    "",
+    "sin ninguna referencia",
+    "@plantilla:envios",
+    "antes @plantilla:envios después",
+    "@plantilla:a@plantilla:b",
+    "dos @plantilla:a y @usuario:maria-lopez juntas",
+    "con salto\n@producto:teclado\nfinal",
+    "pegada a puntuación: @plantilla:envios.",
+    "un email juan@empresa.com no cuenta",
+    "   espacios al borde   ",
+  ])("reconstruye el texto exacto: %j", (texto) => {
+    expect(reconstruye(texto)).toBe(texto);
+  });
+
+  it("marca como referencia solo los tokens", () => {
+    const segmentos = segmentarPorReferencias("antes @plantilla:envios después");
+
+    expect(segmentos).toEqual([
+      { texto: "antes ", esReferencia: false },
+      { texto: "@plantilla:envios", esReferencia: true },
+      { texto: " después", esReferencia: false },
+    ]);
+  });
+
+  it("un texto sin tokens es un único segmento normal", () => {
+    expect(segmentarPorReferencias("solo texto")).toEqual([{ texto: "solo texto", esReferencia: false }]);
+  });
+
+  it("no marca el `@` de un email", () => {
+    const segmentos = segmentarPorReferencias("escribile a juan@plantilla:x");
+    expect(segmentos.every((s) => !s.esReferencia)).toBe(true);
   });
 });

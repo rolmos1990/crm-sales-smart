@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -36,6 +37,9 @@ import {
   Route,
   Gauge,
   PlayCircle,
+  Maximize2,
+  Minimize2,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react";
 import { HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES } from "@/ai/tools/constantes";
@@ -71,6 +75,8 @@ import {
   INTENCIONES_RESPUESTA_GUIA,
 } from "@/configuracion/ia/agente-schema";
 import { plantillaDeTipo, TIPO_AGENTE_POR_DEFECTO } from "@/configuracion/ia/plantillas-agente";
+import { MAX_INSTRUCCIONES_AGENTE } from "@/configuracion/ia/agente-schema";
+import type { TipoAgenteIA } from "@/generated/prisma/enums";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 import { SeccionVersionesAgente } from "./seccion-versiones-agente";
 import { EditorRespuestasGuia } from "./editor-respuestas-guia";
@@ -178,6 +184,122 @@ function SeccionConfig({
       </header>
       {children}
     </section>
+  );
+}
+
+/**
+ * Editor del prompt del agente. Es el campo más largo del modal (hasta 20.000
+ * caracteres de markdown) metido en un diálogo de alto fijo, así que tiene su
+ * propia caja con scroll interno y un modo expandido a pantalla completa —
+ * sin eso editarlo obliga a leer por una rendija de 16 líneas.
+ */
+function EditorPromptAgente({
+  value,
+  onChange,
+  tipoAgente,
+}: {
+  value: string;
+  onChange: (valor: string) => void;
+  tipoAgente: TipoAgenteIA | null | undefined;
+}) {
+  const [expandido, setExpandido] = useState(false);
+  const plantilla = plantillaDeTipo(tipoAgente);
+
+  function restaurarPlantilla() {
+    if (value.trim() && !window.confirm(`Se reemplazarán las instrucciones actuales por la plantilla «${plantilla.etiqueta}». ¿Continuar?`)) {
+      return;
+    }
+    onChange(plantilla.instrucciones);
+    toast.success(`Instrucciones restauradas desde «${plantilla.etiqueta}»`);
+  }
+
+  const editor = (
+    <div
+      className={cn(
+        "flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]",
+        expandido && "h-full",
+      )}
+    >
+      <header className="flex shrink-0 items-center gap-2 border-b border-white/8 bg-white/[0.02] px-3 py-2">
+        <FileText className="h-4 w-4 shrink-0 text-stone-400" />
+        <span className="text-xs font-medium text-stone-200">Prompt del agente</span>
+
+        <span className="ml-auto hidden text-[11px] tabular-nums text-stone-500 sm:block">
+          {value.length.toLocaleString("es")} / {MAX_INSTRUCCIONES_AGENTE.toLocaleString("es")}
+        </span>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={restaurarPlantilla}
+          title={`Restaurar desde la plantilla «${plantilla.etiqueta}»`}
+          className="h-7 gap-1.5 rounded-lg px-2 text-[11px] text-stone-400 hover:bg-white/10 hover:text-stone-100"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          <span className="max-sm:hidden">Plantilla</span>
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setExpandido((v) => !v)}
+          aria-label={expandido ? "Contraer editor" : "Expandir editor"}
+          title={expandido ? "Contraer" : "Expandir a pantalla completa"}
+          className="h-7 w-7 shrink-0 rounded-lg text-stone-400 hover:bg-white/10 hover:text-stone-100"
+        >
+          {expandido ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+        </Button>
+      </header>
+
+      <div className={cn("p-2", expandido && "min-h-0 flex-1")}>
+        <TextareaConReferencias
+          value={value}
+          onChange={onChange}
+          placeholder="# Rol y objetivo…"
+          maxLength={MAX_INSTRUCCIONES_AGENTE}
+          // field-sizing-fixed: sin esto el textarea crece con el contenido y
+          // el prompt entero empuja el scroll del modal en vez de tener el
+          // suyo propio.
+          className={cn(
+            "resize-none overflow-y-auto border-white/10 bg-stone-950/40 font-mono text-xs leading-relaxed text-stone-50 field-sizing-fixed placeholder:text-stone-500",
+            expandido ? "h-full" : "h-[22rem] max-sm:h-[16rem]",
+          )}
+        />
+      </div>
+    </div>
+  );
+
+  if (!expandido) return editor;
+
+  return (
+    <>
+      {/* Hueco del mismo alto para que el resto del formulario no salte
+          cuando el editor se va a pantalla completa. */}
+      <div className="h-[22rem] rounded-xl border border-dashed border-white/10 max-sm:h-[16rem]" />
+      {/* Por portal a <body>: DialogContent se centra con `-translate-x-1/2`,
+          y ese transform convierte al diálogo en el bloque contenedor de
+          cualquier `position: fixed` que cuelgue de él — sin el portal esto
+          cubriría solo el modal, no la pantalla. */}
+      {createPortal(
+        <div
+          className="fixed inset-0 z-[60] flex flex-col bg-stone-950/98 p-4 backdrop-blur-sm sm:p-6"
+          onKeyDown={(e) => {
+            // Esc contrae el editor en vez de cerrar el modal entero y
+            // perder lo que se venía escribiendo.
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setExpandido(false);
+            }
+          }}
+        >
+          <div className="min-h-0 flex-1">{editor}</div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -666,14 +788,10 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <TextareaConReferencias
-                              name={field.name}
-                              onBlur={field.onBlur}
+                            <EditorPromptAgente
                               value={field.value ?? ""}
                               onChange={field.onChange}
-                              rows={16}
-                              placeholder="# Rol y objetivo…"
-                              className="border-white/10 bg-white/5 font-mono text-xs leading-relaxed text-stone-50 placeholder:text-stone-500"
+                              tipoAgente={agente?.agenteIAConfig?.tipo}
                             />
                           </FormControl>
                           <FormMessage />

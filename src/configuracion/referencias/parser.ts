@@ -75,6 +75,33 @@ export function claveDeReferencia(ref: Pick<Referencia, "tipo" | "clave">): stri
   return `${ref.tipo}:${ref.clave}`;
 }
 
+export interface SegmentoTexto {
+  texto: string;
+  /** Token de referencia — se pinta como un enlace en el editor. */
+  esReferencia: boolean;
+}
+
+/**
+ * Parte un texto en tramos normales y tokens de referencia, para pintarlos
+ * distinto. Concatenar todos los `texto` devuelve el original tal cual: el
+ * editor superpone este resultado sobre el textarea y cualquier diferencia
+ * de longitud desalinearía las dos capas.
+ */
+export function segmentarPorReferencias(texto: string): SegmentoTexto[] {
+  const segmentos: SegmentoTexto[] = [];
+  let cursor = 0;
+
+  for (const match of texto.matchAll(PATRON_REFERENCIA)) {
+    const inicio = match.index!;
+    if (inicio > cursor) segmentos.push({ texto: texto.slice(cursor, inicio), esReferencia: false });
+    segmentos.push({ texto: match[0], esReferencia: true });
+    cursor = inicio + match[0].length;
+  }
+
+  if (cursor < texto.length) segmentos.push({ texto: texto.slice(cursor), esReferencia: false });
+  return segmentos;
+}
+
 /**
  * Bloque que se anexa al final de las instrucciones con el contenido vivo de
  * todo lo referenciado. Va una sola vez por referencia aunque el token
