@@ -14,6 +14,8 @@ import {
   type ObjetivoEnrutamiento,
 } from "./schema";
 import type { CasosDeUsoProveedor } from "@/ai/proveedores/types";
+import { estaImplementado, mensajeProveedorNoImplementado } from "@/ai/proveedores/disponibles";
+import { cifrarToken } from "@/shared/lib/cifrado-tokens";
 
 export async function guardarConfiguracionIA(datos: unknown) {
   const sesion = await requireSesion();
@@ -68,6 +70,14 @@ export async function crearProveedorIA(datos: unknown) {
   });
   if (duplicado) return { exito: false, error: mensajeAliasDuplicado(validado.data.alias) };
 
+  // Antes de guardar: que el proveedor tenga implementación. El enum ofrece
+  // seis y solo algunos tienen código; elegir otro se guardaba sin quejarse y
+  // después fallaba en runtime con un error que quedaba solo en el log del
+  // servidor, mientras el agente seguía respondiendo con otro proveedor.
+  if (!estaImplementado(validado.data.proveedor)) {
+    return { exito: false, error: mensajeProveedorNoImplementado(validado.data.proveedor) };
+  }
+
   const modelos = validado.data.modelosDisponibles
     .split(",")
     .map((m) => m.trim())
@@ -81,7 +91,9 @@ export async function crearProveedorIA(datos: unknown) {
         aliasNormalizado,
         proveedor: validado.data.proveedor,
         tipoAgenteIA: validado.data.tipoAgenteIA ?? null,
-        apiKeyEncriptada: validado.data.apiKey || null,
+        // Cifrada en reposo (AES-256-GCM), igual que los tokens de Meta. La
+        // columna siempre se llamó "Encriptada" pero guardaba texto plano.
+        apiKeyEncriptada: validado.data.apiKey ? cifrarToken(validado.data.apiKey) : null,
         baseUrl: validado.data.baseUrl || null,
         modelosDisponibles: modelos,
         prioridad: validado.data.prioridad,
@@ -139,7 +151,9 @@ export async function actualizarProveedorIA(id: string, datos: unknown) {
         tipoAgenteIA: validado.data.tipoAgenteIA ?? null,
         // La API key nunca se devuelve al cliente (ver queries.ts) — un campo
         // vacío en edición significa "no cambiarla", no "borrarla".
-        apiKeyEncriptada: validado.data.apiKey || existente.apiKeyEncriptada,
+        // Sin key nueva se conserva la guardada tal cual: puede ser texto
+        // plano de antes del cifrado y descifrarToken la tolera.
+        apiKeyEncriptada: validado.data.apiKey ? cifrarToken(validado.data.apiKey) : existente.apiKeyEncriptada,
         baseUrl: validado.data.baseUrl || null,
         modelosDisponibles: modelos,
         prioridad: validado.data.prioridad,

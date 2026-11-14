@@ -15,7 +15,14 @@ export default defineConfig({
     // de la máquina de quien la corre, que es justamente cómo se colaron los
     // bugs de fechas. Nada del código debe depender de este valor — las
     // funciones de src/shared/fechas reciben la zona como parámetro explícito.
-    env: { TZ: "UTC" },
+    env: {
+      TZ: "UTC",
+      // Clave de prueba, fija y pública a propósito: no cifra nada real. Vive
+      // acá y no en cada archivo porque desde que las API keys de los
+      // proveedores de IA se cifran, cualquier test que toque esa ruta la
+      // necesita. 32 bytes en base64, que es lo que exige AES-256.
+      TOKENS_CIFRADO_KEY: "Y2xhdmUtZGUtcHJ1ZWJhLXZpdGVzdC1uby1yZWFsISE=",
+    },
   },
   resolve: {
     alias: {

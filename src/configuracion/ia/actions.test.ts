@@ -189,3 +189,71 @@ describe("configuracion/ia/actions — 021-alias-proveedores-ia", () => {
     });
   });
 });
+
+// La columna siempre se llamó "apiKeyEncriptada" pero guardaba texto plano.
+// Con una key de OpenAI, que tiene facturación atada, eso dejó de ser
+// aceptable.
+describe("configuracion/ia/actions — cifrado de la API key", () => {
+  beforeEach(() => {
+    findFirstMock.mockReset().mockResolvedValue(null);
+    createMock.mockReset().mockResolvedValue({ id: "nuevo-1" });
+    updateMock.mockReset().mockResolvedValue({ id: "existente-1" });
+  });
+
+  const keyGuardada = () => createMock.mock.calls[0][0].data.apiKeyEncriptada as string;
+
+  it("al crear, la key NO queda en texto plano", async () => {
+    await crearProveedorIA({ ...datosBase, apiKey: "sk-secreto-de-verdad" });
+
+    expect(keyGuardada()).not.toContain("sk-secreto-de-verdad");
+    expect(keyGuardada()).toMatch(/^enc:v1:/);
+  });
+
+  it("y se puede recuperar entera", async () => {
+    const { descifrarToken } = await import("@/shared/lib/cifrado-tokens");
+    await crearProveedorIA({ ...datosBase, apiKey: "sk-secreto-de-verdad" });
+
+    expect(descifrarToken(keyGuardada())).toBe("sk-secreto-de-verdad");
+  });
+
+  it("sin key, se guarda null y no se cifra una cadena vacía", async () => {
+    await crearProveedorIA({ ...datosBase, apiKey: "" });
+
+    expect(keyGuardada()).toBeNull();
+  });
+
+  it("al editar sin key nueva, conserva la guardada tal cual — puede ser texto plano de antes", async () => {
+    findFirstMock
+      .mockResolvedValueOnce({ id: "prov-1", instanciaId: "instancia-1", apiKeyEncriptada: "texto-plano-viejo" })
+      .mockResolvedValueOnce(null);
+
+    await actualizarProveedorIA("prov-1", { ...datosBase, apiKey: "" });
+
+    expect(updateMock.mock.calls[0][0].data.apiKeyEncriptada).toBe("texto-plano-viejo");
+  });
+});
+
+// El enum de Prisma ofrece seis proveedores y solo algunos tienen código.
+// Guardar uno sin implementación se aceptaba y después fallaba en runtime,
+// con el error solo en el log del servidor.
+describe("configuracion/ia/actions — proveedores sin implementación", () => {
+  beforeEach(() => {
+    findFirstMock.mockReset().mockResolvedValue(null);
+    createMock.mockReset().mockResolvedValue({ id: "nuevo-1" });
+  });
+
+  it("rechaza GEMINI con un mensaje que explica qué sí se puede usar", async () => {
+    const r = await crearProveedorIA({ ...datosBase, proveedor: "GEMINI" });
+
+    expect(r.exito).toBe(false);
+    expect(r.error).toContain("GEMINI");
+    expect(r.error).toContain("OPENAI");
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it("acepta OPENAI, que sí está implementado", async () => {
+    const r = await crearProveedorIA({ ...datosBase, proveedor: "OPENAI", alias: "openai-prueba" });
+
+    expect(r.exito).toBe(true);
+  });
+});

@@ -3,6 +3,7 @@ import { crearProveedor } from "@/ai/proveedores/registro";
 import type { IProveedorIA, CasosDeUsoProveedor, ObjetivoEnrutamientoIA } from "@/ai/proveedores/types";
 import type { TipoAgenteIA, TareaIA } from "@/generated/prisma/enums";
 import { obtenerProveedoresActivos } from "@/ai/queries";
+import { descifrarToken } from "@/shared/lib/cifrado-tokens";
 
 export type ProveedorActivo = Awaited<ReturnType<typeof obtenerProveedoresActivos>>[number];
 
@@ -121,7 +122,10 @@ export async function seleccionarProveedor(
     try {
       const instancia = crearProveedor(
         config.proveedor,
-        config.apiKeyEncriptada ?? "",
+        // Las keys guardadas antes del cifrado vuelven tal cual (no llevan el
+        // prefijo "enc:v1:"), así que no hace falta backfill: se re-cifran
+        // solas la próxima vez que alguien guarde el proveedor.
+        config.apiKeyEncriptada ? descifrarToken(config.apiKeyEncriptada) : "",
         config.modelosDisponibles
           ? (config.modelosDisponibles as string[])[0]
           : undefined,
