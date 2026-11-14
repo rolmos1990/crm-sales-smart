@@ -3079,6 +3079,17 @@ model AgenteIAConfig {
   esperarAntesDeResponder Boolean? @default(false)
   segundosEsperaRespuesta Int?
 
+  // 032 — Base de conocimiento FAQ: hasta 3 documentos (PDF/TXT) que el
+  // negocio sube y el agente usa como referencia informativa. Guarda
+  // DocumentoFaq[] (ver src/configuracion/ia/conocimiento/tipos.ts): el
+  // archivo original vive en el storage y acá queda su clave, pero lo único
+  // que llega al modelo es `contenido`, el texto ya destilado y acotado.
+  //
+  // Columna y no tabla a propósito: así viaja dentro del snapshot JSON de
+  // AgenteIAConfigVersion y se versiona con el perfil sin código extra,
+  // igual que respuestasGuia.
+  documentosFaq Json?
+
   // 028-respuestas-guia-catalogo-ia — respuestas guía por intención
   // (RespuestaGuiaSchema[] en src/configuracion/ia/agente-schema.ts) y
   // catálogo con precios en la capa 8 del context builder.

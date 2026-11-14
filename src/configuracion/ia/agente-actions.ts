@@ -118,6 +118,9 @@ export async function cargarConfigAgenteIA(usuarioId: string) {
       esperarAntesDeResponder: true,
       segundosEsperaRespuesta: true,
       limiteCatalogoContexto: true,
+
+      // 032 — base de conocimiento FAQ
+      documentosFaq: true,
     },
   });
 }

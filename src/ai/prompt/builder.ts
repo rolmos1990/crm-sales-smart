@@ -43,6 +43,9 @@ export interface ConfigAgenteParaPrompt {
   catalogoEnContexto?: boolean | null;
   limiteCatalogoContexto?: number | null;
 
+  // 032 — DocumentoFaq[]. Tampoco genera texto acá: lo consume la capa 8.
+  documentosFaq?: unknown;
+
   /**
    * Bloque único de instrucciones escrito por el responsable (Rol · Estilo ·
    * Proceso · Reglas). Cuando está presente reemplaza a todo lo que el negocio

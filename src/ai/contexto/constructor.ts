@@ -2,6 +2,7 @@ import { prisma } from "@/shared/db/prisma";
 import { resolverDecisionContexto } from "./router";
 import { construirContextoCompuesto } from "./context-builder";
 import { formatearHechos, formatearLectura, resolverFichaVigente } from "./capas/estado-conversacion";
+import { producirCapaConocimiento } from "./capas/conocimiento";
 import type { FichaConversacion } from "@/ai/ficha-conversacion/tipos";
 import type { ContextoIA, MensajeContexto } from "./tipos";
 
@@ -124,6 +125,9 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
             respuestasGuia: true,
             catalogoEnContexto: true,
             limiteCatalogoContexto: true,
+
+            // 032 — base de conocimiento FAQ (capa 8)
+            documentosFaq: true,
           },
         })
       : null,
@@ -138,7 +142,11 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
   const ficha = opciones.ficha
     ? await resolverFichaVigente({ instanciaId, conversacionId, activa: true, zonaNegocio: opciones.zonaNegocio })
     : null;
-  const tokensReservadosExtra = ficha ? estimarTokensFicha(ficha, opciones.zonaNegocio) : 0;
+  // 032 — la base de conocimiento ocupa el mismo presupuesto. Si no se
+  // descuenta, activarla recorta mensajes de la conversación en silencio.
+  const textoConocimiento = producirCapaConocimiento(agenteConfig?.documentosFaq);
+  const tokensReservadosExtra =
+    (ficha ? estimarTokensFicha(ficha, opciones.zonaNegocio) : 0) + estimarTokens(textoConocimiento);
 
   const totalMensajes = conversacionRaw?._count?.mensajes ?? 0;
   const decision = resolverDecisionContexto({
@@ -247,6 +255,7 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
           respuestasGuia: agenteConfig.respuestasGuia,
           catalogoEnContexto: agenteConfig.catalogoEnContexto,
           limiteCatalogoContexto: agenteConfig.limiteCatalogoContexto,
+          documentosFaq: agenteConfig.documentosFaq,
         },
         contextoDinamico: {
           nombreContacto: contacto?.nombre,
@@ -270,6 +279,8 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
 // que ya usa el router: sirve para no pasarse del límite, no para predecir.
 const CARACTERES_POR_TOKEN = 4;
 
+const estimarTokens = (texto: string | null) => (texto ? Math.ceil(texto.length / CARACTERES_POR_TOKEN) : 0);
+
 function estimarTokensFicha(ficha: FichaConversacion, zonaNegocio?: string): number {
   const texto = [
     formatearHechos(ficha.hechos, ficha.turnos, zonaNegocio),
@@ -278,7 +289,7 @@ function estimarTokensFicha(ficha: FichaConversacion, zonaNegocio?: string): num
     .filter(Boolean)
     .join("\n\n");
 
-  return Math.ceil(texto.length / CARACTERES_POR_TOKEN);
+  return estimarTokens(texto);
 }
 
 /**

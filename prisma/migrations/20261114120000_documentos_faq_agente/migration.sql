@@ -1,0 +1,11 @@
+-- 032 — Base de conocimiento FAQ del agente: hasta 3 documentos (PDF/TXT)
+-- que el negocio sube y el agente usa como referencia informativa.
+--
+-- Columna JSON y no tabla aparte: así el contenido viaja dentro del snapshot
+-- de AgenteIAConfigVersion y se versiona con el perfil (borrador → publicar →
+-- restaurar) sin código adicional, exactamente igual que respuestasGuia.
+--
+-- Nullable sin default: un agente sin documentos se comporta igual que antes
+-- de esta feature — la capa de conocimiento no produce texto y el prompt
+-- queda byte a byte idéntico.
+ALTER TABLE "AgenteIAConfig" ADD COLUMN "documentosFaq" JSONB;

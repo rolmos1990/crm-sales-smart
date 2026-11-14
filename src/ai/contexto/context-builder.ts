@@ -8,7 +8,7 @@
 //   5. Perfil dinámico del cliente                         ← 012, conectado acá
 //   6. Estado actual de la conversación                   ← 031, conectado acá
 //   7. Datos conocidos y faltantes                         ← 031, conectado acá
-//   8. Información operativa verificada                    ← placeholder (015)
+//   8. Información operativa verificada                    ← 028 (catálogo) + 032 (FAQ)
 //   9. Ejemplos piloto relevantes                           ← 014, conectado acá
 //  10. Herramientas permitidas                              ← metadata, no texto de prompt
 //  11. Instrucción final                                    ← responsabilidad del llamador (ver instruccion-final.ts)
@@ -127,6 +127,8 @@ export async function construirContextoCompuesto(
       instanciaId: insumos.instanciaId,
       activo: datos.configAgente.catalogoEnContexto ?? true,
       limite: datos.configAgente.limiteCatalogoContexto ?? LIMITE_CATALOGO_DEFECTO,
+      // 032 — base de conocimiento FAQ, segundo bloque de la misma capa.
+      documentosFaq: datos.configAgente.documentosFaq,
     }),
     producirCapaEjemplosPiloto({
       instanciaId: insumos.instanciaId,

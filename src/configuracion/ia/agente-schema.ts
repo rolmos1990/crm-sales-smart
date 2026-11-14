@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  MAX_CARACTERES_DOCUMENTO,
+  MAX_DOCUMENTOS_FAQ,
+  MIMES_DOCUMENTO_FAQ,
+} from "./conocimiento/tipos";
 
 export const ConfiguracionTonoSchema = z.object({
   tono: z.enum(["Cálido", "Profesional", "Directo", "Empático", "Entusiasta"]).nullable().optional(),
@@ -49,6 +54,19 @@ export type RespuestaGuiaInput = z.infer<typeof RespuestaGuiaSchema>;
 export const TipoAgenteIASchema = z.enum(["COMERCIAL", "GERENCIA"]);
 
 export const MAX_INSTRUCCIONES_AGENTE = 20000;
+
+export const DocumentoFaqSchema = z.object({
+  id: z.string().min(1),
+  nombre: z.string().min(1).max(200),
+  mime: z.enum(MIMES_DOCUMENTO_FAQ),
+  pesoBytes: z.number().int().min(0),
+  storageKey: z.string().min(1),
+  subidoEn: z.string().min(1),
+  activo: z.boolean(),
+  estado: z.enum(["SIN_ENTRENAR", "LISTO", "REVISAR"]),
+  contenido: z.string().max(MAX_CARACTERES_DOCUMENTO, `Máximo ${MAX_CARACTERES_DOCUMENTO} caracteres`),
+  caracteresOriginal: z.number().int().min(0),
+});
 
 export const AgenteIAConfigSchema = z.object({
   // Bloque único de instrucciones (Rol · Estilo · Proceso · Reglas). Es la
@@ -101,6 +119,11 @@ export const AgenteIAConfigSchema = z.object({
     .nullable()
     .optional(),
   catalogoEnContexto: z.boolean().optional(),
+
+  // 032 — base de conocimiento FAQ. El formulario solo puede editar el
+  // contenido destilado y el toggle de activo: subir y borrar pasan por sus
+  // propias acciones, porque mueven archivos en el storage.
+  documentosFaq: z.array(DocumentoFaqSchema).max(MAX_DOCUMENTOS_FAQ).nullable().optional(),
 
   // Delay en respuesta: esperar a que el cliente termine de escribir antes de
   // contestar (ver src/ai/respuesta/ventana-espera.ts). null = heredar el

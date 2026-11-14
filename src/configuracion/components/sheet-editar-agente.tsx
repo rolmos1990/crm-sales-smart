@@ -61,6 +61,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { TextareaConReferencias } from "@/shared/ui/textarea-con-referencias";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { EditorDocumentosFaq } from "./editor-documentos-faq";
+import type { DocumentoFaq } from "@/configuracion/ia/conocimiento/tipos";
 import { editarUsuario } from "@/configuracion/usuarios/actions";
 import {
   guardarAgenteIA,
@@ -444,6 +446,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
       reglasPersonalizadas: null,
       condicionesTransferenciaHumano: null,
       respuestasGuia: null,
+      documentosFaq: null,
       catalogoEnContexto: true,
       limiteCatalogoContexto: 30,
       esperarAntesDeResponder: false,
@@ -497,6 +500,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             reglasPersonalizadas: (config.reglasPersonalizadas as string[] | null) ?? null,
             condicionesTransferenciaHumano: (config.condicionesTransferenciaHumano as string[] | null) ?? null,
             respuestasGuia: (config.respuestasGuia as RespuestaGuiaInput[] | null) ?? null,
+            documentosFaq: (config.documentosFaq as DocumentoFaq[] | null) ?? null,
             catalogoEnContexto: config.catalogoEnContexto,
             limiteCatalogoContexto: config.limiteCatalogoContexto,
             esperarAntesDeResponder: config.esperarAntesDeResponder,
@@ -1491,7 +1495,23 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
           {/* Tab: Conocimiento (018-simulador-agente, Historia 4) — vista de
               solo lectura, sin campos editables nuevos (contracts/simulador.md). */}
           <TabsContent value="conocimiento" className="flex flex-col gap-5">
-            <TituloGrupo titulo="Conocimiento del agente" descripcion="Resumen de solo lectura de lo que el agente sabe y puede usar. Se edita desde Configuración IA." />
+            <TituloGrupo titulo="Conocimiento del agente" descripcion="Los documentos de referencia que el agente consulta, y el resumen de lo demás que sabe." />
+
+            {/* 032 — FAQ: lo único editable de esta pestaña. Manuales,
+                políticas de envío, preguntas frecuentes. Es material de
+                consulta: el agente lo usa para RESPONDER, nunca para decidir
+                qué hacer dentro de Karia. */}
+            <SeccionConfig
+              Icono={BookOpen}
+              titulo="FAQ y documentos"
+              descripcion="Hasta 3 archivos PDF o TXT que el agente usa como base de conocimiento. Solo informativo: no ejecuta acciones a partir de ellos."
+            >
+              <EditorDocumentosFaq
+                agenteIAConfigId={configIA?.id ?? null}
+                valores={(formIA.watch("documentosFaq") ?? []) as DocumentoFaq[]}
+                onChange={(v) => formIA.setValue("documentosFaq", v, { shouldDirty: true })}
+              />
+            </SeccionConfig>
             {!tieneConfigIA || !configIA ? (
               <p className="text-stone-500 text-sm text-center py-8">
                 Activá primero el Agente Comercial IA para ver su conocimiento configurado.
