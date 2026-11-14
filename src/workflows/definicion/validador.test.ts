@@ -373,3 +373,50 @@ describe("validarReferencias", () => {
     expect(r.valido).toBe(true);
   });
 });
+
+// 031-memoria-y-ficha-conversacion (FR-008) — el rango de la memoria se
+// impone en el servidor: el campo numérico del formulario es solo UX.
+describe("validarEstructura — memoria del nodo Atención IA (031, FR-008)", () => {
+  const conMemoria = (memoria: unknown): DefinicionWorkflow => ({
+    version: 1,
+    nodos: [
+      inicio(),
+      nodo("ia", "ATENCION_IA", { agenteIAConfigId: "ag-1", modo: "RESPUESTA_UNICA", memoria }),
+      fin("fin"),
+    ],
+    conexiones: [
+      con("inicio", "siguiente", "ia"),
+      con("ia", "respondido", "fin"),
+      con("ia", "transferencia", "fin"),
+      con("ia", "error", "fin"),
+    ],
+  });
+
+  it("acepta una cantidad dentro de 1–30", () => {
+    expect(codigos(validarEstructura(conMemoria({ activa: true, cantidad: 30 })))).toEqual([]);
+    expect(codigos(validarEstructura(conMemoria({ activa: true, cantidad: 1 })))).toEqual([]);
+  });
+
+  it("rechaza una cantidad por encima de 30", () => {
+    expect(codigos(validarEstructura(conMemoria({ activa: true, cantidad: 40 })))).toContain("CONFIG_INCOMPLETA");
+  });
+
+  it("rechaza una cantidad por debajo de 1", () => {
+    expect(codigos(validarEstructura(conMemoria({ activa: true, cantidad: 0 })))).toContain("CONFIG_INCOMPLETA");
+  });
+
+  it("un nodo sin la clave memoria publica igual que siempre (FR-002)", () => {
+    const def: DefinicionWorkflow = {
+      version: 1,
+      nodos: [inicio(), nodo("ia", "ATENCION_IA", { agenteIAConfigId: "ag-1", modo: "RESPUESTA_UNICA" }), fin("fin")],
+      conexiones: [
+        con("inicio", "siguiente", "ia"),
+        con("ia", "respondido", "fin"),
+        con("ia", "transferencia", "fin"),
+        con("ia", "error", "fin"),
+      ],
+    };
+
+    expect(codigos(validarEstructura(def))).toEqual([]);
+  });
+});

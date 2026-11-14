@@ -6,8 +6,8 @@
 //   3. Reglas específicas del negocio (incluye el comportamiento natural fijo)
 //   4. Playbook/estrategia comercial activa               ← 011, conectado acá
 //   5. Perfil dinámico del cliente                         ← 012, conectado acá
-//   6. Estado actual de la conversación
-//   7. Datos conocidos y faltantes                         ← placeholder (spec futura)
+//   6. Estado actual de la conversación                   ← 031, conectado acá
+//   7. Datos conocidos y faltantes                         ← 031, conectado acá
 //   8. Información operativa verificada                    ← placeholder (015)
 //   9. Ejemplos piloto relevantes                           ← 014, conectado acá
 //  10. Herramientas permitidas                              ← metadata, no texto de prompt
@@ -28,8 +28,10 @@ import { producirCapaEstrategia } from "./capas/estrategia-activa";
 import { producirCapaPerfilCliente } from "./capas/perfil-cliente";
 import { producirCapaDatosConocidosFaltantes, producirCapaInfoOperativa } from "./capas/placeholders";
 import { producirCapaEjemplosPiloto } from "./capas/ejemplos-piloto";
+import { producirCapaEstadoConversacion } from "./capas/estado-conversacion";
 import { LIMITE_CATALOGO_DEFECTO } from "./capas/catalogo";
 import type { PerfilCliente } from "@/ai/perfil-cliente/tipos";
+import type { FichaConversacion } from "@/ai/ficha-conversacion/tipos";
 
 export interface InsumosContexto {
   instanciaId: string;
@@ -42,6 +44,14 @@ export interface InsumosContexto {
   // (que requiere un contactoId real). El simulador arma un PerfilCliente
   // 100% simulado sin depender de PerfilClienteService.
   perfilClienteOverride?: PerfilCliente | null;
+  // 031-memoria-y-ficha-conversacion — el nodo Atención IA activó la ficha.
+  // Ausente o false: las capas 6 y 7 devuelven null y el prompt queda
+  // byte a byte igual al de antes de esa feature (SC-001, FR-034).
+  fichaActiva?: boolean;
+  // 031 — espejo de perfilClienteOverride para el simulador (research D12).
+  fichaOverride?: FichaConversacion | null;
+  // 031 — zona de negocio, solo para formatear las fechas de la capa 6.
+  zonaNegocio?: string;
 }
 
 export interface ContextoCompuesto {
@@ -96,11 +106,21 @@ export async function construirContextoCompuesto(
 
   const contenidoPerfilCliente = perfilCliente ? formatearPerfilComoTexto(perfilCliente) : null;
 
-  // Capa 7 sigue reservada (FR-008 de 013), siempre null. Capa 8 = catálogo
-  // (028). Capa 9
-  // (014-conversaciones-piloto-ejemplos-relevantes) ya tiene fuente real.
-  const [capaDatosFaltantes, capaInfoOperativa, resultadoCapaEjemplosPiloto] = await Promise.all([
-    producirCapaDatosConocidosFaltantes(),
+  // 031 — capa 6 (estado registrado de la conversación) estrena productor:
+  // la 013 la había dejado documentada en el orden de precedencia pero sin
+  // fuente. Capa 7 = lectura interpretada. Capa 8 = catálogo (028). Capa 9 =
+  // ejemplos piloto (014). Con la ficha apagada, 6 y 7 devuelven null y
+  // `contenidoReservado` queda idéntico al de antes de la 031 (SC-001).
+  const insumosFicha = {
+    instanciaId: insumos.instanciaId,
+    conversacionId: insumos.conversacionId,
+    activa: insumos.fichaActiva ?? false,
+    fichaOverride: insumos.fichaOverride,
+    zonaNegocio: insumos.zonaNegocio,
+  };
+  const [capaEstadoConversacion, capaDatosFaltantes, capaInfoOperativa, resultadoCapaEjemplosPiloto] = await Promise.all([
+    producirCapaEstadoConversacion(insumosFicha),
+    producirCapaDatosConocidosFaltantes(insumosFicha),
     // 028-respuestas-guia-catalogo-ia — capa 8: catálogo con precios. Un
     // agente sin el campo (fila previa a la migración) lo trae activo.
     producirCapaInfoOperativa({
@@ -115,7 +135,7 @@ export async function construirContextoCompuesto(
       playbookEstrategiaId: estrategiaSeleccionada?.id,
     }),
   ]);
-  const contenidoReservado = [capaDatosFaltantes, capaInfoOperativa, resultadoCapaEjemplosPiloto.texto]
+  const contenidoReservado = [capaEstadoConversacion, capaDatosFaltantes, capaInfoOperativa, resultadoCapaEjemplosPiloto.texto]
     .filter((c): c is string => Boolean(c))
     .join("\n\n");
 

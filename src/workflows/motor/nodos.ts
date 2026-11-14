@@ -256,6 +256,10 @@ async function responderIA(c: ConfigNodo<"ATENCION_IA">, ctx: CtxNodo) {
         : instrucciones || undefined,
     herramientasPermitidas: c.herramientas,
     origen: { tipo: "WORKFLOW", ejecucionId: ctx.ejecucion.id },
+    // 031 — ambos ausentes en un nodo que nunca los configuró, así que la
+    // respuesta se arma exactamente como antes de esa feature.
+    memoria: c.memoria,
+    ficha: c.ficha?.activa,
   });
 }
 

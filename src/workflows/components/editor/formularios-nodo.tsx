@@ -12,7 +12,16 @@ import { ConstructorCondiciones, arbolVacio } from "@/sales/flujo-venta/componen
 import type { GroupNode } from "@/sales/flujo-venta/reglas/tipos";
 import { TipoDisparadorWorkflow } from "@/generated/prisma/enums";
 import { camposCondicion } from "../../definicion/campos-condicion";
-import { CAMPOS_ACTUALIZABLES, type DefinicionWorkflow, type Destinatario, type Duracion, type NodoWorkflow } from "../../definicion/schema";
+import {
+  CAMPOS_ACTUALIZABLES,
+  MAX_MENSAJES_MEMORIA,
+  MENSAJES_MEMORIA_DEFECTO,
+  MIN_MENSAJES_MEMORIA,
+  type DefinicionWorkflow,
+  type Destinatario,
+  type Duracion,
+  type NodoWorkflow,
+} from "../../definicion/schema";
 import { VARIABLES_SISTEMA, variablesDeclaradas } from "../../definicion/variables";
 import type { OpcionesEditor } from "../../queries";
 import { ETIQUETA_DISPARADOR } from "../estilos";
@@ -622,6 +631,53 @@ function FormNotificarAgente({ config, onChange, opciones, definicion }: PropsFo
 
 // ── IA ──────────────────────────────────────────────────────────────────────
 
+// 031 — memoria conversacional del nodo. Los tres estados de la clave
+// `memoria` son significativos y distintos entre sí (ver research D4):
+//   ausente          → comportamiento previo a la 031 (presupuesto de tokens)
+//   { activa: true } → exactamente `cantidad` mensajes
+//   { activa: false} → solo el último mensaje del cliente
+// Por eso apagar el switch escribe `{ activa: false }` y NO borra la clave:
+// borrarla devolvería el nodo al comportamiento legacy, que no es lo que el
+// usuario pidió al apagarlo.
+function MemoriaAtencionIA({ config, onChange }: Pick<PropsFormulario, "config" | "onChange">) {
+  const memoria = config.memoria as { activa?: boolean; cantidad?: number } | undefined;
+  const activa = !!memoria?.activa;
+  const cantidad = memoria?.cantidad ?? MENSAJES_MEMORIA_DEFECTO;
+
+  return (
+    <div className="space-y-3 rounded-md border border-border p-3">
+      <label className="flex items-center justify-between gap-3 text-sm">
+        Leer mensajes anteriores
+        <Switch
+          checked={activa}
+          onCheckedChange={(v) => onChange({ ...config, memoria: { activa: v, cantidad } })}
+        />
+      </label>
+      <p className="text-[11px] text-muted-foreground">
+        {activa
+          ? "El agente entra a cada turno viendo lo que ya se habló."
+          : memoria
+            ? "El agente solo ve el último mensaje del cliente."
+            : "Sin configurar: la cantidad la decide el límite de contexto del agente."}
+      </p>
+      {activa && (
+        <Campo etiqueta="Cuántos recordar" ayuda="Los últimos mensajes de la conversación, del cliente y del agente.">
+          <Input
+            type="number"
+            min={MIN_MENSAJES_MEMORIA}
+            max={MAX_MENSAJES_MEMORIA}
+            value={cantidad}
+            onChange={(e) =>
+              onChange({ ...config, memoria: { activa: true, cantidad: Number(e.target.value) } })
+            }
+            className="w-24"
+          />
+        </Campo>
+      )}
+    </div>
+  );
+}
+
 function FormAtencionIA({ config, onChange, opciones, definicion }: PropsFormulario) {
   const variables = useVariables(definicion);
   const modo = texto(config, "modo") || "CONTINUA";
@@ -654,6 +710,19 @@ function FormAtencionIA({ config, onChange, opciones, definicion }: PropsFormula
       <Campo etiqueta="Instrucciones adicionales (opcional)" ayuda="Se suman al prompt del agente; no lo reemplazan.">
         <TextoConVariables valor={texto(config, "instrucciones")} onChange={(v) => onChange({ ...config, instrucciones: v || undefined })} variables={variables} filas={4} />
       </Campo>
+      <MemoriaAtencionIA config={config} onChange={onChange} />
+      <label className="flex items-center justify-between gap-3 rounded-md border border-border p-3 text-sm">
+        <span>
+          Recordar en qué va la conversación
+          <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
+            El agente ve qué producto se habló, qué precio ya informó y qué dejó preguntado.
+          </span>
+        </span>
+        <Switch
+          checked={!!(config.ficha as { activa?: boolean } | undefined)?.activa}
+          onCheckedChange={(v) => onChange({ ...config, ficha: { activa: v } })}
+        />
+      </label>
       {modo === "CONTINUA" && (
         <>
           <Campo etiqueta="Máximo de mensajes de la IA">

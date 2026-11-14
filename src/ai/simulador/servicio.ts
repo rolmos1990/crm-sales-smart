@@ -7,7 +7,37 @@ import { clasificarCategoriaIntencion } from "@/ai/autonomia/clasificador";
 import { decidirAutonomia } from "@/ai/autonomia/gate";
 import { resolverHerramientasAgente } from "@/ai/tools/herramientas-agente";
 import type { PerfilCliente } from "@/ai/perfil-cliente/tipos";
+import type { FichaConversacion } from "@/ai/ficha-conversacion/tipos";
 import type { EscenarioSimulacion, DiagnosticoRespuestaSimulada, HerramientaEjecutadaDiagnostico } from "./tipos";
+
+// 031-memoria-y-ficha-conversacion (research D12) — misma idea que el perfil
+// simulado de abajo: el simulador no tiene una conversación real, así que arma
+// la ficha a mano y nunca lee ni escribe FichaConversacionIA. Permite ver en
+// el simulador cómo quedan las capas 6 y 7 sin ensuciar datos de producción.
+function construirFichaSimulada(cliente: EscenarioSimulacion["cliente"]): FichaConversacion {
+  const ahora = new Date().toISOString();
+  return {
+    conversacionId: "__simulado__",
+    hechos: {
+      productoEnFoco: null,
+      ultimoPrecioInformado: null,
+      ultimaPreguntaDelAgente: null,
+      documentos: [],
+      ultimoTurnoEn: ahora,
+    },
+    interpretado: {
+      tema: null,
+      intencion: cliente.intencion,
+      datosConocidos: {},
+      datosFaltantes: [],
+      resumen: "Conversación simulada: todavía no hay historial registrado.",
+      confianza: 1,
+      derivadoEn: ahora,
+    },
+    turnos: 0,
+    actualizadoEn: ahora,
+  };
+}
 
 // 018-simulador-agente (research.md Decisión 2) — perfil 100% simulado, sin
 // llamar a PerfilClienteService (que requiere un contactoId real).
@@ -93,6 +123,10 @@ class SimuladorService {
         instanciaId: escenario.instanciaId,
         agenteIAConfigId: escenario.agenteIAConfigId,
         perfilClienteOverride: perfilCliente,
+        // 031 — la ficha se muestra siempre en el simulador: es justamente
+        // donde el negocio quiere ver qué recibe el agente.
+        fichaActiva: true,
+        fichaOverride: construirFichaSimulada(escenario.cliente),
       },
       { configAgente, contextoDinamico: {} },
     );

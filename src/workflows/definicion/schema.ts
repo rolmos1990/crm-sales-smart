@@ -135,6 +135,24 @@ export const ConfigTimerSchema = z.discriminatedUnion("modo", [
   }),
 ]);
 
+// 031 — límites de la ventana de memoria. El máximo es 30 porque es el tope
+// que ya aplicaba el presupuesto de tokens del agente; el inicial es 10 y no
+// 13 (lo que hoy da el presupuesto con el límite por defecto) porque es el
+// número que el negocio entiende, no un artefacto del cálculo.
+export const MIN_MENSAJES_MEMORIA = 1;
+export const MAX_MENSAJES_MEMORIA = 30;
+export const MENSAJES_MEMORIA_DEFECTO = 10;
+
+export const MemoriaConversacionSchema = z.object({
+  activa: z.boolean().default(true),
+  cantidad: z
+    .number()
+    .int()
+    .min(MIN_MENSAJES_MEMORIA, `Recordá al menos ${MIN_MENSAJES_MEMORIA} mensaje`)
+    .max(MAX_MENSAJES_MEMORIA, `No se pueden recordar más de ${MAX_MENSAJES_MEMORIA} mensajes`)
+    .default(MENSAJES_MEMORIA_DEFECTO),
+});
+
 export const ConfigAtencionIASchema = z.object({
   agenteIAConfigId: z.string().min(1, "Elige un agente IA"),
   modo: z.enum(["RESPUESTA_UNICA", "CONTINUA"]),
@@ -155,6 +173,22 @@ export const ConfigAtencionIASchema = z.object({
       segundos: z.number().int().min(1).max(MAX_SEGUNDOS_ESPERA).default(SEGUNDOS_ESPERA_DEFECTO),
     })
     .optional(),
+
+  // 031 — cuánta conversación lee el agente antes de responder. Tres estados:
+  // ausente = comportamiento previo (la cantidad la decide el presupuesto de
+  // tokens del agente), `activa: true` = exactamente `cantidad` mensajes,
+  // `activa: false` = solo el último mensaje del cliente. Por eso apagar el
+  // control escribe `{ activa: false }` en vez de borrar la clave.
+  //
+  // Va `.optional()` SIN `.default({})` a propósito (research D4): un default
+  // de objeto materializaría la clave al reparsear un nodo ya publicado, que
+  // es justo la afectación que FR-002 prohíbe.
+  memoria: MemoriaConversacionSchema.optional(),
+
+  // 031 — el nodo registra lo que ya mostró y preguntó, y lo recibe de vuelta
+  // en el turno siguiente (capas 6 y 7 del context builder). Ausente o false
+  // dejan el prompt idéntico al de antes de esta feature.
+  ficha: z.object({ activa: z.boolean().default(false) }).optional(),
 });
 
 export const ConfigMoverEtapaSchema = z.object({
@@ -263,6 +297,7 @@ export const DefinicionWorkflowSchema = z.object({
 export type TipoNodo = keyof typeof CONFIG_POR_TIPO;
 export type ConfigNodo<T extends TipoNodo> = z.infer<(typeof CONFIG_POR_TIPO)[T]>;
 export type Duracion = z.infer<typeof DuracionSchema>;
+export type MemoriaConversacion = z.infer<typeof MemoriaConversacionSchema>;
 export type Destinatario = z.infer<typeof DestinatarioSchema>;
 export type NodoWorkflow = z.infer<typeof NodoSchema>;
 export type ConexionWorkflow = z.infer<typeof ConexionSchema>;

@@ -284,3 +284,17 @@ Origin: a real case. "Buenas tardes, precio por favor" got the generic reply "¿
 - **Fixed price rule, reworded.** The catalog in the context counts as real information, and inventing a price is still forbidden. For a price question with no product: give prices if the catalog is short; otherwise offer at most three options and ask which one.
 - **Tools.** `resolverHerramientasAgente` (`src/ai/tools/herramientas-agente.ts`) is now the single source for the consumer and the simulator. With the catalog on, it adds `buscar_productos`.
 - **No-agent warning.** The stage panel of the pipeline shows an amber warning when auto-reply is enabled and there is no Comercial agent. In that case the AI keeps replying with the minimal fallback profile (no catalog, no rules, no tools). This case was the root cause of the original report.
+
+---
+
+## 13. Posterior al plan: 031-memoria-y-ficha-conversacion (2026-11-14)
+
+- **Layers 6 and 7 are no longer placeholders.** Layer 6 ("Estado actual de la conversación") never had a producer at all; layer 7 ("Datos conocidos y faltantes") returned `null` always. Both are now fed by `FichaConversacionIA` through `src/ai/contexto/capas/estado-conversacion.ts`. The precedence order fixed by spec 013 did not move.
+- **Two halves that never mix**, same discipline as `PerfilClienteSnapshot` (012):
+  - `hechos` — derived only from verifiable data: tool results plus the text that was actually sent. A price counts as "shown to the customer" only if a tool returned it **and** the amount appears in the sent message. A false negative loses the improvement; a false positive makes the agent contradict a ghost.
+  - `interpretado` — derived by AI, always labeled "interpretada, no confirmada", never erased on failure.
+- **Scope is per conversation, not per contact.** A contact with three open conversations has one profile and three fichas. `PerfilClienteSnapshot` was not touched or extended.
+- **Freshness after a human takes over** is derived, not stored: the layer compares `ficha.actualizadoEn` against `Conversacion.atencionDesde`. No transfer path has to remember to clear a flag.
+- **Configurable conversational memory.** The Atención IA node now owns how much history the agent reads: absent = the previous token-budget behaviour (~13 messages), `{ activa: true, cantidad: N }` = exactly N, `{ activa: false }` = only the customer's last message. `OpcionesContexto.maxMensajes` — declared since forever and silently ignored — is honoured now, so "sugerir respuesta" finally gets the 15 messages it always asked for.
+- **Nothing runs on the customer's critical path.** Both the facts write and the AI derivation happen after the message is sent, inside `try/catch`, with a 10 s cap on the derivation. A ficha failure never costs a message.
+- **Everything is off by default.** A node that never touched these controls produces a byte-for-byte identical system prompt, with a frozen-fixture regression test to prove it.

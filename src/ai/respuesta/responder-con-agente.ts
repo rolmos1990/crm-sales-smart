@@ -2,6 +2,7 @@ import "@/ai/tools/inicializar"; // registra todos los providers de herramientas
 
 import type { MensajeIATool, ContenidoToolResult } from "@/ai/proveedores/types";
 import { NOMBRE_FINALIZAR_ATENCION_WORKFLOW } from "@/ai/tools/providers/finalizar-atencion-workflow.tool";
+import type { HerramientaEjecutada } from "@/ai/ficha-conversacion/hechos";
 
 // Una respuesta de un agente IA a una conversación: contexto → tool loop →
 // gate de autonomía → envío → registro de trazabilidad. Extraído tal cual de
@@ -37,6 +38,13 @@ export interface ParamsRespuestaIA {
    *  marca el envío con origen WORKFLOW (no dispara el movimiento automático
    *  de etapa por primera respuesta, D2). */
   origen?: { tipo: "WORKFLOW"; ejecucionId: string };
+  /** 031 — cuánta conversación lee el agente. Ausente: la cantidad la sigue
+   *  decidiendo el presupuesto de tokens del agente, como antes de la 031.
+   *  Hoy solo lo manda el nodo Atención IA (FR-034). */
+  memoria?: { activa: boolean; cantidad: number };
+  /** 031 — el llamador registra y consume la ficha de la conversación.
+   *  Ausente o false: no se lee ni se escribe nada (FR-034). */
+  ficha?: boolean;
 }
 
 export type AccionRespuestaIA =
@@ -67,6 +75,7 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
   const { construirContexto, serializarContextoComoMensajes } = await import("@/ai/contexto/constructor");
   const { prisma } = await import("@/shared/db/prisma");
   const { enviarMensajeInterno } = await import("@/conversaciones/envio");
+  const { obtenerZonaNegocio } = await import("@/shared/fechas/negocio");
 
   const conversacion = await prisma.conversacion.findUnique({
     where: { id: conversacionId },
@@ -108,6 +117,12 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
     contactoId: conversacion.contactoId,
     oportunidadId,
     agenteIAConfigId: agenteId,
+    // 031 — ambos ausentes salvo que el nodo Atención IA los haya
+    // configurado, que es lo que mantiene la feature dentro del Workflow
+    // (FR-034).
+    memoria: params.memoria,
+    ficha: params.ficha,
+    zonaNegocio: params.ficha ? await obtenerZonaNegocio(instanciaId) : undefined,
   });
 
   const mensajesBase = serializarContextoComoMensajes(contexto);
@@ -142,6 +157,7 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
   // acumulada durante la generación, para el registro de la respuesta.
   let usoIAId: string | undefined;
   let herramientasEjecutadas: string[] = [];
+  let herramientasConResultado: HerramientaEjecutada[] = [];
   let motivoTransferencia: string | undefined;
   let productoIdentificadoId: string | undefined;
   let finalizacion: ResultadoRespuestaIA["finalizacion"];
@@ -162,6 +178,7 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
     contenidoFinal = resultadoTools.contenido;
     usoIAId = resultadoTools.usoIAId;
     herramientasEjecutadas = resultadoTools.herramientasEjecutadas;
+    herramientasConResultado = resultadoTools.herramientasConResultado;
     motivoTransferencia = resultadoTools.motivoTransferencia;
     productoIdentificadoId = resultadoTools.productoIdentificadoId;
     finalizacion = resultadoTools.finalizacion;
@@ -282,6 +299,20 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
     console.log(`[GenerarRespuestaIA] Respuesta enviada → mensajeId: ${resultado.mensaje.id}`);
   }
 
+  // 031 — ficha de la conversación. Va DESPUÉS del envío y solo si el
+  // cliente efectivamente recibió el mensaje: lo que se registra es "lo que
+  // el cliente ya vio". Nunca puede romper ni demorar un envío ya hecho
+  // (FR-014), misma disciplina que el registro de trazabilidad de abajo.
+  if (params.ficha && resultado.ok) {
+    await registrarFichaDelTurno({
+      conversacionId,
+      instanciaId,
+      mensajeId: resultado.mensaje.id,
+      textoEnviado: contenidoFinal,
+      herramientas: herramientasConResultado,
+    });
+  }
+
   // Registro de trazabilidad — solo si la respuesta efectivamente se
   // generó desde un agente conocido (agenteId); nunca bloquea el envío
   // ya realizado arriba, sea cual sea el resultado de enviarMensaje.
@@ -298,6 +329,40 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
   return resultado.ok
     ? { ...base, accion: "ENVIADO", mensajeId: resultado.mensaje.id }
     : { ...base, accion: "ERROR", error: resultado.error };
+}
+
+// 031-memoria-y-ficha-conversacion — registra los hechos del turno y dispara
+// la lectura interpretada. Las dos cosas pasan DESPUÉS de que el mensaje ya
+// salió, así que el cliente nunca espera por esto (FR-022). Nada de lo que
+// ocurra acá puede propagarse: el mensaje ya está entregado y un fallo de la
+// ficha solo pierde una mejora.
+async function registrarFichaDelTurno(p: {
+  conversacionId: string;
+  instanciaId: string;
+  mensajeId: string;
+  textoEnviado: string;
+  herramientas: HerramientaEjecutada[];
+}): Promise<void> {
+  try {
+    const { registrarTurno, registrarLectura } = await import("@/ai/ficha-conversacion/servicio");
+
+    await registrarTurno({
+      conversacionId: p.conversacionId,
+      instanciaId: p.instanciaId,
+      turno: {
+        mensajeId: p.mensajeId,
+        textoEnviado: p.textoEnviado,
+        herramientas: p.herramientas,
+        ahora: new Date(),
+      },
+    });
+
+    const { derivarLectura } = await import("@/ai/ficha-conversacion/extraccion");
+    const lectura = await derivarLectura(p.conversacionId, p.instanciaId);
+    await registrarLectura(p.conversacionId, p.instanciaId, lectura);
+  } catch (err) {
+    console.error("[GenerarRespuestaIA] Error al registrar la ficha de la conversación:", err);
+  }
 }
 
 // Texto del último mensaje del cliente en la conversación — insumo para el
@@ -346,6 +411,10 @@ interface ResultadoEjecutarConTools {
   usoIAId: string | undefined;
   // 017-aprendizaje-supervisado-auditoria
   herramientasEjecutadas: string[];
+  // 031 — además de los nombres, qué pidió y qué devolvió cada herramienta:
+  // es de ahí que salen los hechos de la ficha (precio informado, producto en
+  // foco, documentos generados). Siempre se arma; solo se usa si `ficha`.
+  herramientasConResultado: HerramientaEjecutada[];
   motivoTransferencia: string | undefined;
   productoIdentificadoId: string | undefined;
   finalizacion: ResultadoRespuestaIA["finalizacion"];
@@ -373,6 +442,8 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<Resulta
   };
 
   const herramientasEjecutadas: string[] = [];
+  // 031 — traza completa de lo que corrió, para derivar los hechos de la ficha.
+  const herramientasConResultado: HerramientaEjecutada[] = [];
   // Mensajes de las acciones comerciales que sí se concretaron en este turno.
   const accionesConcretadas: string[] = [];
   let motivoTransferencia: string | undefined;
@@ -393,7 +464,7 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<Resulta
     usoIAId = resultado.usoIAId;
 
     if (resultado.tipo === "texto") {
-      return { contenido: resultado.contenido ?? "", usoIAId, herramientasEjecutadas, motivoTransferencia, productoIdentificadoId, finalizacion };
+      return { contenido: resultado.contenido ?? "", usoIAId, herramientasEjecutadas, herramientasConResultado, motivoTransferencia, productoIdentificadoId, finalizacion };
     }
 
     // Hay tool calls — ejecutarlos y agregar al historial
@@ -410,6 +481,11 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<Resulta
       llamadas.map(async (llamada) => {
         const res = await ejecutarHerramienta(llamada.name, llamada.input, toolCtx);
         herramientasEjecutadas.push(llamada.name);
+        herramientasConResultado.push({
+          nombre: llamada.name,
+          args: (llamada.input ?? {}) as Record<string, unknown>,
+          resultado: res,
+        });
 
         if (HERRAMIENTAS_ACCION_VISIBLE.includes(llamada.name) && res.ok) {
           const mensaje = (res.data as Record<string, unknown> | undefined)?.mensaje;
@@ -457,7 +533,7 @@ async function ejecutarConTools(params: EjecutarConToolsParams): Promise<Resulta
   // hubiera ejecutado.
   console.warn(`[GenerarRespuestaIA] Máximo de iteraciones de tool calling alcanzado (${MAX_ITERACIONES_TOOL}) — turno de cierre`);
 
-  const comun = { herramientasEjecutadas, motivoTransferencia, productoIdentificadoId, finalizacion };
+  const comun = { herramientasEjecutadas, herramientasConResultado, motivoTransferencia, productoIdentificadoId, finalizacion };
 
   try {
     const cierre = await params.generarConHerramientas({

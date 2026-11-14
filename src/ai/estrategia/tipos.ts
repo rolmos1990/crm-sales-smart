@@ -14,14 +14,21 @@ export type TipoRelacionCliente =
   | "CLIENTE_INACTIVO"
   | "CLIENTE_CON_INCIDENCIA";
 
-export type IntencionComercial =
-  | "EXPLORANDO"
-  | "COMPARANDO"
-  | "SOLICITANDO_RECOMENDACION"
-  | "CONSULTANDO_PRECIO"
-  | "CONSULTANDO_DISPONIBILIDAD"
-  | "LISTO_PARA_COTIZAR"
-  | "LISTO_PARA_COMPRAR"
-  | "ESPERANDO_INFORMACION"
-  | "REQUIERE_SEGUIMIENTO"
-  | "REQUIERE_ATENCION_HUMANA";
+// 031 — la lista pasa a existir también en runtime: la extracción
+// interpretada valida contra ella lo que devuelve el modelo, en vez de
+// confiar en el string que venga (FR-021). El tipo se deriva del arreglo,
+// así no hay dos listas que se puedan desincronizar.
+export const INTENCIONES_COMERCIALES = [
+  "EXPLORANDO",
+  "COMPARANDO",
+  "SOLICITANDO_RECOMENDACION",
+  "CONSULTANDO_PRECIO",
+  "CONSULTANDO_DISPONIBILIDAD",
+  "LISTO_PARA_COTIZAR",
+  "LISTO_PARA_COMPRAR",
+  "ESPERANDO_INFORMACION",
+  "REQUIERE_SEGUIMIENTO",
+  "REQUIERE_ATENCION_HUMANA",
+] as const;
+
+export type IntencionComercial = (typeof INTENCIONES_COMERCIALES)[number];

@@ -42,6 +42,12 @@ export async function generarSugerenciaIA(
       contactoId: conversacion.contactoId,
       oportunidadId,
       agenteIAConfigId: agenteConfig?.id,
+      // 031 (research D3) — este parámetro existía desde siempre pero
+      // construirContexto lo ignoraba: la sugerencia se armaba con los 13
+      // mensajes que daba el presupuesto de tokens, no con los 15 pedidos acá.
+      // Ahora se cumple. Es el único cambio de comportamiento de la 031 fuera
+      // del nodo Atención IA, y es acotado: un humano lee y edita esta
+      // sugerencia antes de enviarla.
       maxMensajes: 15,
     });
 

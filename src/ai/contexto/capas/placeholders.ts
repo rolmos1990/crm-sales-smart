@@ -1,4 +1,5 @@
 import { producirCapaCatalogo, type InsumosCapaCatalogo } from "./catalogo";
+import { producirCapaLecturaConversacion, type InsumosCapaFicha } from "./estado-conversacion";
 
 // 013-context-builder-capas-precedencia (FR-008) — puntos de extensión
 // reservados para capas que todavía no tienen fuente de datos real.
@@ -6,9 +7,11 @@ import { producirCapaCatalogo, type InsumosCapaCatalogo } from "./catalogo";
 // la spec correspondiente se implemente, solo debe reemplazar el cuerpo de
 // la función respectiva; el orden de precedencia ya está fijado.
 
-/** Capa 7 — datos conocidos y faltantes. Sin fuente real todavía (ver docs/AGENTE-IA-EVOLUCION-ANALISIS.md §7, research.md Decisión 1). */
-export async function producirCapaDatosConocidosFaltantes(): Promise<string | null> {
-  return null;
+/** Capa 7 — datos conocidos y faltantes. Desde 031-memoria-y-ficha-conversacion
+ *  lleva la lectura interpretada de la conversación (ver ./estado-conversacion.ts).
+ *  Con la ficha apagada devuelve null, igual que cuando era un placeholder. */
+export async function producirCapaDatosConocidosFaltantes(insumos: InsumosCapaFicha): Promise<string | null> {
+  return producirCapaLecturaConversacion(insumos);
 }
 
 /** Capa 8 — información operativa verificada. Desde 028-respuestas-guia-catalogo-ia

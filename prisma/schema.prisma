@@ -423,6 +423,8 @@ model Instancia {
   usoIA                         UsoIA[]
   agenteIAConfigVersions        AgenteIAConfigVersion[]
   perfilesCliente               PerfilClienteSnapshot[]
+  // 031-memoria-y-ficha-conversacion
+  fichasConversacion            FichaConversacionIA[]
   playbooksEstrategia           PlaybookEstrategia[]
   seleccionesEstrategia         SeleccionEstrategiaLog[]
   metodosEntregaConfig          MetodoEntregaConfig[]
@@ -642,6 +644,38 @@ model PerfilClienteSnapshot {
   @@index([instanciaId])
 }
 
+// 031-memoria-y-ficha-conversacion — lo que el agente registró de UNA
+// conversación en curso: qué producto se habló, qué precio ya informó, qué
+// dejó preguntado. Distinta de PerfilClienteSnapshot, que es por contacto y
+// de largo plazo (FR-015): un contacto con tres conversaciones abiertas tiene
+// un perfil y tres fichas.
+//
+// Dos mitades que nunca se mezclan, mismo criterio que el perfil:
+//   hechos       — derivados de datos verificables (resultados de herramientas
+//                  y mensajes efectivamente enviados). Nunca de lo que el
+//                  modelo cree recordar.
+//   interpretado — derivado por IA. Puede equivocarse, y se le presenta al
+//                  agente etiquetado como no confirmado.
+//
+// Sin campo `vigente`: la vigencia se deriva comparando `actualizadoEn` con
+// `Conversacion.atencionDesde` (research D14), así ningún camino de
+// transferencia a humano tiene que acordarse de apagar un flag.
+model FichaConversacionIA {
+  id            String   @id @default(cuid())
+  hechos        Json
+  interpretado  Json?
+  turnos        Int      @default(0)
+  actualizadoEn DateTime @default(now()) @updatedAt
+
+  conversacionId String       @unique
+  conversacion   Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId])
+}
+
 // =====================
 // PIPELINES DINÁMICOS
 // =====================
@@ -658,12 +692,12 @@ model Pipeline {
   instanciaId String?
   instancia   Instancia? @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  stages        PipelineStage[]
-  oportunidades Oportunidad[]
-  campos        CampoPersonalizado[]
-  disparadores  Disparador[]
+  stages               PipelineStage[]
+  oportunidades        Oportunidad[]
+  campos               CampoPersonalizado[]
+  disparadores         Disparador[]
   workflowAsignaciones WorkflowAsignacion[]
-  cuentasCanal  CuentaCanal[]
+  cuentasCanal         CuentaCanal[]
 
   @@index([instanciaId])
   @@index([esDefault])
@@ -758,7 +792,7 @@ model Oportunidad {
   historialEtapas       OportunidadHistorialEtapa[]
   workflowEjecuciones   WorkflowEjecucion[]
   conversaciones        OportunidadConversacion[]
-  conversacionesGanadas Conversacion[]            @relation("ConvOportunidadGanada")
+  conversacionesGanadas Conversacion[]              @relation("ConvOportunidadGanada")
 
   @@index([instanciaId])
   @@index([instanciaId, id])
@@ -813,10 +847,10 @@ enum TipoDisparadorWorkflow {
 }
 
 model Workflow {
-  id          String         @id @default(cuid())
-  nombre      String
-  descripcion String?
-  estado      EstadoWorkflow @default(BORRADOR)
+  id            String         @id @default(cuid())
+  nombre        String
+  descripcion   String?
+  estado        EstadoWorkflow @default(BORRADOR)
   // DefinicionWorkflow editable (src/workflows/definicion/schema.ts). Las
   // ejecuciones NUNCA leen esto: usan una WorkflowVersion publicada.
   borrador      Json
@@ -850,8 +884,8 @@ model WorkflowVersion {
   publicadaPorId String?
 
   workflowId  String
-  workflow    Workflow  @relation("VersionesDeWorkflow", fields: [workflowId], references: [id], onDelete: Cascade)
-  vigenteDe   Workflow? @relation("VersionVigente")
+  workflow    Workflow            @relation("VersionesDeWorkflow", fields: [workflowId], references: [id], onDelete: Cascade)
+  vigenteDe   Workflow?           @relation("VersionVigente")
   ejecuciones WorkflowEjecucion[]
   instanciaId String
 
@@ -915,10 +949,10 @@ model WorkflowEjecucion {
   nodoActualId String?
   // { variables: {...}, meta: {...} } — variables del Workflow y datos de
   // control de los nodos (intentos, interacciones de IA, inicio de espera).
-  contexto    Json
-  esperaTipo  TipoEsperaWorkflow?
-  esperaDesde DateTime?
-  esperaHasta DateTime?
+  contexto     Json
+  esperaTipo   TipoEsperaWorkflow?
+  esperaDesde  DateTime?
+  esperaHasta  DateTime?
 
   ultimoMensajeProcesadoId String?
   intentosNodo             Int     @default(0)
@@ -927,11 +961,11 @@ model WorkflowEjecucion {
   bloqueadoHasta DateTime?
   bloqueadoPor   String?
 
-  claveIdempotencia    String  @unique
-  controlaConversacion Boolean @default(false)
+  claveIdempotencia    String                 @unique
+  controlaConversacion Boolean                @default(false)
   // Cadena de ejecuciones (Mover etapa → Workflow de la etapa siguiente,
   // Ejecutar otro Workflow): límite contra bucles.
-  profundidad          Int     @default(0)
+  profundidad          Int                    @default(0)
   disparador           TipoDisparadorWorkflow
   stageId              String?
 
@@ -1464,7 +1498,6 @@ model EntregaCotizacion {
   // que "costo de entrega por confirmar".
   direccionEntrega String?
   identificacion   String?
-
 
   // Quién recibe físicamente el envío. Distinto del `destinatario` que vive
   // en Cotizacion.metadata: ese es el cliente al que va dirigida la
@@ -2032,7 +2065,6 @@ model EntregaPedido {
   direccionEntrega String?
   identificacion   String?
 
-
   // Quién recibe físicamente el envío — ver EntregaCotizacion.nombreDestinatario.
   nombreDestinatario String?
 
@@ -2197,17 +2229,17 @@ model Disparador {
 }
 
 model DisparadorJob {
-  id          String              @id @default(cuid())
-  estado      EstadoDisparadorJob @default(PENDIENTE)
-  ejecutarEn  DateTime
-  payload     Json
-  resultado   Json?
-  error       String?
-  creadoEn    DateTime            @default(now())
-  procesadoEn DateTime?
+  id             String              @id @default(cuid())
+  estado         EstadoDisparadorJob @default(PENDIENTE)
+  ejecutarEn     DateTime
+  payload        Json
+  resultado      Json?
+  error          String?
+  creadoEn       DateTime            @default(now())
+  procesadoEn    DateTime?
   // Reintentos ante errores transitorios (red, HTTP 5xx) y recuperación de
   // jobs que quedaron en PROCESANDO porque el worker se cayó a mitad.
-  intentos       Int       @default(0)
+  intentos       Int                 @default(0)
   bloqueadoHasta DateTime?
 
   disparadorId String
@@ -2566,14 +2598,14 @@ model ConfiguracionEmpresa {
 
   // 022-transportistas-zonas-tarifas — permite convertir una cotización con
   // costoEnvioConfirmado=false en pedido sin exigir la confirmación (FR-040).
-  permiteConvertirSinConfirmarCostoEnvio Boolean @default(false)
+  permiteConvertirSinConfirmarCostoEnvio Boolean             @default(false)
   // 029-combos-productos-compuestos — filtro inicial del selector de
   // productos en pedidos y cotizaciones. Solo el inicial: el usuario puede
   // cambiarlo a mano.
-  filtroProductosPedido FiltroCatalogoVenta @default(TODOS)
+  filtroProductosPedido                  FiltroCatalogoVenta @default(TODOS)
   // Workflows — apagado por defecto: sin el flag, el motor no hace nada y la
   // IA por etapa funciona como siempre (D3).
-  workflowsHabilitado Boolean @default(false)
+  workflowsHabilitado                    Boolean             @default(false)
 
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -2763,10 +2795,10 @@ model Conversacion {
 
   // Separado de `clasificacion`: clasificar como SOPORTE a mano no debe
   // apagar la IA; solo una transferencia explícita lo hace.
-  modoAtencion      ModoAtencionConversacion @default(AUTOMATICO)
-  atencionDesde     DateTime?
-  atencionMotivo    String?
-  atencionUsuarioId String?
+  modoAtencion        ModoAtencionConversacion @default(AUTOMATICO)
+  atencionDesde       DateTime?
+  atencionMotivo      String?
+  atencionUsuarioId   String?
   // Ejecución de Workflow que controla la conversación (modoAtencion = WORKFLOW).
   atencionEjecucionId String?
 
@@ -2791,6 +2823,8 @@ model Conversacion {
   // 014-conversaciones-piloto-ejemplos-relevantes — auditoría de origen
   conversacionesPilotoOrigen   ConversacionPiloto[]
   workflowEjecuciones          WorkflowEjecucion[]
+  // 031-memoria-y-ficha-conversacion — lo que el agente ya mostró y preguntó
+  fichaIA                      FichaConversacionIA?
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
@@ -2956,8 +2990,8 @@ model ConfiguracionIA {
   esperarAntesDeResponder Boolean @default(false)
   segundosEsperaRespuesta Int     @default(5)
 
-  creadoEn            DateTime        @default(now())
-  actualizadoEn       DateTime        @updatedAt
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
 
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)

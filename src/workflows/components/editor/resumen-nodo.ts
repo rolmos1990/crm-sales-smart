@@ -62,7 +62,17 @@ export function resumenNodo(nodo: NodoWorkflow, opciones: OpcionesEditor): strin
       const c = parse("ATENCION_IA");
       if (!c) return null;
       const agente = opciones.agentes.find((a) => a.id === c.agenteIAConfigId)?.nombre ?? "Agente";
-      return `${agente} · ${c.modo === "CONTINUA" ? `hasta ${c.maxInteracciones} mensajes` : "una respuesta"}`;
+      // 031 — sin la clave `memoria` no se agrega nada: un nodo que nunca la
+      // tocó tiene que verse exactamente igual que antes de esa feature.
+      const memoria = c.memoria ? (c.memoria.activa ? `recuerda ${c.memoria.cantidad}` : "sin memoria") : null;
+      return [
+        agente,
+        c.modo === "CONTINUA" ? `hasta ${c.maxInteracciones} mensajes` : "una respuesta",
+        memoria,
+        c.ficha?.activa ? "con ficha" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
     }
     case "MOVER_ETAPA": {
       const c = parse("MOVER_ETAPA");

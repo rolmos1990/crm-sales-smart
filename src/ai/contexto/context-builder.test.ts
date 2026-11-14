@@ -212,3 +212,42 @@ describe("construirContextoCompuesto — capa 8: catálogo (028)", () => {
     expect(resultado.systemPrompt).toBe(construirSystemPrompt(CONFIG_BASE));
   });
 });
+
+// 031-memoria-y-ficha-conversacion (SC-001) — red de seguridad de la
+// composición. Las capas 6 y 7 se suman a `contenidoReservado`; mientras no
+// produzcan texto, el string compuesto tiene que ser exactamente el de antes.
+describe("construirContextoCompuesto — capas 6 y 7 vacías (031, SC-001)", () => {
+  beforeEach(() => {
+    producirCapaEstrategiaMock.mockReset().mockResolvedValue({ texto: null, estrategiaSeleccionada: null });
+    producirCapaPerfilClienteMock.mockReset().mockResolvedValue(null);
+    producirCapaEjemplosPilotoMock.mockReset().mockResolvedValue({ texto: null, ejemplosIds: [] });
+    productoFindManyMock.mockReset().mockResolvedValue([]);
+  });
+
+  it("sin ficha, el systemPrompt es byte a byte el de construirSystemPrompt directo", async () => {
+    const resultado = await construirContextoCompuesto(
+      { instanciaId: "instancia-1", agenteIAConfigId: "agente-1", conversacionId: "conv-1" },
+      { configAgente: CONFIG_BASE, contextoDinamico: {} },
+    );
+
+    expect(resultado.systemPrompt).toBe(construirSystemPrompt(CONFIG_BASE));
+  });
+
+  it("sin ficha, el catálogo sigue siendo el primer bloque de contenidoReservado", async () => {
+    productoFindManyMock.mockResolvedValue([
+      { nombre: "Esfera lunar", sku: null, precio: 16, moneda: "USD", unidad: "unidad", categoria: null },
+    ]);
+
+    const { systemPrompt } = await construirContextoCompuesto(
+      { instanciaId: "instancia-1", agenteIAConfigId: "agente-1", conversacionId: "conv-1" },
+      { configAgente: CONFIG_BASE, contextoDinamico: {} },
+    );
+
+    // Sin capas 6/7 no hay nada entre las reglas del negocio y el catálogo.
+    const reglas = systemPrompt.indexOf("Reglas del negocio:");
+    const catalogo = systemPrompt.indexOf("Catálogo vigente");
+    expect(catalogo).toBeGreaterThan(reglas);
+    expect(systemPrompt).not.toContain("Estado registrado de esta conversación");
+    expect(systemPrompt).not.toContain("Lectura de esta conversación");
+  });
+});
