@@ -11,6 +11,11 @@ import type {
   ContenidoToolUse,
 } from "./types";
 import type { ProveedorIAEnum } from "@/generated/prisma/enums";
+import {
+  convertirHerramientas,
+  convertirMensajesConTool,
+  convertirMensajesSimples,
+} from "./openai-compat";
 
 const MODELOS_DEEPSEEK = [
   // Aliases que siempre apuntan a la última versión de cada familia
@@ -162,80 +167,4 @@ export function crearDeepSeekProvider(
   modeloDefault?: string,
 ): DeepSeekProvider {
   return new DeepSeekProvider(apiKey, modeloDefault);
-}
-
-// ── Conversores internos ──────────────────────────────────────────────────────
-
-function convertirMensajesSimples(
-  mensajes: Array<{ rol: "system" | "user" | "assistant"; contenido: string }>,
-): OpenAI.ChatCompletionMessageParam[] {
-  return mensajes.map((m) => ({
-    role: m.rol as "system" | "user" | "assistant",
-    content: m.contenido,
-  }));
-}
-
-function convertirMensajesConTool(
-  mensajes: MensajeIATool[],
-): OpenAI.ChatCompletionMessageParam[] {
-  const resultado: OpenAI.ChatCompletionMessageParam[] = [];
-
-  for (const m of mensajes) {
-    if (m.rol === "system") {
-      resultado.push({ role: "system", content: m.contenido });
-    } else if (m.rol === "user") {
-      if (typeof m.contenido === "string") {
-        resultado.push({ role: "user", content: m.contenido });
-      } else {
-        // ContenidoToolResult[] → mensajes role: "tool"
-        for (const tr of m.contenido) {
-          resultado.push({
-            role: "tool",
-            tool_call_id: tr.tool_use_id,
-            content: tr.content,
-          });
-        }
-      }
-    } else {
-      // assistant
-      if (typeof m.contenido === "string") {
-        resultado.push({ role: "assistant", content: m.contenido });
-      } else {
-        // Array<ContenidoTextoBloque | ContenidoToolUse> → assistant con tool_calls
-        const textoParts = m.contenido
-          .filter((b): b is ContenidoTextoBloque => b.type === "text")
-          .map((b) => b.text)
-          .join("");
-
-        const toolCalls = m.contenido
-          .filter((b): b is ContenidoToolUse => b.type === "tool_use")
-          .map((b) => ({
-            id: b.id,
-            type: "function" as const,
-            function: { name: b.name, arguments: JSON.stringify(b.input) },
-          }));
-
-        resultado.push({
-          role: "assistant",
-          content: textoParts || null,
-          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-        });
-      }
-    }
-  }
-
-  return resultado;
-}
-
-function convertirHerramientas(
-  herramientas: DefinicionHerramienta[],
-): OpenAI.ChatCompletionTool[] {
-  return herramientas.map((h) => ({
-    type: "function" as const,
-    function: {
-      name: h.name,
-      description: h.description,
-      parameters: h.input_schema as Record<string, unknown>,
-    },
-  }));
 }

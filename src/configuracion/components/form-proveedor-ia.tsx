@@ -37,10 +37,11 @@ import {
 } from "@/components/ui/input-group";
 import { crearProveedorIA, actualizarProveedorIA } from "@/configuracion/ia/actions";
 import { ProveedorIASchema, type ProveedorIAInput } from "@/configuracion/ia/schema";
+import { estaImplementado } from "@/ai/proveedores/disponibles";
 
 const MODELOS_POR_PROVEEDOR: Record<string, string> = {
   ANTHROPIC: "claude-sonnet-4-6, claude-haiku-4-5-20251001, claude-opus-4-8",
-  OPENAI: "gpt-4o, gpt-4o-mini, gpt-4-turbo",
+  OPENAI: "gpt-6.1-sol, gpt-6.1-terra, gpt-6-astra, gpt-6-luna",
   GEMINI: "gemini-1.5-pro, gemini-1.5-flash",
   DEEPSEEK: "deepseek-chat, deepseek-reasoner, deepseek-v3, deepseek-v4, deepseek-r1, deepseek-coder",
   NVIDIA: "meta/llama-3.3-70b-instruct, deepseek-ai/deepseek-v4-pro, deepseek-ai/deepseek-r1, nvidia/llama-3.1-nemotron-70b-instruct, meta/llama-3.1-405b-instruct",
@@ -193,11 +194,29 @@ export function FormProveedorIA({ abierto, onCerrar, onExito, proveedorExistente
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="bg-stone-900 border-white/10">
-                        {["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "NVIDIA", "LOCAL"].map((p) => (
-                          <SelectItem key={p} value={p} className="text-stone-50 focus:bg-white/10">
-                            {p}
-                          </SelectItem>
-                        ))}
+                        {/* Los que no tienen implementación se muestran
+                            deshabilitados en vez de ocultarse: así se ve que
+                            el proveedor existe en el roadmap y no parece que
+                            Karia "perdió" una opción. Guardar uno igual lo
+                            rechaza la Server Action. */}
+                        {["ANTHROPIC", "OPENAI", "GEMINI", "DEEPSEEK", "NVIDIA", "LOCAL"].map((p) => {
+                          const disponible = estaImplementado(p);
+                          return (
+                            <SelectItem
+                              key={p}
+                              value={p}
+                              disabled={!disponible}
+                              className="text-stone-50 focus:bg-white/10"
+                            >
+                              {p}
+                              {!disponible && (
+                                <span className="ml-2 text-[10px] uppercase tracking-wide text-stone-500">
+                                  Próximamente
+                                </span>
+                              )}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {modoEdicion && (
