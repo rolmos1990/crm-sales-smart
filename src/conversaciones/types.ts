@@ -119,6 +119,9 @@ export interface ConversacionResumen {
   clasificacion: ClasificacionConversacion;
   modoAtencion?: ModoAtencionConversacion;
   atencionMotivo?: string | null;
+  /** Borradores de la IA esperando aprobación humana. Con modoAtencion
+   *  alimenta el filtro "Atención humana" del Inbox. */
+  pendientesIA?: number;
   oportunidadGanadaRel?: OportunidadGanadaResumen | null;
   creadoEn: Date;
   actualizadoEn: Date;

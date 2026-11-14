@@ -52,6 +52,13 @@ const conversacionInclude = {
     },
   },
   oportunidadGanadaRel: { select: oportunidadGanadaRelSelect },
+  // Borradores de la IA esperando que una persona los apruebe. Junto con
+  // modoAtencion = HUMANO definen el filtro "Atención humana" del Inbox: son
+  // las dos formas en que una conversación queda dependiendo de alguien.
+  respuestasPendientesRevision: {
+    where: { estado: "PENDIENTE" },
+    select: { id: true },
+  },
   // EVENTO_SISTEMA (marcada cerrada/reabierta/respondida) no es un mensaje
   // real — se excluye para que el preview del inbox muestre el último
   // mensaje de verdad, no el JSON interno del evento.
@@ -82,6 +89,7 @@ function mapearConversacion(conv: any): ConversacionResumen {
     clasificacion: conv.clasificacion,
     modoAtencion: conv.modoAtencion,
     atencionMotivo: conv.atencionMotivo ?? null,
+    pendientesIA: conv.respuestasPendientesRevision?.length ?? 0,
     oportunidadGanadaRel: conv.oportunidadGanadaRel,
     creadoEn: conv.creadoEn,
     actualizadoEn: conv.actualizadoEn,

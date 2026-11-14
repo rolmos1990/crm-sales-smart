@@ -5,13 +5,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare, MessagesSquare, ChevronUp, Loader2, UserCircle2,
   Check, RotateCcw, XCircle, Clock, Clock3, Search, MessageCircle, Camera, Mail, Send,
-  ArrowLeft, MoreVertical, ChevronRight,
+  ArrowLeft, MoreVertical, ChevronRight, UserRound,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, format, differenceInMinutes, differenceInHours, differenceInDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { requiereAtencionHumana, cuentaParaAtencionHumana } from "../atencion-humana";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -43,7 +44,7 @@ import type { ConversacionResumen, MensajeConMeta, MensajeReaccionResumen, Cuent
 
 // ── Tipos y configuración de estados ─────────────────────────────────────────
 
-type Filtro = "todos" | "abiertas" | "esperando" | "cerradas";
+type Filtro = "todos" | "abiertas" | "esperando" | "atencion_humana" | "cerradas";
 type EstadoConv = ConversacionResumen["estado"];
 
 const ESTADO_CFG: Record<EstadoConv, {
@@ -113,10 +114,30 @@ const ESTADO_CFG: Record<EstadoConv, {
   },
 };
 
-const FILTROS: { key: Filtro; label: string; estados: EstadoConv[]; Icono: LucideIcon }[] = [
+// "Atención humana" NO es un estado: es otra dimensión. Una conversación
+// cuenta a la vez en "Abiertas" y en "Atención humana", por eso el filtro
+// lleva `predicado` en vez de una lista de estados. Las conversaciones
+// cerradas o archivadas quedan fuera: ya no hay nada que atender.
+const FILTROS: {
+  key: Filtro;
+  label: string;
+  estados: EstadoConv[];
+  predicado?: (c: ConversacionResumen) => boolean;
+  Icono: LucideIcon;
+  /** Resalta el filtro aunque no esté activo: hay gente esperando. */
+  urgente?: boolean;
+}[] = [
   { key: "abiertas",  label: "Abiertas",  estados: ["ABIERTA"],   Icono: MessageSquare },
   { key: "todos",     label: "Todos",     estados: ["ABIERTA", "EN_ESPERA", "CERRADA", "ARCHIVADA"], Icono: MessagesSquare },
   { key: "esperando", label: "Esperando", estados: ["EN_ESPERA"], Icono: Clock3 },
+  {
+    key: "atencion_humana",
+    label: "Atención humana",
+    estados: ["ABIERTA", "EN_ESPERA"],
+    predicado: requiereAtencionHumana,
+    Icono: UserRound,
+    urgente: true,
+  },
   { key: "cerradas",  label: "Cerradas",  estados: ["CERRADA"],   Icono: Check },
 ];
 
@@ -260,7 +281,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   // los datos ya cargados (sin llamadas nuevas al backend).
   const filtradas = useMemo(() => {
     const cfg = FILTROS.find((f) => f.key === filtro)!;
-    let lista = conversaciones.filter((c) => cfg.estados.includes(c.estado));
+    let lista = conversaciones.filter((c) => cfg.estados.includes(c.estado) && (cfg.predicado?.(c) ?? true));
 
     const termino = busqueda.trim().toLowerCase();
     if (termino) {
@@ -284,12 +305,14 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
   // Conteos por filtro (sobre el total, no afectados por la búsqueda de texto)
   const conteos = useMemo(() => {
-    const c: Record<Filtro, number> = { todos: 0, abiertas: 0, esperando: 0, cerradas: 0 };
+    const c: Record<Filtro, number> = { todos: 0, abiertas: 0, esperando: 0, atencion_humana: 0, cerradas: 0 };
     for (const conv of conversaciones) {
       c.todos++;
       if (conv.estado === "ABIERTA") c.abiertas++;
       else if (conv.estado === "EN_ESPERA") c.esperando++;
       else if (conv.estado === "CERRADA") c.cerradas++;
+      // Transversal a propósito: la misma conversación suma acá y en su estado.
+      if (cuentaParaAtencionHumana(conv)) c.atencion_humana++;
     }
     return c;
   }, [conversaciones]);
@@ -677,14 +700,18 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition-colors",
                     activo
                       ? "bg-inbox-accent-muted border-inbox-accent-border text-inbox-accent"
-                      : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                      // Un filtro urgente con gente esperando se ve aunque no
+                      // esté activo: si queda gris como los demás, nadie lo mira.
+                      : f.urgente && conteos[f.key] > 0
+                        ? "border-warning/40 bg-warning/10 text-warning hover:bg-warning/15"
+                        : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <f.Icono className="h-3.5 w-3.5" />
                   {f.label}
                   <span className={cn(
                     "text-[10px] font-semibold tabular-nums",
-                    activo ? "text-inbox-accent" : "text-muted-foreground"
+                    activo ? "text-inbox-accent" : f.urgente && conteos[f.key] > 0 ? "text-warning" : "text-muted-foreground"
                   )}>
                     {conteos[f.key]}
                   </span>
@@ -778,6 +805,23 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                         ) : <span />}
                         <div className="flex items-center gap-1.5 shrink-0">
                           {noLeido && <span className="h-1.5 w-1.5 rounded-full bg-inbox-accent" />}
+                          {/* Va antes del badge de estado y no lo reemplaza:
+                              son dos cosas distintas. "Abierta" dice en qué
+                              punto del ciclo está; "Atención humana" dice que
+                              no avanza sin una persona. */}
+                          {cuentaParaAtencionHumana(conv) && (
+                            <span
+                              className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[9px] font-semibold text-warning"
+                              title={
+                                conv.modoAtencion === "HUMANO"
+                                  ? conv.atencionMotivo ?? "La atiende una persona"
+                                  : "Hay una respuesta de la IA esperando aprobación"
+                              }
+                            >
+                              <UserRound className="h-2.5 w-2.5 shrink-0" />
+                              Atención humana
+                            </span>
+                          )}
                           <span className={cn(
                             "flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border",
                             cfg.badgeBg, cfg.badgeText
