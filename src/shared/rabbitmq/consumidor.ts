@@ -1,5 +1,5 @@
 import type amqplib from "amqplib";
-import { obtenerCanal } from "./conexion";
+import { obtenerCanal, registrarResuscripcion } from "./conexion";
 import { EXCHANGE } from "./exchanges";
 import { esErrorConReintentabilidad, type EventoEnvelope } from "./tipos";
 
@@ -25,6 +25,18 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
   ): Promise<void> {}
 
   async iniciar(): Promise<void> {
+    await this.suscribir();
+
+    // Un `ch.consume` muere con su canal: si la conexión se cae, el consumidor
+    // desaparece y reconectar NO lo repone. Dejar registrado cómo volver a
+    // suscribirse es lo que evita que el worker quede vivo, "Conectado" y
+    // sordo — el modo de falla que tiró la mensajería entera sin un solo log
+    // de error.
+    registrarResuscripcion(this.queue, () => this.suscribir());
+  }
+
+  /** Suscripción propiamente dicha — se repite tal cual en cada reconexión. */
+  private async suscribir(): Promise<void> {
     const ch = await obtenerCanal();
     await ch.prefetch(PREFETCH);
 
@@ -32,6 +44,8 @@ export abstract class ConsumidorBase<TPayload extends Record<string, unknown> = 
       await ch.bindQueue(this.queue, EXCHANGE, rk);
     }
 
+    // `ch` queda capturado a propósito: cada suscripción acusa recibo por el
+    // mismo canal en el que escucha. Tras una reconexión, el canal es otro.
     await ch.consume(this.queue, async (msg) => {
       if (!msg) return;
       await this.procesarMensaje(ch, msg);

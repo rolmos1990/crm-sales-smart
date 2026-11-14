@@ -5,7 +5,7 @@ import type { EventoEnvelope } from "./tipos";
 // Mock de conexion.ts — ConsumidorBase.iniciar() llama obtenerCanal(), pero
 // estos tests solo ejercitan el método privado procesarMensaje() con un
 // canal simulado, así que no hace falta un canal real ni RabbitMQ.
-vi.mock("./conexion", () => ({ obtenerCanal: vi.fn() }));
+vi.mock("./conexion", () => ({ obtenerCanal: vi.fn(), registrarResuscripcion: vi.fn() }));
 
 interface Payload extends Record<string, unknown> {
   valor: string;

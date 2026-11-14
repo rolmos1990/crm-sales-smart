@@ -11,14 +11,24 @@ type ConexionState = {
   channel: amqplib.Channel | null;
   conectando: boolean;
   intentos: number;
+  /**
+   * Cómo volver a suscribir cada cola después de una reconexión, por nombre de
+   * cola. Un `ch.consume` vive atado al canal: cuando la conexión se cae, el
+   * canal muere y el consumidor se va con él. Sin esto el proceso sigue vivo,
+   * reconecta, loguea "Conectado"… y no consume nada nunca más — muerte
+   * silenciosa, sin crash ni log de error que la delate.
+   */
+  resuscriptores: Map<string, () => Promise<void>>;
 };
 
 const g = globalThis as unknown as { _rmqState?: ConexionState };
 
 function obtenerEstado(): ConexionState {
   if (!g._rmqState) {
-    g._rmqState = { connection: null, channel: null, conectando: false, intentos: 0 };
+    g._rmqState = { connection: null, channel: null, conectando: false, intentos: 0, resuscriptores: new Map() };
   }
+  // Defensivo para procesos que ya tenían estado en globalThis (hot reload).
+  if (!g._rmqState.resuscriptores) g._rmqState.resuscriptores = new Map();
   return g._rmqState;
 }
 
@@ -173,8 +183,44 @@ function programarReconexion(): void {
   state.intentos++;
   console.warn(`[RabbitMQ] Desconectado. Reconectando en ${delay / 1000}s (intento ${state.intentos})`);
   setTimeout(() => {
-    conectar().catch(() => {/* la reconexión se reintenta desde el while interno */});
+    conectar()
+      .then(reinstalarConsumidores)
+      .catch(() => {/* la reconexión se reintenta desde el while interno */});
   }, delay);
+}
+
+/**
+ * Vuelve a suscribir todas las colas sobre el canal nuevo. Se llama solo en el
+ * camino de reconexión: en el arranque normal es `registrarTodosSuscriptores`
+ * quien suscribe, y ahí todavía no hay nada registrado acá.
+ *
+ * Un fallo en una cola no debe dejar mudas a las demás — se loguea y se sigue.
+ */
+async function reinstalarConsumidores(): Promise<void> {
+  const state = obtenerEstado();
+  if (state.resuscriptores.size === 0) return;
+
+  console.warn(`[RabbitMQ] Reinstalando ${state.resuscriptores.size} consumidor(es) tras la reconexión`);
+  for (const [cola, volverASuscribir] of state.resuscriptores) {
+    try {
+      await volverASuscribir();
+    } catch (err) {
+      console.error(`[RabbitMQ] No se pudo reinstalar el consumidor de "${cola}":`, err);
+    }
+  }
+}
+
+/**
+ * Lo llama ConsumidorBase al suscribirse. La clave es el nombre de la cola, así
+ * que re-registrar la misma cola reemplaza en vez de acumular.
+ */
+export function registrarResuscripcion(cola: string, volverASuscribir: () => Promise<void>): void {
+  obtenerEstado().resuscriptores.set(cola, volverASuscribir);
+}
+
+/** Solo para tests: cuántas colas se reinstalarían ante una reconexión. */
+export function colasConResuscripcion(): string[] {
+  return [...obtenerEstado().resuscriptores.keys()];
 }
 
 export async function obtenerCanal(): Promise<amqplib.Channel> {
