@@ -9,6 +9,10 @@ const paisFindManyMock = vi.fn();
 const zonaUbicacionFindManyMock = vi.fn();
 const tarifaFindManyMock = vi.fn();
 const configFindUniqueMock = vi.fn();
+// resolverCostoEnvio consulta además los métodos de entrega propios
+// (fuente 2). Sin fila, esa fuente no aporta candidatos y el resultado queda
+// definido por las zonas de transportista, que es lo que estos tests ejercen.
+const metodoEntregaFindManyMock = vi.fn().mockResolvedValue([]);
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
@@ -16,6 +20,7 @@ vi.mock("@/shared/db/prisma", () => ({
     zonaEntregaUbicacion: { findMany: (...a: unknown[]) => zonaUbicacionFindManyMock(...a) },
     tarifaTransportistaZona: { findMany: (...a: unknown[]) => tarifaFindManyMock(...a) },
     configuracionEmpresa: { findUnique: (...a: unknown[]) => configFindUniqueMock(...a) },
+    metodoEntregaConfig: { findMany: (...a: unknown[]) => metodoEntregaFindManyMock(...a) },
   },
 }));
 
@@ -618,5 +623,168 @@ describe("listarDestinosCubiertosPorProvincia", () => {
     await expect(
       listarDestinosCubiertosPorProvincia({ instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "" }),
     ).resolves.toEqual([]);
+  });
+});
+
+// Las zonas se guardan con el nombre del catálogo de geografía ("Panamá
+// Province") y nadie escribe eso: ni el vendedor ni el agente, que dice
+// "Panamá". Antes de esto, consultar_opciones_envio encontraba la tarifa y
+// validar_cobertura decía que no había cobertura, para el MISMO destino.
+describe("obtenerCandidatosEnvioPorZona — tolerancia al sufijo administrativo", () => {
+  beforeEach(() => {
+    paisFindManyMock.mockReset().mockResolvedValue([{ id: "pais-1", nombre: "Panama" }]);
+    zonaUbicacionFindManyMock.mockReset().mockResolvedValue([
+      { zonaEntregaId: "z1", provinciaEstado: "Panamá Province", distritoCiudad: "Calidonia", corregimiento: null, sectorOCodigoPostal: null },
+    ]);
+    tarifaFindManyMock.mockReset().mockResolvedValue([
+      {
+        id: "tar-1", zonaEntregaId: "z1", transportistaId: "t1", servicioTransportistaId: "s1",
+        vigenteHasta: null, precioCliente: 5, costoInterno: 3, tiempoMinimoDias: 1, tiempoMaximoDias: 2,
+        transportista: { id: "t1", nombre: "Delivery en Ciudad", tipo: "MENSAJERO_PROPIO" },
+        zonaEntrega: { nombre: "Calidonia" },
+        servicioTransportista: { nombre: "Estándar" },
+      },
+    ]);
+    configFindUniqueMock.mockReset().mockResolvedValue(null);
+  });
+
+  it("el nombre exacto del catálogo sigue coincidiendo", async () => {
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const r = await obtenerCandidatosEnvioPorZona({
+      instanciaId: "i1", pais: "Panama", estadoProvincia: "Panamá Province", distritoCiudad: "Calidonia",
+    });
+    expect(r).toHaveLength(1);
+  });
+
+  it("el nombre SIN el sufijo también coincide — es lo que escribe una persona", async () => {
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const r = await obtenerCandidatosEnvioPorZona({
+      instanciaId: "i1", pais: "Panama", estadoProvincia: "Panamá", distritoCiudad: "Calidonia",
+    });
+    expect(r).toHaveLength(1);
+  });
+
+  it("pero NO hace coincidir dos provincias distintas que comparten el núcleo", async () => {
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const r = await obtenerCandidatosEnvioPorZona({
+      instanciaId: "i1", pais: "Panama", estadoProvincia: "Panamá Oeste", distritoCiudad: "Calidonia",
+    });
+    expect(r).toHaveLength(0);
+  });
+
+  it("sigue sin coincidir si falta un nivel que la zona define", async () => {
+    const { obtenerCandidatosEnvioPorZona } = await import("./resolver-costo-envio");
+    const r = await obtenerCandidatosEnvioPorZona({ instanciaId: "i1", pais: "Panama", estadoProvincia: "Panamá" });
+    expect(r).toHaveLength(0);
+  });
+});
+
+// Un cliente escribe "¿tienen delivery en Calidonia?". Calidonia es un
+// corregimiento; el agente, que solo tiene esa palabra, la manda como
+// provincia. Antes eso devolvía "sin cobertura" sobre un destino que estaba
+// perfectamente configurado.
+describe("resolverCostoEnvio — expansión del destino por nombre", () => {
+  const ZONA_CALIDONIA = {
+    zonaEntregaId: "z1", provinciaEstado: "Panamá Province", distritoCiudad: "Calidonia", corregimiento: null, sectorOCodigoPostal: null,
+  };
+  const TARIFA = {
+    id: "tar-1", zonaEntregaId: "z1", transportistaId: "t1", servicioTransportistaId: "s1",
+    vigenteHasta: null, precioCliente: 5, costoInterno: 3, tiempoMinimoDias: 1, tiempoMaximoDias: 2,
+    transportista: { id: "t1", nombre: "Delivery en Ciudad", tipo: "MENSAJERO_PROPIO" },
+    zonaEntrega: { nombre: "Calidonia" },
+    servicioTransportista: { nombre: "Estándar" },
+  };
+
+  beforeEach(() => {
+    paisFindManyMock.mockReset().mockResolvedValue([{ id: "pais-1", nombre: "Panama" }]);
+    zonaUbicacionFindManyMock.mockReset().mockResolvedValue([{ ...ZONA_CALIDONIA, aliases: [] }]);
+    tarifaFindManyMock.mockReset().mockResolvedValue([TARIFA]);
+    configFindUniqueMock.mockReset().mockResolvedValue(null);
+  });
+
+  it("un corregimiento mandado como provincia se expande y resuelve", async () => {
+    const { resolverCostoEnvio } = await import("./resolver-costo-envio");
+    const r = await resolverCostoEnvio({ instanciaId: "i1", pais: "Panama", estadoProvincia: "Calidonia" });
+
+    expect(r.estado).toBe("CLARA");
+    if (r.estado === "CLARA") expect(r.cubierto).toBe(true);
+  });
+
+  it("un nombre que no existe en ningún nivel sigue devolviendo sin coincidencia", async () => {
+    const { resolverCostoEnvio } = await import("./resolver-costo-envio");
+    const r = await resolverCostoEnvio({ instanciaId: "i1", pais: "Panama", estadoProvincia: "Narnia" });
+
+    expect(r.estado).toBe("SIN_COINCIDENCIA_CLARA");
+  });
+
+  it("un nombre ambiguo NO se adivina: se deja sin coincidencia para que alguien pregunte", async () => {
+    zonaUbicacionFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "z1", provinciaEstado: "Panamá Province", distritoCiudad: "San Francisco", corregimiento: null, sectorOCodigoPostal: null, aliases: [] },
+      { zonaEntregaId: "z2", provinciaEstado: "Veraguas Province", distritoCiudad: "San Francisco", corregimiento: null, sectorOCodigoPostal: null, aliases: [] },
+    ]);
+
+    const { resolverCostoEnvio } = await import("./resolver-costo-envio");
+    const r = await resolverCostoEnvio({ instanciaId: "i1", pais: "Panama", estadoProvincia: "San Francisco" });
+
+    expect(r.estado).toBe("SIN_COINCIDENCIA_CLARA");
+  });
+
+  it("no entra en bucle cuando la expansión no aporta una provincia distinta", async () => {
+    zonaUbicacionFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "z1", provinciaEstado: "Coclé Province", distritoCiudad: null, corregimiento: null, sectorOCodigoPostal: null, aliases: [] },
+    ]);
+    tarifaFindManyMock.mockResolvedValue([]);
+
+    const { resolverCostoEnvio } = await import("./resolver-costo-envio");
+    const r = await resolverCostoEnvio({ instanciaId: "i1", pais: "Panama", estadoProvincia: "Coclé Province" });
+
+    expect(r.estado).toBe("SIN_COINCIDENCIA_CLARA");
+  });
+
+  it("cuando el destino ya resolvía, la expansión ni se intenta", async () => {
+    const { resolverCostoEnvio } = await import("./resolver-costo-envio");
+    const llamadasAntes = zonaUbicacionFindManyMock.mock.calls.length;
+
+    const r = await resolverCostoEnvio({ instanciaId: "i1", pais: "Panama", estadoProvincia: "Panamá Province", ciudad: "Calidonia" });
+
+    expect(r.estado).toBe("CLARA");
+    // Una sola pasada de ubicaciones: sin reintento.
+    expect(zonaUbicacionFindManyMock.mock.calls.length - llamadasAntes).toBe(1);
+  });
+});
+
+// La expansión solo reinterpreta el campo de provincia. Si el cliente nombró
+// una provincia y la ciudad no le pertenece, eso es una contradicción real:
+// reubicarlo en silencio sería adivinar.
+describe("resolverCostoEnvio — la expansión no pisa una provincia dicha por el cliente", () => {
+  beforeEach(() => {
+    paisFindManyMock.mockReset().mockResolvedValue([{ id: "pais-1", nombre: "Panama" }]);
+    zonaUbicacionFindManyMock.mockReset().mockResolvedValue([
+      { zonaEntregaId: "z1", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Changuinola", corregimiento: null, sectorOCodigoPostal: null, aliases: [] },
+    ]);
+    tarifaFindManyMock.mockReset().mockResolvedValue([
+      {
+        id: "tar-1", zonaEntregaId: "z1", transportistaId: "t1", servicioTransportistaId: "s1",
+        vigenteHasta: null, precioCliente: 8.5, costoInterno: 5, tiempoMinimoDias: 1, tiempoMaximoDias: 2,
+        transportista: { id: "t1", nombre: "UnoExpress", tipo: "COURIER" },
+        zonaEntrega: { nombre: "Bocas" }, servicioTransportista: { nombre: "Estándar" },
+      },
+    ]);
+    configFindUniqueMock.mockReset().mockResolvedValue(null);
+    metodoEntregaFindManyMock.mockReset().mockResolvedValue([]);
+  });
+
+  it("provincia dicha + ciudad de OTRA provincia sigue sin coincidir", async () => {
+    const { resolverCostoEnvio } = await import("./resolver-costo-envio");
+    const r = await resolverCostoEnvio({ instanciaId: "i1", pais: "Panama", estadoProvincia: "Darién", ciudad: "Changuinola" });
+
+    expect(r.estado).toBe("SIN_COINCIDENCIA_CLARA");
+  });
+
+  it("pero una ciudad puesta en el campo de provincia sí se reinterpreta", async () => {
+    const { resolverCostoEnvio } = await import("./resolver-costo-envio");
+    const r = await resolverCostoEnvio({ instanciaId: "i1", pais: "Panama", estadoProvincia: "Changuinola" });
+
+    expect(r.estado).toBe("CLARA");
   });
 });

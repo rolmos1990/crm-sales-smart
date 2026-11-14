@@ -102,6 +102,9 @@ export interface ResolverCostoEnvioArgs {
   ciudad?: string | null;
   metodoEntrega?: string | null;
   transportistaId?: string | null;
+  /** Interno: marca el reintento con el destino ya expandido por nombre, para
+   *  que no se pueda entrar en bucle. Ningún llamador debe pasarlo. */
+  __yaExpandido?: boolean;
 }
 
 // 022-transportistas-zonas-tarifas — un candidato de envío resuelto contra
@@ -135,6 +138,9 @@ export interface DestinoEnvioZona {
   sectorOCodigoPostal?: string | null;
   /** Restringe la búsqueda a un transportista puntual. */
   transportistaId?: string | null;
+  /** Interno: marca el reintento con el destino ya expandido por nombre, para
+   *  que no se pueda entrar en bucle. Ningún llamador debe pasarlo. */
+  __yaExpandido?: boolean;
 }
 
 /**
@@ -192,10 +198,30 @@ export async function obtenerCandidatosEnvioPorZona(destino: DestinoEnvioZona): 
     return generarSlug(valorUbicacion) === generarSlug(valorDestino);
   };
 
+  // La provincia además tolera el sufijo administrativo del catálogo de
+  // geografía. Las zonas se guardan con el nombre del catálogo ("Panamá
+  // Province") y nadie escribe eso: ni el vendedor ni el agente de IA, que
+  // dice "Panamá". Sin esta tolerancia, un destino perfectamente configurado
+  // se reportaba como sin cobertura.
+  //
+  // `listarCiudadesCubiertasPorProvincia` ya comparaba así desde la 024; acá
+  // se igualaba el criterio para que las dos rutas respondan lo mismo — antes
+  // `consultar_opciones_envio` encontraba la tarifa y `validar_cobertura`
+  // decía que no había cobertura, para el mismo destino.
+  //
+  // Solo puede hacer coincidir MÁS destinos, nunca menos: cuando los slugs ya
+  // eran iguales el primer término corta, y el núcleo de dos provincias
+  // distintas sigue siendo distinto ("panama" vs "panama-oeste").
+  const coincideProvincia = (valorUbicacion: string | null, valorDestino: string | null | undefined): boolean => {
+    if (coincideNivel(valorUbicacion, valorDestino)) return true;
+    if (!valorUbicacion || !valorDestino) return false;
+    return nucleoAdministrativo(generarSlug(valorUbicacion)) === nucleoAdministrativo(generarSlug(valorDestino));
+  };
+
   const zonaIds = new Set<string>();
   for (const u of ubicaciones) {
     if (
-      coincideNivel(u.provinciaEstado, destino.estadoProvincia) &&
+      coincideProvincia(u.provinciaEstado, destino.estadoProvincia) &&
       coincideNivel(u.distritoCiudad, destino.distritoCiudad) &&
       coincideNivel(u.corregimiento, destino.corregimiento) &&
       coincideNivel(u.sectorOCodigoPostal, destino.sectorOCodigoPostal)
@@ -523,6 +549,51 @@ function evaluarNivel(
  * usada por calcular_costo_envio/validar_cobertura/estimar_fecha_entrega.
  */
 export async function obtenerOpcionesEnvioConConfianza(destino: DestinoEnvioZona): Promise<ResultadoOpcionesEnvio> {
+  const resultado = await resolverOpcionesConConfianza(destino);
+  if (resultado.confianza !== "SIN_COINCIDENCIA" || destino.__yaExpandido) return resultado;
+
+  // Mismo último recurso que resolverCostoEnvio: el nombre puede ser de otro
+  // nivel geográfico. Sin esto, `consultar_opciones_envio` y
+  // `validar_cobertura` volvían a contradecirse — una encontraba la tarifa de
+  // "Calidonia" y la otra no, según por dónde entrara el agente.
+  const expandido = await expandirDestinoZonaPorNombre(destino);
+  if (!expandido) return resultado;
+
+  return resolverOpcionesConConfianza({ ...destino, ...expandido, __yaExpandido: true });
+}
+
+/** Busca el nombre del destino contra todos los niveles y completa la
+ *  provincia que falta. `null` si no se puede resolver sin adivinar. */
+async function expandirDestinoZonaPorNombre(
+  destino: DestinoEnvioZona,
+): Promise<{ estadoProvincia: string; distritoCiudad?: string | null } | null> {
+  // Misma regla que arriba: solo se reinterpreta la provincia. Un nivel más
+  // específico nunca puede mover al cliente a otra provincia de la que dijo.
+  const candidatosNombre = (
+    destino.estadoProvincia?.trim()
+      ? [destino.estadoProvincia]
+      : [destino.sectorOCodigoPostal, destino.corregimiento, destino.distritoCiudad]
+  ).filter((n): n is string => !!n?.trim());
+  if (candidatosNombre.length === 0) return null;
+
+  const { resolverUbicacionPorNombre } = await import("./resolver-ubicacion-por-nombre");
+
+  for (const nombre of candidatosNombre) {
+    const r = await resolverUbicacionPorNombre({
+      instanciaId: destino.instanciaId,
+      nombre,
+      transportistaId: destino.transportistaId,
+    });
+    if (r.estado !== "UNICA" || !r.ubicacion.estadoProvincia) continue;
+    if (generarSlug(r.ubicacion.estadoProvincia) === generarSlug(destino.estadoProvincia ?? "")) continue;
+
+    return { estadoProvincia: r.ubicacion.estadoProvincia, distritoCiudad: r.ubicacion.distritoCiudad };
+  }
+
+  return null;
+}
+
+async function resolverOpcionesConConfianza(destino: DestinoEnvioZona): Promise<ResultadoOpcionesEnvio> {
   const { prisma } = await import("@/shared/db/prisma");
 
   const paisId = await resolverPaisId(prisma, destino.instanciaId, destino.pais);
@@ -773,10 +844,67 @@ export async function resolverCostoEnvio(args: ResolverCostoEnvioArgs): Promise<
     });
   }
 
-  return decidirCoincidenciaCosto({
+  const decision = decidirCoincidenciaCosto({
     candidatosCubiertos: candidatos,
     hayNegativaExplicita,
     hayZonaPendienteEvaluacion,
     ubicacionReconocida,
   });
+
+  // Último recurso, y solo cuando el destino no se reconoció: puede que el
+  // nombre que nos dieron sea de otro nivel geográfico. El caso real es un
+  // cliente preguntando por "Calidonia" —un corregimiento— y el agente
+  // mandándolo como provincia, porque es lo único que tenía. Se busca el
+  // nombre contra todos los niveles, se completa el destino y se reintenta
+  // UNA vez con los datos ya expandidos.
+  //
+  // Va acá y no en cada herramienta para que las tres (validar_cobertura,
+  // calcular_costo_envio, estimar_fecha_entrega) y el botón "Sugerir" del
+  // formulario respondan igual. Y es estrictamente aditivo: solo corre en el
+  // camino que ya iba a fallar, así que no puede cambiar ningún resultado
+  // que antes funcionara.
+  if (decision.estado === "SIN_COINCIDENCIA_CLARA" && !args.__yaExpandido) {
+    const expandido = await expandirDestinoPorNombre(args);
+    if (expandido) return resolverCostoEnvio({ ...args, ...expandido, __yaExpandido: true });
+  }
+
+  return decision;
+}
+
+/**
+ * Busca el nombre del destino contra todos los niveles configurados y
+ * devuelve el destino completo, o `null` si no se puede resolver sin
+ * adivinar. Un nombre ambiguo (existe en dos provincias) devuelve `null` a
+ * propósito: el llamador ya tiene un camino para preguntarle al cliente, y
+ * elegir una al azar sería peor que no resolver.
+ */
+async function expandirDestinoPorNombre(
+  args: ResolverCostoEnvioArgs,
+): Promise<{ estadoProvincia: string; ciudad?: string | null } | null> {
+  // SOLO se reinterpreta el campo de provincia, nunca se usa la ciudad para
+  // pisar una provincia que el cliente sí nombró. Si dice "Darién" y la
+  // ciudad que da pertenece a Bocas del Toro, eso es una contradicción real
+  // —puede ser otra ciudad homónima, o un error suyo— y reubicarlo en
+  // silencio sería justo el "adivinar" que esta arquitectura evita.
+  const candidatosNombre = (
+    args.estadoProvincia?.trim() ? [args.estadoProvincia] : [args.ciudad]
+  ).filter((n): n is string => !!n?.trim());
+  if (candidatosNombre.length === 0) return null;
+
+  const { resolverUbicacionPorNombre } = await import("./resolver-ubicacion-por-nombre");
+
+  for (const nombre of candidatosNombre) {
+    const r = await resolverUbicacionPorNombre({
+      instanciaId: args.instanciaId,
+      nombre,
+      transportistaId: args.transportistaId,
+    });
+    if (r.estado !== "UNICA" || !r.ubicacion.estadoProvincia) continue;
+    // Sin provincia nueva que aportar, reintentar daría exactamente lo mismo.
+    if (generarSlug(r.ubicacion.estadoProvincia) === generarSlug(args.estadoProvincia ?? "")) continue;
+
+    return { estadoProvincia: r.ubicacion.estadoProvincia, ciudad: r.ubicacion.distritoCiudad };
+  }
+
+  return null;
 }
