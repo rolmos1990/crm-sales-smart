@@ -1,6 +1,8 @@
 import { generarSlug } from "@/shared/lib/slug";
 
-// Filtro del selector de provincia para cmdk.
+// Filtro de búsqueda de ubicaciones para cmdk. Lo usan el selector de
+// provincia y el de ciudad de entrega: el problema y la solución son los
+// mismos, así que la lógica es una sola.
 //
 // cmdk puntúa por subsecuencia difusa sobre todas las palabras clave juntas.
 // Mientras cada provincia tenía solo su nombre y su código eso alcanzaba, pero
@@ -19,9 +21,9 @@ export const PUNTAJE = { OCULTA: 0, POR_LUGAR: 1, POR_NOMBRE: 2 } as const;
 
 /**
  * @param keywords Tal como las arma Combobox: [etiqueta, subtitulo?, ...busqueda].
- *                 La etiqueta (nombre de la provincia) siempre va primera.
+ *                 La etiqueta (el nombre del lugar) siempre va primera.
  */
-export function filtrarProvincia(_valor: string, busqueda: string, keywords?: string[]): number {
+export function filtrarUbicacion(_valor: string, busqueda: string, keywords?: string[]): number {
   const consulta = generarSlug(busqueda);
   // Sin búsqueda, cmdk pide puntaje para ordenar: todas valen igual.
   if (!consulta) return PUNTAJE.POR_LUGAR;

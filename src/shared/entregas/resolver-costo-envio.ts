@@ -305,6 +305,119 @@ export async function listarCiudadesCubiertasPorProvincia(destino: DestinoEnvioZ
   return [...porSlug.values()].sort((a, b) => a.localeCompare(b, "es"));
 }
 
+/** Una ciudad cubierta, con lo que hace falta para elegirla sin adivinar. */
+export interface DestinoCubierto {
+  ciudad: string;
+  /** Zona de tarifa a la que pertenece, ej. "Ciudad de Panamá". */
+  zona: string;
+  transportista: string;
+  /** Precio más bajo entre las tarifas vigentes de esa zona. `null` cuando la
+   *  zona tiene cobertura pero ninguna tarifa con precio. */
+  precioDesde: number | null;
+  /** Hay más de un transportista o servicio cubriendo esta ciudad: el precio
+   *  mostrado es el más barato, no el único. */
+  variasOpciones: boolean;
+}
+
+/**
+ * Lo mismo que `listarCiudadesCubiertasPorProvincia` pero con zona,
+ * transportista y precio, para que el vendedor vea cuánto va a costar ANTES
+ * de elegir la ciudad en vez de elegir a ciegas y esperar la cotización.
+ *
+ * Función aparte y no un cambio de la otra a propósito, mismo criterio que la
+ * 024 documenta más abajo: `listarCiudadesCubiertasPorProvincia` devuelve
+ * `string[]` y la consumen las herramientas del agente IA
+ * (resolver-ambiguedad-envio.ts), que arman con ella el mensaje que lee el
+ * cliente. Tocarle el tipo de retorno para una mejora de UI humana les
+ * cambiaría la respuesta. Así el riesgo sobre el camino de la IA es cero por
+ * construcción, no por un flag.
+ */
+export async function listarDestinosCubiertosPorProvincia(destino: DestinoEnvioZona): Promise<DestinoCubierto[]> {
+  const { prisma } = await import("@/shared/db/prisma");
+
+  const paisId = await resolverPaisId(prisma, destino.instanciaId, destino.pais);
+  if (!paisId || !destino.estadoProvincia) return [];
+
+  const ubicaciones = await prisma.zonaEntregaUbicacion.findMany({
+    where: { paisId, zonaEntrega: { instanciaId: destino.instanciaId, activa: true } },
+    select: {
+      zonaEntregaId: true,
+      provinciaEstado: true,
+      distritoCiudad: true,
+      zonaEntrega: { select: { nombre: true, transportista: { select: { nombre: true } } } },
+    },
+  });
+
+  const provinciaDestino = generarSlug(destino.estadoProvincia);
+  const nucleoDestino = nucleoAdministrativo(provinciaDestino);
+  const enLaProvincia = ubicaciones.filter((u) => {
+    if (!u.distritoCiudad?.trim()) return false;
+    if (!u.provinciaEstado) return true; // comodín de provincia
+    const slug = generarSlug(u.provinciaEstado);
+    return slug === provinciaDestino || nucleoAdministrativo(slug) === nucleoDestino;
+  });
+  if (enLaProvincia.length === 0) return [];
+
+  const ahora = new Date();
+  const tarifas = await prisma.tarifaTransportistaZona.findMany({
+    where: {
+      zonaEntregaId: { in: [...new Set(enLaProvincia.map((u) => u.zonaEntregaId))] },
+      activa: true,
+      instanciaId: destino.instanciaId,
+      transportista: {
+        activo: true,
+        ...(destino.transportistaId ? { id: destino.transportistaId } : {}),
+      },
+      OR: [{ vigenteDesde: null }, { vigenteDesde: { lte: ahora } }],
+    },
+    select: { zonaEntregaId: true, vigenteHasta: true, precioCliente: true },
+  });
+
+  // Precio más bajo por zona, entre las tarifas todavía vigentes.
+  const precioPorZona = new Map<string, number>();
+  for (const t of tarifas) {
+    if (t.vigenteHasta && t.vigenteHasta < ahora) continue;
+    const precio = Number(t.precioCliente);
+    const actual = precioPorZona.get(t.zonaEntregaId);
+    if (actual === undefined || precio < actual) precioPorZona.set(t.zonaEntregaId, precio);
+  }
+
+  // Una fila por ciudad. Si varias zonas la cubren (distintos
+  // transportistas), gana la más barata y se marca `variasOpciones` — mentir
+  // con un precio que no es el mejor sería peor que no mostrarlo.
+  const porSlug = new Map<string, DestinoCubierto>();
+  for (const u of enLaProvincia) {
+    if (!precioPorZona.has(u.zonaEntregaId)) continue;
+    const ciudad = u.distritoCiudad!.trim();
+    if (!ciudad) continue;
+
+    const clave = generarSlug(ciudad);
+    const precioDesde = precioPorZona.get(u.zonaEntregaId)!;
+    const previo = porSlug.get(clave);
+
+    if (!previo) {
+      porSlug.set(clave, {
+        ciudad,
+        zona: u.zonaEntrega.nombre,
+        transportista: u.zonaEntrega.transportista.nombre,
+        precioDesde,
+        variasOpciones: false,
+      });
+      continue;
+    }
+
+    const esMasBarato = previo.precioDesde === null || precioDesde < previo.precioDesde;
+    porSlug.set(clave, {
+      ...(esMasBarato
+        ? { ciudad, zona: u.zonaEntrega.nombre, transportista: u.zonaEntrega.transportista.nombre, precioDesde }
+        : previo),
+      variasOpciones: true,
+    });
+  }
+
+  return [...porSlug.values()].sort((a, b) => a.ciudad.localeCompare(b.ciudad, "es"));
+}
+
 // 024-alias-ubicaciones-transportistas — matching con alias y coincidencia
 // aproximada (research.md §4). Deliberadamente NO comparte código con
 // obtenerCandidatosEnvioPorZona: esta última queda intacta línea por línea

@@ -7,6 +7,7 @@ import { CrearTarifaSchema, EditarTarifaSchema, CambioMasivoSchema } from "./sch
 import { obtenerOpcionesEnvio } from "./queries";
 import type { ResultadoAccion } from "../types";
 import type { TarifaTransportistaZonaModel } from "@/generated/prisma/models/TarifaTransportistaZona";
+import type { DestinoCubierto } from "@/shared/entregas/resolver-costo-envio";
 
 type Tarifa = TarifaTransportistaZonaModel;
 
@@ -326,6 +327,33 @@ export async function listarCiudadesCubiertasAction(destino: {
 
   const { listarCiudadesCubiertasPorProvincia } = await import("@/shared/entregas/resolver-costo-envio");
   return listarCiudadesCubiertasPorProvincia({
+    instanciaId: auth.sesion.instanciaId,
+    pais: pais?.nombre ?? null,
+    estadoProvincia: estado.nombre,
+    transportistaId: destino.transportistaId ?? null,
+  });
+}
+
+/** Igual que la anterior pero con zona, transportista y precio por ciudad —
+ *  para el selector de ciudad de la cotización. La de arriba queda como está
+ *  porque la consumen las herramientas del agente IA. */
+export async function listarDestinosCubiertosAction(destino: {
+  estadoProvinciaId?: string | null;
+  paisId?: string | null;
+  transportistaId?: string | null;
+}): Promise<DestinoCubierto[]> {
+  const auth = await requirePermisoAction("cotizaciones", "modificar");
+  if (!auth.ok) return [];
+  if (!destino.estadoProvinciaId) return [];
+
+  const [pais, estado] = await Promise.all([
+    destino.paisId ? prisma.pais.findUnique({ where: { id: destino.paisId }, select: { nombre: true } }) : null,
+    prisma.estadoProvincia.findUnique({ where: { id: destino.estadoProvinciaId }, select: { nombre: true } }),
+  ]);
+  if (!estado) return [];
+
+  const { listarDestinosCubiertosPorProvincia } = await import("@/shared/entregas/resolver-costo-envio");
+  return listarDestinosCubiertosPorProvincia({
     instanciaId: auth.sesion.instanciaId,
     pais: pais?.nombre ?? null,
     estadoProvincia: estado.nombre,

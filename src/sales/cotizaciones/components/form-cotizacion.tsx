@@ -22,12 +22,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
+import { filtrarUbicacion } from "@/shared/entregas/filtro-ubicacion";
+import type { DestinoCubierto } from "@/shared/entregas/resolver-costo-envio";
 import { SelectorProductoLinea } from "@/shared/productos/components/selector-producto-linea";
 import { SelectorPais } from "@/shared/entregas/components/selector-pais";
 import { SelectorEstadoProvincia } from "@/shared/entregas/components/selector-estado-provincia";
 import { obtenerModoGeograficoAction } from "@/configuracion/empresa/actions";
 import { obtenerCostoSugerido } from "@/shared/entregas/actions";
-import { obtenerOpcionesEnvioAction, listarCiudadesCubiertasAction } from "@/sales/transportistas/tarifas/actions";
+import { obtenerOpcionesEnvioAction, listarDestinosCubiertosAction } from "@/sales/transportistas/tarifas/actions";
 import {
   camposRequeridosFaltantes,
   describirCamposFaltantes,
@@ -299,7 +301,7 @@ export function FormCotizacion({
   // cobertura pero el precio dependa de la ciudad (todas las zonas de esa
   // provincia definen distrito). Se consultan las ciudades cubiertas para
   // ofrecerlas, en vez de afirmar que no hay transportistas configurados.
-  const [ciudadesCubiertas, setCiudadesCubiertas] = useState<string[]>([]);
+  const [ciudadesCubiertas, setCiudadesCubiertas] = useState<DestinoCubierto[]>([]);
 
   useEffect(() => {
     if (!estadoProvinciaEntregaId || cargandoOpciones || opcionesEnvio.length > 0) {
@@ -308,10 +310,10 @@ export function FormCotizacion({
     }
     let cancelado = false;
     const paisIdEfectivo = modoGeografico?.modoGeografico === "UN_SOLO_PAIS" ? modoGeografico.paisOperacionId : paisEntregaId;
-    listarCiudadesCubiertasAction({
+    listarDestinosCubiertosAction({
       paisId: paisIdEfectivo,
       estadoProvinciaId: estadoProvinciaEntregaId,
-    }).then((ciudades) => { if (!cancelado) setCiudadesCubiertas(ciudades); });
+    }).then((destinos) => { if (!cancelado) setCiudadesCubiertas(destinos); });
     return () => { cancelado = true; };
   }, [estadoProvinciaEntregaId, paisEntregaId, modoGeografico, cargandoOpciones, opcionesEnvio.length]);
 
@@ -1108,23 +1110,46 @@ export function FormCotizacion({
                       // Hay cobertura en la provincia, pero el precio depende
                       // de la ciudad: se ofrecen las que están configuradas en
                       // vez de decir que no hay transportistas.
+                      /* Dropdown con buscador y no una pila de chips: una
+                         provincia puede tener decenas de ciudades cubiertas y
+                         encontrar la correcta a ojo entre todas era el cuello
+                         de botella. Reusa el mismo Combobox y el mismo filtro
+                         que el selector de provincia, así se busca igual en
+                         los dos lugares (sin acentos, coincidencia real). */
                       <div className="space-y-2">
                         <p className="text-sm text-muted-foreground">
                           Este destino se cotiza por ciudad. Elige una para ver las opciones y su precio:
                         </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {ciudadesCubiertas.map((ciudad) => (
-                            <Button
-                              key={ciudad}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => form.setValue("entrega.ciudad", ciudad, { shouldDirty: true })}
-                            >
-                              {ciudad}
-                            </Button>
-                          ))}
-                        </div>
+                        <Combobox
+                          opciones={ciudadesCubiertas.map((d) => ({
+                            valor: d.ciudad,
+                            etiqueta: d.ciudad,
+                            // Zona + transportista + precio en la misma fila:
+                            // el vendedor ve cuánto cuesta antes de elegir, en
+                            // vez de elegir a ciegas y esperar la cotización.
+                            subtitulo: [
+                              d.zona,
+                              d.transportista,
+                              d.precioDesde !== null
+                                ? `${d.variasOpciones ? "desde " : ""}${moneda} ${d.precioDesde.toFixed(2)}`
+                                : "costo por confirmar",
+                            ].join(" · "),
+                            // La zona y el transportista también sirven para
+                            // buscar: "UnoExpress" trae todo lo que reparte.
+                            busqueda: [d.zona, d.transportista],
+                          }))}
+                          filtro={filtrarUbicacion}
+                          valor={ciudadEntrega ?? undefined}
+                          onChange={(ciudad) => form.setValue("entrega.ciudad", ciudad, { shouldDirty: true })}
+                          placeholder="Elige la ciudad de entrega…"
+                          placeholderBusqueda="Buscar ciudad…"
+                          mensajeVacio="Ninguna ciudad con cobertura coincide."
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          {ciudadesCubiertas.length}{" "}
+                          {ciudadesCubiertas.length === 1 ? "ciudad con cobertura" : "ciudades con cobertura"} en esta
+                          provincia. Escribe para filtrar; no hace falta poner tildes.
+                        </p>
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">

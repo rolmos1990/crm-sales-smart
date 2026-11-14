@@ -6,7 +6,7 @@ import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import { queryKeys } from "@/shared/query-keys";
 import { listarEstadosProvincia, listarCoberturaPorProvincia } from "@/shared/entregas/queries-geografia";
 import { generarSlug } from "@/shared/lib/slug";
-import { filtrarProvincia } from "@/shared/entregas/filtro-provincia";
+import { filtrarUbicacion } from "@/shared/entregas/filtro-ubicacion";
 import { debeLimpiarEstadoProvincia } from "@/shared/entregas/debe-limpiar-estado-provincia";
 
 interface SelectorEstadoProvinciaProps {
@@ -92,7 +92,7 @@ export function SelectorEstadoProvincia({ paisId, transportistaId, value, onChan
   return (
     <Combobox
       opciones={opciones}
-      filtro={filtrarProvincia}
+      filtro={filtrarUbicacion}
       valor={value ?? undefined}
       onChange={(v) => onChange(v || null)}
       placeholder={paisId ? "Selecciona un estado/provincia..." : "Elige un país primero"}

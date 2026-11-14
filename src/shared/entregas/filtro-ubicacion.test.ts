@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filtrarProvincia, PUNTAJE } from "./filtro-provincia";
+import { filtrarUbicacion, PUNTAJE } from "./filtro-ubicacion";
 
 // Combobox arma las keywords así: [etiqueta, subtitulo?, ...busqueda].
 const claves = (nombre: string, ...lugares: string[]) => [
@@ -13,9 +13,9 @@ const CHIRIQUI = claves("Chiriquí Province (CH)", "Boquete", "David", "Volcán"
 const BOCAS = claves("Bocas del Toro Province (BT)", "Changuinola", "Almirante", "Isla Colón");
 const PANAMA = claves("Panamá Province (PA)", "Ciudad de Panamá", "Albrook", "Tumba Muerto");
 
-const puntaje = (busqueda: string, keywords: string[]) => filtrarProvincia("id", busqueda, keywords);
+const puntaje = (busqueda: string, keywords: string[]) => filtrarUbicacion("id", busqueda, keywords);
 
-describe("filtrarProvincia", () => {
+describe("filtrarUbicacion", () => {
   it('"Coclé" muestra Coclé y oculta las que solo comparten letras sueltas', () => {
     // El caso reportado: con el difuso de cmdk aparecían también estas tres.
     expect(puntaje("Coclé", COCLE)).toBe(PUNTAJE.POR_NOMBRE);
@@ -70,7 +70,7 @@ describe("filtrarProvincia", () => {
 
   it("sin keywords no muestra la opción en vez de romper", () => {
     expect(puntaje("Coclé", [])).toBe(PUNTAJE.OCULTA);
-    expect(filtrarProvincia("id", "Coclé", undefined)).toBe(PUNTAJE.OCULTA);
+    expect(filtrarUbicacion("id", "Coclé", undefined)).toBe(PUNTAJE.OCULTA);
   });
 
   it("algo que no está en ningún lado no devuelve nada", () => {

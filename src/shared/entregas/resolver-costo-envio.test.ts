@@ -502,3 +502,121 @@ describe("buscarUbicacionesCoincidentes (024, Historia 4)", () => {
     expect(resultado.every((r) => r.confianza === "ALIAS")).toBe(true);
   });
 });
+
+// La versión con zona, transportista y precio que consume el selector de
+// ciudad de la cotización. Vive aparte de listarCiudadesCubiertasPorProvincia
+// porque esa última la usan las herramientas del agente IA y su `string[]`
+// no puede cambiar.
+describe("listarDestinosCubiertosPorProvincia", () => {
+  const zona = (id: string, nombre: string, transportista: string) => ({ nombre, transportista: { nombre: transportista } });
+
+  const UBICACIONES = [
+    { zonaEntregaId: "z-rapido", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Changuinola", zonaEntrega: zona("z-rapido", "Bocas Centro", "UnoExpress") },
+    { zonaEntregaId: "z-rapido", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Almirante", zonaEntrega: zona("z-rapido", "Bocas Centro", "UnoExpress") },
+    { zonaEntregaId: "z-sin-tarifa", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Chiriquí Grande", zonaEntrega: zona("z-sin-tarifa", "Bocas Remoto", "OtroCourier") },
+    { zonaEntregaId: "z-otra-prov", provinciaEstado: "Coclé Province", distritoCiudad: "Penonomé", zonaEntrega: zona("z-otra-prov", "Interior", "UnoExpress") },
+  ];
+
+  beforeEach(() => {
+    paisFindManyMock.mockReset().mockResolvedValue([{ id: "pais-1", nombre: "Panama" }]);
+    zonaUbicacionFindManyMock.mockReset().mockResolvedValue(UBICACIONES);
+    tarifaFindManyMock.mockReset().mockResolvedValue([
+      { zonaEntregaId: "z-rapido", vigenteHasta: null, precioCliente: 8.5 },
+    ]);
+    configFindUniqueMock.mockReset().mockResolvedValue(null);
+  });
+
+  it("devuelve ciudad, zona, transportista y precio, ordenadas", async () => {
+    const { listarDestinosCubiertosPorProvincia } = await import("./resolver-costo-envio");
+    const destinos = await listarDestinosCubiertosPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+
+    expect(destinos).toEqual([
+      { ciudad: "Almirante", zona: "Bocas Centro", transportista: "UnoExpress", precioDesde: 8.5, variasOpciones: false },
+      { ciudad: "Changuinola", zona: "Bocas Centro", transportista: "UnoExpress", precioDesde: 8.5, variasOpciones: false },
+    ]);
+  });
+
+  it("deja afuera las ciudades cuya zona no tiene tarifa vigente", async () => {
+    const { listarDestinosCubiertosPorProvincia } = await import("./resolver-costo-envio");
+    const destinos = await listarDestinosCubiertosPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+
+    expect(destinos.map((d) => d.ciudad)).not.toContain("Chiriquí Grande");
+  });
+
+  it("no mezcla ciudades de otra provincia", async () => {
+    const { listarDestinosCubiertosPorProvincia } = await import("./resolver-costo-envio");
+    const destinos = await listarDestinosCubiertosPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+
+    expect(destinos.map((d) => d.ciudad)).not.toContain("Penonomé");
+  });
+
+  it("acepta la provincia sin el sufijo administrativo, igual que la otra", async () => {
+    const { listarDestinosCubiertosPorProvincia } = await import("./resolver-costo-envio");
+    const destinos = await listarDestinosCubiertosPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro",
+    });
+
+    expect(destinos).toHaveLength(2);
+  });
+
+  it("toma el precio más bajo y marca variasOpciones cuando dos transportistas cubren la misma ciudad", async () => {
+    zonaUbicacionFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "z-caro", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Changuinola", zonaEntrega: zona("z-caro", "Premium", "CourierCaro") },
+      { zonaEntregaId: "z-barato", provinciaEstado: "Bocas del Toro Province", distritoCiudad: "Changuinola", zonaEntrega: zona("z-barato", "Estándar", "UnoExpress") },
+    ]);
+    tarifaFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "z-caro", vigenteHasta: null, precioCliente: 20 },
+      { zonaEntregaId: "z-barato", vigenteHasta: null, precioCliente: 7 },
+    ]);
+
+    const { listarDestinosCubiertosPorProvincia } = await import("./resolver-costo-envio");
+    const destinos = await listarDestinosCubiertosPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+
+    expect(destinos).toEqual([
+      { ciudad: "Changuinola", zona: "Estándar", transportista: "UnoExpress", precioDesde: 7, variasOpciones: true },
+    ]);
+  });
+
+  it("entre varias tarifas de la misma zona, se queda con la más barata", async () => {
+    tarifaFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "z-rapido", vigenteHasta: null, precioCliente: 12 },
+      { zonaEntregaId: "z-rapido", vigenteHasta: null, precioCliente: 6.25 },
+    ]);
+
+    const { listarDestinosCubiertosPorProvincia } = await import("./resolver-costo-envio");
+    const destinos = await listarDestinosCubiertosPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+
+    expect(destinos[0].precioDesde).toBe(6.25);
+  });
+
+  it("ignora una tarifa que ya venció", async () => {
+    tarifaFindManyMock.mockResolvedValue([
+      { zonaEntregaId: "z-rapido", vigenteHasta: new Date("2020-01-01"), precioCliente: 8.5 },
+    ]);
+
+    const { listarDestinosCubiertosPorProvincia } = await import("./resolver-costo-envio");
+    const destinos = await listarDestinosCubiertosPorProvincia({
+      instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "Bocas del Toro Province",
+    });
+
+    expect(destinos).toEqual([]);
+  });
+
+  it("sin provincia o sin país resuelto devuelve vacío", async () => {
+    const { listarDestinosCubiertosPorProvincia } = await import("./resolver-costo-envio");
+
+    await expect(
+      listarDestinosCubiertosPorProvincia({ instanciaId: "instancia-1", pais: "Panama", estadoProvincia: "" }),
+    ).resolves.toEqual([]);
+  });
+});
