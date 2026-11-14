@@ -13,6 +13,10 @@ const pedidoFindFirstMock = vi.fn();
 const pedidoCreateMock = vi.fn();
 const agenteIAConfigFindUniqueMock = vi.fn();
 const resolverEntregaIAMock = vi.fn();
+// La compuerta de datos obligatorios lee el nombre del contacto: por defecto
+// devuelve uno válido para que estos tests sigan ejercitando la entrega y no
+// la compuerta, que tiene su propio archivo.
+const contactoFindUniqueMock = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
@@ -25,6 +29,7 @@ vi.mock("@/shared/db/prisma", () => ({
       create: (...a: unknown[]) => pedidoCreateMock(...a),
     },
     agenteIAConfig: { findUnique: (...a: unknown[]) => agenteIAConfigFindUniqueMock(...a) },
+    contacto: { findUnique: (...a: unknown[]) => contactoFindUniqueMock(...a) },
   },
 }));
 vi.mock("@/configuracion/empresa/queries", () => ({
@@ -73,6 +78,7 @@ const ENTREGA_RESUELTA: EntregaResueltaIA = {
 };
 
 beforeEach(() => {
+  contactoFindUniqueMock.mockReset().mockResolvedValue({ nombre: "Ana Pérez" });
   cotizacionFindFirstMock.mockReset().mockResolvedValue(null);
   cotizacionCreateMock.mockReset().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
     Promise.resolve({ id: "cot-1", numero: "00001", ...data }),
@@ -100,14 +106,19 @@ describe.each([
     expect((resultado.data as { entrega: { transportista: string } }).entrega.transportista).toBe("Uno Express");
   });
 
-  it("sin bloque entrega: ninguna fila de entrega y costo de envío 0 (comportamiento previo)", async () => {
-    await registroHerramientas.get(tool)!.execute({ lineas }, ctxBase);
+  // Este test afirmaba el comportamiento anterior: sin bloque `entrega` el
+  // documento se creaba igual, sin fila de entrega y con costo 0. Era
+  // justamente el agujero —el documento nacía incompleto y en silencio, y un
+  // humano tenía que terminarlo— así que ahora afirma lo contrario: la
+  // compuerta de datos obligatorios lo rechaza antes de escribir nada.
+  it("sin bloque entrega: no se crea el documento y se le dice al agente qué falta", async () => {
+    const resultado = await registroHerramientas.get(tool)!.execute({ lineas }, ctxBase);
 
-    const data = createMock().mock.calls[0][0].data;
+    expect(resultado.ok).toBe(false);
+    expect(resultado.error).toContain("si es por envío o por retiro");
+    expect((resultado.data as { datosFaltantes: string[] }).datosFaltantes).toEqual(["metodoEntrega"]);
     expect(resolverEntregaIAMock).not.toHaveBeenCalled();
-    expect(data.entrega).toBeUndefined();
-    expect(data.costoEnvio).toBe(0);
-    expect(data.total).toBeCloseTo(118, 2);
+    expect(createMock()).not.toHaveBeenCalled();
   });
 
   it("entrega sin resolver: se guarda el destino con el costo por confirmar y se avisa al agente", async () => {

@@ -11,6 +11,12 @@ vi.mock("@/shared/db/prisma", () => ({
       findFirst: (...a: unknown[]) => pedidoFindFirstMock(...a),
       create: (...a: unknown[]) => pedidoCreateMock(...a),
     },
+    // Constantes, no vi.fn(): ningún test de acá necesita variarlas. Existen
+    // solo para que la compuerta de datos obligatorios encuentre un nombre y
+    // el retiro en tienda resuelva sin país — lo que se prueba en este
+    // archivo es la numeración y el modo de confirmación.
+    contacto: { findUnique: () => Promise.resolve({ nombre: "Ana Pérez" }) },
+    configuracionEmpresa: { findUnique: () => Promise.resolve(null) },
   },
 }));
 vi.mock("@/configuracion/empresa/queries", () => ({
@@ -20,7 +26,12 @@ vi.mock("@/configuracion/empresa/queries", () => ({
 await import("./crear-pedido.tool");
 const { registroHerramientas } = await import("@/ai/tools/registry");
 
-const argsBase = { lineas: [{ descripcion: "Producto X", cantidad: 1, precioUnitario: 100 }] };
+// El retiro en tienda es la entrega mínima que satisface la compuerta de
+// datos obligatorios: no necesita destino ni transportista.
+const argsBase = {
+  lineas: [{ descripcion: "Producto X", cantidad: 1, precioUnitario: 100 }],
+  entrega: { metodoEntrega: "RETIRO_TIENDA" },
+};
 const ctxBase = { instanciaId: "instancia-1", conversacionId: "c1", contactoId: "contacto-1", herramientasPermitidas: ["crear_pedido"] };
 
 describe("crear_pedido — modo de confirmación (015, Historia 3, SC-003)", () => {

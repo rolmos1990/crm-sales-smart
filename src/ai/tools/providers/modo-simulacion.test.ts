@@ -27,6 +27,8 @@ vi.mock("@/shared/db/prisma", () => ({
     oportunidad: { findFirst: (...a: unknown[]) => oportunidadFindFirstMock(...a) },
     producto: { findMany: (...a: unknown[]) => productoFindManyMock(...a) },
     oportunidadProducto: { createMany: (...a: unknown[]) => oportunidadProductoCreateManyMock(...a) },
+    // Lectura, no escritura: la usa resolverEntregaIA para el retiro en tienda.
+    configuracionEmpresa: { findUnique: () => Promise.resolve(null) },
     conversacion: { updateMany: (...a: unknown[]) => conversacionUpdateManyMock(...a) },
     contacto: { findUnique: (...a: unknown[]) => contactoFindUniqueMock(...a), update: (...a: unknown[]) => contactoUpdateMock(...a) },
     tag: { findFirst: (...a: unknown[]) => tagFindFirstMock(...a), create: (...a: unknown[]) => tagCreateMock(...a) },
@@ -67,7 +69,11 @@ describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => 
     productoFindManyMock.mockReset().mockResolvedValue([{ id: "p1", nombre: "Producto X", precio: 50 }]);
     oportunidadProductoCreateManyMock.mockReset();
     conversacionUpdateManyMock.mockReset();
-    contactoFindUniqueMock.mockReset().mockResolvedValue({ id: "contacto-1", instanciaId: "instancia-1" });
+    // `nombre` lo pide la compuerta de datos obligatorios, que corre también
+    // en simulación: lo que se previsualiza tiene que ser lo que pasaría.
+    contactoFindUniqueMock
+      .mockReset()
+      .mockResolvedValue({ id: "contacto-1", instanciaId: "instancia-1", nombre: "Ana Pérez" });
     contactoUpdateMock.mockReset();
     tagFindFirstMock.mockReset();
     tagCreateMock.mockReset();
@@ -78,7 +84,7 @@ describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => 
 
   it("crear_cotizacion: no llama a cotizacion.findFirst ni .create, devuelve previsualizado: true", async () => {
     const tool = registroHerramientas.get("crear_cotizacion")!;
-    const resultado = await tool.execute({ lineas: [{ descripcion: "X", cantidad: 1, precioUnitario: 100 }] }, ctxSimulado);
+    const resultado = await tool.execute({ lineas: [{ descripcion: "X", cantidad: 1, precioUnitario: 100 }], entrega: { metodoEntrega: "RETIRO_TIENDA" } }, ctxSimulado);
     expect(resultado.ok).toBe(true);
     expect((resultado.data as { previsualizado: boolean }).previsualizado).toBe(true);
     expect(cotizacionFindFirstMock).not.toHaveBeenCalled();
@@ -87,7 +93,7 @@ describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => 
 
   it("crear_pedido: no llama a pedido.count ni .create, devuelve previsualizado: true", async () => {
     const tool = registroHerramientas.get("crear_pedido")!;
-    const resultado = await tool.execute({ lineas: [{ descripcion: "X", cantidad: 1, precioUnitario: 100 }] }, ctxSimulado);
+    const resultado = await tool.execute({ lineas: [{ descripcion: "X", cantidad: 1, precioUnitario: 100 }], entrega: { metodoEntrega: "RETIRO_TIENDA" } }, ctxSimulado);
     expect(resultado.ok).toBe(true);
     expect((resultado.data as { previsualizado: boolean }).previsualizado).toBe(true);
     expect(pedidoCountMock).not.toHaveBeenCalled();
@@ -132,7 +138,7 @@ describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => 
     const tool = registroHerramientas.get("crear_cotizacion")!;
     const { modoSimulacion, ...ctxReal } = ctxSimulado;
     void modoSimulacion;
-    const resultado = await tool.execute({ lineas: [{ descripcion: "X", cantidad: 1, precioUnitario: 100 }] }, ctxReal);
+    const resultado = await tool.execute({ lineas: [{ descripcion: "X", cantidad: 1, precioUnitario: 100 }], entrega: { metodoEntrega: "RETIRO_TIENDA" } }, ctxReal);
     expect(resultado.ok).toBe(true);
     expect(cotizacionCreateMock).toHaveBeenCalled();
   });

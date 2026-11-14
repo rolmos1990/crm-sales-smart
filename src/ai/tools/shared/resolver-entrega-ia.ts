@@ -130,6 +130,24 @@ export function sinDatosDeEntrega(entrega: EntregaIAArgs | undefined): entrega i
 }
 
 /**
+ * true si el agente aportó algún componente geográfico del destino.
+ *
+ * Distinto de `sinDatosDeEntrega`, que también se da por satisfecho con un
+ * `metodoEntrega` o un `transportista` sueltos: para la compuerta de datos
+ * obligatorios eso no alcanza, porque un envío sin destino no se puede
+ * cotizar ni entregar.
+ */
+export function hayDestinoEnArgs(entrega: EntregaIAArgs | undefined): boolean {
+  if (!entrega) return false;
+  return Boolean(
+    entrega.estadoProvincia?.trim() ||
+      entrega.distritoCiudad?.trim() ||
+      entrega.corregimiento?.trim() ||
+      entrega.sectorOCodigoPostal?.trim(),
+  );
+}
+
+/**
  * Resuelve el bloque de entrega. Nunca inventa un transportista: si el
  * destino no resuelve a una única opción de alta confianza, devuelve la
  * entrega con el destino que sí se conoce y `confirmado: false`, que es el

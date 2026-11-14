@@ -5,9 +5,14 @@ import {
   ENTREGA_INPUT_SCHEMA,
   EntregaIASchema,
   describirEntrega,
+  hayDestinoEnArgs,
   resolverEntregaIA,
   sinDatosDeEntrega,
 } from "@/ai/tools/shared/resolver-entrega-ia";
+import {
+  describirFaltantesDocumento,
+  faltantesDocumentoIA,
+} from "@/ai/tools/shared/datos-obligatorios-documento";
 import type { IProveedorTool, ContextoTool, ResultadoTool } from "@/ai/tools/types";
 
 /** true si el error es el unique constraint (instanciaId, numero) — ver el
@@ -38,7 +43,7 @@ const CrearCotizacionTool: IProveedorTool = {
   definition: {
     name: "crear_cotizacion",
     description:
-      "Crea una cotización con los productos solicitados por el cliente. Usar cuando el cliente pide un presupuesto o cotización formal. Si la venta se entrega a domicilio, incluí SIEMPRE el bloque `entrega` con el destino y el transportista que ya cotizaste con consultar_opciones_envio: sin él la cotización queda sin método de entrega y un humano tiene que completarla antes de poder convertirla en pedido.",
+      "Crea una cotización con los productos solicitados por el cliente. Usar cuando el cliente pide un presupuesto o cotización formal. Antes de llamarla necesitás tener confirmados: el nombre del cliente, los productos con cantidades, si es por envío o por retiro y —si es envío— el destino más los datos que exija el transportista, que conocés por consultar_opciones_envio. Incluí SIEMPRE el bloque `entrega` con esos datos. Si falta alguno, la cotización NO se crea y te devuelve cuáles faltan para que se los pidas al cliente.",
     input_schema: {
       type: "object",
       properties: {
@@ -61,7 +66,12 @@ const CrearCotizacionTool: IProveedorTool = {
         impuesto: { type: "number", description: "Porcentaje de impuesto (default 18)" },
         entrega: ENTREGA_INPUT_SCHEMA,
       },
-      required: ["lineas"],
+      // `entrega` es obligatorio en el contrato que ve el modelo, pero sigue
+      // siendo `.optional()` en Zod a propósito: si el modelo igual la omite,
+      // conviene que falle en la compuerta —que le dice exactamente qué
+      // pedirle al cliente— y no en el parseo, cuyo "Argumentos inválidos" no
+      // le sirve para corregirse.
+      required: ["lineas", "entrega"],
     },
   },
 
@@ -97,6 +107,35 @@ const CrearCotizacionTool: IProveedorTool = {
     const entregaResuelta = sinDatosDeEntrega(entregaArgs)
       ? null
       : await resolverEntregaIA(ctx.instanciaId, entregaArgs);
+
+    // Compuerta de datos obligatorios. Va después de resolver la entrega
+    // —porque los campos que exige el transportista solo se conocen ahí— y
+    // antes de cualquier escritura, incluida la previsualización del
+    // simulador: lo que se simula tiene que ser lo que pasaría de verdad.
+    const contacto = await prisma.contacto.findUnique({
+      where: { id: ctx.contactoId },
+      select: { nombre: true },
+    });
+    const faltantes = faltantesDocumentoIA({
+      nombreContacto: contacto?.nombre,
+      nombreDestinatario: entregaArgs?.nombreDestinatario,
+      // El método resuelto manda sobre el de los args: resolverEntregaIA lo
+      // deriva del transportista elegido justamente para no depender de lo
+      // que el modelo haya supuesto. Solo si no hubo entrega que resolver
+      // —el caso que antes creaba el documento en silencio— queda sin valor.
+      metodoEntrega: entregaResuelta?.datos.metodoEntrega ?? entregaArgs?.metodoEntrega,
+      hayDestino: hayDestinoEnArgs(entregaArgs),
+      camposTransportista: entregaResuelta?.camposFaltantes,
+    });
+    if (faltantes.length > 0) {
+      return {
+        ok: false,
+        error: describirFaltantesDocumento(faltantes),
+        // El resultado completo viaja al modelo como JSON, así que la lista
+        // estructurada le llega además del texto.
+        data: { datosFaltantes: faltantes },
+      };
+    }
 
     const costoEnvio = entregaResuelta?.costoEnvio ?? 0;
     const total = subtotal + impuestoMonto + costoEnvio;
