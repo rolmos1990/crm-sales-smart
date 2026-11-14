@@ -45,9 +45,14 @@ vi.mock("@/conversaciones/envio", () => ({
   enviarMensajeInterno: (...a: unknown[]) => enviarMensajeMock(...a),
 }));
 
-vi.mock("@/ai/autonomia/queries", () => ({ obtenerAutonomiaPorAgente: vi.fn().mockResolvedValue(null) }));
-vi.mock("@/ai/autonomia/clasificador", () => ({ clasificarCategoriaIntencion: vi.fn() }));
-vi.mock("@/ai/autonomia/registro", () => ({ ensamblarYPersistirRegistro: vi.fn() }));
+const obtenerAutonomiaPorAgenteMock = vi.fn().mockResolvedValue(null);
+const clasificarCategoriaIntencionMock = vi.fn();
+const ensamblarYPersistirRegistroMock = vi.fn();
+vi.mock("@/ai/autonomia/queries", () => ({ obtenerAutonomiaPorAgente: (...a: unknown[]) => obtenerAutonomiaPorAgenteMock(...a) }));
+vi.mock("@/ai/autonomia/clasificador", () => ({ clasificarCategoriaIntencion: (...a: unknown[]) => clasificarCategoriaIntencionMock(...a) }));
+vi.mock("@/ai/autonomia/registro", () => ({ ensamblarYPersistirRegistro: (...a: unknown[]) => ensamblarYPersistirRegistroMock(...a) }));
+// `decidirAutonomia` NO se mockea: el gate real es justamente lo que se
+// quiere ejercitar (HumanOnly gana sobre cualquier otra categoría detectada).
 vi.mock("@/ai/perfil-cliente/servicio", () => ({ obtenerPerfil: vi.fn().mockResolvedValue(null) }));
 
 vi.mock("@/ai/tools/registry", () => ({
@@ -273,5 +278,63 @@ describe("responderConAgente — ficha de la conversación (031)", () => {
       ficha: true,
       zonaNegocio: "America/Lima",
     });
+  });
+});
+
+// Gate de autonomía HumanOnly: el borrador ya está redactado cuando el gate
+// decide, así que descartarlo deja al cliente en silencio y sin rastro en
+// ningún lado. Caso real que lo motivó: "Me confirma?" clasificado como
+// COMPROMISO_NO_DEFINIDO → el vendedor nunca se enteró.
+describe("responderConAgente — categoría HumanOnly (016)", () => {
+  beforeEach(() => {
+    agenteIAConfigFindUniqueMock.mockReset().mockResolvedValue({ herramientas: [], catalogoEnContexto: false });
+    enviarMensajeMock.mockReset().mockResolvedValue({ ok: true, mensaje: { id: "msg-1" } });
+    generarConHerramientasMock.mockReset().mockResolvedValue({
+      tipo: "texto",
+      contenido: "Sí Ramon, te confirmo la Esfera Luna con base fija por USD 17.00.",
+      usoIAId: "uso-1",
+    });
+    construirContextoMock.mockReset().mockResolvedValue({});
+    ensamblarYPersistirRegistroMock.mockReset().mockResolvedValue("reg-1");
+    obtenerAutonomiaPorAgenteMock.mockReset().mockResolvedValue(
+      new Map([["COMPROMISO_NO_DEFINIDO", { nivel: "HUMAN_ONLY", condicionesConfianza: null }]]),
+    );
+    // Caso real: el clasificador devuelve la categoría segura con más
+    // confianza y la HumanOnly con menos. El gate toma la MÁS restrictiva
+    // sin mirar confianza, así que gana HumanOnly.
+    clasificarCategoriaIntencionMock.mockReset().mockResolvedValue({
+      categorias: [
+        { categoria: "SOLICITUD_COTIZACION", confianza: 0.7 },
+        { categoria: "COMPROMISO_NO_DEFINIDO", confianza: 0.4 },
+      ],
+    });
+  });
+
+  it("no le envía nada al cliente", async () => {
+    const r = await responderConAgente({ instanciaId: "instancia-1", conversacionId: "conv-1", agenteIAConfigId: "agente-1" });
+
+    expect(r.accion).toBe("NO_GENERADO");
+    expect(enviarMensajeMock).not.toHaveBeenCalled();
+  });
+
+  it("deja el borrador en la bandeja de revisión en vez de tirarlo", async () => {
+    await responderConAgente({ instanciaId: "instancia-1", conversacionId: "conv-1", agenteIAConfigId: "agente-1" });
+
+    expect(ensamblarYPersistirRegistroMock).toHaveBeenCalledTimes(1);
+    expect(ensamblarYPersistirRegistroMock.mock.calls[0][0]).toMatchObject({
+      estadoInicial: "PENDIENTE",
+      categoriaDetectada: "COMPROMISO_NO_DEFINIDO",
+      respuestaPropuesta: "Sí Ramon, te confirmo la Esfera Luna con base fija por USD 17.00.",
+      motivo: "Categoría COMPROMISO_NO_DEFINIDO configurada como solo humano",
+    });
+  });
+
+  it("si el registro falla, igual devuelve NO_GENERADO sin romper el turno", async () => {
+    ensamblarYPersistirRegistroMock.mockRejectedValue(new Error("db caída"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      responderConAgente({ instanciaId: "instancia-1", conversacionId: "conv-1", agenteIAConfigId: "agente-1" }),
+    ).resolves.toMatchObject({ accion: "NO_GENERADO" });
   });
 });

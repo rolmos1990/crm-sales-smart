@@ -263,9 +263,18 @@ async function responderIA(c: ConfigNodo<"ATENCION_IA">, ctx: CtxNodo) {
   });
 }
 
-/** Salida de un turno de la IA, o null si debe seguir atendiendo. */
-function salidaTurnoIA(c: ConfigNodo<"ATENCION_IA">, r: Awaited<ReturnType<typeof responderIA>>, interacciones: number): string | null {
+/** Salida de un turno de la IA, o null si debe seguir atendiendo.
+ *  Exportada para poder fijar con tests cada combinación: es la pieza que
+ *  decide si el cliente recibe algo, si lo toma un humano o si el flujo se
+ *  queda esperando. */
+export function salidaTurnoIA(c: ConfigNodo<"ATENCION_IA">, r: Awaited<ReturnType<typeof responderIA>>, interacciones: number): string | null {
   if (r.motivoTransferencia) return "transferencia";
+  // La política de autonomía (016) decidió que esto lo atiende una persona.
+  // Va por "Pidió humano" y no por `null`: devolver `null` dejaba al nodo
+  // esperando un turno que nunca iba a enviar nada, así que el cliente
+  // quedaba mudo hasta el timeout de inactividad (24 h en el caso real) y
+  // la rama humana del Workflow no se disparaba nunca.
+  if (r.accion === "NO_GENERADO") return "transferencia";
   if (r.accion === "ERROR") return "error";
   if (c.modo === "RESPUESTA_UNICA") return "respondido";
   if (r.finalizacion) return r.finalizacion.resultado === "COMPLETADO" ? "completado" : "no_resuelto";

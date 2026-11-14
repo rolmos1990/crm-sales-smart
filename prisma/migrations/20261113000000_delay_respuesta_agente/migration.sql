@@ -6,7 +6,7 @@
 
 -- Respaldo por instancia, usado cuando la etapa dispara la IA sin agente
 -- asignado o cuando el agente no define preferencia propia.
-ALTER TABLE "Configsi investuracionIA"
+ALTER TABLE "ConfiguracionIA"
   ADD COLUMN "esperarAntesDeResponder" BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN "segundosEsperaRespuesta" INTEGER NOT NULL DEFAULT 5;
 

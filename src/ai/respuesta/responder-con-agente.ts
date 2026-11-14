@@ -262,8 +262,33 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
 
   if (decision.accion === "NO_GENERAR") {
     console.log(
-      `[GenerarRespuestaIA] Categoría ${decision.categoriaAplicada ?? "?"} es HumanOnly — no se genera respuesta automática`,
+      `[GenerarRespuestaIA] Categoría ${decision.categoriaAplicada ?? "?"} es HumanOnly — no se envía respuesta automática`,
     );
+    // HumanOnly significa "esto lo contesta una persona", no "esto se tira a
+    // la basura". El borrador ya está redactado (el tool loop corrió entero
+    // antes del gate), así que se deja en la bandeja de revisión igual que
+    // SUGGESTION_ONLY: el vendedor lo ve, lo edita si quiere y lo manda.
+    //
+    // Antes esta rama devolvía sin persistir nada: el cliente quedaba en
+    // silencio y no había registro en ningún lado de que había pasado algo.
+    if (agenteId) {
+      // `ensamblarYPersistirRegistro` ya promete no lanzar, pero esta rama
+      // no puede fallar hacia arriba bajo ninguna circunstancia: si lo
+      // hiciera, el motor de Workflows lo tomaría como error reintentable y
+      // repetiría el tool loop entero (12 llamadas al modelo en el caso
+      // real) en vez de derivar la conversación a una persona.
+      try {
+        await ensamblarYPersistirRegistro({
+          ...datosRegistroComunes,
+          agenteIAConfigId: agenteId,
+          respuestaPropuesta: contenidoFinal,
+          estadoInicial: "PENDIENTE",
+          motivo: decision.motivo,
+        });
+      } catch (err) {
+        console.error("[GenerarRespuestaIA] No se pudo dejar el borrador HumanOnly en la bandeja:", err);
+      }
+    }
     return { ...base, accion: "NO_GENERADO" };
   }
 

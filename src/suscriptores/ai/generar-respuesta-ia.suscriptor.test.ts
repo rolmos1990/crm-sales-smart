@@ -119,7 +119,12 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2) 
     );
   });
 
-  it("agente con HUMAN_ONLY para la categoría detectada: no genera, no envía y no registra nada", async () => {
+  // Este caso cambió: antes HumanOnly descartaba el borrador sin dejar
+  // rastro, así que el cliente quedaba en silencio y nadie se enteraba.
+  // Ahora el borrador queda en la bandeja para que una persona lo revise y
+  // lo mande. Lo que NO cambió, y es lo importante de HumanOnly: nunca se
+  // envía nada automáticamente.
+  it("agente con HUMAN_ONLY para la categoría detectada: no envía, pero deja el borrador para una persona", async () => {
     obtenerAutonomiaPorAgenteMock.mockResolvedValue(
       new Map([["RECLAMO", { categoria: "RECLAMO", nivel: "HUMAN_ONLY", condicionesConfianza: null }]]),
     );
@@ -129,7 +134,9 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2) 
     await suscriptor.manejar(envelope("agente-1"));
 
     expect(enviarMensajeMock).not.toHaveBeenCalled();
-    expect(ensamblarYPersistirRegistroMock).not.toHaveBeenCalled();
+    expect(ensamblarYPersistirRegistroMock).toHaveBeenCalledWith(
+      expect.objectContaining({ estadoInicial: "PENDIENTE", categoriaDetectada: "RECLAMO", agenteIAConfigId: "agente-1" }),
+    );
   });
 
   it("agente con SUGGESTION_ONLY para la categoría detectada: registra PENDIENTE y no envía", async () => {
