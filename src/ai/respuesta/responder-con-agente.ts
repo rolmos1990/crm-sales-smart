@@ -324,6 +324,15 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
     console.log(`[GenerarRespuestaIA] Respuesta enviada → mensajeId: ${resultado.mensaje.id}`);
   }
 
+  // El agente respondió, así que la conversación pasa a "esperando al
+  // cliente". Solo cuando el mensaje efectivamente salió: si el envío falló,
+  // el cliente no tiene nada que contestar. La vuelta del ciclo la hace
+  // `reabrirPorMensajeDelCliente` al llegar el próximo mensaje entrante.
+  if (resultado.ok) {
+    const { marcarRespondidaInterno } = await import("@/conversaciones/envio");
+    await marcarRespondidaInterno(conversacionId, instanciaId);
+  }
+
   // 031 — ficha de la conversación. Va DESPUÉS del envío y solo si el
   // cliente efectivamente recibió el mensaje: lo que se registra es "lo que
   // el cliente ya vio". Nunca puede romper ni demorar un envío ya hecho

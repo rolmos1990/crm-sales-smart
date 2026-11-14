@@ -38,8 +38,10 @@ vi.mock("@/ai/contexto/constructor", () => ({
 }));
 
 const enviarMensajeMock = vi.fn();
+const marcarRespondidaInternoMock = vi.fn();
 vi.mock("@/conversaciones/envio", () => ({
   enviarMensajeInterno: (...a: unknown[]) => enviarMensajeMock(...a),
+  marcarRespondidaInterno: (...a: unknown[]) => marcarRespondidaInternoMock(...a),
 }));
 
 const obtenerAutonomiaPorAgenteMock = vi.fn();
@@ -88,6 +90,7 @@ describe("GenerarRespuestaIASuscriptor — gate de autonomía (016, Historia 2) 
     obtenerAutonomiaPorAgenteMock.mockReset();
     clasificarCategoriaIntencionMock.mockReset();
     ensamblarYPersistirRegistroMock.mockReset().mockResolvedValue("registro-1");
+    marcarRespondidaInternoMock.mockReset().mockResolvedValue(undefined);
   });
 
   it("conversación transferida a humano (modoAtencion=HUMANO): no genera ni envía", async () => {

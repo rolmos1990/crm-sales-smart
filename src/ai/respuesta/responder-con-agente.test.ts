@@ -41,8 +41,10 @@ vi.mock("@/ai/contexto/constructor", () => ({
 }));
 
 const enviarMensajeMock = vi.fn();
+const marcarRespondidaInternoMock = vi.fn();
 vi.mock("@/conversaciones/envio", () => ({
   enviarMensajeInterno: (...a: unknown[]) => enviarMensajeMock(...a),
+  marcarRespondidaInterno: (...a: unknown[]) => marcarRespondidaInternoMock(...a),
 }));
 
 const obtenerAutonomiaPorAgenteMock = vi.fn().mockResolvedValue(null);
@@ -336,5 +338,47 @@ describe("responderConAgente — categoría HumanOnly (016)", () => {
     await expect(
       responderConAgente({ instanciaId: "instancia-1", conversacionId: "conv-1", agenteIAConfigId: "agente-1" }),
     ).resolves.toMatchObject({ accion: "NO_GENERADO" });
+  });
+});
+
+// Cada respuesta del agente deja la conversación "esperando al cliente". La
+// vuelta del ciclo (EN_ESPERA → ABIERTA cuando el cliente escribe) ya la hace
+// resolverContactoYConversacion en conversaciones/actions.ts.
+describe("responderConAgente — marcar la conversación como respondida", () => {
+  beforeEach(() => {
+    agenteIAConfigFindUniqueMock.mockReset().mockResolvedValue({ herramientas: [], catalogoEnContexto: false });
+    enviarMensajeMock.mockReset().mockResolvedValue({ ok: true, mensaje: { id: "msg-1" } });
+    generarConHerramientasMock.mockReset().mockResolvedValue({ tipo: "texto", contenido: "Listo.", usoIAId: "uso-1" });
+    construirContextoMock.mockReset().mockResolvedValue({});
+    marcarRespondidaInternoMock.mockReset().mockResolvedValue(undefined);
+    obtenerAutonomiaPorAgenteMock.mockReset().mockResolvedValue(null);
+    clasificarCategoriaIntencionMock.mockReset();
+    ensamblarYPersistirRegistroMock.mockReset().mockResolvedValue("reg-1");
+  });
+
+  it("la marca cuando el mensaje efectivamente se envió", async () => {
+    await responderConAgente({ instanciaId: "instancia-1", conversacionId: "conv-1", agenteIAConfigId: "agente-1" });
+
+    expect(marcarRespondidaInternoMock).toHaveBeenCalledWith("conv-1", "instancia-1");
+  });
+
+  it("NO la marca si el envío falló: el cliente no tiene nada que contestar", async () => {
+    enviarMensajeMock.mockResolvedValue({ ok: false, error: "canal caído" });
+
+    await responderConAgente({ instanciaId: "instancia-1", conversacionId: "conv-1", agenteIAConfigId: "agente-1" });
+
+    expect(marcarRespondidaInternoMock).not.toHaveBeenCalled();
+  });
+
+  it("NO la marca cuando la respuesta quedó pendiente de revisión: nadie le escribió al cliente", async () => {
+    obtenerAutonomiaPorAgenteMock.mockResolvedValue(
+      new Map([["CONSULTA_PRECIO", { nivel: "SUGGESTION_ONLY", condicionesConfianza: null }]]),
+    );
+    clasificarCategoriaIntencionMock.mockResolvedValue({ categorias: [{ categoria: "CONSULTA_PRECIO", confianza: 0.9 }] });
+
+    const r = await responderConAgente({ instanciaId: "instancia-1", conversacionId: "conv-1", agenteIAConfigId: "agente-1" });
+
+    expect(r.accion).toBe("PENDIENTE_REVISION");
+    expect(marcarRespondidaInternoMock).not.toHaveBeenCalled();
   });
 });

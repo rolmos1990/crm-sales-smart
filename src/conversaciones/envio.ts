@@ -197,6 +197,40 @@ export async function procesarPrimeraRespuestaProspecto(conversacionId: string, 
   }
 }
 
+// ── Estado de la conversación, automático ───────────────────────────────────
+//
+// Cierra el ciclo "respondida → reabierta" para los procesos internos (worker
+// de IA, motor de Workflows), que no tienen sesión y por eso no pueden llamar
+// a `marcarRespondida` de actions.ts.
+//
+// La vuelta del ciclo NO está acá: `resolverContactoYConversacion`
+// (conversaciones/actions.ts) ya devuelve la conversación a ABIERTA cuando
+// entra un mensaje del cliente estando EN_ESPERA. Sin esa mitad, marcar
+// respondida automáticamente sería una trampa — la conversación saldría del
+// filtro "Abiertas" y seguiría mostrando "Esperando respuesta del cliente"
+// con el cliente ya esperando a Karia.
+//
+// Idempotente: actúa SOLO sobre la transición, repetir la llamada no hace
+// nada. Y no lanza: marcar el estado no puede romper un mensaje ya enviado.
+//
+// No registra evento de sistema a propósito. En una conversación ágil la
+// línea "Marcada como respondida" cada dos mensajes vuelve el hilo ilegible,
+// y el rastro de por qué cambió el estado ya está a la vista: el mensaje.
+
+/** La IA (o un proceso interno) le respondió al cliente: queda esperándolo. */
+export async function marcarRespondidaInterno(conversacionId: string, instanciaId: string): Promise<void> {
+  try {
+    await prisma.conversacion.updateMany({
+      // Solo desde ABIERTA: una conversación CERRADA o ARCHIVADA no revive
+      // por una respuesta, y una que ya está EN_ESPERA no tiene nada que cambiar.
+      where: { id: conversacionId, instanciaId, estado: "ABIERTA" },
+      data: { estado: "EN_ESPERA" },
+    });
+  } catch (err) {
+    console.error("[Conversacion] No se pudo marcar como respondida:", err);
+  }
+}
+
 // ── Eventos de ciclo de vida ────────────────────────────────────────────────
 
 export type TipoEventoConversacion = "CERRADA" | "REABIERTA" | "RESPONDIDA" | "ETAPA_AUTOMATICA";
