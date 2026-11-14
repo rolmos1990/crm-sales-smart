@@ -39,7 +39,7 @@ export function PanelPropiedades({
   const Icono = ICONOS_NODO[tipo.icono];
 
   return (
-    <div className="flex h-full flex-col" data-slot="panel-propiedades">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden" data-slot="panel-propiedades">
       <div className="flex items-start gap-2.5 px-3 pb-2 pt-3">
         <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border", estilo.chip)}>
           {Icono && <Icono className="h-4.5 w-4.5" />}
@@ -53,7 +53,7 @@ export function PanelPropiedades({
         </Button>
       </div>
 
-      <Tabs defaultValue="configuracion" className="flex min-h-0 flex-1 flex-col gap-0">
+      <Tabs defaultValue="configuracion" className="flex min-h-0 min-w-0 flex-1 flex-col gap-0">
         <div className="border-b border-border px-3">
           <TabsList variant="line" className="h-9 w-full justify-start gap-4">
             <TabsTrigger value="configuracion" className="flex-none px-0 text-xs">
@@ -67,7 +67,7 @@ export function PanelPropiedades({
           </TabsList>
         </div>
 
-        <TabsContent value="configuracion" className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+        <TabsContent value="configuracion" className="min-h-0 w-full min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-3">
           {problemas.length > 0 && (
             <ul className="space-y-1 rounded-lg border border-danger-border bg-danger-muted p-2.5">
               {problemas.map((p, i) => (
@@ -79,7 +79,15 @@ export function PanelPropiedades({
             </ul>
           )}
 
-          <fieldset disabled={soloLectura} className="space-y-4">
+          {/* `min-w-0` NO es decorativo: el navegador le da a todo <fieldset>
+              un `min-inline-size: min-content` implícito que la resolución
+              normal de `min-width: auto` no anula. Sin esto, el campo más
+              ancho del formulario (p. ej. el select "Atención continua (hasta
+              cumplir el objetivo)") fija el piso y el fieldset se desborda
+              fuera del panel en vez de encoger. El header y el pie de este
+              mismo panel no se veían cortados justamente porque no son
+              fieldsets. */}
+          <fieldset disabled={soloLectura} className="w-full min-w-0 space-y-4">
             <FormularioNodo
               nodo={nodo}
               config={nodo.config}
@@ -90,7 +98,7 @@ export function PanelPropiedades({
           </fieldset>
         </TabsContent>
 
-        <TabsContent value="detalles" className="min-h-0 flex-1 overflow-y-auto p-3">
+        <TabsContent value="detalles" className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
           <Detalles
             nodo={nodo}
             definicion={definicion}
@@ -138,7 +146,8 @@ function Detalles({
 
   return (
     <div className="space-y-4">
-      <fieldset disabled={soloLectura}>
+      {/* Mismo motivo que el fieldset de la pestaña Configuración. */}
+      <fieldset disabled={soloLectura} className="w-full min-w-0">
         <Campo etiqueta="Nombre del paso (opcional)">
           <Input
             value={nodo.etiqueta ?? ""}
