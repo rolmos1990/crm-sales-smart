@@ -51,7 +51,7 @@ export type RespuestaGuiaInput = z.infer<typeof RespuestaGuiaSchema>;
 // decide con qué plantilla de instrucciones nace — ver plantillas-agente.ts.
 export const TipoAgenteIASchema = z.enum(["COMERCIAL", "GERENCIA"]);
 
-export const MAX_INSTRUCCIONES_AGENTE = 20000;
+export const MAX_INSTRUCCIONES_AGENTE = 8000;
 export const MAX_REGLAS_ETAPA_CICLO_VIDA = 20;
 export const MAX_CUANDO_APLICA_ETAPA = 300;
 
@@ -85,7 +85,10 @@ export const AgenteIAConfigSchema = z.object({
   // versión nunca debe cambiarlo.
   instruccionesAgente: z
     .string()
-    .max(MAX_INSTRUCCIONES_AGENTE, "Las instrucciones son demasiado largas")
+    .max(
+      MAX_INSTRUCCIONES_AGENTE,
+      `Las instrucciones superan el máximo de ${MAX_INSTRUCCIONES_AGENTE.toLocaleString("es")} caracteres.`,
+    )
     .nullable()
     .optional(),
 

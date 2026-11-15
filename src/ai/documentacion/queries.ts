@@ -91,6 +91,23 @@ export async function contarDocumentosListos(
   return { cantidad: filas.length, nombres: filas.map((f) => f.nombre) };
 }
 
+/**
+ * Cuánto pesa toda la documentación de la cuenta — el límite operativo.
+ *
+ * El alcance es la INSTANCIA y no el agente a propósito: los 20 MB son un
+ * presupuesto de la cuenta, compartido por todos sus agentes. Suma también
+ * las filas en ERROR, porque el archivo original igual quedó guardado en el
+ * storage de Karia y ocupa espacio real.
+ */
+export async function sumarPesoInstancia(instanciaId: string): Promise<number> {
+  const r = await prisma.documentoAgenteIA.aggregate({
+    where: { instanciaId },
+    _sum: { pesoBytes: true },
+  });
+
+  return r._sum.pesoBytes ?? 0;
+}
+
 /** Documento cargado con el mecanismo anterior (032). No es consultable: el
  *  texto destilado que tenía no equivale a un archivo indexado entero. Vive
  *  todavía en la columna `AgenteIAConfig.documentosFaq`. */
@@ -105,4 +122,7 @@ export interface EstadoDocumentacionAgente {
   legacy: DocumentoLegacyVista[];
   /** Si el entorno tiene configurado el índice documental. */
   habilitado: boolean;
+  /** Bytes usados por TODA la cuenta, no solo por este agente: es contra esto
+   *  que se mide el tope, y por eso la UI tiene que poder mostrarlo. */
+  pesoUsadoInstancia: number;
 }

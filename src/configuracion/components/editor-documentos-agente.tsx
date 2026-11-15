@@ -30,8 +30,9 @@ import {
   ACCEPT_INPUT_ARCHIVO,
   ETIQUETA_ESTADO_DOCUMENTO,
   MAX_DOCUMENTOS_AGENTE,
-  MAX_PESO_DOCUMENTO,
+  MAX_PESO_TOTAL_INSTANCIA,
   MENSAJE_RECHAZO,
+  formatearPeso,
   validarArchivo,
 } from "@/ai/documentacion/tipos";
 
@@ -100,8 +101,11 @@ export function EditorDocumentosAgente({ agenteIAConfigId }: { agenteIAConfigId:
     );
   }
 
-  const { documentos, legacy, habilitado } = estado;
-  const lleno = documentos.length >= MAX_DOCUMENTOS_AGENTE;
+  const { documentos, legacy, habilitado, pesoUsadoInstancia } = estado;
+  // El tope que manda es el peso de la CUENTA; la cantidad quedó como tope de
+  // cordura y casi nunca es la que frena.
+  const sinEspacio = pesoUsadoInstancia >= MAX_PESO_TOTAL_INSTANCIA;
+  const lleno = sinEspacio || documentos.length >= MAX_DOCUMENTOS_AGENTE;
 
   if (!habilitado) {
     return (
@@ -115,9 +119,14 @@ export function EditorDocumentosAgente({ agenteIAConfigId }: { agenteIAConfigId:
   const subir = async (archivo: File) => {
     // Validación en el cliente solo para dar feedback inmediato. El server
     // action valida de nuevo: es el boundary que de verdad decide.
-    const validacion = validarArchivo(archivo.name, archivo.size, documentos.length);
+    const validacion = validarArchivo(
+      archivo.name,
+      archivo.size,
+      documentos.length,
+      pesoUsadoInstancia,
+    );
     if (!validacion.ok) {
-      toast.error(MENSAJE_RECHAZO[validacion.motivo]);
+      toast.error(validacion.mensaje);
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
@@ -276,7 +285,7 @@ export function EditorDocumentosAgente({ agenteIAConfigId }: { agenteIAConfigId:
         }}
       />
 
-      <div>
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           type="button"
           variant="outline"
@@ -287,12 +296,25 @@ export function EditorDocumentosAgente({ agenteIAConfigId }: { agenteIAConfigId:
           {subiendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
           {subiendo ? "Indexando…" : "Subir documento"}
         </Button>
+
+        {/* El consumo es de la cuenta entera: este agente puede estar vacío y
+            el presupuesto igual estar lleno por lo que subió otro. */}
+        <span
+          className={cn(
+            "text-[11px] tabular-nums",
+            sinEspacio ? "font-medium text-destructive" : "text-stone-500",
+          )}
+        >
+          {formatearPeso(pesoUsadoInstancia)} de {formatearPeso(MAX_PESO_TOTAL_INSTANCIA)} usados
+        </span>
       </div>
 
       <p className="text-[11px] text-stone-500">
-        {lleno
-          ? `Llegaste al máximo de ${MAX_DOCUMENTOS_AGENTE} documentos. Eliminá uno para subir otro.`
-          : `PDF, Word, PowerPoint, TXT, Markdown, JSON, HTML y archivos de código. Hasta ${MAX_DOCUMENTOS_AGENTE} archivos de ${MAX_PESO_DOCUMENTO / 1024 / 1024} MB. Las imágenes no se pueden indexar.`}
+        {sinEspacio
+          ? `La cuenta llegó a los ${formatearPeso(MAX_PESO_TOTAL_INSTANCIA)} de documentación. Eliminá un documento para subir otro.`
+          : lleno
+            ? `Llegaste al máximo de ${MAX_DOCUMENTOS_AGENTE} documentos. Eliminá uno para subir otro.`
+            : `PDF, Word, PowerPoint, TXT, Markdown, JSON, HTML y archivos de código. Hasta ${formatearPeso(MAX_PESO_TOTAL_INSTANCIA)} en total entre todos los agentes de la cuenta, sin límite de archivos. Las imágenes no se pueden indexar.`}
       </p>
     </div>
   );
