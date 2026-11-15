@@ -12,8 +12,14 @@ const TransferirAHumanoTool: IProveedorTool = {
   name: "transferir_a_humano",
   definition: {
     name: "transferir_a_humano",
+    // Derivar es llamar esta herramienta, y nada más. Un modelo que sigue el
+    // prompt al pie de la letra puede escribirle al cliente que va a consultar
+    // —"dame unos minutos"— y dar la derivación por hecha: el turno termina en
+    // cuanto emite texto (ver ejecutarConTools), así que la transferencia ya
+    // no ocurre, nadie se entera y el cliente espera hasta el timeout de
+    // inactividad. Caso real: conversación cmwh4pzij00090tn9kla5fz5s.
     description:
-      "Transfiere la conversación a un agente humano. Usar si el cliente lo solicita explícitamente o si no puedes resolver su consulta.",
+      "Transfiere la conversación a un agente humano. Usar si el cliente lo solicita explícitamente o si no puedes resolver su consulta. Derivar es llamar esta herramienta: anunciarle al cliente que vas a consultar, o escribirle que espere unos minutos, no deriva nada por sí solo. Si le decís al cliente que alguien le va a responder, llamá esta herramienta en el mismo turno o el cliente quedará esperando sin que nadie lo atienda.",
     input_schema: {
       type: "object",
       properties: {
