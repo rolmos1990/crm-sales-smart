@@ -241,6 +241,7 @@ class SimuladorService {
       "transferir_a_humano",
       "actualizar_info_contacto",
       "agregar_etiqueta_contacto",
+      "actualizar_etapa_oportunidad",
     ]);
 
     for (let i = 0; i < 5; i++) {

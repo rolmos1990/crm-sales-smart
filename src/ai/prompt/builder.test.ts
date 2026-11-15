@@ -12,9 +12,9 @@ describe("construirSystemPrompt — retrocompatibilidad (009, Historia 1, SC-002
       configuracionTono: {
         tono: "Cálido",
         formalidad: "Informal",
-        usoEmojis: true,
         tuteo: true,
       },
+      formatoEmojis: "OCASIONALES",
     };
 
     const prompt = construirSystemPrompt(config, {
@@ -94,7 +94,10 @@ describe("construirSystemPrompt — secciones nuevas de identidad/comunicación/
     });
 
     expect(prompt).toContain("Estilo de comunicación:");
-    expect(prompt).toContain("Da respuestas cortas y directas.");
+    // La longitud ya no vive en este bloque: es una restricción, porque tiene
+    // que aplicar también al agente que usa `instruccionesAgente`.
+    expect(prompt).not.toContain("Estilo de comunicación:\n- Sé conciso");
+    expect(prompt).toContain("- Sé conciso. Evita respuestas innecesariamente largas.");
     expect(prompt).toContain("Anticípate a necesidades probables del cliente");
     expect(prompt).toContain("intensidad comercial suave");
     expect(prompt).toContain("primero entiende la necesidad antes de sugerir");
@@ -193,20 +196,148 @@ describe("construirSystemPrompt — respuestas guía (028)", () => {
   });
 });
 
+describe("construirSystemPrompt — formato y longitud de la respuesta", () => {
+  // Lo que motivó estos campos: con `instruccionesAgente` cargado (todo
+  // agente migrado), construirBloqueTono no se emite, así que lo que el
+  // negocio configuraba de emojis no llegaba nunca al modelo.
+  const CON_INSTRUCCIONES = "# Rol\nSos Sofía, asesora comercial.";
+
+  it("sin nada configurado no agrega ningún bloque de formato", () => {
+    const prompt = construirSystemPrompt({});
+
+    expect(prompt).not.toContain("Formato de la respuesta:");
+    expect(prompt).not.toContain("No uses emojis.");
+    expect(prompt).toContain("- Sé conciso. Evita respuestas innecesariamente largas.");
+  });
+
+  it("el formato aplica también al agente con instruccionesAgente", () => {
+    const prompt = construirSystemPrompt({
+      instruccionesAgente: CON_INSTRUCCIONES,
+      formatoSinMarkdown: true,
+      formatoEmojis: "SIN",
+    });
+
+    expect(prompt).toContain(CON_INSTRUCCIONES);
+    expect(prompt).not.toContain("Estilo de comunicación:");
+    expect(prompt).toContain("Formato de la respuesta:");
+    expect(prompt).toContain("Escribe en texto plano.");
+    expect(prompt).toContain("- No uses emojis.");
+  });
+
+  it("la longitud también aplica con instruccionesAgente, y sin duplicarse", () => {
+    const prompt = construirSystemPrompt({
+      instruccionesAgente: CON_INSTRUCCIONES,
+      longitudRespuesta: "MEDIA",
+    });
+
+    expect(prompt).toContain("- Da respuestas de longitud media, con el detalle justo.");
+    expect(prompt.match(/longitud media/g)?.length).toBe(1);
+    expect(prompt).not.toContain("Sé conciso");
+  });
+
+  it("LARGA quita la restricción de concisión en vez de agregar una contraria", () => {
+    const prompt = construirSystemPrompt({ longitudRespuesta: "LARGA" });
+
+    expect(prompt).not.toContain("Sé conciso");
+    expect(prompt).toContain("- Responde siempre en el mismo idioma que el cliente.");
+  });
+
+  it("emojis ocasionales y sin emojis son excluyentes entre sí", () => {
+    const ocasionales = construirSystemPrompt({ formatoEmojis: "OCASIONALES" });
+    const sin = construirSystemPrompt({ formatoEmojis: "SIN" });
+
+    expect(ocasionales).toContain("- Puedes usar emojis con moderación para dar calidez.");
+    expect(ocasionales).not.toContain("No uses emojis.");
+    expect(sin).toContain("- No uses emojis.");
+    expect(sin).not.toContain("Puedes usar emojis");
+  });
+
+  it("formatoSinMarkdown off no dice nada sobre markdown", () => {
+    const prompt = construirSystemPrompt({ formatoSinMarkdown: false, formatoEmojis: "SIN" });
+
+    expect(prompt).toContain("Formato de la respuesta:");
+    expect(prompt).not.toContain("Markdown");
+  });
+});
+
+describe("construirSystemPrompt — reglas de ciclo de vida", () => {
+  const REGLAS = "cuando el cliente paga -> Pagado\ncuando se despide -> Finalizado";
+
+  it("no emite las reglas si la herramienta no está habilitada", () => {
+    // Si no puede mover, leer "movela a Pagado" solo lo lleva a anunciarle al
+    // cliente un cambio que nunca ocurre.
+    const prompt = construirSystemPrompt({ reglasEtapaCicloVida: REGLAS, herramientas: ["crear_pedido"] });
+
+    expect(prompt).not.toContain("Etapas del ciclo de vida");
+    expect(prompt).not.toContain("Pagado");
+  });
+
+  it("con la herramienta habilitada emite las reglas tal cual las escribió el negocio", () => {
+    const prompt = construirSystemPrompt({
+      reglasEtapaCicloVida: REGLAS,
+      herramientas: ["actualizar_etapa_oportunidad"],
+    });
+
+    expect(prompt).toContain("Etapas del ciclo de vida — cuándo mover la oportunidad:");
+    expect(prompt).toContain(REGLAS);
+    expect(prompt).toContain("actualizar_etapa_oportunidad");
+  });
+
+  it("aplica también al agente con instruccionesAgente, que es el caso real", () => {
+    const prompt = construirSystemPrompt({
+      instruccionesAgente: "# Rol\nSos Sofía.",
+      reglasEtapaCicloVida: REGLAS,
+      herramientas: { habilitadas: ["actualizar_etapa_oportunidad"] },
+    });
+
+    expect(prompt).toContain("Etapas del ciclo de vida — cuándo mover la oportunidad:");
+  });
+
+  it("sin reglas escritas no agrega nada aunque la herramienta esté habilitada", () => {
+    const prompt = construirSystemPrompt({
+      reglasEtapaCicloVida: "   ",
+      herramientas: ["actualizar_etapa_oportunidad"],
+    });
+
+    expect(prompt).not.toContain("Etapas del ciclo de vida");
+  });
+
+  it("el contexto de la conversación lista las etapas a las que puede mover", () => {
+    const prompt = construirSystemPrompt({}, {
+      tituloOportunidad: "Compra de licencias",
+      etapaOportunidad: "Cliente potencial",
+      etapasDisponibles: ["Nuevo Cliente", "Cliente potencial", "Pagado"],
+    });
+
+    expect(prompt).toContain("Oportunidad activa: Compra de licencias — Etapa: Cliente potencial");
+    expect(prompt).toContain("Etapas disponibles: Nuevo Cliente, Cliente potencial, Pagado");
+  });
+
+  it("sin etapas no agrega la línea", () => {
+    const prompt = construirSystemPrompt({}, { tituloOportunidad: "X", etapasDisponibles: [] });
+
+    expect(prompt).not.toContain("Etapas disponibles:");
+  });
+});
+
 // 031-memoria-y-ficha-conversacion (SC-001, FR-030) — red de seguridad.
 // Un agente sin memoria ni ficha configuradas tiene que seguir produciendo
 // EXACTAMENTE este string. No es un `toContain`: es byte a byte. Si esta
 // prueba se pone roja, algo de la 031 se filtró al camino por defecto y hay
 // que corregir la 031, no actualizar el fixture.
+//
+// Se actualizó una vez, a propósito, al unificar la longitud de respuesta y
+// sacar emojis/markdown a su propio bloque: la línea de emojis dejó de estar
+// dentro de "Estilo de comunicación" (que un agente con `instruccionesAgente`
+// nunca emite) y pasó a "Formato de la respuesta", que aplica siempre; y la
+// de longitud quedó solo en "Restricciones", también permanente.
 const PROMPT_CONGELADO_PRE_031 =
   "Eres un asistente especializado en ventas de software. Tu misión es ayudar a los clientes de forma profesional y efectiva.\n\n" +
   "Te llamas Sofía. Tu rol: Asesora comercial. Tu idioma principal es es.\n\n" +
   "Estilo de comunicación:\n" +
   "- Usa un tono cálido, cercano y empático.\n" +
   "- Usa un tono casual y conversacional.\n" +
-  "- Puedes usar emojis con moderación para dar calidez.\n" +
   "- Tutea al cliente (usa 'tú' en vez de 'usted').\n" +
-  "- Da respuestas cortas y directas.\n" +
   "- Ofrece información adicional relevante cuando sea natural, sin forzarlo.\n" +
   "- Mantén una intensidad comercial suave — informa y acompaña, sin presionar.\n\n" +
   "Área de especialidad: CRM.\n\n" +
@@ -222,6 +353,8 @@ const PROMPT_CONGELADO_PRE_031 =
   "- No divulgues datos de otros clientes o instancias.\n" +
   "- Responde siempre en el mismo idioma que el cliente.\n" +
   "- Sé conciso. Evita respuestas innecesariamente largas.\n\n" +
+  "Formato de la respuesta:\n" +
+  "- Puedes usar emojis con moderación para dar calidez.\n\n" +
   "Reglas del negocio:\n" +
   "- Nunca uses estas frases: precio final.\n" +
   "- No hagas esto: Presionar para comprar.\n" +
@@ -241,7 +374,8 @@ describe("construirSystemPrompt — fixture congelado (031, SC-001)", () => {
     especialidad: "CRM",
     instrucciones: ["No hables de la competencia"],
     sistemaPrompt: "Menciona siempre el nombre de la empresa.",
-    configuracionTono: { tono: "Cálido", formalidad: "Informal", usoEmojis: true, tuteo: true },
+    configuracionTono: { tono: "Cálido", formalidad: "Informal", tuteo: true },
+    formatoEmojis: "OCASIONALES",
     nombreAgente: "Sofía",
     rol: "Asesora comercial",
     idiomaPrincipal: "es",

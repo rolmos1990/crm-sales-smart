@@ -3055,9 +3055,20 @@ model AgenteIAConfig {
   // construirSystemPrompt en src/ai/prompt/builder.ts).
   nombreAgente                   String?
   rol                            String?
+  // Clave de uno de los 8 avatares del set (ver ICONOS_AGENTE en
+  // src/configuracion/components/iconos-agente.tsx). Null = el icono
+  // genérico de siempre; no viaja al prompt, es solo identidad visual.
+  iconoAgente                    String?
   idiomaPrincipal                String?
   idiomasPermitidos              Json? // string[]
   longitudRespuesta              String? // "CORTA" | "MEDIA" | "LARGA"
+  // Formato de salida. Viven como columnas propias y no dentro del JSON
+  // `configuracionTono` justamente para no repetir el problema que vinieron a
+  // resolver: `respuestaLarga` (JSON) y `longitudRespuesta` (columna) decían
+  // cosas distintas sobre lo mismo, cada una desde un bloque del prompt.
+  // Null/false = el prompt no dice nada al respecto.
+  formatoSinMarkdown             Boolean @default(false)
+  formatoEmojis                  String? // "OCASIONALES" | "SIN"
   proactividad                   String? // "BAJA" | "MEDIA" | "ALTA"
   intensidadComercial            String? // "SUAVE" | "MODERADA" | "DIRECTA"
   estiloRecomendacion            String? // "CONSULTIVO" | "DIRECTO" | "COMPARATIVO"
@@ -3070,6 +3081,13 @@ model AgenteIAConfig {
   // 015-herramientas-operativas-inventario-envios-acciones — default false
   // preserva la creación directa actual de cotizaciones/pedidos por IA.
   accionesComercialesModoBorrador Boolean @default(false)
+
+  // Reglas en texto libre que le dicen al agente a qué etapa mover la
+  // oportunidad y cuándo ("si el cliente ya pagó → Pagado"). Solo se inyecta
+  // en el prompt si la herramienta `actualizar_etapa_oportunidad` está
+  // habilitada: sin ella el agente leería una instrucción que no puede
+  // ejecutar. Null = sin reglas, el prompt no dice nada.
+  reglasEtapaCicloVida String?
 
   // Ventana de espera antes de responder: el agente aguarda a que el cliente
   // termine de escribir y contesta UNA vez por todos los mensajes del tramo,

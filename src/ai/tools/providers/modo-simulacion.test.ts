@@ -1,8 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // 018-simulador-agente (Setup/Foundational) — con ctx.modoSimulacion: true,
-// ninguna de las 6 tools que escriben debe invocar prisma.create/update/
-// createMany. Un único archivo cubre las 6 (T008), con mocks compartidos.
+// ninguna tool que escribe debe invocar prisma.create/update/createMany (ni,
+// para la de ciclo de vida, el servicio que mueve de etapa). Un único archivo
+// las cubre a todas (T008), con mocks compartidos: toda tool nueva que
+// escriba datos suma su caso acá.
 
 const cotizacionFindFirstMock = vi.fn();
 const cotizacionCreateMock = vi.fn();
@@ -19,12 +21,15 @@ const tagCreateMock = vi.fn();
 const contactoTagFindUniqueMock = vi.fn();
 const contactoTagCreateMock = vi.fn();
 const agenteIAConfigFindUniqueMock = vi.fn();
+const pipelineStageFindManyMock = vi.fn();
+const moverOportunidadAEtapaMock = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
     cotizacion: { findFirst: (...a: unknown[]) => cotizacionFindFirstMock(...a), create: (...a: unknown[]) => cotizacionCreateMock(...a) },
     pedido: { count: (...a: unknown[]) => pedidoCountMock(...a), create: (...a: unknown[]) => pedidoCreateMock(...a) },
     oportunidad: { findFirst: (...a: unknown[]) => oportunidadFindFirstMock(...a) },
+    pipelineStage: { findMany: (...a: unknown[]) => pipelineStageFindManyMock(...a) },
     producto: { findMany: (...a: unknown[]) => productoFindManyMock(...a) },
     oportunidadProducto: { createMany: (...a: unknown[]) => oportunidadProductoCreateManyMock(...a) },
     // Lectura, no escritura: la usa resolverEntregaIA para el retiro en tienda.
@@ -40,6 +45,9 @@ vi.mock("@/configuracion/empresa/queries", () => ({
   obtenerMonedaPrincipal: vi.fn().mockResolvedValue("PEN"),
 }));
 vi.mock("@/shared/rabbitmq", () => ({ publicadorEventos: { publicar: vi.fn() } }));
+vi.mock("@/crm/pipeline/mover-stage", () => ({
+  moverOportunidadAEtapa: (...a: unknown[]) => moverOportunidadAEtapaMock(...a),
+}));
 vi.mock("@/eventos/catalogo", () => ({ EventosSistema: { ConversacionClasificada: "ConversacionClasificada" } }));
 
 await import("./crear-cotizacion.tool");
@@ -48,12 +56,14 @@ await import("./agregar-productos-oportunidad.tool");
 await import("./transfer.tool");
 await import("./actualizar-info-contacto.tool");
 await import("./agregar-etiqueta-contacto.tool");
+await import("./actualizar-etapa-oportunidad.tool");
 const { registroHerramientas } = await import("@/ai/tools/registry");
 
 const ctxSimulado = {
   instanciaId: "instancia-1",
   conversacionId: "conv-1",
   contactoId: "contacto-1",
+  oportunidadId: "op-1",
   agenteId: "agente-1",
   herramientasPermitidas: [],
   modoSimulacion: true,
@@ -80,6 +90,8 @@ describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => 
     contactoTagFindUniqueMock.mockReset();
     contactoTagCreateMock.mockReset();
     agenteIAConfigFindUniqueMock.mockReset().mockResolvedValue({ accionesComercialesModoBorrador: false });
+    pipelineStageFindManyMock.mockReset().mockResolvedValue([{ id: "s3", nombre: "Pagado" }]);
+    moverOportunidadAEtapaMock.mockReset();
   });
 
   it("crear_cotizacion: no llama a cotizacion.findFirst ni .create, devuelve previsualizado: true", async () => {
@@ -131,6 +143,15 @@ describe("modoSimulacion (018) — ninguna tool que escribe toca Prisma", () => 
     expect((resultado.data as { previsualizado: boolean }).previsualizado).toBe(true);
     expect(tagCreateMock).not.toHaveBeenCalled();
     expect(contactoTagCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("actualizar_etapa_oportunidad: no llama a moverOportunidadAEtapa", async () => {
+    oportunidadFindFirstMock.mockResolvedValue({ id: "op-1", pipelineId: "pipe-1", stageId: "s1" });
+    const tool = registroHerramientas.get("actualizar_etapa_oportunidad")!;
+    const resultado = await tool.execute({ etapa: "Pagado" }, ctxSimulado);
+    expect(resultado.ok).toBe(true);
+    expect((resultado.data as { previsualizado: boolean }).previsualizado).toBe(true);
+    expect(moverOportunidadAEtapaMock).not.toHaveBeenCalled();
   });
 
   it("sin modoSimulacion (comportamiento real): crear_cotizacion SÍ escribe (retrocompatibilidad)", async () => {

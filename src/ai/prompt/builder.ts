@@ -12,6 +12,9 @@
 // desactiva. `sistemaPrompt` sigue siendo un override avanzado al final.
 
 import { INTENCIONES_RESPUESTA_GUIA } from "@/configuracion/ia/agente-schema";
+// Mismo parser que decide qué herramientas recibe el modelo: si el prompt
+// usara otro, podría anunciar una acción que el agente no tiene habilitada.
+import { parsearListaHerramientas } from "@/ai/tools/herramientas-agente";
 
 export interface ConfigAgenteParaPrompt {
   objetivo?: string | null;
@@ -46,6 +49,22 @@ export interface ConfigAgenteParaPrompt {
   // 032 — DocumentoFaq[]. Tampoco genera texto acá: lo consume la capa 8.
   documentosFaq?: unknown;
 
+  // Formato de la respuesta. A diferencia del resto del estilo, se emite
+  // SIEMPRE —también cuando hay `instruccionesAgente`—: antes el control de
+  // emojis vivía dentro de `construirBloqueTono`, que ese bloque desactiva, y
+  // por eso no llegaba nunca al modelo en un agente migrado.
+  formatoSinMarkdown?: boolean | null;
+  formatoEmojis?: string | null; // "OCASIONALES" | "SIN"
+
+  /**
+   * Reglas de ciclo de vida en texto libre ("si el cliente pagó → Pagado").
+   * Solo se emiten si `herramientas` incluye `actualizar_etapa_oportunidad`:
+   * sin esa herramienta el agente leería una instrucción que no puede
+   * ejecutar, y terminaría anunciando un cambio de etapa que nunca ocurre.
+   */
+  reglasEtapaCicloVida?: string | null;
+  herramientas?: unknown; // string[] | { habilitadas|lista: string[] }
+
   /**
    * Bloque único de instrucciones escrito por el responsable (Rol · Estilo ·
    * Proceso · Reglas). Cuando está presente reemplaza a todo lo que el negocio
@@ -63,6 +82,12 @@ export interface ContextoDinamicoPrompt {
   empresaContacto?: string;
   tituloOportunidad?: string;
   etapaOportunidad?: string;
+  /**
+   * Nombres de las etapas activas del pipeline de la oportunidad. El agente
+   * los necesita para mover de etapa: sin ellos tendría que adivinar cómo
+   * llamó el negocio a cada columna.
+   */
+  etapasDisponibles?: string[];
 }
 
 // 013-context-builder-capas-precedencia — capas 4/5/7-9, opcionales.
@@ -133,12 +158,20 @@ export function construirSystemPrompt(
     "- Responde siempre en el mismo idioma que el cliente.",
   ];
 
-  const tono = parsearTono(config.configuracionTono);
-  if (!(tono?.respuestaLarga ?? false)) {
-    restricciones.push("- Sé conciso. Evita respuestas innecesariamente largas.");
-  }
+  // La longitud de la respuesta se decide con un único campo
+  // (`longitudRespuesta`) y se emite acá, dentro de las restricciones que
+  // aplican siempre. Antes había además un `configuracionTono.respuestaLarga`
+  // que decía lo contrario desde otro bloque; ya no existe.
+  //
+  // Sin valor se asume CORTA, que es la línea exacta que el prompt venía
+  // emitiendo por defecto: un agente que nunca tocó esto no cambia en nada.
+  const lineaLongitud = MAPA_LONGITUD_RESPUESTA[config.longitudRespuesta ?? "CORTA"];
+  if (lineaLongitud) restricciones.push(`- ${lineaLongitud}`);
 
   partes.push(restricciones.join("\n"));
+
+  const bloqueFormato = construirBloqueFormato(config);
+  if (bloqueFormato) partes.push(bloqueFormato);
 
   // Las reglas por campos solo aplican al agente sin migrar: con el bloque de
   // instrucciones, sus reglas ya viajan dentro de él.
@@ -146,6 +179,9 @@ export function construirSystemPrompt(
     const bloqueReglas = construirBloqueReglasDeNegocio(config);
     if (bloqueReglas) partes.push(bloqueReglas);
   }
+
+  const bloqueCicloVida = construirBloqueCicloVida(config);
+  if (bloqueCicloVida) partes.push(bloqueCicloVida);
 
   // 028-respuestas-guia-catalogo-ia — mismo peso que las reglas del negocio y
   // debajo de las fijas: un formato nunca puede habilitar inventar un precio.
@@ -176,6 +212,9 @@ export function construirSystemPrompt(
       lineas.push(
         `Oportunidad activa: ${ctx.tituloOportunidad} — Etapa: ${ctx.etapaOportunidad ?? "desconocida"}`,
       );
+    }
+    if (ctx.etapasDisponibles && ctx.etapasDisponibles.length > 0) {
+      lineas.push(`Etapas disponibles: ${ctx.etapasDisponibles.join(", ")}`);
     }
     if (lineas.length > 0) {
       partes.push("Contexto de esta conversación:\n" + lineas.join("\n"));
@@ -227,8 +266,6 @@ export function construirBloqueIdentidadExtendida(
 interface TonoConfig {
   tono?: string | null;
   formalidad?: string | null;
-  usoEmojis?: boolean;
-  respuestaLarga?: boolean;
   llamaClientePorNombre?: boolean;
   tuteo?: boolean;
   usaHumor?: boolean;
@@ -239,10 +276,12 @@ function parsearTono(valor: unknown): TonoConfig | null {
   return valor as TonoConfig;
 }
 
+// LARGA es deliberadamente la cadena vacía: "responde largo" no es una
+// restricción, es la ausencia de la de concisión.
 const MAPA_LONGITUD_RESPUESTA: Record<string, string> = {
-  CORTA: "Da respuestas cortas y directas.",
+  CORTA: "Sé conciso. Evita respuestas innecesariamente largas.",
   MEDIA: "Da respuestas de longitud media, con el detalle justo.",
-  LARGA: "Puedes dar respuestas más detalladas y completas cuando aporte valor.",
+  LARGA: "",
 };
 const MAPA_PROACTIVIDAD: Record<string, string> = {
   BAJA: "Responde solo lo que se te pregunta, sin adelantarte a ofrecer más.",
@@ -261,13 +300,71 @@ const MAPA_ESTILO_RECOMENDACION: Record<string, string> = {
 };
 
 // 009-perfil-agente-estructurado-versionado — el bloque de tono existente se
-// extiende con las nuevas dimensiones de comunicación (longitud, proactividad,
+// extiende con las nuevas dimensiones de comunicación (proactividad,
 // intensidad comercial, estilo de recomendación), bajo el mismo encabezado.
+//
+// Ojo: este bloque NO se emite cuando el agente tiene `instruccionesAgente`
+// (ver construirSystemPrompt). Lo que tenga que aplicar siempre —longitud,
+// emojis, markdown— va en las restricciones o en construirBloqueFormato, no
+// acá.
+/**
+ * Reglas de ciclo de vida: cuándo mover la oportunidad y a qué etapa. Se
+ * emite siempre —también con `instruccionesAgente`— porque describe cuándo
+ * usar una herramienta, no un estilo.
+ *
+ * Condicionado a que la herramienta esté habilitada: un agente que lee
+ * "movela a Pagado" sin poder hacerlo termina anunciándole al cliente un
+ * cambio que nunca ocurre, que es el mismo patrón de fallo ya visto con la
+ * derivación a humano (ver transfer.tool.ts).
+ */
+export function construirBloqueCicloVida(
+  config: Pick<ConfigAgenteParaPrompt, "reglasEtapaCicloVida" | "herramientas">,
+): string {
+  const reglas = config.reglasEtapaCicloVida?.trim();
+  if (!reglas) return "";
+  if (!parsearListaHerramientas(config.herramientas).includes("actualizar_etapa_oportunidad")) return "";
+
+  return (
+    "Etapas del ciclo de vida — cuándo mover la oportunidad:\n" +
+    `${reglas}\n` +
+    "Para mover la oportunidad usá la herramienta actualizar_etapa_oportunidad con el nombre exacto " +
+    "de la etapa. Moverla es llamar esa herramienta: decirle al cliente que su caso avanzó no mueve nada. " +
+    "Si ninguna regla se cumple, no la muevas."
+  );
+}
+
+/**
+ * Formato de salida: markdown y emojis. Se emite siempre, incluso para un
+ * agente con `instruccionesAgente` — es la diferencia con el bloque de tono,
+ * y la razón de que exista por separado.
+ *
+ * Sin nada configurado devuelve "" y el prompt queda igual que antes.
+ */
+export function construirBloqueFormato(
+  config: Pick<ConfigAgenteParaPrompt, "formatoSinMarkdown" | "formatoEmojis">,
+): string {
+  const partes: string[] = [];
+
+  if (config.formatoSinMarkdown) {
+    partes.push(
+      "- Escribe en texto plano. No uses asteriscos, negritas, cursivas, viñetas, títulos ni ningún otro formato Markdown.",
+    );
+  }
+
+  if (config.formatoEmojis === "OCASIONALES") {
+    partes.push("- Puedes usar emojis con moderación para dar calidez.");
+  } else if (config.formatoEmojis === "SIN") {
+    partes.push("- No uses emojis.");
+  }
+
+  return partes.length > 0 ? "Formato de la respuesta:\n" + partes.join("\n") : "";
+}
+
 export function construirBloqueTono(
   valorTono: unknown,
   comunicacionExtendida: Pick<
     ConfigAgenteParaPrompt,
-    "longitudRespuesta" | "proactividad" | "intensidadComercial" | "estiloRecomendacion"
+    "proactividad" | "intensidadComercial" | "estiloRecomendacion"
   >,
 ): string {
   const t = parsearTono(valorTono);
@@ -289,16 +386,11 @@ export function construirBloqueTono(
 
     if (t.tono && mapasTono[t.tono]) partes.push(mapasTono[t.tono]);
     if (t.formalidad && mapaFormalidad[t.formalidad]) partes.push(mapaFormalidad[t.formalidad]);
-    if (t.usoEmojis ?? false) partes.push("Puedes usar emojis con moderación para dar calidez.");
-    else partes.push("No uses emojis.");
     if (t.llamaClientePorNombre ?? false) partes.push("Cuando conozcas el nombre del cliente, úsalo para dirigirte a él/ella.");
     if (t.tuteo ?? false) partes.push("Tutea al cliente (usa 'tú' en vez de 'usted').");
     if (t.usaHumor ?? false) partes.push("Puedes usar humor ligero y apropiado cuando sea natural.");
   }
 
-  if (comunicacionExtendida.longitudRespuesta && MAPA_LONGITUD_RESPUESTA[comunicacionExtendida.longitudRespuesta]) {
-    partes.push(MAPA_LONGITUD_RESPUESTA[comunicacionExtendida.longitudRespuesta]);
-  }
   if (comunicacionExtendida.proactividad && MAPA_PROACTIVIDAD[comunicacionExtendida.proactividad]) {
     partes.push(MAPA_PROACTIVIDAD[comunicacionExtendida.proactividad]);
   }

@@ -12,7 +12,7 @@ export type UsuarioInstanciaDetalle = {
   estado: EstadoUsuario;
   activo: boolean;
   ultimoLogin: Date | null;
-  agenteIAConfig: { id: string; tipo: TipoAgenteIA } | null;
+  agenteIAConfig: { id: string; tipo: TipoAgenteIA; iconoAgente: string | null } | null;
 };
 
 export type ResultadoAccion<T = undefined> =

@@ -5,11 +5,12 @@ import {
   MIMES_DOCUMENTO_FAQ,
 } from "./conocimiento/tipos";
 
+// `usoEmojis` y `respuestaLarga` salieron de acá: ahora son columnas propias
+// (`formatoEmojis`, `longitudRespuesta`). Zod descarta las claves que ya no
+// declara, así que un agente guardado antes queda limpio al primer guardado.
 export const ConfiguracionTonoSchema = z.object({
   tono: z.enum(["Cálido", "Profesional", "Directo", "Empático", "Entusiasta"]).nullable().optional(),
   formalidad: z.enum(["Formal", "Semi Formal", "Informal"]).nullable().optional(),
-  usoEmojis: z.boolean().optional(),
-  respuestaLarga: z.boolean().optional(),
   llamaClientePorNombre: z.boolean().optional(),
   tuteo: z.boolean().optional(),
   usaHumor: z.boolean().optional(),
@@ -24,6 +25,8 @@ export const LongitudRespuestaSchema = z.enum(["CORTA", "MEDIA", "LARGA"]);
 export const ProactividadSchema = z.enum(["BAJA", "MEDIA", "ALTA"]);
 export const IntensidadComercialSchema = z.enum(["SUAVE", "MODERADA", "DIRECTA"]);
 export const EstiloRecomendacionSchema = z.enum(["CONSULTIVO", "DIRECTO", "COMPARATIVO"]);
+// Formato de salida. Null = el prompt no dice nada sobre emojis.
+export const FormatoEmojisSchema = z.enum(["OCASIONALES", "SIN"]);
 
 // 028-respuestas-guia-catalogo-ia — formatos de respuesta por intención.
 export const IntencionRespuestaGuiaSchema = z.enum(["PRECIO", "DISPONIBILIDAD", "ENVIO", "PAGO", "SALUDO", "OTRA"]);
@@ -54,6 +57,7 @@ export type RespuestaGuiaInput = z.infer<typeof RespuestaGuiaSchema>;
 export const TipoAgenteIASchema = z.enum(["COMERCIAL", "GERENCIA"]);
 
 export const MAX_INSTRUCCIONES_AGENTE = 20000;
+export const MAX_REGLAS_ETAPA_CICLO_VIDA = 2000;
 
 export const DocumentoFaqSchema = z.object({
   id: z.string().min(1),
@@ -95,14 +99,25 @@ export const AgenteIAConfigSchema = z.object({
   // Identidad (FR-001)
   nombreAgente: z.string().max(100).nullable().optional(),
   rol: z.string().max(200).nullable().optional(),
+  // Clave del set de avatares (ICONOS_AGENTE). No se valida contra el enum
+  // del componente: una clave desconocida cae al avatar por defecto al
+  // renderizar, y así el schema no se rompe si el set cambia.
+  iconoAgente: z.string().max(40).nullable().optional(),
   idiomaPrincipal: z.string().max(10).nullable().optional(),
   idiomasPermitidos: z.array(z.string().max(10)).nullable().optional(),
 
   // Comunicación (FR-002)
   longitudRespuesta: LongitudRespuestaSchema.nullable().optional(),
+  formatoSinMarkdown: z.boolean().optional(),
+  formatoEmojis: FormatoEmojisSchema.nullable().optional(),
   proactividad: ProactividadSchema.nullable().optional(),
   intensidadComercial: IntensidadComercialSchema.nullable().optional(),
   estiloRecomendacion: EstiloRecomendacionSchema.nullable().optional(),
+
+  // Reglas de ciclo de vida: a qué etapa mover la oportunidad y cuándo.
+  // Solo llegan al prompt si la herramienta actualizar_etapa_oportunidad
+  // está habilitada (ver construirBloqueCicloVida).
+  reglasEtapaCicloVida: z.string().max(MAX_REGLAS_ETAPA_CICLO_VIDA).nullable().optional(),
 
   // Reglas y límites (FR-003, FR-004)
   frasesPreferidas: z.array(z.string().max(200)).nullable().optional(),

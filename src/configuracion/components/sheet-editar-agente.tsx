@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import {
-  Bot,
   Loader2,
   Sparkles,
   Settings2,
@@ -19,7 +18,6 @@ import {
   UserPen,
   User,
   ArrowRightLeft,
-  ChevronDown,
   History,
   Plus,
   X,
@@ -57,11 +55,24 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { TextareaConReferencias } from "@/shared/ui/textarea-con-referencias";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { EditorDocumentosFaq } from "./editor-documentos-faq";
+import {
+  CLAVES_ICONO_AGENTE,
+  ICONOS_AGENTE,
+  ICONO_AGENTE_POR_DEFECTO,
+  IconoAgente,
+} from "./iconos-agente";
 import type { DocumentoFaq } from "@/configuracion/ia/conocimiento/tipos";
 import { editarUsuario } from "@/configuracion/usuarios/actions";
 import {
@@ -75,10 +86,12 @@ import {
   type AgenteIAConfigInput,
   type ConfiguracionTonoInput,
   type RespuestaGuiaInput,
-  INTENCIONES_RESPUESTA_GUIA,
 } from "@/configuracion/ia/agente-schema";
 import { plantillaDeTipo, TIPO_AGENTE_POR_DEFECTO } from "@/configuracion/ia/plantillas-agente";
-import { MAX_INSTRUCCIONES_AGENTE } from "@/configuracion/ia/agente-schema";
+import {
+  MAX_INSTRUCCIONES_AGENTE,
+  MAX_REGLAS_ETAPA_CICLO_VIDA,
+} from "@/configuracion/ia/agente-schema";
 import { MAX_SEGUNDOS_ESPERA, SEGUNDOS_ESPERA_DEFECTO } from "@/ai/respuesta/ventana-espera";
 import type { TipoAgenteIA } from "@/generated/prisma/enums";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
@@ -112,6 +125,18 @@ const ESTILOS_RECOMENDACION = [
   { valor: "COMPARATIVO", etiqueta: "Comparativo" },
 ] as const;
 
+// Emojis: el único control de formato con más de dos estados. "Sin definir"
+// (null) no es una tercera opción del selector — es no haberlo tocado.
+const FORMATOS_EMOJIS = [
+  { valor: "OCASIONALES", etiqueta: "Ocasionales" },
+  { valor: "SIN", etiqueta: "Sin emojis" },
+] as const;
+// docs/selects.md — el <Select> necesita el mapa completo valor → etiqueta o
+// el trigger muestra "OCASIONALES" crudo hasta que alguien abre el popup.
+const ETIQUETAS_FORMATO_EMOJIS = Object.fromEntries(
+  FORMATOS_EMOJIS.map((o) => [o.valor, o.etiqueta]),
+);
+
 const CANALES_DISPONIBLES = [
   { valor: "whatsapp_lite", etiqueta: "WhatsApp Lite" },
   { valor: "whatsapp_business", etiqueta: "WhatsApp Business" },
@@ -121,6 +146,10 @@ const CANALES_DISPONIBLES = [
   { valor: "web", etiqueta: "Chat Web" },
 ];
 
+// La única herramienta con configuración propia: sin reglas escritas, el
+// agente no sabe cuándo mover nada.
+const HERRAMIENTA_ETAPA_CICLO_VIDA = "actualizar_etapa_oportunidad";
+
 const HERRAMIENTAS_DISPONIBLES = [
   { nombre: "buscar_productos",          label: "Acceso a Productos",    descripcion: "Precio y disponibilidad", Icono: Package },
   { nombre: "crear_cotizacion",          label: "Crear Cotizaciones",    descripcion: "Genera cotizaciones",     Icono: FileText },
@@ -129,6 +158,7 @@ const HERRAMIENTAS_DISPONIBLES = [
   { nombre: "actualizar_info_contacto",  label: "Actualizar Contacto",   descripcion: "Pide y guarda datos",     Icono: UserPen },
   { nombre: "obtener_info_cliente",      label: "Leer Info del Cliente", descripcion: "Accede al perfil",        Icono: User },
   { nombre: "transferir_a_humano",       label: "Transferir a Humano",   descripcion: "Pasa a un agente",        Icono: ArrowRightLeft },
+  { nombre: HERRAMIENTA_ETAPA_CICLO_VIDA, label: "Actualizar Etapa de Ciclo de Vida", descripcion: "Mueve la oportunidad de etapa", Icono: Route },
 ];
 
 // 018-simulador-agente (Historia 4, "Conocimiento") — herramientas
@@ -138,13 +168,21 @@ const HERRAMIENTAS_DISPONIBLES = [
 // se importa ahora de @/ai/tools/constantes (única fuente de verdad, ver
 // import arriba) — también autoriza su ejecución real (research.md §6).
 
+const PLACEHOLDER_REGLAS_CICLO_VIDA = [
+  "cuando el cliente escribe por primera vez -> Nuevo Cliente",
+  "cuando muestra interés en nuestros productos o servicios -> Cliente potencial",
+  "cuando confirma que realizó un pago -> Pagado",
+  "cuando ya compró antes y vuelve a escribir -> Cliente",
+  "cuando se despide agradeciendo y da el tema por resuelto -> Finalizado",
+].join("\n");
+
 const TONOS = ["Cálido", "Profesional", "Directo", "Empático", "Entusiasta"] as const;
 const FORMALIDADES = ["Formal", "Semi Formal", "Informal"] as const;
 
 // Navegación vertical del modal. Mismos destinos que las pestañas anteriores
 // —ninguno se eliminó— reordenados de lo más usado a lo más ocasional.
 const DESTINOS: { valor: string; etiqueta: string; Icono: LucideIcon }[] = [
-  { valor: "general", etiqueta: "General", Icono: Settings2 },
+  { valor: "general", etiqueta: "Datos generales", Icono: Settings2 },
   { valor: "ia", etiqueta: "Configuración IA", Icono: Sparkles },
   { valor: "conocimiento", etiqueta: "Conocimiento", Icono: BookOpen },
   { valor: "estrategias", etiqueta: "Estrategias", Icono: Route },
@@ -394,6 +432,23 @@ interface SheetEditarAgenteProps {
 
 type ConfigCargada = Awaited<ReturnType<typeof cargarConfigAgenteIA>>;
 
+/**
+ * Los campos de texto libre llegan como "" cuando están vacíos, y "" no es
+ * "sin valor": sin esto se guardaría un string vacío encima del valor previo.
+ * Lo comparten el guardado directo, el borrador y el guardado de la sección
+ * "Datos generales".
+ */
+function normalizarTextosIA(datos: AgenteIAConfigInput) {
+  return {
+    ...datos,
+    sistemaPrompt: datos.sistemaPrompt || undefined,
+    personalidad: datos.personalidad || undefined,
+    objetivo: datos.objetivo || undefined,
+    especialidad: datos.especialidad || undefined,
+    modeloPreferido: datos.modeloPreferido || undefined,
+  };
+}
+
 export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgenteProps) {
   const [isPendingBasico, startBasico] = useTransition();
   const [isPendingIA, startIA] = useTransition();
@@ -401,7 +456,6 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   const [configIA, setConfigIA] = useState<ConfigCargada>(null);
   const [cargandoConfig, setCargandoConfig] = useState(false);
   const [activandoIA, startActivar] = useTransition();
-  const [avanzadoAbierto, setAvanzadoAbierto] = useState(false);
   // Controlada: el pie del modal necesita saber qué sección está abierta para
   // ofrecer el guardado que corresponde.
   const [seccion, setSeccion] = useState<string>("general");
@@ -434,12 +488,16 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
       configuracionTono: null,
       nombreAgente: "",
       rol: "",
+      iconoAgente: null,
       idiomaPrincipal: "",
       idiomasPermitidos: null,
       longitudRespuesta: null,
+      formatoSinMarkdown: false,
+      formatoEmojis: null,
       proactividad: null,
       intensidadComercial: null,
       estiloRecomendacion: null,
+      reglasEtapaCicloVida: null,
       frasesPreferidas: null,
       frasesProhibidas: null,
       comportamientosProhibidos: null,
@@ -457,6 +515,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   const canalesActivos = formIA.watch("canalesPermitidos") ?? [];
   const herramientasActivas = formIA.watch("herramientas") ?? [];
   const configuracionTono = formIA.watch("configuracionTono");
+  const iconoSeleccionado = formIA.watch("iconoAgente");
   const catalogoEnContexto = formIA.watch("catalogoEnContexto") ?? true;
   const esperarAntesDeResponder = formIA.watch("esperarAntesDeResponder") ?? false;
 
@@ -488,12 +547,16 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             configuracionTono: (config.configuracionTono as ConfiguracionTonoInput | null) ?? null,
             nombreAgente: config.nombreAgente ?? "",
             rol: config.rol ?? "",
+            iconoAgente: config.iconoAgente ?? null,
             idiomaPrincipal: config.idiomaPrincipal ?? "",
             idiomasPermitidos: (config.idiomasPermitidos as string[] | null) ?? null,
             longitudRespuesta: (config.longitudRespuesta as AgenteIAConfigInput["longitudRespuesta"]) ?? null,
+            formatoSinMarkdown: config.formatoSinMarkdown,
+            formatoEmojis: (config.formatoEmojis as AgenteIAConfigInput["formatoEmojis"]) ?? null,
             proactividad: (config.proactividad as AgenteIAConfigInput["proactividad"]) ?? null,
             intensidadComercial: (config.intensidadComercial as AgenteIAConfigInput["intensidadComercial"]) ?? null,
             estiloRecomendacion: (config.estiloRecomendacion as AgenteIAConfigInput["estiloRecomendacion"]) ?? null,
+            reglasEtapaCicloVida: config.reglasEtapaCicloVida ?? null,
             frasesPreferidas: (config.frasesPreferidas as string[] | null) ?? null,
             frasesProhibidas: (config.frasesProhibidas as string[] | null) ?? null,
             comportamientosProhibidos: (config.comportamientosProhibidos as string[] | null) ?? null,
@@ -568,14 +631,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   function onSubmitIA(datos: AgenteIAConfigInput) {
     if (!agente) return;
     startIA(async () => {
-      const resultado = await guardarAgenteIA(agente.usuarioId, {
-        ...datos,
-        sistemaPrompt: datos.sistemaPrompt || undefined,
-        personalidad: datos.personalidad || undefined,
-        objetivo: datos.objetivo || undefined,
-        especialidad: datos.especialidad || undefined,
-        modeloPreferido: datos.modeloPreferido || undefined,
-      });
+      const resultado = await guardarAgenteIA(agente.usuarioId, normalizarTextosIA(datos));
       if (!resultado.exito) {
         toast.error(resultado.error ?? "Error al guardar configuración IA");
         return;
@@ -592,20 +648,59 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   function onSubmitBorrador(datos: AgenteIAConfigInput) {
     if (!agente?.agenteIAConfig) return;
     startBorrador(async () => {
-      const resultado = await guardarBorradorAgenteIA(agente.agenteIAConfig!.id, {
-        ...datos,
-        sistemaPrompt: datos.sistemaPrompt || undefined,
-        personalidad: datos.personalidad || undefined,
-        objetivo: datos.objetivo || undefined,
-        especialidad: datos.especialidad || undefined,
-        modeloPreferido: datos.modeloPreferido || undefined,
-      });
+      const resultado = await guardarBorradorAgenteIA(
+        agente.agenteIAConfig!.id,
+        normalizarTextosIA(datos),
+      );
       if (!resultado.exito) {
         toast.error(resultado.error ?? "Error al guardar el borrador");
         return;
       }
       toast.success("Borrador guardado — publicalo desde la pestaña Versiones para que aplique");
     });
+  }
+
+  // "Datos generales" es la única sección que mezcla los dos formularios:
+  // nombre y descripción viven en Usuario (formBasico) y la identidad del
+  // agente en AgenteIAConfig (formIA). Un solo botón guarda ambos, en ese
+  // orden, con un único aviso.
+  //
+  // La identidad solo se guarda si la configuración llegó a cargarse: con
+  // formIA todavía en sus valores por defecto, guardarlo borraría las
+  // instrucciones del agente sin que nadie lo vea desde esta pantalla.
+  const puedeGuardarIdentidad = !!agente?.agenteIAConfig && !cargandoConfig && !!configIA;
+
+  function handleGuardarGeneral() {
+    if (!agente) return;
+    formBasico.handleSubmit((datosBasico) => {
+      if (!puedeGuardarIdentidad) {
+        onSubmitBasico(datosBasico);
+        return;
+      }
+      formIA.handleSubmit((datosIA) => {
+        startBasico(async () => {
+          const resultadoBasico = await editarUsuario(agente.id, datosBasico);
+          if (!resultadoBasico.exito) {
+            toast.error(resultadoBasico.error);
+            return;
+          }
+          const resultadoIA = await guardarAgenteIA(agente.usuarioId, normalizarTextosIA(datosIA));
+          if (!resultadoIA.exito) {
+            toast.error(resultadoIA.error ?? "Error al guardar la identidad del agente");
+            return;
+          }
+          toast.success("Agente actualizado");
+          onExito();
+        });
+      }, avisarIAInvalido)();
+    })();
+  }
+
+  // El formulario del agente es uno solo repartido en varias secciones: un
+  // campo inválido puede estar en una sección que no está a la vista, y sin
+  // este aviso el botón de guardar no haría nada aparente.
+  function avisarIAInvalido() {
+    toast.error("Hay campos inválidos en la configuración del agente. Revisa Configuración IA.");
   }
 
   function handleActivarIA() {
@@ -630,6 +725,9 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   }
 
   const tieneConfigIA = !!agente?.agenteIAConfig;
+  // Secciones cuyo botón guarda el perfil del agente (formIA) y nada más.
+  const seccionGuardaIA =
+    (seccion === "ia" || seccion === "conocimiento") && tieneConfigIA && !cargandoConfig;
 
   return (
     <Dialog open={!!agente} onOpenChange={handleCerrar}>
@@ -639,8 +737,8 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
       >
         {/* ── Encabezado fijo ── */}
         <header className="flex shrink-0 items-start gap-3 border-b border-white/8 px-5 py-4">
-          <div className="rounded-xl border border-purple-500/30 bg-purple-500/15 p-2">
-            <Bot className="h-5 w-5 text-purple-300" />
+          <div className="rounded-xl border border-purple-500/30 bg-purple-500/15 p-2 text-purple-300">
+            <IconoAgente clave={iconoSeleccionado} className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
@@ -702,47 +800,166 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
 
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
 
-          {/* Tab: General */}
+          {/* Tab: Datos generales — la identidad va primero: es lo que el
+              cliente ve del agente, y lo que el responsable busca al entrar. */}
           <TabsContent value="general" className="flex flex-col gap-5">
-            <TituloGrupo titulo="Datos del agente" descripcion="Cómo se identifica el agente dentro de Karia." />
+            <TituloGrupo titulo="Datos generales" descripcion="Quién es el agente: cómo se presenta al cliente y cómo aparece dentro de Karia." />
+
+            {tieneConfigIA && (
+              <Form {...formIA}>
+                {/* Sin onSubmit propio: esta sección se guarda desde el pie,
+                    junto con los datos del usuario. */}
+                <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4">
+                  <SeccionConfig
+                    Icono={IdCard}
+                    titulo="Identidad"
+                    descripcion="Nombre, rol, icono e idioma con los que el agente se presenta al cliente."
+                  >
+                    <FormField
+                      control={formIA.control}
+                      name="iconoAgente"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Icono</FormLabel>
+                          <FormControl>
+                            <div className="flex flex-wrap gap-2">
+                              {CLAVES_ICONO_AGENTE.map((clave) => {
+                                const { etiqueta, Svg } = ICONOS_AGENTE[clave];
+                                const activo = (field.value ?? ICONO_AGENTE_POR_DEFECTO) === clave;
+                                return (
+                                  <button
+                                    key={clave}
+                                    type="button"
+                                    title={etiqueta}
+                                    aria-label={etiqueta}
+                                    aria-pressed={activo}
+                                    onClick={() => field.onChange(clave)}
+                                    className={cn(
+                                      "rounded-xl border p-2.5 transition-all",
+                                      activo
+                                        ? "border-lime-500/30 bg-lime-500/15 text-lime-300"
+                                        : "border-white/10 bg-white/5 text-stone-400 hover:border-white/20 hover:text-stone-200",
+                                    )}
+                                  >
+                                    <Svg className="h-5 w-5" />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField
+                        control={formIA.control}
+                        name="nombreAgente"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Nombre del agente</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                value={field.value ?? ""}
+                                placeholder="Sofía"
+                                className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={formIA.control}
+                        name="rol"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Rol</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                value={field.value ?? ""}
+                                placeholder="Asesora comercial"
+                                className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={formIA.control}
+                      name="idiomaPrincipal"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Idioma principal</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ""}
+                              placeholder="es"
+                              className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm w-24"
+                            />
+                          </FormControl>
+                          <FormDescription className="text-stone-500 text-xs">
+                            Vacío = el agente responde en el idioma del cliente (comportamiento actual)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </SeccionConfig>
+                </form>
+              </Form>
+            )}
+
             <Form {...formBasico}>
               <form onSubmit={formBasico.handleSubmit(onSubmitBasico)} className="flex flex-col gap-4">
-                <FormField
-                  control={formBasico.control}
-                  name="nombre"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-stone-300">Nombre</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <SeccionConfig
+                  Icono={Settings2}
+                  titulo="Datos en Karia"
+                  descripcion="Con qué nombre y descripción aparece el agente en la lista de usuarios."
+                >
+                  <FormField
+                    control={formBasico.control}
+                    name="nombre"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Nombre</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={formBasico.control}
-                  name="cargo"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-stone-300">
-                        Descripción <span className="text-stone-500">(opcional)</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
+                  <FormField
+                    control={formBasico.control}
+                    name="cargo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">
+                          Descripción <span className="text-stone-500">(opcional)</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </SeccionConfig>
               </form>
             </Form>
           </TabsContent>
@@ -980,6 +1197,36 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         </li>
                       )}
                     </ul>
+
+                    {herramientasActivas.includes(HERRAMIENTA_ETAPA_CICLO_VIDA) && (
+                      <FormField
+                        control={formIA.control}
+                        name="reglasEtapaCicloVida"
+                        render={({ field }) => (
+                          <FormItem className="border-t border-white/8 pt-3">
+                            <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">
+                              Reglas de ciclo de vida
+                            </FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                value={field.value ?? ""}
+                                rows={6}
+                                maxLength={MAX_REGLAS_ETAPA_CICLO_VIDA}
+                                placeholder={PLACEHOLDER_REGLAS_CICLO_VIDA}
+                                className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-600 text-sm"
+                              />
+                            </FormControl>
+                            <FormDescription className="text-stone-500 text-xs">
+                              Una regla por línea. Usá los nombres de etapa tal como están en tu pipeline: el
+                              agente los busca por nombre y, si no encuentra el que escribiste, no mueve nada.
+                              Mover una oportunidad dispara sus automatizaciones, igual que moverla a mano.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                   </SeccionConfig>
 
                   {/* ── Sección: Tono ── */}
@@ -1036,10 +1283,8 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     <div className="grid grid-cols-2 gap-2">
                       {(
                         [
-                          { campo: "usoEmojis",            label: "Usa emojis" },
                           { campo: "llamaClientePorNombre", label: "Llama por nombre" },
                           { campo: "tuteo",                 label: "Tuteo (tú)" },
-                          { campo: "respuestaLarga",        label: "Respuesta larga" },
                           { campo: "usaHumor",              label: "Usa humor" },
                         ] as const
                       ).map(({ campo, label }) => (
@@ -1117,71 +1362,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     )}
                   />
 
-                  {/* ── Sección: Identidad (009-perfil-agente-estructurado-versionado) ── */}
-                  <SeccionConfig Icono={IdCard} titulo="Identidad" descripcion="Nombre, rol e idioma del agente.">
-                    <div className="grid grid-cols-2 gap-3">
-                      <FormField
-                        control={formIA.control}
-                        name="nombreAgente"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Nombre del agente</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                value={field.value ?? ""}
-                                placeholder="Sofía"
-                                className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={formIA.control}
-                        name="rol"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Rol</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                value={field.value ?? ""}
-                                placeholder="Asesora comercial"
-                                className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={formIA.control}
-                      name="idiomaPrincipal"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Idioma principal</FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ""}
-                              placeholder="es"
-                              className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm w-24"
-                            />
-                          </FormControl>
-                          <FormDescription className="text-stone-500 text-xs">
-                            Vacío = el agente responde en el idioma del cliente (comportamiento actual)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </SeccionConfig>
-
-                  {/* ── Sección: Comunicación extendida ── */}
-                  <SeccionConfig Icono={SlidersHorizontal} titulo="Comunicación" descripcion="Longitud, proactividad, intensidad comercial y estilo de recomendación.">
+                  <SeccionConfig Icono={SlidersHorizontal} titulo="Comunicación y formato" descripcion="Cuánto se extiende el agente, cómo propone, y con qué formato escribe.">
                     {(
                       [
                         { campo: "longitudRespuesta" as const, etiqueta: "Longitud de respuesta", opciones: LONGITUDES },
@@ -1219,6 +1400,63 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                         </div>
                       );
                     })}
+
+                    <div className="flex flex-col gap-2 border-t border-white/8 pt-3">
+                      <FormField
+                        control={formIA.control}
+                        name="formatoSinMarkdown"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between rounded-xl border border-white/8 bg-white/3 px-3 py-2.5">
+                            <div className="min-w-0">
+                              <FormLabel className="text-stone-300 text-sm">Sin asteriscos ni Markdown</FormLabel>
+                              <FormDescription className="text-stone-500 text-xs">
+                                Útil en WhatsApp e Instagram, donde los asteriscos se ven literales.
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value ?? false}
+                                onCheckedChange={field.onChange}
+                                aria-label="Sin asteriscos ni Markdown"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={formIA.control}
+                        name="formatoEmojis"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/3 px-3 py-2.5">
+                            <div className="min-w-0">
+                              <FormLabel className="text-stone-300 text-sm">Emojis</FormLabel>
+                              <FormDescription className="text-stone-500 text-xs">
+                                Sin elegir, el prompt no dice nada sobre emojis.
+                              </FormDescription>
+                            </div>
+                            <Select
+                              items={ETIQUETAS_FORMATO_EMOJIS}
+                              value={field.value ?? null}
+                              onValueChange={(v) => field.onChange(v)}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="w-44 shrink-0 bg-white/5 border-white/10 text-stone-50 text-sm">
+                                  <SelectValue placeholder="Sin definir" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {FORMATOS_EMOJIS.map(({ valor, etiqueta }) => (
+                                  <SelectItem key={valor} value={valor}>
+                                    {etiqueta}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </SeccionConfig>
 
                   {/* ── Sección: Reglas ── */}
@@ -1269,167 +1507,6 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                       />
                     </div>
                   </SeccionConfig>
-
-                  {/* ── Sección: Respuestas guía (028) ── */}
-                  <SeccionConfig Icono={BookOpen} titulo="Respuestas guía" descripcion="Cómo responder cada tipo de consulta. El agente sigue el formato y completa los marcadores solo con datos reales.">
-                    <EditorRespuestasGuia
-                      valores={formIA.watch("respuestasGuia") ?? []}
-                      onChange={(v) => formIA.setValue("respuestasGuia", v, { shouldDirty: true })}
-                    />
-                    {formIA.formState.errors.respuestasGuia && (
-                      <p className="text-xs text-red-400">
-                        Revisa las respuestas guía: cada una necesita "cuándo aplica" y un formato.
-                      </p>
-                    )}
-                  </SeccionConfig>
-
-                  {/* ── Sección: Avanzado (colapsable) ── */}
-                  <div className="border border-white/10 rounded-xl overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setAvanzadoAbierto((v) => !v)}
-                      className="w-full flex items-center justify-between px-4 py-3 text-stone-400 hover:text-stone-300 hover:bg-white/3 transition-all text-sm"
-                    >
-                      <span className="text-xs uppercase tracking-wide font-medium">Configuración avanzada</span>
-                      <ChevronDown
-                        className={cn("h-4 w-4 transition-transform", avanzadoAbierto && "rotate-180")}
-                      />
-                    </button>
-
-                    {avanzadoAbierto && (
-                      <div className="px-4 pb-4 flex flex-col gap-4 border-t border-white/8 pt-4">
-                        <FormField
-                          control={formIA.control}
-                          name="sistemaPrompt"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">System Prompt</FormLabel>
-                              <FormControl>
-                                <Textarea
-                                  {...field}
-                                  rows={4}
-                                  placeholder="Eres un asistente comercial de [Empresa]…"
-                                  className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm resize-none"
-                                />
-                              </FormControl>
-                              <FormDescription className="text-stone-500 text-xs">
-                                Override avanzado — se añade al final del prompt generado.
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <FormField
-                            control={formIA.control}
-                            name="personalidad"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Personalidad</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    placeholder="profesional y amigable"
-                                    className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
-                                  />
-                                </FormControl>
-                                <FormDescription className="text-stone-500 text-xs">Ignorado si hay tono configurado</FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={formIA.control}
-                            name="especialidad"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Especialidad</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    placeholder="ventas B2B, soporte…"
-                                    className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-3">
-                          <FormField
-                            control={formIA.control}
-                            name="modeloPreferido"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Modelo</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    placeholder="claude-sonnet-4-6"
-                                    className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 font-mono text-xs"
-                                  />
-                                </FormControl>
-                                <FormDescription className="text-stone-500 text-xs">Vacío = default</FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={formIA.control}
-                            name="temperaturaOverride"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Temperatura</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max="2"
-                                    step="0.1"
-                                    placeholder="0.7"
-                                    value={field.value ?? ""}
-                                    onChange={(e) =>
-                                      field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))
-                                    }
-                                    className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-500 text-sm"
-                                  />
-                                </FormControl>
-                                <FormDescription className="text-stone-500 text-xs">Vacío = default</FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={formIA.control}
-                            name="limiteTokensCtx"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">Contexto</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    min="1000"
-                                    max="100000"
-                                    {...field}
-                                    onChange={(e) => field.onChange(parseInt(e.target.value))}
-                                    className="bg-white/5 border-white/10 text-stone-50 text-sm"
-                                  />
-                                </FormControl>
-                                <FormDescription className="text-stone-500 text-xs">tokens</FormDescription>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
 
                 </form>
               </Form>
@@ -1512,6 +1589,21 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                 onChange={(v) => formIA.setValue("documentosFaq", v, { shouldDirty: true })}
               />
             </SeccionConfig>
+
+            {/* Respuestas guía (028) — vive acá y no en "Configuración IA"
+                porque es material de consulta del agente, igual que el FAQ:
+                qué contestar ante cada tipo de pregunta. */}
+            <SeccionConfig Icono={MessageCircle} titulo="Respuestas guía" descripcion="Cómo responder cada tipo de consulta. El agente sigue el formato y completa los marcadores solo con datos reales.">
+              <EditorRespuestasGuia
+                valores={formIA.watch("respuestasGuia") ?? []}
+                onChange={(v) => formIA.setValue("respuestasGuia", v, { shouldDirty: true })}
+              />
+              {formIA.formState.errors.respuestasGuia && (
+                <p className="text-xs text-red-400">
+                  Revisa las respuestas guía: cada una necesita "cuándo aplica" y un formato.
+                </p>
+              )}
+            </SeccionConfig>
             {!tieneConfigIA || !configIA ? (
               <p className="text-stone-500 text-sm text-center py-8">
                 Activá primero el Agente Comercial IA para ver su conocimiento configurado.
@@ -1543,22 +1635,11 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                   </div>
                 </SeccionConfig>
 
-                <SeccionConfig Icono={BookOpen} titulo="Respuestas guía y catálogo" descripcion="Formatos aprobados por tipo de consulta, y si el catálogo con precios viaja en el contexto.">
-                  {((configIA.respuestasGuia as RespuestaGuiaInput[] | null) ?? []).filter((r) => r.activa).length === 0 ? (
-                    <p className="text-stone-500 text-xs">Sin respuestas guía activas.</p>
-                  ) : (
-                    <ul className="flex flex-col gap-1">
-                      {((configIA.respuestasGuia as RespuestaGuiaInput[] | null) ?? [])
-                        .filter((r) => r.activa)
-                        .map((r) => (
-                          <li key={r.id} className="text-stone-400 text-xs">
-                            - [{INTENCIONES_RESPUESTA_GUIA[r.intencion]}] {r.cuandoAplica}
-                          </li>
-                        ))}
-                    </ul>
-                  )}
-                  <p className="text-stone-500 text-xs mt-2">
-                    Catálogo con precios: {configIA.catalogoEnContexto ? `activo (hasta ${configIA.limiteCatalogoContexto} productos)` : "desactivado"}
+                <SeccionConfig Icono={Package} titulo="Catálogo con precios" descripcion="Si el catálogo vigente viaja en el contexto del agente. Se configura en Configuración IA.">
+                  <p className="text-stone-400 text-xs">
+                    {configIA.catalogoEnContexto
+                      ? `Activo — hasta ${configIA.limiteCatalogoContexto} productos con su precio real.`
+                      : "Desactivado — el agente no conoce los precios salvo que use una herramienta."}
                   </p>
                 </SeccionConfig>
 
@@ -1597,14 +1678,15 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
           </div>
         </Tabs>
 
-        {/* ── Pie fijo ── Guarda la sección abierta: General y Configuración IA
-            tienen cada una su formulario, igual que antes. El resto de
-            secciones guardan con sus propios controles internos. */}
+        {/* ── Pie fijo ── Guarda la sección abierta. "Datos generales"
+            guarda los dos formularios de un tirón (usuario + identidad);
+            "Configuración IA" y "Conocimiento" guardan solo el del agente.
+            El resto de secciones guardan con sus propios controles. */}
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/8 px-5 py-3.5">
           <p className="hidden text-xs text-stone-500 sm:block">
             {seccion === "general"
-              ? "Nombre y descripción del agente."
-              : seccion === "ia"
+              ? "Identidad del agente y cómo aparece en Karia."
+              : seccionGuardaIA
                 ? "Publica los cambios o guárdalos como borrador para probarlos antes."
                 : "Esta sección se guarda con sus propios controles."}
           </p>
@@ -1619,26 +1701,26 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
               Cancelar
             </Button>
 
-            {seccion === "ia" && tieneConfigIA && !cargandoConfig && (
+            {seccionGuardaIA && (
               <Button
                 type="button"
                 variant="outline"
                 disabled={isPendingBorrador}
-                onClick={formIA.handleSubmit(onSubmitBorrador)}
+                onClick={formIA.handleSubmit(onSubmitBorrador, avisarIAInvalido)}
                 className="rounded-xl border-white/10 bg-white/5 text-stone-300 hover:bg-white/10"
               >
                 {isPendingBorrador ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar como borrador"}
               </Button>
             )}
 
-            {(seccion === "general" || (seccion === "ia" && tieneConfigIA && !cargandoConfig)) && (
+            {(seccion === "general" || seccionGuardaIA) && (
               <Button
                 type="button"
                 disabled={seccion === "general" ? isPendingBasico : isPendingIA}
                 onClick={
                   seccion === "general"
-                    ? formBasico.handleSubmit(onSubmitBasico)
-                    : formIA.handleSubmit(onSubmitIA)
+                    ? handleGuardarGeneral
+                    : formIA.handleSubmit(onSubmitIA, avisarIAInvalido)
                 }
                 className="rounded-xl bg-lime-500/90 font-semibold text-stone-950 shadow-lg transition-all hover:bg-lime-400"
               >

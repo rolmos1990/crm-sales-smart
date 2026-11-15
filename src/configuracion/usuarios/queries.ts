@@ -17,7 +17,7 @@ export async function obtenerUsuariosInstancia(
           telefono: true,
           estado: true,
           ultimoLogin: true,
-          agenteIAConfig: { select: { id: true, tipo: true } },
+          agenteIAConfig: { select: { id: true, tipo: true, iconoAgente: true } },
         },
       },
     },

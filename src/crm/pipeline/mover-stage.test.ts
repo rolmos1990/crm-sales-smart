@@ -146,6 +146,19 @@ describe("moverOportunidadAEtapa — servicio único de cambio de etapa", () => 
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  it("anti-ciclo: el agente de IA también queda frenado y cuenta los movimientos automáticos previos", async () => {
+    historialCount.mockResolvedValue(20);
+
+    const r = await moverOportunidadAEtapa({ ...base, origen: { tipo: "IA" } });
+    expect(r.exito).toBe(false);
+    expect(transaction).not.toHaveBeenCalled();
+    expect(historialCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ origen: { in: ["DISPARADOR", "WORKFLOW", "IA"] } }),
+      }),
+    );
+  });
+
   it("un movimiento manual no cuenta para el anti-ciclo", async () => {
     historialCount.mockResolvedValue(100);
 

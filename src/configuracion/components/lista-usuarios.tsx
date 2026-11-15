@@ -54,6 +54,7 @@ import { DialogEditarUsuario } from "./dialog-editar-usuario";
 import { DialogInvitarUsuario } from "./dialog-invitar-usuario";
 import { DialogNuevoAgente } from "./dialog-nuevo-agente";
 import { SheetEditarAgente } from "./sheet-editar-agente";
+import { IconoAgente } from "./iconos-agente";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 
 interface ListaUsuariosProps {
@@ -268,7 +269,14 @@ export function ListaUsuarios({ usuarios: usuariosIniciales }: ListaUsuariosProp
                               : "bg-lime-500/20 text-lime-300",
                           )}
                         >
-                          {iniciales(u.nombre)}
+                          {u.tipo === "AGENTE" ? (
+                            <IconoAgente
+                              clave={u.agenteIAConfig?.iconoAgente}
+                              className="h-4.5 w-4.5"
+                            />
+                          ) : (
+                            iniciales(u.nombre)
+                          )}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col min-w-0">

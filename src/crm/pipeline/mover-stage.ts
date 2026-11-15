@@ -144,11 +144,14 @@ export async function moverOportunidadAEtapa(mov: MovimientoEtapa): Promise<Resu
     const instanciaId = oportunidad.instanciaId ?? instanciaPipeline ?? null;
     if (!instanciaId) return { exito: false, error: "Oportunidad sin instancia" };
 
-    if (origen.tipo === "DISPARADOR" || origen.tipo === "WORKFLOW") {
+    // El agente de IA cuenta como movimiento automático: también puede
+    // entrar en bucle (una regla de ciclo de vida que se cumple siempre
+    // mueve en cada turno de la conversación), y nada más lo frenaba.
+    if (origen.tipo === "DISPARADOR" || origen.tipo === "WORKFLOW" || origen.tipo === "IA") {
       const recientes = await prisma.oportunidadHistorialEtapa.count({
         where: {
           oportunidadId,
-          origen: { in: ["DISPARADOR", "WORKFLOW"] },
+          origen: { in: ["DISPARADOR", "WORKFLOW", "IA"] },
           creadoEn: { gte: new Date(Date.now() - 60 * 60 * 1000) },
         },
       });

@@ -80,7 +80,27 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
     oportunidadId
       ? prisma.oportunidad.findUnique({
           where: { id: oportunidadId },
-          select: { id: true, titulo: true, etapa: true, valor: true },
+          select: {
+            id: true,
+            titulo: true,
+            etapa: true,
+            valor: true,
+            // La etapa que el negocio ve es el nombre del stage del pipeline
+            // dinámico, no el enum legado `etapa` (PROSPECTO, CALIFICADO…),
+            // que es lo único que llegaba al prompt hasta ahora. Las demás
+            // etapas del mismo pipeline viajan para que el agente sepa a
+            // cuáles puede mover la oportunidad.
+            stage: { select: { nombre: true } },
+            pipeline: {
+              select: {
+                stages: {
+                  where: { activo: true },
+                  select: { nombre: true },
+                  orderBy: { orden: "asc" },
+                },
+              },
+            },
+          },
         })
       : null,
     agenteIAConfigId
@@ -112,6 +132,10 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
             idiomaPrincipal: true,
             idiomasPermitidos: true,
             longitudRespuesta: true,
+            formatoSinMarkdown: true,
+            formatoEmojis: true,
+            reglasEtapaCicloVida: true,
+            herramientas: true,
             proactividad: true,
             intensidadComercial: true,
             estiloRecomendacion: true,
@@ -244,6 +268,10 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
           idiomaPrincipal: agenteConfig.idiomaPrincipal,
           idiomasPermitidos: agenteConfig.idiomasPermitidos,
           longitudRespuesta: agenteConfig.longitudRespuesta,
+          formatoSinMarkdown: agenteConfig.formatoSinMarkdown,
+          formatoEmojis: agenteConfig.formatoEmojis,
+          reglasEtapaCicloVida: agenteConfig.reglasEtapaCicloVida,
+          herramientas: agenteConfig.herramientas,
           proactividad: agenteConfig.proactividad,
           intensidadComercial: agenteConfig.intensidadComercial,
           estiloRecomendacion: agenteConfig.estiloRecomendacion,
@@ -261,7 +289,10 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
           nombreContacto: contacto?.nombre,
           empresaContacto: contacto?.empresa?.nombre ?? undefined,
           tituloOportunidad: oportunidad?.titulo,
-          etapaOportunidad: oportunidad?.etapa,
+          // El enum legado queda como respaldo para una oportunidad que
+          // todavía no está en ninguna etapa del pipeline dinámico.
+          etapaOportunidad: oportunidad?.stage?.nombre ?? oportunidad?.etapa,
+          etapasDisponibles: oportunidad?.pipeline?.stages.map((s) => s.nombre),
         },
       },
     );
