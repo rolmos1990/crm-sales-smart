@@ -83,6 +83,28 @@ META_INSTAGRAM_VERIFY_TOKEN=""
 
 # ─── WhatsApp Lite (Baileys) ──────────────────────────────────────────────────
 WA_AUTH_PATH="./data/wa-sessions"            # ruta donde se guardan las sesiones WA
+
+# ─── Documentación del agente IA (OpenAI File Search) ────────────────────────
+# Los archivos que el negocio sube para su agente se indexan en un vector store
+# de OpenAI y el agente los consulta con `buscar_en_documentacion`.
+#
+# OJO: esta key es de la cuenta OpenAI de KARIA, no del ProveedorIA de cada
+# instancia. Es a propósito: así la funcionalidad anda para toda cuenta, aunque
+# su agente corra sobre Anthropic o DeepSeek y no tenga key de OpenAI.
+#
+# Cada instancia tiene su PROPIO vector store dentro de esa organización, creado
+# solo la primera vez que la cuenta sube un documento. No hay nada que
+# pre-crear ni ningún id que configurar acá.
+# Ver docs/documentacion-agente-aislamiento.md.
+#
+# Sin la key, la funcionalidad queda apagada: la herramienta no se le ofrece al
+# agente y la UI explica el motivo en vez de ofrecer una carga que fallaría.
+OPENAI_DOCUMENTACION_API_KEY="sk-..."
+OPENAI_DOCUMENTACION_MODELO="gpt-6-luna"   # modelo que sintetiza la respuesta de búsqueda
+# Tarifas para el costo estimado de UsoIA. Sin ellas el costo queda vacío, que
+# es preferible a registrar un número incorrecto.
+OPENAI_DOCUMENTACION_COSTO_INPUT_POR_MIL="0.15"
+OPENAI_DOCUMENTACION_COSTO_OUTPUT_POR_MIL="0.60"
 ```
 
 ---

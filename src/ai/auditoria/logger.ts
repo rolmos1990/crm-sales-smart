@@ -4,7 +4,12 @@ import type { TareaIA } from "@/generated/prisma/enums";
 
 interface RegistrarUsoParams {
   instanciaId: string;
-  proveedorIAId: string;
+  // 033-documentacion-vector-store-openai — opcional, y la columna ya era
+  // nullable: el tipo era más estricto que el schema. La búsqueda documental
+  // corre con credenciales de Karia por entorno y no con un ProveedorIA del
+  // tenant, así que no hay ninguno al que apuntar — y apuntar a uno que no se
+  // usó sería mentir en la auditoría.
+  proveedorIAId?: string;
   agenteIAConfigId?: string;
   // 009-perfil-agente-estructurado-versionado (FR-012) — versión exacta de
   // AgenteIAConfig que generó esta respuesta, para trazabilidad.

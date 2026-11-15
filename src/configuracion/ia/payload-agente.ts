@@ -44,8 +44,9 @@ export function construirPayloadAgenteIA(datos: AgenteIAConfigInput) {
     // 028-respuestas-guia-catalogo-ia — una versión anterior a 028 no trae
     // estos campos: se restaura sin respuestas guía y con el catálogo activo.
     respuestasGuia: datos.respuestasGuia ?? Prisma.JsonNull,
-    // 032 — viaja en el snapshot de la versión como el resto del perfil.
-    documentosFaq: datos.documentosFaq ?? Prisma.JsonNull,
+    // 033 — `documentosFaq` salió de acá: la documentación ya no es
+    // configuración versionable. Restaurar una versión vieja no puede
+    // resucitar un archivo que se borró en OpenAI.
     catalogoEnContexto: datos.catalogoEnContexto ?? true,
     esperarAntesDeResponder: datos.esperarAntesDeResponder ?? false,
     segundosEsperaRespuesta: datos.segundosEsperaRespuesta ?? null,

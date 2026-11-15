@@ -3,6 +3,7 @@ import { resolverDecisionContexto } from "./router";
 import { construirContextoCompuesto } from "./context-builder";
 import { formatearHechos, formatearLectura, resolverFichaVigente } from "./capas/estado-conversacion";
 import { producirCapaConocimiento } from "./capas/conocimiento";
+import { contarDocumentosListos } from "@/ai/documentacion/queries";
 import type { FichaConversacion } from "@/ai/ficha-conversacion/tipos";
 import type { ContextoIA, MensajeContexto } from "./tipos";
 
@@ -150,8 +151,9 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
             catalogoEnContexto: true,
             limiteCatalogoContexto: true,
 
-            // 032 — base de conocimiento FAQ (capa 8)
-            documentosFaq: true,
+            // 033 — la documentación del comercio ya no vive en el agente:
+            // es una tabla aparte (DocumentoAgenteIA) y lo que entra al
+            // contexto es la política de consulta, no el contenido.
           },
         })
       : null,
@@ -166,9 +168,16 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
   const ficha = opciones.ficha
     ? await resolverFichaVigente({ instanciaId, conversacionId, activa: true, zonaNegocio: opciones.zonaNegocio })
     : null;
-  // 032 — la base de conocimiento ocupa el mismo presupuesto. Si no se
-  // descuenta, activarla recorta mensajes de la conversación en silencio.
-  const textoConocimiento = producirCapaConocimiento(agenteConfig?.documentosFaq);
+  // 033 — el bloque de documentación ocupa el mismo presupuesto de tokens. Es
+  // mucho más chico que el de la 032 (una política, no el texto de tres
+  // archivos), pero se descuenta igual: si no, recorta mensajes en silencio.
+  const documentacion = agenteIAConfigId
+    ? await contarDocumentosListos(agenteIAConfigId).then((d) => ({
+        tieneDocumentacion: d.cantidad > 0,
+        nombres: d.nombres,
+      }))
+    : { tieneDocumentacion: false, nombres: [] };
+  const textoConocimiento = producirCapaConocimiento(documentacion);
   const tokensReservadosExtra =
     (ficha ? estimarTokensFicha(ficha, opciones.zonaNegocio) : 0) + estimarTokens(textoConocimiento);
 
@@ -283,7 +292,7 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
           respuestasGuia: agenteConfig.respuestasGuia,
           catalogoEnContexto: agenteConfig.catalogoEnContexto,
           limiteCatalogoContexto: agenteConfig.limiteCatalogoContexto,
-          documentosFaq: agenteConfig.documentosFaq,
+          documentacion,
         },
         contextoDinamico: {
           nombreContacto: contacto?.nombre,

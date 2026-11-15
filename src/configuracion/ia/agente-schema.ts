@@ -1,9 +1,4 @@
 import { z } from "zod";
-import {
-  MAX_CARACTERES_DOCUMENTO,
-  MAX_DOCUMENTOS_FAQ,
-  MIMES_DOCUMENTO_FAQ,
-} from "./conocimiento/tipos";
 
 // `usoEmojis` y `respuestaLarga` salieron de acá: ahora son columnas propias
 // (`formatoEmojis`, `longitudRespuesta`). Zod descarta las claves que ya no
@@ -82,19 +77,6 @@ export const ReglaEtapaCicloVidaSchema = z.object({
 
 export type ReglaEtapaCicloVidaInput = z.infer<typeof ReglaEtapaCicloVidaSchema>;
 
-export const DocumentoFaqSchema = z.object({
-  id: z.string().min(1),
-  nombre: z.string().min(1).max(200),
-  mime: z.enum(MIMES_DOCUMENTO_FAQ),
-  pesoBytes: z.number().int().min(0),
-  storageKey: z.string().min(1),
-  subidoEn: z.string().min(1),
-  activo: z.boolean(),
-  estado: z.enum(["SIN_ENTRENAR", "LISTO", "REVISAR"]),
-  contenido: z.string().max(MAX_CARACTERES_DOCUMENTO, `Máximo ${MAX_CARACTERES_DOCUMENTO} caracteres`),
-  caracteresOriginal: z.number().int().min(0),
-});
-
 export const AgenteIAConfigSchema = z.object({
   // Bloque único de instrucciones (Rol · Estilo · Proceso · Reglas). Es la
   // fuente del prompt; los campos de identidad/comunicación/reglas de abajo
@@ -163,10 +145,10 @@ export const AgenteIAConfigSchema = z.object({
     .optional(),
   catalogoEnContexto: z.boolean().optional(),
 
-  // 032 — base de conocimiento FAQ. El formulario solo puede editar el
-  // contenido destilado y el toggle de activo: subir y borrar pasan por sus
-  // propias acciones, porque mueven archivos en el storage.
-  documentosFaq: z.array(DocumentoFaqSchema).max(MAX_DOCUMENTOS_FAQ).nullable().optional(),
+  // 033 — la documentación del comercio NO viaja en este formulario. Vive en
+  // su propia tabla (DocumentoAgenteIA) y se maneja con server actions de
+  // efecto inmediato. Si viajara acá, o los identificadores de OpenAI
+  // llegarían al navegador, o un guardado del perfil los borraría.
 
   // Delay en respuesta: esperar a que el cliente termine de escribir antes de
   // contestar (ver src/ai/respuesta/ventana-espera.ts). null = heredar el
