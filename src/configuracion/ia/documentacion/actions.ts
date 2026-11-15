@@ -21,6 +21,7 @@ import { eliminarArchivo, indexarArchivo } from "@/ai/documentacion/vector-store
 import {
   aVista,
   listarDocumentosAgente,
+  sumarPesoInstancia,
   type DocumentoAgenteVista,
   type DocumentoLegacyVista,
   type EstadoDocumentacionAgente,
@@ -70,14 +71,17 @@ export async function cargarDocumentacionAgente(
   agenteIAConfigId: string,
 ): Promise<EstadoDocumentacionAgente> {
   const auth = await autorizar(agenteIAConfigId);
-  if (!auth.ok) return { documentos: [], legacy: [], habilitado: false };
+  if (!auth.ok) {
+    return { documentos: [], legacy: [], habilitado: false, pesoUsadoInstancia: 0 };
+  }
 
-  const [documentos, legacy] = await Promise.all([
+  const [documentos, legacy, pesoUsadoInstancia] = await Promise.all([
     listarDocumentosAgente(auth.agenteId, auth.instanciaId),
     listarLegacyDe(auth.agenteId),
+    sumarPesoInstancia(auth.instanciaId),
   ]);
 
-  return { documentos, legacy, habilitado: documentacionHabilitada() };
+  return { documentos, legacy, habilitado: documentacionHabilitada(), pesoUsadoInstancia };
 }
 
 export async function subirDocumento(
@@ -91,14 +95,18 @@ export async function subirDocumento(
   const archivo = formData.get("archivo");
   if (!(archivo instanceof File)) return { exito: false, error: "No se recibió ningún archivo" };
 
-  const cantidadActual = await prisma.documentoAgenteIA.count({
-    where: { agenteIAConfigId: auth.agenteId },
-  });
+  // Dos alcances distintos y no se mezclan: la cantidad es por AGENTE (tope de
+  // cordura contra el techo de archivos de OpenAI) y el peso es por INSTANCIA
+  // (el límite real, compartido por todos los agentes de la cuenta).
+  const [cantidadActual, pesoAcumulado] = await Promise.all([
+    prisma.documentoAgenteIA.count({ where: { agenteIAConfigId: auth.agenteId } }),
+    sumarPesoInstancia(auth.instanciaId),
+  ]);
 
   // El cliente ya validó para dar feedback inmediato, pero este es el boundary
   // de verdad: un POST directo se saltea el navegador (FR-003).
-  const validacion = validarArchivo(archivo.name, archivo.size, cantidadActual);
-  if (!validacion.ok) return rechazo(validacion.motivo);
+  const validacion = validarArchivo(archivo.name, archivo.size, cantidadActual, pesoAcumulado);
+  if (!validacion.ok) return { exito: false, error: validacion.mensaje };
 
   const bytes = Buffer.from(await archivo.arrayBuffer());
 

@@ -221,8 +221,9 @@ function SeccionConfig({
 }
 
 /**
- * Editor del prompt del agente. Es el campo más largo del modal (hasta 20.000
- * caracteres de markdown) metido en un diálogo de alto fijo, así que tiene su
+ * Editor del prompt del agente. Es el campo más largo del modal (hasta
+ * MAX_INSTRUCCIONES_AGENTE caracteres de markdown) metido en un diálogo de
+ * alto fijo, así que tiene su
  * propia caja con scroll interno y un modo expandido a pantalla completa —
  * sin eso editarlo obliga a leer por una rendija de 16 líneas.
  */
@@ -237,6 +238,13 @@ function EditorPromptAgente({
 }) {
   const [expandido, setExpandido] = useState(false);
   const plantilla = plantillaDeTipo(tipoAgente);
+
+  // `maxLength` impide tipear de más, pero no recorta un valor que ya venía
+  // guardado: un agente creado cuando el tope era mayor abre acá excedido y
+  // no va a poder guardarse hasta recortarlo. El contador es la única señal
+  // que le dice cuánto sobra, así que en ese caso deja de ser decorativo y se
+  // muestra también en mobile.
+  const excedido = value.length > MAX_INSTRUCCIONES_AGENTE;
 
   function restaurarPlantilla() {
     if (value.trim() && !window.confirm(`Se reemplazarán las instrucciones actuales por la plantilla «${plantilla.etiqueta}». ¿Continuar?`)) {
@@ -257,7 +265,12 @@ function EditorPromptAgente({
         <FileText className="h-4 w-4 shrink-0 text-stone-400" />
         <span className="text-xs font-medium text-stone-200">Prompt del agente</span>
 
-        <span className="ml-auto hidden text-[11px] tabular-nums text-stone-500 sm:block">
+        <span
+          className={cn(
+            "ml-auto text-[11px] tabular-nums",
+            excedido ? "font-medium text-red-400" : "hidden text-stone-500 sm:block",
+          )}
+        >
           {value.length.toLocaleString("es")} / {MAX_INSTRUCCIONES_AGENTE.toLocaleString("es")}
         </span>
 

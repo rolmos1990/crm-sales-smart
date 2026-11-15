@@ -28,7 +28,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { crearAgenteConIA, crearUsuario } from "@/configuracion/usuarios/actions";
 import { CrearUsuarioSchema, type CrearUsuarioInput } from "@/configuracion/usuarios/schema";
-import type { AgenteIAConfigInput } from "@/configuracion/ia/agente-schema";
+import {
+  MAX_INSTRUCCIONES_AGENTE,
+  type AgenteIAConfigInput,
+} from "@/configuracion/ia/agente-schema";
 import {
   PLANTILLAS_AGENTE,
   TIPO_AGENTE_POR_DEFECTO,
@@ -355,7 +358,13 @@ export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAge
                       name="instruccionesAgente"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-stone-300">Instrucciones del agente</FormLabel>
+                          <div className="flex items-center gap-2">
+                            <FormLabel className="text-stone-300">Instrucciones del agente</FormLabel>
+                            <span className="ml-auto text-[11px] tabular-nums text-stone-500">
+                              {(field.value ?? "").length.toLocaleString("es")} /{" "}
+                              {MAX_INSTRUCCIONES_AGENTE.toLocaleString("es")}
+                            </span>
+                          </div>
                           <FormControl>
                             <TextareaConReferencias
                               name={field.name}
@@ -363,6 +372,7 @@ export function DialogNuevoAgente({ abierto, onCerrar, onExito }: DialogNuevoAge
                               value={field.value ?? ""}
                               onChange={field.onChange}
                               rows={10}
+                              maxLength={MAX_INSTRUCCIONES_AGENTE}
                               className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-600 font-mono text-xs leading-relaxed"
                             />
                           </FormControl>

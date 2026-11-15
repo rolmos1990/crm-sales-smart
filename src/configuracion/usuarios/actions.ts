@@ -156,7 +156,11 @@ export async function crearAgenteConIA(
   if (configIA !== undefined) {
     validadoConfig = AgenteIAConfigSchema.safeParse(configIA);
     if (!validadoConfig.success) {
-      return { exito: false, error: "Configuración IA inválida" };
+      // Mismo criterio que guardarAgenteIA: el mensaje real, no un genérico.
+      return {
+        exito: false,
+        error: validadoConfig.error.issues[0]?.message ?? "Configuración IA inválida",
+      };
     }
   }
 

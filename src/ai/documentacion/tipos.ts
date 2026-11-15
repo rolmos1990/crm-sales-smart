@@ -59,15 +59,21 @@ export const ACCEPT_INPUT_ARCHIVO = EXTENSIONES_SOPORTADAS.join(",");
 
 // ─── Límites ────────────────────────────────────────────────────────────────
 
-/** El tope anterior era 3, y existía porque los documentos ocupaban
- *  presupuesto de contexto en CADA respuesta. Esa razón desapareció: ahora el
- *  límite es de cordura y de costo. 20 × ~500 agentes ≈ el techo de 10.000
- *  archivos que OpenAI impone por vector store. */
-export const MAX_DOCUMENTOS_AGENTE = 20;
+/** Presupuesto de almacenamiento indexado por CUENTA, compartido por todos
+ *  los agentes de la instancia. Es el límite operativo: la cantidad de
+ *  archivos dejó de mandar, solo importa cuánto pesan entre todos. */
+export const MAX_PESO_TOTAL_INSTANCIA = 20 * 1024 * 1024;
 
-/** OpenAI admite hasta 512 MB por archivo. 25 MB es lo razonable para
- *  documentación comercial y evita que una subida bloquee el request. */
-export const MAX_PESO_DOCUMENTO = 25 * 1024 * 1024;
+/** Un solo archivo puede consumir todo el presupuesto de la cuenta, no más.
+ *  OpenAI admitiría hasta 512 MB, pero por encima del total no tendría dónde
+ *  entrar. */
+export const MAX_PESO_DOCUMENTO = MAX_PESO_TOTAL_INSTANCIA;
+
+/** Tope de cordura, NO el límite real: lo que manda es
+ *  MAX_PESO_TOTAL_INSTANCIA. Existe solo para que una cuenta con miles de
+ *  archivos diminutos no se acerque al techo de 10.000 archivos que OpenAI
+ *  impone por vector store. */
+export const MAX_DOCUMENTOS_AGENTE = 200;
 
 /** Cuántos fragmentos pide la búsqueda. Menos fragmentos = menos tokens por
  *  consulta, y 5 alcanza de sobra para una política o un FAQ. */
@@ -103,6 +109,7 @@ export type MotivoRechazo =
   | "EXTENSION_NO_SOPORTADA"
   | "ES_IMAGEN"
   | "DEMASIADO_PESADO"
+  | "SIN_ESPACIO"
   | "LIMITE_ALCANZADO"
   | "PDF_SIN_TEXTO"
   | "ILEGIBLE"
@@ -116,6 +123,9 @@ export const MENSAJE_RECHAZO: Record<MotivoRechazo, string> = {
   ES_IMAGEN:
     "Las imágenes no se pueden indexar como documentación. Subí el contenido como PDF, Word o TXT.",
   DEMASIADO_PESADO: `El archivo supera los ${MAX_PESO_DOCUMENTO / 1024 / 1024} MB.`,
+  // Genérico: el mensaje que ve el negocio lo arma `validarArchivo`, que sabe
+  // cuánto espacio queda. Éste es el fallback de la tabla.
+  SIN_ESPACIO: `La documentación de la cuenta no puede superar los ${MAX_PESO_TOTAL_INSTANCIA / 1024 / 1024} MB en total.`,
   LIMITE_ALCANZADO: `Ya hay ${MAX_DOCUMENTOS_AGENTE} documentos cargados. Eliminá uno para subir otro.`,
   PDF_SIN_TEXTO:
     "No se pudo leer texto del PDF. Si es un escaneado (una foto de las páginas), no se puede indexar: subí una versión con texto seleccionable.",
@@ -140,6 +150,17 @@ export function esImagen(ext: string): boolean {
   return (EXTENSIONES_IMAGEN_RECHAZADAS as readonly string[]).includes(ext);
 }
 
+/** Peso legible para mensajes y para la UI. Vive acá porque el texto del
+ *  rechazo por falta de espacio lo arma este módulo. */
+export function formatearPeso(bytes: number): string {
+  if (bytes <= 0) return "0 KB";
+  const mb = bytes / 1024 / 1024;
+  // Math.max(1, …) para que un archivo de 200 bytes no se muestre como "0 KB".
+  if (mb < 0.1) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  // Sin decimal cuando es redondo: "20 MB" y no "20,0 MB".
+  return `${mb.toLocaleString("es", { maximumFractionDigits: 1 })} MB`;
+}
+
 /**
  * Decide si un archivo se acepta, antes de tocar el storage o a OpenAI.
  * Se usa en el cliente para dar feedback inmediato Y en el server action, que
@@ -149,15 +170,35 @@ export function validarArchivo(
   nombre: string,
   pesoBytes: number,
   cantidadActual: number,
-): { ok: true; extension: ExtensionSoportada; mime: string } | { ok: false; motivo: MotivoRechazo } {
-  if (cantidadActual >= MAX_DOCUMENTOS_AGENTE) return { ok: false, motivo: "LIMITE_ALCANZADO" };
+  pesoAcumuladoInstancia: number,
+):
+  | { ok: true; extension: ExtensionSoportada; mime: string }
+  | { ok: false; motivo: MotivoRechazo; mensaje: string } {
+  const rechazo = (motivo: MotivoRechazo) =>
+    ({ ok: false, motivo, mensaje: MENSAJE_RECHAZO[motivo] }) as const;
+
+  if (cantidadActual >= MAX_DOCUMENTOS_AGENTE) return rechazo("LIMITE_ALCANZADO");
 
   const ext = extensionDe(nombre);
   // Las imágenes se chequean antes que el soporte general para poder dar el
   // mensaje específico en vez del genérico de "formato no soportado".
-  if (esImagen(ext)) return { ok: false, motivo: "ES_IMAGEN" };
-  if (!esExtensionSoportada(ext)) return { ok: false, motivo: "EXTENSION_NO_SOPORTADA" };
-  if (pesoBytes > MAX_PESO_DOCUMENTO) return { ok: false, motivo: "DEMASIADO_PESADO" };
+  if (esImagen(ext)) return rechazo("ES_IMAGEN");
+  if (!esExtensionSoportada(ext)) return rechazo("EXTENSION_NO_SOPORTADA");
+  if (pesoBytes > MAX_PESO_DOCUMENTO) return rechazo("DEMASIADO_PESADO");
+
+  // El espacio se mira al final: un .png que además no entra debe recibir el
+  // mensaje de que es una imagen, que es el problema que de verdad tiene.
+  const disponible = MAX_PESO_TOTAL_INSTANCIA - pesoAcumuladoInstancia;
+  if (pesoBytes > disponible) {
+    return {
+      ok: false,
+      motivo: "SIN_ESPACIO",
+      mensaje:
+        disponible <= 0
+          ? `La cuenta ya usa los ${formatearPeso(MAX_PESO_TOTAL_INSTANCIA)} de documentación disponibles. Eliminá un documento para subir otro.`
+          : `No hay espacio: el archivo pesa ${formatearPeso(pesoBytes)} y quedan ${formatearPeso(disponible)} de los ${formatearPeso(MAX_PESO_TOTAL_INSTANCIA)} de la cuenta.`,
+    };
+  }
 
   return { ok: true, extension: ext, mime: MIME_POR_EXTENSION[ext] };
 }

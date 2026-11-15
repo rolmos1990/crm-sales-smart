@@ -20,7 +20,12 @@ export async function guardarAgenteIA(usuarioId: string, datos: unknown) {
   if (!permitido) return { exito: false, error };
 
   const validado = AgenteIAConfigSchema.safeParse(datos);
-  if (!validado.success) return { exito: false, error: "Datos inválidos" };
+  // Se devuelve el mensaje del primer issue y no un genérico: el caso que
+  // importa es el agente que quedó por encima del máximo de instrucciones al
+  // bajarlo, y "Datos inválidos" no le dice qué recortar.
+  if (!validado.success) {
+    return { exito: false, error: validado.error.issues[0]?.message ?? "Datos inválidos" };
+  }
 
   // Verificar que el usuario pertenece a la instancia del solicitante
   const ui = await prisma.usuarioInstancia.findFirst({

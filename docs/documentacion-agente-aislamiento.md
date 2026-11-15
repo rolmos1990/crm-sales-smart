@@ -250,14 +250,31 @@ semanas después que el agente nunca encontró nada ahí.
 
 | Qué | Valor | Por qué |
 |---|---|---|
-| Documentos por agente | 20 | El tope de 3 existía por presupuesto de contexto; esa razón desapareció |
-| Peso por archivo | 25 MB | OpenAI admite 512 MB; 25 es lo razonable para documentación comercial |
+| **Peso total por cuenta** | **20 MB** | **El límite operativo.** Presupuesto de la instancia, compartido por todos sus agentes |
+| Peso por archivo | 20 MB | Un solo archivo puede consumir todo el presupuesto, no más |
+| Documentos por agente | 200 | Tope de cordura, no el límite real: evita acercarse al techo de 10.000 del índice |
 | Fragmentos por búsqueda | 5 | Menos fragmentos = menos tokens por consulta |
 | Timeout de búsqueda | 15 s | Al vencer degrada a "no encontré", no rompe la conversación |
 | Techo del índice | 10.000 archivos **por cuenta** | Límite duro de OpenAI por vector store |
+| Body de un server action | 21 MB | `experimental.serverActions.bodySizeLimit` en `next.config.js` |
 
-Sobre el techo: como hay un store por instancia, el límite aplica por cuenta. Con 20 documentos por agente,
-una cuenta con cinco agentes usa 100. Es inalcanzable en la práctica.
+Lo que manda es el **peso total de la cuenta**, no la cantidad de archivos: se puede subir un archivo de
+20 MB o doscientos de 100 KB. La suma sale de `sumarPesoInstancia()`
+(`src/ai/documentacion/queries.ts`), que agrega `pesoBytes` por `instanciaId` —incluidas las filas en
+`ERROR`, porque el original igual quedó en el storage de Karia y ocupa espacio real— y la decide
+`validarArchivo()` en `tipos.ts`, que es el mismo validador que corren el cliente y el server action.
+
+Como el presupuesto es de la cuenta y no del agente, un agente recién creado puede encontrarse sin espacio
+porque otro ya lo consumió. La UI lo dice explícitamente ("X de 20 MB usados", "entre todos los agentes de
+la cuenta") para que eso no se lea como un error.
+
+El `bodySizeLimit` no es un detalle de infraestructura: el default de Next es **1 MB**, así que sin esa
+línea nada más pesado que 1 MB llega siquiera a validarse y el tope de 20 MB sería decorativo. Si alguna vez
+sube el tope de documentación, ese valor tiene que subir con él.
+
+Sobre el techo del índice: como hay un store por instancia, los 10.000 archivos aplican por cuenta. Con
+20 MB por cuenta haría falta un promedio de 2 KB por archivo para acercarse; el tope de 200 por agente
+existe por eso y es inalcanzable en la práctica.
 
 ### Archivos huérfanos
 
