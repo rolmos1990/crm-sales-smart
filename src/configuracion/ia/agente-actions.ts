@@ -129,6 +129,27 @@ export async function cargarConfigAgenteIA(usuarioId: string) {
   });
 }
 
+/**
+ * Nombres de las etapas activas de la instancia, para el desplegable de las
+ * reglas de ciclo de vida.
+ *
+ * Devuelve nombres y no ids porque es el nombre lo que se guarda en la regla
+ * (ver ReglaEtapaCicloVidaSchema). Se deduplica: dos pipelines pueden tener
+ * una etapa que se llama igual, y para la herramienta son la misma cosa —
+ * resuelve contra el pipeline de cada oportunidad.
+ */
+export async function listarEtapasCicloVida(): Promise<string[]> {
+  const sesion = await requireSesion();
+
+  const stages = await prisma.pipelineStage.findMany({
+    where: { activo: true, pipeline: { instanciaId: sesion.instanciaId, activo: true } },
+    select: { nombre: true },
+    orderBy: [{ pipeline: { esDefault: "desc" } }, { orden: "asc" }],
+  });
+
+  return [...new Set(stages.map((s) => s.nombre))];
+}
+
 // --- 009-perfil-agente-estructurado-versionado — versionado ---
 
 interface GuardarBorradorResultado {

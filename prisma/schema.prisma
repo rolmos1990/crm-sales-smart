@@ -3082,12 +3082,17 @@ model AgenteIAConfig {
   // preserva la creación directa actual de cotizaciones/pedidos por IA.
   accionesComercialesModoBorrador Boolean @default(false)
 
-  // Reglas en texto libre que le dicen al agente a qué etapa mover la
-  // oportunidad y cuándo ("si el cliente ya pagó → Pagado"). Solo se inyecta
-  // en el prompt si la herramienta `actualizar_etapa_oportunidad` está
-  // habilitada: sin ella el agente leería una instrucción que no puede
-  // ejecutar. Null = sin reglas, el prompt no dice nada.
-  reglasEtapaCicloVida String?
+  // Reglas que le dicen al agente a qué etapa mover la oportunidad y cuándo:
+  // ReglaEtapaCicloVidaSchema[] (ver src/configuracion/ia/agente-schema.ts),
+  // cada una con el NOMBRE de la etapa destino y el texto que describe la
+  // situación. Guarda el nombre y no el stageId a propósito: la herramienta
+  // resuelve contra el pipeline de cada oportunidad, así que una misma regla
+  // sirve para oportunidades de pipelines distintos.
+  //
+  // Solo se inyecta en el prompt si la herramienta
+  // `actualizar_etapa_oportunidad` está habilitada: sin ella el agente leería
+  // una instrucción que no puede ejecutar. Null = sin reglas.
+  reglasEtapaCicloVida Json?
 
   // Ventana de espera antes de responder: el agente aguarda a que el cliente
   // termine de escribir y contesta UNA vez por todos los mensajes del tramo,

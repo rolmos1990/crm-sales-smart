@@ -57,7 +57,30 @@ export type RespuestaGuiaInput = z.infer<typeof RespuestaGuiaSchema>;
 export const TipoAgenteIASchema = z.enum(["COMERCIAL", "GERENCIA"]);
 
 export const MAX_INSTRUCCIONES_AGENTE = 20000;
-export const MAX_REGLAS_ETAPA_CICLO_VIDA = 2000;
+export const MAX_REGLAS_ETAPA_CICLO_VIDA = 20;
+export const MAX_CUANDO_APLICA_ETAPA = 300;
+
+/**
+ * Una regla de ciclo de vida: "cuando pase <cuandoAplica>, mové la
+ * oportunidad a <etapa>". La ejecuta la herramienta
+ * `actualizar_etapa_oportunidad`.
+ *
+ * `etapa` guarda el NOMBRE y no el stageId: la herramienta resuelve contra el
+ * pipeline de cada oportunidad, así que la misma regla sirve para
+ * oportunidades de pipelines distintos. La UI lo elige de un desplegable con
+ * las etapas reales, para que nadie escriba un nombre que no existe.
+ */
+export const ReglaEtapaCicloVidaSchema = z.object({
+  id: z.string().min(1).max(40),
+  etapa: z.string().trim().min(1, "Elegí la etapa de destino").max(100),
+  cuandoAplica: z
+    .string()
+    .trim()
+    .min(1, "Describí cuándo mover la oportunidad")
+    .max(MAX_CUANDO_APLICA_ETAPA),
+});
+
+export type ReglaEtapaCicloVidaInput = z.infer<typeof ReglaEtapaCicloVidaSchema>;
 
 export const DocumentoFaqSchema = z.object({
   id: z.string().min(1),
@@ -117,7 +140,12 @@ export const AgenteIAConfigSchema = z.object({
   // Reglas de ciclo de vida: a qué etapa mover la oportunidad y cuándo.
   // Solo llegan al prompt si la herramienta actualizar_etapa_oportunidad
   // está habilitada (ver construirBloqueCicloVida).
-  reglasEtapaCicloVida: z.string().max(MAX_REGLAS_ETAPA_CICLO_VIDA).nullable().optional(),
+  reglasEtapaCicloVida: z
+    .array(ReglaEtapaCicloVidaSchema)
+    .max(MAX_REGLAS_ETAPA_CICLO_VIDA)
+    .refine((lista) => new Set(lista.map((r) => r.id)).size === lista.length, "Reglas duplicadas")
+    .nullable()
+    .optional(),
 
   // Reglas y límites (FR-003, FR-004)
   frasesPreferidas: z.array(z.string().max(200)).nullable().optional(),

@@ -57,12 +57,13 @@ export interface ConfigAgenteParaPrompt {
   formatoEmojis?: string | null; // "OCASIONALES" | "SIN"
 
   /**
-   * Reglas de ciclo de vida en texto libre ("si el cliente pagó → Pagado").
-   * Solo se emiten si `herramientas` incluye `actualizar_etapa_oportunidad`:
-   * sin esa herramienta el agente leería una instrucción que no puede
-   * ejecutar, y terminaría anunciando un cambio de etapa que nunca ocurre.
+   * Reglas de ciclo de vida: ReglaEtapaCicloVidaInput[] serializado desde BD
+   * ({etapa, cuandoAplica}). Solo se emiten si `herramientas` incluye
+   * `actualizar_etapa_oportunidad`: sin esa herramienta el agente leería una
+   * instrucción que no puede ejecutar, y terminaría anunciando un cambio de
+   * etapa que nunca ocurre.
    */
-  reglasEtapaCicloVida?: string | null;
+  reglasEtapaCicloVida?: unknown;
   herramientas?: unknown; // string[] | { habilitadas|lista: string[] }
 
   /**
@@ -320,17 +321,33 @@ const MAPA_ESTILO_RECOMENDACION: Record<string, string> = {
 export function construirBloqueCicloVida(
   config: Pick<ConfigAgenteParaPrompt, "reglasEtapaCicloVida" | "herramientas">,
 ): string {
-  const reglas = config.reglasEtapaCicloVida?.trim();
-  if (!reglas) return "";
+  const reglas = parsearReglasCicloVida(config.reglasEtapaCicloVida);
+  if (reglas.length === 0) return "";
   if (!parsearListaHerramientas(config.herramientas).includes("actualizar_etapa_oportunidad")) return "";
+
+  const lineas = reglas.map((r) => `- Cuando ${r.cuandoAplica}, movela a la etapa "${r.etapa}".`);
 
   return (
     "Etapas del ciclo de vida — cuándo mover la oportunidad:\n" +
-    `${reglas}\n` +
-    "Para mover la oportunidad usá la herramienta actualizar_etapa_oportunidad con el nombre exacto " +
-    "de la etapa. Moverla es llamar esa herramienta: decirle al cliente que su caso avanzó no mueve nada. " +
-    "Si ninguna regla se cumple, no la muevas."
+    `${lineas.join("\n")}\n` +
+    "La situación del cliente no tiene que coincidir palabra por palabra con la regla: alcanza con que " +
+    "la conversación describa esa misma situación. Para mover la oportunidad usá la herramienta " +
+    "actualizar_etapa_oportunidad con el nombre exacto de la etapa. Moverla es llamar esa herramienta: " +
+    "decirle al cliente que su caso avanzó no mueve nada. Si ninguna regla se cumple, no la muevas."
   );
+}
+
+/** Tolera basura en la columna JSON: una regla incompleta se ignora, no rompe el prompt. */
+function parsearReglasCicloVida(valor: unknown): Array<{ etapa: string; cuandoAplica: string }> {
+  if (!Array.isArray(valor)) return [];
+  return valor.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const { etapa, cuandoAplica } = item as Record<string, unknown>;
+    if (typeof etapa !== "string" || typeof cuandoAplica !== "string") return [];
+    const e = etapa.trim();
+    const c = cuandoAplica.trim();
+    return e && c ? [{ etapa: e, cuandoAplica: c }] : [];
+  });
 }
 
 /**

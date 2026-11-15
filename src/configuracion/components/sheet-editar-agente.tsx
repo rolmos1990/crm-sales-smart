@@ -56,7 +56,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { TextareaConReferencias } from "@/shared/ui/textarea-con-referencias";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -83,6 +82,7 @@ import {
   guardarAgenteIA,
   cargarConfigAgenteIA,
   guardarBorradorAgenteIA,
+  listarEtapasCicloVida,
 } from "@/configuracion/ia/agente-actions";
 import { EditarUsuarioSchema, type EditarUsuarioInput } from "@/configuracion/usuarios/schema";
 import {
@@ -90,18 +90,17 @@ import {
   type AgenteIAConfigInput,
   type ConfiguracionTonoInput,
   type RespuestaGuiaInput,
+  type ReglaEtapaCicloVidaInput,
   INTENCIONES_RESPUESTA_GUIA,
 } from "@/configuracion/ia/agente-schema";
 import { plantillaDeTipo, TIPO_AGENTE_POR_DEFECTO } from "@/configuracion/ia/plantillas-agente";
-import {
-  MAX_INSTRUCCIONES_AGENTE,
-  MAX_REGLAS_ETAPA_CICLO_VIDA,
-} from "@/configuracion/ia/agente-schema";
+import { MAX_INSTRUCCIONES_AGENTE } from "@/configuracion/ia/agente-schema";
 import { MAX_SEGUNDOS_ESPERA, SEGUNDOS_ESPERA_DEFECTO } from "@/ai/respuesta/ventana-espera";
 import type { TipoAgenteIA } from "@/generated/prisma/enums";
 import type { UsuarioInstanciaDetalle } from "@/configuracion/usuarios/types";
 import { SeccionVersionesAgente } from "./seccion-versiones-agente";
 import { EditorRespuestasGuia } from "./editor-respuestas-guia";
+import { EditorReglasCicloVida } from "./editor-reglas-ciclo-vida";
 import { AsignarEstrategiasAgente } from "@/ai/estrategia/components/asignar-estrategias-agente";
 import { SeccionAutomatizacion } from "@/ai/autonomia/components/seccion-automatizacion";
 import { PanelSimulador } from "@/ai/simulador/components/panel-simulador";
@@ -172,14 +171,6 @@ const HERRAMIENTAS_DISPONIBLES = [
 // 024-alias-ubicaciones-transportistas — HERRAMIENTAS_OPERATIVAS_SIEMPRE_DISPONIBLES
 // se importa ahora de @/ai/tools/constantes (única fuente de verdad, ver
 // import arriba) — también autoriza su ejecución real (research.md §6).
-
-const PLACEHOLDER_REGLAS_CICLO_VIDA = [
-  "cuando el cliente escribe por primera vez -> Nuevo Cliente",
-  "cuando muestra interés en nuestros productos o servicios -> Cliente potencial",
-  "cuando confirma que realizó un pago -> Pagado",
-  "cuando ya compró antes y vuelve a escribir -> Cliente",
-  "cuando se despide agradeciendo y da el tema por resuelto -> Finalizado",
-].join("\n");
 
 const TONOS = ["Cálido", "Profesional", "Directo", "Empático", "Entusiasta"] as const;
 const FORMALIDADES = ["Formal", "Semi Formal", "Informal"] as const;
@@ -465,6 +456,10 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   // ofrecer el guardado que corresponde.
   const [seccion, setSeccion] = useState<string>("general");
   const [busquedaHerramienta, setBusquedaHerramienta] = useState("");
+  // Etapas reales del pipeline, para el desplegable de las reglas de ciclo
+  // de vida. Se cargan una vez por apertura del modal.
+  const [etapasCicloVida, setEtapasCicloVida] = useState<string[]>([]);
+  const [cargandoEtapas, setCargandoEtapas] = useState(false);
 
   const formBasico = useForm<EditarUsuarioInput>({
     resolver: zodResolver(EditarUsuarioSchema),
@@ -567,7 +562,7 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             proactividad: (config.proactividad as AgenteIAConfigInput["proactividad"]) ?? null,
             intensidadComercial: (config.intensidadComercial as AgenteIAConfigInput["intensidadComercial"]) ?? null,
             estiloRecomendacion: (config.estiloRecomendacion as AgenteIAConfigInput["estiloRecomendacion"]) ?? null,
-            reglasEtapaCicloVida: config.reglasEtapaCicloVida ?? null,
+            reglasEtapaCicloVida: (config.reglasEtapaCicloVida as ReglaEtapaCicloVidaInput[] | null) ?? null,
             frasesPreferidas: (config.frasesPreferidas as string[] | null) ?? null,
             frasesProhibidas: (config.frasesProhibidas as string[] | null) ?? null,
             comportamientosProhibidos: (config.comportamientosProhibidos as string[] | null) ?? null,
@@ -584,6 +579,16 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
       })
       .finally(() => setCargandoConfig(false));
   }, [agente?.usuarioId, agente?.agenteIAConfig?.id]);
+
+  useEffect(() => {
+    if (!agente?.agenteIAConfig) return;
+    setCargandoEtapas(true);
+    listarEtapasCicloVida()
+      .then(setEtapasCicloVida)
+      // Sin etapas el editor muestra su propio aviso; no hay nada que romper.
+      .catch(() => setEtapasCicloVida([]))
+      .finally(() => setCargandoEtapas(false));
+  }, [agente?.agenteIAConfig?.id]);
 
   function toggleCanal(valor: string) {
     const actuales = formIA.getValues("canalesPermitidos") ?? [];
@@ -1210,33 +1215,25 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     </ul>
 
                     {herramientasActivas.includes(HERRAMIENTA_ETAPA_CICLO_VIDA) && (
-                      <FormField
-                        control={formIA.control}
-                        name="reglasEtapaCicloVida"
-                        render={({ field }) => (
-                          <FormItem className="border-t border-white/8 pt-3">
-                            <FormLabel className="text-stone-300 text-xs uppercase tracking-wide">
-                              Reglas de ciclo de vida
-                            </FormLabel>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                value={field.value ?? ""}
-                                rows={6}
-                                maxLength={MAX_REGLAS_ETAPA_CICLO_VIDA}
-                                placeholder={PLACEHOLDER_REGLAS_CICLO_VIDA}
-                                className="bg-white/5 border-white/10 text-stone-50 placeholder:text-stone-600 text-sm"
-                              />
-                            </FormControl>
-                            <FormDescription className="text-stone-500 text-xs">
-                              Una regla por línea. Usá los nombres de etapa tal como están en tu pipeline: el
-                              agente los busca por nombre y, si no encuentra el que escribiste, no mueve nada.
-                              Mover una oportunidad dispara sus automatizaciones, igual que moverla a mano.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
+                      <div className="space-y-2 border-t border-white/8 pt-3">
+                        <p className="text-stone-300 text-xs uppercase tracking-wide">Reglas de ciclo de vida</p>
+                        <p className="text-stone-500 text-xs">
+                          Elegí la etapa y describí la situación del cliente que la dispara. El agente no busca
+                          esas palabras exactas: evalúa si la conversación describe esa situación. Mover una
+                          oportunidad dispara sus automatizaciones, igual que moverla a mano.
+                        </p>
+                        <EditorReglasCicloVida
+                          valores={formIA.watch("reglasEtapaCicloVida") ?? []}
+                          etapasDisponibles={etapasCicloVida}
+                          cargandoEtapas={cargandoEtapas}
+                          onChange={(v) => formIA.setValue("reglasEtapaCicloVida", v, { shouldDirty: true })}
+                        />
+                        {formIA.formState.errors.reglasEtapaCicloVida && (
+                          <p className="text-xs text-red-400">
+                            Revisá las reglas: cada una necesita una etapa y la situación que la dispara.
+                          </p>
                         )}
-                      />
+                      </div>
                     )}
                   </SeccionConfig>
 

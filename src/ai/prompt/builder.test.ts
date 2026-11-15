@@ -261,7 +261,10 @@ describe("construirSystemPrompt — formato y longitud de la respuesta", () => {
 });
 
 describe("construirSystemPrompt — reglas de ciclo de vida", () => {
-  const REGLAS = "cuando el cliente paga -> Pagado\ncuando se despide -> Finalizado";
+  const REGLAS = [
+    { id: "r1", etapa: "Pagado", cuandoAplica: "el cliente confirma que pagó" },
+    { id: "r2", etapa: "Finalizado", cuandoAplica: "se despide dando el tema por resuelto" },
+  ];
 
   it("no emite las reglas si la herramienta no está habilitada", () => {
     // Si no puede mover, leer "movela a Pagado" solo lo lleva a anunciarle al
@@ -279,8 +282,11 @@ describe("construirSystemPrompt — reglas de ciclo de vida", () => {
     });
 
     expect(prompt).toContain("Etapas del ciclo de vida — cuándo mover la oportunidad:");
-    expect(prompt).toContain(REGLAS);
+    expect(prompt).toContain('- Cuando el cliente confirma que pagó, movela a la etapa "Pagado".');
+    expect(prompt).toContain('- Cuando se despide dando el tema por resuelto, movela a la etapa "Finalizado".');
     expect(prompt).toContain("actualizar_etapa_oportunidad");
+    // La regla describe una situación, no un texto a buscar literalmente.
+    expect(prompt).toContain("no tiene que coincidir palabra por palabra");
   });
 
   it("aplica también al agente con instruccionesAgente, que es el caso real", () => {
@@ -293,9 +299,32 @@ describe("construirSystemPrompt — reglas de ciclo de vida", () => {
     expect(prompt).toContain("Etapas del ciclo de vida — cuándo mover la oportunidad:");
   });
 
-  it("sin reglas escritas no agrega nada aunque la herramienta esté habilitada", () => {
+  it("sin reglas cargadas no agrega nada aunque la herramienta esté habilitada", () => {
     const prompt = construirSystemPrompt({
-      reglasEtapaCicloVida: "   ",
+      reglasEtapaCicloVida: [],
+      herramientas: ["actualizar_etapa_oportunidad"],
+    });
+
+    expect(prompt).not.toContain("Etapas del ciclo de vida");
+  });
+
+  it("una regla incompleta se ignora en vez de romper el prompt", () => {
+    const prompt = construirSystemPrompt({
+      reglasEtapaCicloVida: [
+        { id: "r1", etapa: "", cuandoAplica: "el cliente paga" },
+        { id: "r2", etapa: "Pagado", cuandoAplica: "   " },
+        { id: "r3", etapa: "Finalizado", cuandoAplica: "se despide" },
+      ],
+      herramientas: ["actualizar_etapa_oportunidad"],
+    });
+
+    expect(prompt).toContain('- Cuando se despide, movela a la etapa "Finalizado".');
+    expect(prompt.match(/^- Cuando /gm)?.length).toBe(1);
+  });
+
+  it("un valor que no es una lista no rompe nada", () => {
+    const prompt = construirSystemPrompt({
+      reglasEtapaCicloVida: "texto viejo suelto",
       herramientas: ["actualizar_etapa_oportunidad"],
     });
 

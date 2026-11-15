@@ -34,7 +34,7 @@ export function construirPayloadAgenteIA(datos: AgenteIAConfigInput) {
     proactividad: datos.proactividad ?? null,
     intensidadComercial: datos.intensidadComercial ?? null,
     estiloRecomendacion: datos.estiloRecomendacion ?? null,
-    reglasEtapaCicloVida: datos.reglasEtapaCicloVida ?? null,
+    reglasEtapaCicloVida: datos.reglasEtapaCicloVida ?? Prisma.JsonNull,
     frasesPreferidas: datos.frasesPreferidas ?? Prisma.JsonNull,
     frasesProhibidas: datos.frasesProhibidas ?? Prisma.JsonNull,
     comportamientosProhibidos: datos.comportamientosProhibidos ?? Prisma.JsonNull,
