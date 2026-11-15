@@ -148,12 +148,58 @@ SELECT tarea, modelo, "tokensInput", "tokensOutput", "costoEstimado", exito, "cr
 FROM "UsoIA" WHERE tarea = 'BUSQUEDA_DOCUMENTAL' ORDER BY "creadoEn" DESC;
 ```
 
-### Lo que a propósito NO se registra
+### Cuándo se imputa el costo
 
-**La carga e indexación de un documento no genera fila en `UsoIA`.** OpenAI la factura por storage
-(USD 0,10/GB/día, primer GB gratis), no por tokens. Meter una fila con `tokensInput: 0` para representar un
-costo de storage contaminaría todos los agregados de `obtenerResumenUsoIA()` con llamadas que no consumieron
-tokens. La trazabilidad de la carga ya la da `DocumentoAgenteIA.creadoEn`, que es su lugar natural.
+El criterio es **evidencia de consumo**, no éxito de la búsqueda:
+
+- **Tokens > 0 → se imputa el costo completo** (tokens + tarifa por llamada), aunque la búsqueda haya
+  terminado mal. Una respuesta descartada por la verificación de aislamiento igual gastó tokens y OpenAI
+  igual la cobró: no imputarla le regalaría ese costo al cliente y desbalancearía la conciliación contra la
+  factura.
+- **Tokens = 0 → `costoEstimado` queda `null`.** Un timeout o un error del proveedor no nos dicen si llegó a
+  cobrarse algo, y no se inventa un número.
+
+### Lo que a propósito NO se registra en `UsoIA`
+
+**La carga e indexación de un documento no genera fila.** OpenAI la factura por **storage**
+(USD 0,10/GB/día, primer GB gratis por organización), no por tokens. Meter una fila con `tokensInput: 0`
+para representar un costo de storage contaminaría todos los agregados de `obtenerResumenUsoIA()` con
+llamadas que no consumieron tokens. La trazabilidad de la carga ya la da `DocumentoAgenteIA.creadoEn`.
+
+### Costo por cliente: las dos mitades
+
+| Costo | Depende de | Dónde sale |
+|---|---|---|
+| Búsquedas (tokens + USD 0,0025 por llamada) | Uso | `UsoIA`, ya prorrateado por consulta e imputado a su `instanciaId` |
+| Storage del índice (USD 0,10/GB/día) | Volumen cargado, **no** del uso | No está en `UsoIA`. Se calcula sobre `DocumentoAgenteIA.pesoBytes` |
+
+Consumo de búsquedas por cuenta:
+
+```sql
+SELECT "instanciaId",
+       COUNT(*)                       AS busquedas,
+       SUM("tokensInput" + "tokensOutput") AS tokens,
+       SUM("costoEstimado")           AS usd
+FROM "UsoIA" WHERE tarea = 'BUSQUEDA_DOCUMENTAL'
+GROUP BY "instanciaId" ORDER BY usd DESC NULLS LAST;
+```
+
+Storage por cuenta:
+
+```sql
+SELECT i.nombre AS cuenta,
+       COUNT(d.id)                                        AS documentos,
+       ROUND(SUM(d."pesoBytes") / 1048576.0, 2)           AS mb,
+       ROUND(SUM(d."pesoBytes") / 1073741824.0 * 0.10, 5) AS usd_dia
+FROM "Instancia" i
+JOIN "DocumentoAgenteIA" d ON d."instanciaId" = i.id
+GROUP BY i.id, i.nombre ORDER BY mb DESC;
+```
+
+Dos salvedades sobre la segunda, para no tomarla como exacta: `pesoBytes` es el archivo original, mientras
+que OpenAI factura los fragmentos parseados **más sus embeddings** —que suelen pesar más que el texto, y
+menos que un PDF con imágenes—; y el primer GB es gratis **por organización de Karia**, no por cuenta, así
+que mientras el total no llegue a 1 GB el costo real es cero.
 
 ---
 

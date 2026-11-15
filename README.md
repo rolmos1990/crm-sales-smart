@@ -101,10 +101,25 @@ WA_AUTH_PATH="./data/wa-sessions"            # ruta donde se guardan las sesione
 # agente y la UI explica el motivo en vez de ofrecer una carga que fallaría.
 OPENAI_DOCUMENTACION_API_KEY="sk-..."
 OPENAI_DOCUMENTACION_MODELO="gpt-6-luna"   # modelo que sintetiza la respuesta de búsqueda
-# Tarifas para el costo estimado de UsoIA. Sin ellas el costo queda vacío, que
+# Tarifas para el costo estimado de UsoIA. NO afectan el conteo de tokens, que
+# sale siempre del `usage` real de OpenAI. Sin ellas el costo queda vacío, que
 # es preferible a registrar un número incorrecto.
-OPENAI_DOCUMENTACION_COSTO_INPUT_POR_MIL="0.15"
-OPENAI_DOCUMENTACION_COSTO_OUTPUT_POR_MIL="0.60"
+#
+# ⚠️ El valor es POR CADA 1.000 TOKENS, y OpenAI publica sus precios por cada
+# 1.000.000. Hay que dividir por 1.000, o el costo registrado queda inflado
+# 1000x. Valores al 2026-11 (short context):
+#
+#   modelo          por 1M in / out     POR MIL  →  INPUT    / OUTPUT
+#   gpt-6-luna      $0,10  / $0,50               0.0001   / 0.0005
+#   gpt-5.4-mini    $0,75  / $4,50               0.00075  / 0.0045
+#   gpt-6.1-sol     $2,00  / $10,00              0.002    / 0.01
+#   gpt-6-astra     $10,00 / $50,00              0.01     / 0.05
+#
+# Nota: a esto el sistema le suma USD 0,0025 por llamada (tarifa de file search
+# de OpenAI, ya hardcodeada). Para los modelos baratos esa tarifa pesa MÁS que
+# los tokens, así que el modelo se elige por calidad, no por costo.
+OPENAI_DOCUMENTACION_COSTO_INPUT_POR_MIL="0.0001"
+OPENAI_DOCUMENTACION_COSTO_OUTPUT_POR_MIL="0.0005"
 ```
 
 ---

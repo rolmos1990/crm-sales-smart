@@ -156,9 +156,16 @@ export async function buscarEnDocumentacion(
       error: params.error,
       entidadTipo: solicitud.conversacionId ? "conversacion" : undefined,
       entidadId: solicitud.conversacionId,
-      costoEstimado: params.exito
-        ? costoTotal(params.tokensInput, params.tokensOutput)
-        : undefined,
+      // El costo se imputa cuando hay EVIDENCIA de consumo, no cuando la
+      // búsqueda salió bien. Una respuesta descartada por la verificación de
+      // aislamiento igual gastó tokens y OpenAI igual la cobró: no imputarla
+      // le regalaría ese costo al cliente y desbalancearía la conciliación.
+      // Con 0 tokens no sabemos si el proveedor llegó a cobrar algo, así que
+      // no se inventa un costo.
+      costoEstimado:
+        params.tokensInput + params.tokensOutput > 0
+          ? costoTotal(params.tokensInput, params.tokensOutput)
+          : undefined,
     }).catch((err) => {
       // Que falle la auditoría no puede impedir que el agente responda, pero
       // sí tiene que quedar visible: es consumo que se pagó y no se registró.

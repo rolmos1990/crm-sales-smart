@@ -154,6 +154,17 @@ describe("buscarEnDocumentacion — aislamiento", () => {
     expect(await buscar()).toEqual({ encontrado: false, motivo: "VERIFICACION_FALLIDA" });
   });
 
+  it("imputa el COSTO de una respuesta descartada: la llamada igual se cobró", async () => {
+    crearMock.mockResolvedValue(
+      respuestaOpenAI({ atributos: atributosDe("clzInstanciaB000000"), tokensInput: 1000, tokensOutput: 1000 }),
+    );
+    await buscar();
+
+    // No imputarlo le regalaría el costo al cliente y desbalancearía la
+    // conciliación contra la factura de OpenAI.
+    expect(registrarUsoIAMock.mock.calls[0][0].costoEstimado).toBeCloseTo(0.7525, 6);
+  });
+
   it("registra la verificación fallida como uso fallido, con los tokens que igual se pagaron", async () => {
     crearMock.mockResolvedValue(
       respuestaOpenAI({ atributos: atributosDe("clzInstanciaB000000"), tokensInput: 900, tokensOutput: 40 }),
@@ -214,6 +225,13 @@ describe("buscarEnDocumentacion — contabilización", () => {
   it("sin tarifas configuradas deja el costo vacío en vez de inventar un número", async () => {
     configuracionActual = { ...configuracionActual!, costoInputPorMil: null, costoOutputPorMil: null };
     crearMock.mockResolvedValue(respuestaOpenAI());
+    await buscar();
+
+    expect(registrarUsoIAMock.mock.calls[0][0].costoEstimado).toBeUndefined();
+  });
+
+  it("con 0 tokens NO inventa un costo: no sabemos si el proveedor llegó a cobrar", async () => {
+    crearMock.mockRejectedValue(new Error("rate limit"));
     await buscar();
 
     expect(registrarUsoIAMock.mock.calls[0][0].costoEstimado).toBeUndefined();

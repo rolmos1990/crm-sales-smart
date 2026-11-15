@@ -21,8 +21,10 @@ obligatorios antes de dar por terminada la implementación.
    ```bash
    OPENAI_DOCUMENTACION_API_KEY=sk-...        # key de la cuenta OpenAI de Karia
    OPENAI_DOCUMENTACION_MODELO=gpt-6-luna
-   OPENAI_DOCUMENTACION_COSTO_INPUT_POR_MIL=0.15
-   OPENAI_DOCUMENTACION_COSTO_OUTPUT_POR_MIL=0.60
+   # POR MIL tokens, no por millón. Estos son los de gpt-6-luna
+   # ($0,10 / $0,50 por 1M). Ver la tabla en README.md.
+   OPENAI_DOCUMENTACION_COSTO_INPUT_POR_MIL=0.0001
+   OPENAI_DOCUMENTACION_COSTO_OUTPUT_POR_MIL=0.0005
    ```
 
    No hay nada que pre-crear: el vector store de cada cuenta se crea solo la primera vez que sube un
@@ -187,7 +189,7 @@ ORDER BY "creadoEn" DESC;
 - Una fila por cada búsqueda realizada — y **solo** por esas. Los turnos 4a, 4c y 4e no generan fila.
 - `tokensInput` y `tokensOutput` mayores que cero y coincidentes con el `usage` que devuelve OpenAI
   (cotejable en el dashboard de uso).
-- `costoEstimado` ≈ tokens × tarifa + 0,0025.
+- `costoEstimado` ≈ tokens × tarifa + 0,0025. Con un modelo barato la tarifa por llamada domina: una búsqueda típica (~2.000 in / 100 out) con `gpt-6-luna` da ≈ 0,00025 en tokens contra 0,0025 de tarifa.
 - `proveedorIAId` en `NULL` (credencial de Karia, no del tenant).
 - `instanciaId` correcto en cada caso del escenario 5.
 - `entidadId` apunta a la conversación que la disparó.
