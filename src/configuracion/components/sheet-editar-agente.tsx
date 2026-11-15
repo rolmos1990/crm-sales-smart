@@ -73,7 +73,11 @@ import {
   ICONO_AGENTE_POR_DEFECTO,
   IconoAgente,
 } from "./iconos-agente";
-import type { DocumentoFaq } from "@/configuracion/ia/conocimiento/tipos";
+import {
+  ETIQUETA_ESTADO_DOCUMENTO,
+  entraAlContexto,
+  type DocumentoFaq,
+} from "@/configuracion/ia/conocimiento/tipos";
 import { editarUsuario } from "@/configuracion/usuarios/actions";
 import {
   guardarAgenteIA,
@@ -86,6 +90,7 @@ import {
   type AgenteIAConfigInput,
   type ConfiguracionTonoInput,
   type RespuestaGuiaInput,
+  INTENCIONES_RESPUESTA_GUIA,
 } from "@/configuracion/ia/agente-schema";
 import { plantillaDeTipo, TIPO_AGENTE_POR_DEFECTO } from "@/configuracion/ia/plantillas-agente";
 import {
@@ -516,6 +521,12 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   const herramientasActivas = formIA.watch("herramientas") ?? [];
   const configuracionTono = formIA.watch("configuracionTono");
   const iconoSeleccionado = formIA.watch("iconoAgente");
+  // La pestaña Conocimiento lee de acá y no de `configIA`: ese snapshot se
+  // carga al abrir el modal y quedaría viejo apenas alguien edite algo en
+  // Configuración IA. `herramientasActivas` ya seguía este criterio.
+  const reglasPersonalizadasActuales = formIA.watch("reglasPersonalizadas") ?? [];
+  const respuestasGuiaActuales = formIA.watch("respuestasGuia") ?? [];
+  const documentosActuales = (formIA.watch("documentosFaq") ?? []) as DocumentoFaq[];
   const catalogoEnContexto = formIA.watch("catalogoEnContexto") ?? true;
   const esperarAntesDeResponder = formIA.watch("esperarAntesDeResponder") ?? false;
 
@@ -725,9 +736,9 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   }
 
   const tieneConfigIA = !!agente?.agenteIAConfig;
-  // Secciones cuyo botón guarda el perfil del agente (formIA) y nada más.
-  const seccionGuardaIA =
-    (seccion === "ia" || seccion === "conocimiento") && tieneConfigIA && !cargandoConfig;
+  // La sección cuyo botón guarda el perfil del agente (formIA) y nada más.
+  // Conocimiento es solo lectura: lo editable vive todo en Configuración IA.
+  const seccionGuardaIA = seccion === "ia" && tieneConfigIA && !cargandoConfig;
 
   return (
     <Dialog open={!!agente} onOpenChange={handleCerrar}>
@@ -1508,6 +1519,35 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     </div>
                   </SeccionConfig>
 
+                  {/* ── Sección: Respuestas guía (028) ── */}
+                  <SeccionConfig Icono={MessageCircle} titulo="Respuestas guía" descripcion="Cómo responder cada tipo de consulta. El agente sigue el formato y completa los marcadores solo con datos reales.">
+                    <EditorRespuestasGuia
+                      valores={formIA.watch("respuestasGuia") ?? []}
+                      onChange={(v) => formIA.setValue("respuestasGuia", v, { shouldDirty: true })}
+                    />
+                    {formIA.formState.errors.respuestasGuia && (
+                      <p className="text-xs text-red-400">
+                        Revisa las respuestas guía: cada una necesita "cuándo aplica" y un formato.
+                      </p>
+                    )}
+                  </SeccionConfig>
+
+                  {/* ── Sección: FAQ y documentos (032) ──
+                      Subir y eliminar tienen efecto inmediato (mueven archivos
+                      en el storage); editar el texto destilado viaja con el
+                      formulario, igual que el resto del perfil. */}
+                  <SeccionConfig
+                    Icono={BookOpen}
+                    titulo="FAQ y documentos"
+                    descripcion="Hasta 3 archivos PDF o TXT que el agente usa como base de conocimiento. Solo informativo: no ejecuta acciones a partir de ellos."
+                  >
+                    <EditorDocumentosFaq
+                      agenteIAConfigId={configIA?.id ?? null}
+                      valores={(formIA.watch("documentosFaq") ?? []) as DocumentoFaq[]}
+                      onChange={(v) => formIA.setValue("documentosFaq", v, { shouldDirty: true })}
+                    />
+                  </SeccionConfig>
+
                 </form>
               </Form>
             )}
@@ -1574,36 +1614,6 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
           <TabsContent value="conocimiento" className="flex flex-col gap-5">
             <TituloGrupo titulo="Conocimiento del agente" descripcion="Los documentos de referencia que el agente consulta, y el resumen de lo demás que sabe." />
 
-            {/* 032 — FAQ: lo único editable de esta pestaña. Manuales,
-                políticas de envío, preguntas frecuentes. Es material de
-                consulta: el agente lo usa para RESPONDER, nunca para decidir
-                qué hacer dentro de Karia. */}
-            <SeccionConfig
-              Icono={BookOpen}
-              titulo="FAQ y documentos"
-              descripcion="Hasta 3 archivos PDF o TXT que el agente usa como base de conocimiento. Solo informativo: no ejecuta acciones a partir de ellos."
-            >
-              <EditorDocumentosFaq
-                agenteIAConfigId={configIA?.id ?? null}
-                valores={(formIA.watch("documentosFaq") ?? []) as DocumentoFaq[]}
-                onChange={(v) => formIA.setValue("documentosFaq", v, { shouldDirty: true })}
-              />
-            </SeccionConfig>
-
-            {/* Respuestas guía (028) — vive acá y no en "Configuración IA"
-                porque es material de consulta del agente, igual que el FAQ:
-                qué contestar ante cada tipo de pregunta. */}
-            <SeccionConfig Icono={MessageCircle} titulo="Respuestas guía" descripcion="Cómo responder cada tipo de consulta. El agente sigue el formato y completa los marcadores solo con datos reales.">
-              <EditorRespuestasGuia
-                valores={formIA.watch("respuestasGuia") ?? []}
-                onChange={(v) => formIA.setValue("respuestasGuia", v, { shouldDirty: true })}
-              />
-              {formIA.formState.errors.respuestasGuia && (
-                <p className="text-xs text-red-400">
-                  Revisa las respuestas guía: cada una necesita "cuándo aplica" y un formato.
-                </p>
-              )}
-            </SeccionConfig>
             {!tieneConfigIA || !configIA ? (
               <p className="text-stone-500 text-sm text-center py-8">
                 Activá primero el Agente Comercial IA para ver su conocimiento configurado.
@@ -1611,11 +1621,11 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             ) : (
               <div className="flex flex-col gap-6 text-sm">
                 <SeccionConfig Icono={ShieldAlert} titulo="Reglas personalizadas" descripcion="Instrucciones propias que guían el comportamiento del agente en todo momento.">
-                  {((configIA.reglasPersonalizadas as string[] | null) ?? []).length === 0 ? (
+                  {reglasPersonalizadasActuales.length === 0 ? (
                     <p className="text-stone-500 text-xs">Sin reglas personalizadas configuradas.</p>
                   ) : (
                     <ul className="flex flex-col gap-1">
-                      {((configIA.reglasPersonalizadas as string[] | null) ?? []).map((r, i) => (
+                      {reglasPersonalizadasActuales.map((r, i) => (
                         <li key={i} className="text-stone-400 text-xs">- {r}</li>
                       ))}
                     </ul>
@@ -1626,19 +1636,82 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <p className="text-stone-500 mb-1">Preferidas</p>
-                      {((configIA.frasesPreferidas as string[] | null) ?? []).map((f, i) => <p key={i} className="text-stone-400">- {f}</p>)}
+                      {(formIA.watch("frasesPreferidas") ?? []).map((f, i) => <p key={i} className="text-stone-400">- {f}</p>)}
                     </div>
                     <div>
                       <p className="text-stone-500 mb-1">Prohibidas</p>
-                      {((configIA.frasesProhibidas as string[] | null) ?? []).map((f, i) => <p key={i} className="text-stone-400">- {f}</p>)}
+                      {(formIA.watch("frasesProhibidas") ?? []).map((f, i) => <p key={i} className="text-stone-400">- {f}</p>)}
                     </div>
                   </div>
                 </SeccionConfig>
 
+                {/* Respuestas guía, en lectura. Lo editable vive en
+                    Configuración IA; acá se ve qué quedó configurado, con el
+                    mismo formato que las frases de arriba. */}
+                <SeccionConfig Icono={MessageCircle} titulo="Respuestas guía" descripcion="Cómo responde cada tipo de consulta. Se configura en Configuración IA.">
+                  {respuestasGuiaActuales.length === 0 ? (
+                    <p className="text-stone-500 text-xs">Sin respuestas guía configuradas.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {respuestasGuiaActuales.map((r) => (
+                        <li key={r.id} className="flex flex-col gap-0.5 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "shrink-0 rounded-full border px-2 py-0.5 text-[11px]",
+                                r.activa
+                                  ? "border-lime-500/30 bg-lime-500/10 text-lime-300"
+                                  : "border-white/10 bg-white/5 text-stone-500",
+                              )}
+                            >
+                              {INTENCIONES_RESPUESTA_GUIA[r.intencion]}
+                            </span>
+                            <span className={cn("min-w-0 truncate", r.activa ? "text-stone-300" : "text-stone-500")}>
+                              {r.cuandoAplica}
+                            </span>
+                            {!r.activa && <span className="shrink-0 text-stone-600">(inactiva)</span>}
+                          </div>
+                          <p className={cn("pl-1", r.activa ? "text-stone-400" : "text-stone-600")}>{r.formato}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </SeccionConfig>
+
+                {/* Documentos, en lectura. El verde no es "activo" a secas:
+                    es `entraAlContexto`, o sea lo que el agente realmente
+                    recibe. Un documento activo pero sin entrenar no llega al
+                    modelo, y mostrarlo en verde mentiría. */}
+                <SeccionConfig Icono={BookOpen} titulo="FAQ y documentos" descripcion="Los archivos que el agente consulta para responder. Se suben en Configuración IA.">
+                  {documentosActuales.length === 0 ? (
+                    <p className="text-stone-500 text-xs">Sin documentos cargados.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1.5">
+                      {documentosActuales.map((doc) => {
+                        const enContexto = entraAlContexto(doc);
+                        return (
+                          <li key={doc.id} className="flex items-center gap-2 text-xs">
+                            <FileText
+                              className={cn("h-3.5 w-3.5 shrink-0", enContexto ? "text-lime-400" : "text-stone-600")}
+                            />
+                            <span className={cn("min-w-0 truncate font-medium", enContexto ? "text-stone-300" : "text-stone-500")}>
+                              {doc.nombre}
+                            </span>
+                            <span className="shrink-0 text-stone-500">
+                              · {ETIQUETA_ESTADO_DOCUMENTO[doc.estado]}
+                            </span>
+                            {!doc.activo && <span className="shrink-0 text-stone-600">· desactivado</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </SeccionConfig>
+
                 <SeccionConfig Icono={Package} titulo="Catálogo con precios" descripcion="Si el catálogo vigente viaja en el contexto del agente. Se configura en Configuración IA.">
                   <p className="text-stone-400 text-xs">
-                    {configIA.catalogoEnContexto
-                      ? `Activo — hasta ${configIA.limiteCatalogoContexto} productos con su precio real.`
+                    {catalogoEnContexto
+                      ? `Activo — hasta ${formIA.watch("limiteCatalogoContexto") ?? 30} productos con su precio real.`
                       : "Desactivado — el agente no conoce los precios salvo que use una herramienta."}
                   </p>
                 </SeccionConfig>
