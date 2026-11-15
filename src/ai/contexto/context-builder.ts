@@ -127,8 +127,9 @@ export async function construirContextoCompuesto(
       instanciaId: insumos.instanciaId,
       activo: datos.configAgente.catalogoEnContexto ?? true,
       limite: datos.configAgente.limiteCatalogoContexto ?? LIMITE_CATALOGO_DEFECTO,
-      // 032 — base de conocimiento FAQ, segundo bloque de la misma capa.
-      documentosFaq: datos.configAgente.documentosFaq,
+      // 033 — documentación del comercio, segundo bloque de la misma capa.
+      // Es la política de cuándo consultar el índice, no el contenido.
+      documentacion: datos.configAgente.documentacion,
     }),
     producirCapaEjemplosPiloto({
       instanciaId: insumos.instanciaId,

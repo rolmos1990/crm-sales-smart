@@ -444,6 +444,18 @@ model Instancia {
   // Workflows (docs/WORKFLOWS-PROPUESTA-ARQUITECTURA.md)
   workflows                     Workflow[]
   workflowAsignaciones          WorkflowAsignacion[]
+  // 033-documentacion-vector-store-openai
+  documentosAgenteIA            DocumentoAgenteIA[]
+
+  /// Vector store de OpenAI donde se indexa la documentación de ESTA cuenta.
+  /// Uno por instancia: así el índice de un comercio no contiene bytes de otro
+  /// y el techo de 10.000 archivos por store pasa a ser por cuenta, inalcanzable.
+  ///
+  /// Se crea solo, la primera vez que la cuenta sube un documento — no hay
+  /// forma de pre-crear a mano un store por cada tenant. Null = esta cuenta
+  /// todavía no subió documentación. Vive en la organización de OpenAI de
+  /// Karia (OPENAI_DOCUMENTACION_API_KEY), no en la del cliente.
+  vectorStoreDocumentacionId    String?
 
   @@index([slug])
   @@index([estado])
@@ -2956,6 +2968,11 @@ enum TareaIA {
   // 010-enrutamiento-modelos-ia-por-objetivo — distinto de EXTRACCION_ENTIDADES
   // genérica: identificar qué producto del catálogo menciona el cliente.
   IDENTIFICACION_PRODUCTO
+  // 033-documentacion-vector-store-openai — una búsqueda en la documentación
+  // del comercio. Distinta de EMBEDDINGS: los tokens son los de la síntesis de
+  // la respuesta, y el costo incluye además la tarifa por llamada de file
+  // search. Ver src/ai/documentacion/busqueda.ts.
+  BUSQUEDA_DOCUMENTAL
 }
 
 enum TipoMemoriaIA {
@@ -3102,15 +3119,15 @@ model AgenteIAConfig {
   esperarAntesDeResponder Boolean? @default(false)
   segundosEsperaRespuesta Int?
 
-  // 032 — Base de conocimiento FAQ: hasta 3 documentos (PDF/TXT) que el
-  // negocio sube y el agente usa como referencia informativa. Guarda
-  // DocumentoFaq[] (ver src/configuracion/ia/conocimiento/tipos.ts): el
-  // archivo original vive en el storage y acá queda su clave, pero lo único
-  // que llega al modelo es `contenido`, el texto ya destilado y acotado.
-  //
-  // Columna y no tabla a propósito: así viaja dentro del snapshot JSON de
-  // AgenteIAConfigVersion y se versiona con el perfil sin código extra,
-  // igual que respuestasGuia.
+  /// @deprecated 033-documentacion-vector-store-openai — Reemplazado por el
+  /// modelo DocumentoAgenteIA. Ya no se lee ni se escribe: el contenido de los
+  /// documentos dejó de ser parte del prompt, así que tampoco es configuración
+  /// versionable (restaurar una versión vieja no debe resucitar un archivo
+  /// borrado en OpenAI).
+  ///
+  /// La columna sobrevive solo para que la UI pueda listar lo cargado con el
+  /// mecanismo anterior como "Requiere resubir" y permitir eliminarlo.
+  /// No borrarla: hacerlo le quitaría a cada cuenta el rastro de lo que tenía.
   documentosFaq Json?
 
   // 028-respuestas-guia-catalogo-ia — respuestas guía por intención
@@ -3156,6 +3173,8 @@ model AgenteIAConfig {
   // 014-conversaciones-piloto-ejemplos-relevantes
   recomendacionesComportamiento RecomendacionComportamiento[]
   ejemplosPrompt                EjemploPrompt[]
+  // 033-documentacion-vector-store-openai
+  documentos                    DocumentoAgenteIA[]
 }
 
 // --- 009-perfil-agente-estructurado-versionado ---
@@ -3210,6 +3229,63 @@ model MemoriaAgenteIA {
 
   @@index([agenteIAConfigId, tipo])
   @@index([expiraEn])
+}
+
+// --- 033-documentacion-vector-store-openai ---
+
+enum EstadoDocumentoAgenteIA {
+  INDEXANDO
+  LISTO
+  ERROR
+}
+
+/// Documentación del comercio indexada en el vector store de OpenAI.
+///
+/// Tabla y no columna JSON en AgenteIAConfig (como era `documentosFaq`) porque
+/// esto NO es configuración versionable: el contenido dejó de ser parte del
+/// prompt, y versionarlo sería dañino — restaurar una versión vieja no debe
+/// resucitar un documento ya borrado en OpenAI.
+///
+/// Los tres identificadores externos (openaiFileId, vectorStoreFileId,
+/// vectorStoreId) NUNCA salen al cliente: listarDocumentosAgente() los excluye
+/// con un select explícito. Ver src/ai/documentacion/queries.ts.
+model DocumentoAgenteIA {
+  id        String @id @default(cuid())
+  /// Nombre tal como lo subió el negocio. Es lo ÚNICO que la UI muestra.
+  nombre    String
+  extension String
+  mime      String
+  pesoBytes Int
+
+  /// Copia del original en el storage de Karia. Permite reindexar sin pedirle
+  /// al negocio que vuelva a subir el archivo.
+  storageKey String
+
+  /// Identidad en OpenAI. Infraestructura: nunca viaja al frontend.
+  openaiFileId      String?
+  vectorStoreFileId String?
+  /// En qué store quedó. Hoy siempre el mismo; existe para poder sumar un
+  /// segundo store al acercarse el techo de 10.000 archivos, sin migrar nada.
+  vectorStoreId     String?
+
+  estado          EstadoDocumentoAgenteIA @default(INDEXANDO)
+  /// Motivo legible del fallo. Null salvo en ERROR.
+  errorIndexacion String?
+  /// Desactivado sigue cargado e indexado, pero la búsqueda lo excluye: el
+  /// agente no lo encuentra.
+  activo          Boolean @default(true)
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  agenteIAConfigId String
+  agenteIAConfig   AgenteIAConfig @relation(fields: [agenteIAConfigId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([agenteIAConfigId, estado])
+  @@index([instanciaId])
 }
 
 // Auditoría de uso y costos de IA

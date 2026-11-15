@@ -65,18 +65,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { EditorDocumentosFaq } from "./editor-documentos-faq";
+import { EditorDocumentosAgente, ResumenDocumentosAgente } from "./editor-documentos-agente";
 import {
   CLAVES_ICONO_AGENTE,
   ICONOS_AGENTE,
   ICONO_AGENTE_POR_DEFECTO,
   IconoAgente,
 } from "./iconos-agente";
-import {
-  ETIQUETA_ESTADO_DOCUMENTO,
-  entraAlContexto,
-  type DocumentoFaq,
-} from "@/configuracion/ia/conocimiento/tipos";
 import { editarUsuario } from "@/configuracion/usuarios/actions";
 import {
   guardarAgenteIA,
@@ -504,7 +499,6 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
       reglasPersonalizadas: null,
       condicionesTransferenciaHumano: null,
       respuestasGuia: null,
-      documentosFaq: null,
       catalogoEnContexto: true,
       limiteCatalogoContexto: 30,
       esperarAntesDeResponder: false,
@@ -521,7 +515,6 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
   // Configuración IA. `herramientasActivas` ya seguía este criterio.
   const reglasPersonalizadasActuales = formIA.watch("reglasPersonalizadas") ?? [];
   const respuestasGuiaActuales = formIA.watch("respuestasGuia") ?? [];
-  const documentosActuales = (formIA.watch("documentosFaq") ?? []) as DocumentoFaq[];
   const catalogoEnContexto = formIA.watch("catalogoEnContexto") ?? true;
   const esperarAntesDeResponder = formIA.watch("esperarAntesDeResponder") ?? false;
 
@@ -569,7 +562,6 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
             reglasPersonalizadas: (config.reglasPersonalizadas as string[] | null) ?? null,
             condicionesTransferenciaHumano: (config.condicionesTransferenciaHumano as string[] | null) ?? null,
             respuestasGuia: (config.respuestasGuia as RespuestaGuiaInput[] | null) ?? null,
-            documentosFaq: (config.documentosFaq as DocumentoFaq[] | null) ?? null,
             catalogoEnContexto: config.catalogoEnContexto,
             limiteCatalogoContexto: config.limiteCatalogoContexto,
             esperarAntesDeResponder: config.esperarAntesDeResponder,
@@ -1529,20 +1521,17 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                     )}
                   </SeccionConfig>
 
-                  {/* ── Sección: FAQ y documentos (032) ──
-                      Subir y eliminar tienen efecto inmediato (mueven archivos
-                      en el storage); editar el texto destilado viaja con el
-                      formulario, igual que el resto del perfil. */}
+                  {/* ── Sección: Documentación del comercio (033) ──
+                      Fuera del formulario a propósito: subir, eliminar y
+                      activar tienen efecto inmediato y el componente carga su
+                      propio estado. Así los identificadores del índice nunca
+                      viajan al navegador ni se pierden al guardar el perfil. */}
                   <SeccionConfig
                     Icono={BookOpen}
-                    titulo="FAQ y documentos"
-                    descripcion="Hasta 3 archivos PDF o TXT que el agente usa como base de conocimiento. Solo informativo: no ejecuta acciones a partir de ellos."
+                    titulo="Documentación del comercio"
+                    descripcion="Archivos que el agente consulta cuando le hace falta: políticas, envíos, materiales, preguntas frecuentes. Solo informativo: no ejecuta acciones a partir de ellos."
                   >
-                    <EditorDocumentosFaq
-                      agenteIAConfigId={configIA?.id ?? null}
-                      valores={(formIA.watch("documentosFaq") ?? []) as DocumentoFaq[]}
-                      onChange={(v) => formIA.setValue("documentosFaq", v, { shouldDirty: true })}
-                    />
+                    <EditorDocumentosAgente agenteIAConfigId={configIA?.id ?? null} />
                   </SeccionConfig>
 
                 </form>
@@ -1675,34 +1664,11 @@ export function SheetEditarAgente({ agente, onCerrar, onExito }: SheetEditarAgen
                   )}
                 </SeccionConfig>
 
-                {/* Documentos, en lectura. El verde no es "activo" a secas:
-                    es `entraAlContexto`, o sea lo que el agente realmente
-                    recibe. Un documento activo pero sin entrenar no llega al
-                    modelo, y mostrarlo en verde mentiría. */}
-                <SeccionConfig Icono={BookOpen} titulo="FAQ y documentos" descripcion="Los archivos que el agente consulta para responder. Se suben en Configuración IA.">
-                  {documentosActuales.length === 0 ? (
-                    <p className="text-stone-500 text-xs">Sin documentos cargados.</p>
-                  ) : (
-                    <ul className="flex flex-col gap-1.5">
-                      {documentosActuales.map((doc) => {
-                        const enContexto = entraAlContexto(doc);
-                        return (
-                          <li key={doc.id} className="flex items-center gap-2 text-xs">
-                            <FileText
-                              className={cn("h-3.5 w-3.5 shrink-0", enContexto ? "text-lime-400" : "text-stone-600")}
-                            />
-                            <span className={cn("min-w-0 truncate font-medium", enContexto ? "text-stone-300" : "text-stone-500")}>
-                              {doc.nombre}
-                            </span>
-                            <span className="shrink-0 text-stone-500">
-                              · {ETIQUETA_ESTADO_DOCUMENTO[doc.estado]}
-                            </span>
-                            {!doc.activo && <span className="shrink-0 text-stone-600">· desactivado</span>}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
+                {/* Documentación, en lectura. Verde = el agente puede
+                    encontrarlo (indexado y activo). Un archivo que falló al
+                    indexar está cargado pero el agente nunca lo va a ver. */}
+                <SeccionConfig Icono={BookOpen} titulo="Documentación del comercio" descripcion="Los archivos que el agente consulta cuando le hace falta. Se suben en Configuración IA.">
+                  <ResumenDocumentosAgente agenteIAConfigId={configIA?.id ?? null} />
                 </SeccionConfig>
 
                 <SeccionConfig Icono={Package} titulo="Catálogo con precios" descripcion="Si el catálogo vigente viaja en el contexto del agente. Se configura en Configuración IA.">

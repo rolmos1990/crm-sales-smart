@@ -214,7 +214,27 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
    Detalle completo, tabla de trampas y justificación de por qué no se migró a
    `@db.Date`: **`docs/fechas-y-zonas-horarias.md`** — leerlo antes de tocar
    cualquier fecha.
-8. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
+8. **Documentación del agente IA**: los archivos que el negocio sube para su
+   agente se indexan en un **vector store de OpenAI por instancia**
+   (`Instancia.vectorStoreDocumentacionId`, creado solo la primera vez que la
+   cuenta sube algo) y se consultan con la herramienta
+   `buscar_en_documentacion`. El aislamiento entre cuentas es **físico** —el
+   índice de un comercio no contiene bytes de otro—; dentro de la cuenta, cada
+   documento pertenece a un agente y eso sí es lógico: identidad
+   `instanciaId_agenteId_documentoId` en el nombre y los atributos del archivo,
+   filtro obligatorio en cada búsqueda, y verificación a posteriori de cada
+   fragmento devuelto. Todo eso sale de `src/ai/documentacion/aislamiento.ts` y
+   de ningún otro lado: esas funciones no aceptan parámetros que permitan
+   omitir la identidad, y es a propósito. La credencial es de Karia por entorno
+   (`OPENAI_DOCUMENTACION_API_KEY`), no el `ProveedorIA` del tenant: así
+   funciona también para agentes sobre Anthropic o DeepSeek.
+   Los identificadores de OpenAI (`vectorStoreId`, `openaiFileId`,
+   `vectorStoreFileId`) **nunca** salen al cliente. Cada búsqueda se registra en
+   `UsoIA` con `tarea: BUSQUEDA_DOCUMENTAL` y los tokens reales del `usage` del
+   proveedor; la indexación no registra tokens porque OpenAI la factura por
+   storage. Leer **`docs/documentacion-agente-aislamiento.md`** antes de tocar
+   `src/ai/documentacion/`.
+9. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
 
 ---
 

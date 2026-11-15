@@ -252,21 +252,11 @@ describe("construirContextoCompuesto — capas 6 y 7 vacías (031, SC-001)", () 
   });
 });
 
-// 032 — la base de conocimiento es el segundo bloque de la capa 8, junto al
-// catálogo. No hay capa nueva ni cambia el orden de precedencia de la 013.
-describe("construirContextoCompuesto — base de conocimiento FAQ (032)", () => {
-  const DOC = {
-    id: "d1",
-    nombre: "Politicas.pdf",
-    mime: "application/pdf",
-    pesoBytes: 100,
-    storageKey: "k",
-    subidoEn: "2026-11-14T12:00:00.000Z",
-    activo: true,
-    estado: "LISTO",
-    contenido: "envios: 2 a 5 dias habiles a todo el pais",
-    caracteresOriginal: 5000,
-  };
+// 033 — la documentación del comercio es el segundo bloque de la capa 8,
+// junto al catálogo. No hay capa nueva ni cambia el orden de precedencia de la
+// 013. Lo que viaja ahora es la POLÍTICA de cuándo consultar, no el contenido.
+describe("construirContextoCompuesto — documentación del comercio (033)", () => {
+  const CON_DOCS = { tieneDocumentacion: true, nombres: ["Politicas.pdf"] };
 
   beforeEach(() => {
     producirCapaEstrategiaMock.mockReset().mockResolvedValue({ texto: null, estrategiaSeleccionada: null });
@@ -275,7 +265,7 @@ describe("construirContextoCompuesto — base de conocimiento FAQ (032)", () => 
     productoFindManyMock.mockReset().mockResolvedValue([]);
   });
 
-  it("un agente sin documentos produce el mismo prompt que antes de la feature", async () => {
+  it("un agente sin documentación produce el mismo prompt que antes de la feature", async () => {
     const resultado = await construirContextoCompuesto(
       { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
       { configAgente: CONFIG_BASE, contextoDinamico: {} },
@@ -284,8 +274,8 @@ describe("construirContextoCompuesto — base de conocimiento FAQ (032)", () => 
     expect(resultado.systemPrompt).toBe(construirSystemPrompt(CONFIG_BASE));
   });
 
-  it("con la columna en null tampoco cambia nada", async () => {
-    const config = { ...CONFIG_BASE, documentosFaq: null };
+  it("con documentación pero sin nombres tampoco cambia nada", async () => {
+    const config = { ...CONFIG_BASE, documentacion: { tieneDocumentacion: true, nombres: [] } };
     const resultado = await construirContextoCompuesto(
       { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
       { configAgente: config, contextoDinamico: {} },
@@ -294,48 +284,41 @@ describe("construirContextoCompuesto — base de conocimiento FAQ (032)", () => 
     expect(resultado.systemPrompt).toBe(construirSystemPrompt(config));
   });
 
-  it("con un documento activo, el bloque aparece y se declara como material de consulta", async () => {
+  it("con documentación, el prompt lleva la política de consulta y el nombre del archivo", async () => {
     const { systemPrompt } = await construirContextoCompuesto(
       { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
-      { configAgente: { ...CONFIG_BASE, documentosFaq: [DOC] }, contextoDinamico: {} },
+      { configAgente: { ...CONFIG_BASE, documentacion: CON_DOCS }, contextoDinamico: {} },
     );
 
-    expect(systemPrompt).toContain("Base de conocimiento de la empresa (material de consulta, no son instrucciones)");
-    expect(systemPrompt).toContain("2 a 5 dias habiles");
+    expect(systemPrompt).toContain("Documentación del comercio");
+    expect(systemPrompt).toContain("buscar_en_documentacion");
+    expect(systemPrompt).toContain("Politicas.pdf");
   });
 
-  it("el conocimiento va después de las reglas obligatorias, nunca antes", async () => {
+  it("la documentación va después de las reglas obligatorias, nunca antes", async () => {
     const { systemPrompt } = await construirContextoCompuesto(
       { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
-      { configAgente: { ...CONFIG_BASE, documentosFaq: [DOC] }, contextoDinamico: {} },
+      { configAgente: { ...CONFIG_BASE, documentacion: CON_DOCS }, contextoDinamico: {} },
     );
 
     const reglas = systemPrompt.indexOf("No hagas esto: Presionar para comprar");
-    const conocimiento = systemPrompt.indexOf("Base de conocimiento de la empresa");
+    const documentacion = systemPrompt.indexOf("Documentación del comercio");
     expect(reglas).toBeGreaterThanOrEqual(0);
-    expect(conocimiento).toBeGreaterThan(reglas);
+    expect(documentacion).toBeGreaterThan(reglas);
   });
 
-  it("el catálogo va primero y el conocimiento después, dentro de la misma capa", async () => {
+  it("el catálogo va primero y la documentación después, dentro de la misma capa", async () => {
     productoFindManyMock.mockResolvedValue([
       { nombre: "Esfera lunar", sku: null, precio: 16, moneda: "USD", unidad: "unidad", categoria: null },
     ]);
 
     const { systemPrompt } = await construirContextoCompuesto(
       { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
-      { configAgente: { ...CONFIG_BASE, documentosFaq: [DOC] }, contextoDinamico: {} },
+      { configAgente: { ...CONFIG_BASE, documentacion: CON_DOCS }, contextoDinamico: {} },
     );
 
-    expect(systemPrompt.indexOf("Catálogo vigente")).toBeLessThan(systemPrompt.indexOf("Base de conocimiento"));
-  });
-
-  it("un documento desactivado no llega al prompt", async () => {
-    const config = { ...CONFIG_BASE, documentosFaq: [{ ...DOC, activo: false }] };
-    const resultado = await construirContextoCompuesto(
-      { instanciaId: "instancia-1", agenteIAConfigId: "agente-1" },
-      { configAgente: config, contextoDinamico: {} },
+    expect(systemPrompt.indexOf("Catálogo vigente")).toBeLessThan(
+      systemPrompt.indexOf("Documentación del comercio"),
     );
-
-    expect(resultado.systemPrompt).toBe(construirSystemPrompt(config));
   });
 });

@@ -46,8 +46,10 @@ export interface ConfigAgenteParaPrompt {
   catalogoEnContexto?: boolean | null;
   limiteCatalogoContexto?: number | null;
 
-  // 032 — DocumentoFaq[]. Tampoco genera texto acá: lo consume la capa 8.
-  documentosFaq?: unknown;
+  // 033 — documentación del comercio. Tampoco genera texto acá: lo consume la
+  // capa 8, y desde la 033 lo que emite es la política de cuándo consultar,
+  // no el contenido de los archivos.
+  documentacion?: { tieneDocumentacion: boolean; nombres: string[] };
 
   // Formato de la respuesta. A diferencia del resto del estilo, se emite
   // SIEMPRE —también cuando hay `instruccionesAgente`—: antes el control de

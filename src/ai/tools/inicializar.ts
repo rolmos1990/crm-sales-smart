@@ -22,3 +22,6 @@ import "@/ai/tools/providers/consultar-opciones-envio.tool";
 import "@/ai/tools/providers/finalizar-atencion-workflow.tool";
 // Ciclo de vida: mover la oportunidad de etapa según las reglas del negocio
 import "@/ai/tools/providers/actualizar-etapa-oportunidad.tool";
+// 033-documentacion-vector-store-openai — se registra siempre, pero solo se le
+// ofrece al agente que tiene documentación indexada (ver herramientas-agente.ts)
+import "@/ai/tools/providers/buscar-en-documentacion.tool";

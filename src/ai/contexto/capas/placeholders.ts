@@ -1,5 +1,5 @@
 import { producirCapaCatalogo, type InsumosCapaCatalogo } from "./catalogo";
-import { producirCapaConocimiento } from "./conocimiento";
+import { producirCapaConocimiento, type InsumosCapaDocumentacion } from "./conocimiento";
 import { producirCapaLecturaConversacion, type InsumosCapaFicha } from "./estado-conversacion";
 
 // 013-context-builder-capas-precedencia (FR-008) — puntos de extensión
@@ -16,15 +16,18 @@ export async function producirCapaDatosConocidosFaltantes(insumos: InsumosCapaFi
 }
 
 /** Capa 8 — información operativa verificada. Lleva dos bloques: el catálogo
- *  vigente con precios (028) y la base de conocimiento FAQ (032). El catálogo
- *  va primero porque es dato estructurado y verificado al momento; el FAQ es
- *  material de referencia que el negocio redactó. */
+ *  vigente con precios (028) y la documentación del comercio (033). El catálogo
+ *  va primero porque es dato estructurado y verificado al momento; la
+ *  documentación es la política de cuándo ir a buscar material de referencia.
+ *
+ *  Desde la 033 el segundo bloque ya no trae el contenido de los documentos:
+ *  trae las reglas que deciden cuándo el agente consulta el índice. */
 export async function producirCapaInfoOperativa(
-  insumos: InsumosCapaCatalogo & { documentosFaq?: unknown },
+  insumos: InsumosCapaCatalogo & { documentacion?: InsumosCapaDocumentacion },
 ): Promise<string | null> {
   const [catalogo, conocimiento] = [
     await producirCapaCatalogo(insumos),
-    producirCapaConocimiento(insumos.documentosFaq),
+    insumos.documentacion ? producirCapaConocimiento(insumos.documentacion) : null,
   ];
   const bloques = [catalogo, conocimiento].filter((b): b is string => Boolean(b));
   return bloques.length > 0 ? bloques.join("\n\n") : null;

@@ -419,13 +419,22 @@ async function obtenerUltimoMensajeCliente(conversacionId: string): Promise<stri
 async function obtenerHerramientasPermitidas(agenteId: string): Promise<string[]> {
   const { prisma } = await import("@/shared/db/prisma");
   const { resolverHerramientasAgente } = await import("@/ai/tools/herramientas-agente");
-  const config = await prisma.agenteIAConfig.findUnique({
-    where: { id: agenteId },
-    select: { herramientas: true, catalogoEnContexto: true },
-  });
+  // 033 — `buscar_en_documentacion` solo se ofrece si hay algo que buscar:
+  // ofrecérsela a un agente sin documentos lo haría llamarla para nada.
+  const { contarDocumentosListos } = await import("@/ai/documentacion/queries");
+
+  const [config, documentacion] = await Promise.all([
+    prisma.agenteIAConfig.findUnique({
+      where: { id: agenteId },
+      select: { herramientas: true, catalogoEnContexto: true },
+    }),
+    contarDocumentosListos(agenteId),
+  ]);
+
   return resolverHerramientasAgente({
     herramientas: config?.herramientas,
     catalogoEnContexto: config?.catalogoEnContexto,
+    tieneDocumentacion: documentacion.cantidad > 0,
   });
 }
 

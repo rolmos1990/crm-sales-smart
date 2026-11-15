@@ -6,6 +6,7 @@ import { obtenerAutonomiaPorAgente } from "@/ai/autonomia/queries";
 import { clasificarCategoriaIntencion } from "@/ai/autonomia/clasificador";
 import { decidirAutonomia } from "@/ai/autonomia/gate";
 import { resolverHerramientasAgente } from "@/ai/tools/herramientas-agente";
+import { contarDocumentosListos } from "@/ai/documentacion/queries";
 import type { PerfilCliente } from "@/ai/perfil-cliente/tipos";
 import type { FichaConversacion } from "@/ai/ficha-conversacion/tipos";
 import type { EscenarioSimulacion, DiagnosticoRespuestaSimulada, HerramientaEjecutadaDiagnostico } from "./tipos";
@@ -139,16 +140,23 @@ class SimuladorService {
       playbookEstrategiaId: contexto.estrategiaSeleccionada?.id,
     });
 
-    const agenteFull = await prisma.agenteIAConfig.findUnique({
-      where: { id: escenario.agenteIAConfigId },
-      select: { herramientas: true },
-    });
+    const [agenteFull, documentacion] = await Promise.all([
+      prisma.agenteIAConfig.findUnique({
+        where: { id: escenario.agenteIAConfigId },
+        select: { herramientas: true },
+      }),
+      // 033 — los documentos no son parte del borrador/publicada: viven en su
+      // propia tabla y tienen efecto inmediato. Se leen igual que en una
+      // respuesta real para que el simulador siga prediciendo lo mismo.
+      contarDocumentosListos(escenario.agenteIAConfigId),
+    ]);
     // Misma resolución que generar-respuesta-ia.suscriptor.ts. El catálogo sale
     // de `configAgente` (borrador o publicada, según el escenario) para que
     // probar el toggle en un borrador se refleje acá.
     const herramientasPermitidas = resolverHerramientasAgente({
       herramientas: agenteFull?.herramientas,
       catalogoEnContexto: configAgente.catalogoEnContexto,
+      tieneDocumentacion: documentacion.cantidad > 0,
     });
 
     const configsAutonomia = await obtenerAutonomiaPorAgente(escenario.agenteIAConfigId);
