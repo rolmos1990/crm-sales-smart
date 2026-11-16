@@ -29,6 +29,8 @@ interface ComposerCorreoProps {
   enviando?: boolean;
   /** Mismo contrato que InputMensaje.textoExterno (cotización desde el panel). */
   textoExterno?: { texto: string; n: number } | null;
+  /** "Responder por": canales del contacto (correo, WhatsApp, Instagram…). */
+  selectorCanal?: React.ReactNode;
   ref?: React.Ref<ComposerCorreoHandle>;
 }
 
@@ -69,6 +71,7 @@ export function ComposerCorreo({
   onEnviar,
   enviando = false,
   textoExterno = null,
+  selectorCanal,
   ref,
 }: ComposerCorreoProps) {
   const [texto, setTexto] = useState(() => leerBorrador(conversacionId));
@@ -265,6 +268,7 @@ export function ComposerCorreo({
 
         {/* Barra inferior */}
         <div className="flex flex-wrap items-center gap-1.5 border-t border-card-divider px-2 py-2">
+          {selectorCanal}
           <button
             type="button"
             onClick={() => setSelector((s) => (s?.modo === "boton" ? null : { modo: "boton", filtro: "" }))}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  AlertCircle, Check, ChevronDown, ChevronUp, Download, FileText, Lock, Mail, Paperclip, Reply, Smartphone,
+  AlertCircle, Check, CheckCheck, ChevronDown, ChevronUp, Download, FileText, Lock, Mail, Paperclip, Reply, Send, Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FechaHora } from "@/shared/fechas/fecha-hora";
@@ -34,10 +34,17 @@ function esCorreoReal(m: MensajeConMeta) {
 export function EncabezadoHiloCorreo({
   asunto,
   mensajes,
+  noLeidos = 0,
+  marcandoLeidos = false,
+  onMarcarTodosLeidos,
   className,
 }: {
   asunto: string | null;
   mensajes: MensajeConMeta[];
+  /** Correos del cliente sin leer en todo el hilo. */
+  noLeidos?: number;
+  marcandoLeidos?: boolean;
+  onMarcarTodosLeidos?: () => void;
   className?: string;
 }) {
   const total = mensajes.filter(esCorreoReal).length;
@@ -57,6 +64,19 @@ export function EncabezadoHiloCorreo({
           {total === 1 ? "1 mensaje en esta conversación" : `${total} mensajes en esta conversación`}
         </p>
       </div>
+      {noLeidos > 0 && onMarcarTodosLeidos && (
+        <button
+          type="button"
+          onClick={onMarcarTodosLeidos}
+          disabled={marcandoLeidos}
+          title="Marcar como leídos todos los correos de este hilo"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-button-secondary-border bg-button-secondary-bg hover:bg-button-secondary-hover px-2.5 py-1 text-[11px] font-medium text-text-secondary transition-colors disabled:opacity-50"
+        >
+          <CheckCheck className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Marcar todo leído</span>
+          <span className="rounded-full bg-inbox-accent-muted px-1.5 text-[10px] font-semibold text-inbox-accent">{noLeidos}</span>
+        </button>
+      )}
       <span className="hidden sm:inline-flex shrink-0 items-center gap-1 rounded-full border border-badge-border bg-badge-bg px-2 py-0.5 text-[10px] font-semibold text-info">
         <Mail className="h-2.5 w-2.5" />
         Correo
@@ -168,6 +188,9 @@ function TarjetaCorreo({
   const esContacto = mensaje.remitente === "CONTACTO";
   const esNota = mensaje.esNotaInterna;
   const esAppNativa = mensaje.remitente === "AGENTE_CANAL_NATIVO";
+  // Todo lo que no escribió el cliente y no es nota salió del buzón del
+  // comercio: agente, IA, Workflow o el cliente de correo nativo.
+  const esEnviado = !esContacto && !esNota;
   const noLeido = esContacto && mensaje.estado !== "LEIDO" && !leidoLocal;
   const fallido = !esContacto && !esNota && mensaje.estado === "FALLIDO";
   const tieneAdjunto = mensaje.tipo !== "TEXTO" && mensaje.tipo !== "EVENTO_SISTEMA";
@@ -188,22 +211,36 @@ function TarjetaCorreo({
   return (
     <article
       data-slot="tarjeta-correo"
+      data-direccion={esNota ? "nota" : esEnviado ? "enviado" : "recibido"}
       className={cn(
         "rounded-xl border transition-colors",
         esNota
           ? "border-stage-amber-border bg-stage-amber-muted"
-          : abierto
-            ? "border-border bg-card shadow-sm"
-            : "border-border bg-card/60 hover:bg-card",
+          : esEnviado
+            // Enviados: el verde suave de "lo que salió de Karia", para
+            // distinguirlos de un vistazo de los recibidos.
+            ? cn("border-inbox-accent-border", abierto ? "bg-inbox-accent-muted shadow-sm" : "bg-inbox-accent-muted/60 hover:bg-inbox-accent-muted")
+            : abierto
+              ? "border-border bg-card shadow-sm"
+              : "border-border bg-card/60 hover:bg-card",
         fallido && "border-danger-border",
       )}
     >
-      {/* Cabecera: siempre visible. Clic para plegar/desplegar. */}
-      <button
-        type="button"
+      {/* Cabecera: siempre visible. Clic (o Enter/Espacio) para plegar/desplegar.
+          Es un div y no un <button> porque adentro va el botón de "marcar leído". */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => onAlternar(abierto)}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onAlternar(abierto);
+          }
+        }}
         aria-expanded={abierto}
-        className="w-full flex items-start gap-3 px-3 md:px-4 py-3 text-left"
+        className="w-full flex items-start gap-3 px-3 md:px-4 py-3 text-left cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inbox-accent/40"
       >
         {esNota ? (
           <span className="h-8 w-8 shrink-0 rounded-full border border-stage-amber-border flex items-center justify-center text-stage-amber-text">
@@ -238,6 +275,7 @@ function TarjetaCorreo({
                 &lt;{de.direccion}&gt;
               </span>
             )}
+            {!esNota && <EtiquetaDireccion enviado={esEnviado} />}
           </div>
 
           {abierto ? (
@@ -257,17 +295,20 @@ function TarjetaCorreo({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
-          {noLeido && <span className="h-1.5 w-1.5 rounded-full bg-inbox-accent" aria-label="No leído" />}
           {!abierto && tieneAdjunto && <Paperclip className="h-3 w-3 text-muted-foreground" aria-label="Con adjunto" />}
           {fallido && <AlertCircle className="h-3.5 w-3.5 text-danger" aria-label="No se pudo enviar" />}
           <FechaHora valor={mensaje.creadoEn} modo="fechaHora" className="text-[11px] text-muted-foreground whitespace-nowrap" />
+          {esContacto && (
+            <CheckLectura noLeido={noLeido} onMarcarLeido={() => onMarcarLeido(mensaje.id)} />
+          )}
+          {esEnviado && !fallido && <EstadoEnvio estado={mensaje.estado} />}
           {abierto ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
           ) : (
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
           )}
         </div>
-      </button>
+      </div>
 
       {abierto && (
         <div className="px-3 md:px-4 pb-3 md:pl-[3.75rem]">
@@ -333,6 +374,66 @@ function TarjetaCorreo({
         </div>
       )}
     </article>
+  );
+}
+
+// ── Dirección, lectura y estado de envío ─────────────────────────────────────
+
+function EtiquetaDireccion({ enviado }: { enviado: boolean }) {
+  return enviado ? (
+    <span className="ml-1 inline-flex shrink-0 items-center gap-1 self-center rounded-full border border-inbox-accent-border bg-inbox-accent-muted px-1.5 py-px text-[10px] font-semibold text-inbox-accent">
+      <Send className="h-2.5 w-2.5" />
+      Enviado
+    </span>
+  ) : (
+    <span className="ml-1 inline-flex shrink-0 items-center gap-1 self-center rounded-full border border-badge-border bg-badge-bg px-1.5 py-px text-[10px] font-semibold text-info">
+      <Mail className="h-2.5 w-2.5" />
+      Recibido
+    </span>
+  );
+}
+
+/**
+ * Check de lectura de un correo del cliente, como en las conversaciones: un
+ * check sin leer se puede tocar para marcarlo leído; el doble check indica
+ * que ya está leído.
+ */
+function CheckLectura({ noLeido, onMarcarLeido }: { noLeido: boolean; onMarcarLeido: () => void }) {
+  if (!noLeido) {
+    return (
+      <span title="Leído" aria-label="Leído" className="inline-flex">
+        <CheckCheck className="h-3.5 w-3.5 text-inbox-accent" />
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onMarcarLeido();
+      }}
+      title="Marcar como leído"
+      aria-label="Marcar como leído"
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-inbox-accent-border bg-inbox-accent-muted text-inbox-accent transition-colors hover:bg-inbox-accent hover:text-inbox-accent-foreground"
+    >
+      <Check className="h-3 w-3" />
+    </button>
+  );
+}
+
+/** Estado de un correo enviado, con el mismo código de checks que el chat. */
+function EstadoEnvio({ estado }: { estado: EstadoMensaje }) {
+  const etiqueta = ETIQUETA_ESTADO[estado];
+  if (!etiqueta) return null;
+  return (
+    <span title={etiqueta} aria-label={etiqueta} className="inline-flex">
+      {estado === "ENVIADO" ? (
+        <Check className="h-3.5 w-3.5 text-muted-foreground" />
+      ) : (
+        <CheckCheck className={cn("h-3.5 w-3.5", estado === "LEIDO" ? "text-inbox-accent" : "text-muted-foreground")} />
+      )}
+    </span>
   );
 }
 

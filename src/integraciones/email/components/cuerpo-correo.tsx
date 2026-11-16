@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AlertCircle, ImageOff, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +35,7 @@ export function CuerpoCorreo({ textoPlano, datos, cargando, error, asunto, class
   const [cargarImagenes, setCargarImagenes] = useState(false);
   const [ampliado, setAmpliado] = useState(false);
   const [falloIframe, setFalloIframe] = useState(false);
+  const tituloAmpliadoRef = useRef<HTMLHeadingElement>(null);
 
   const html = datos?.html;
   const urlBase = html?.urlVista ?? null;
@@ -104,11 +105,33 @@ export function CuerpoCorreo({ textoPlano, datos, cargando, error, asunto, class
             onError={() => setFalloIframe(true)}
           />
           <Dialog open={ampliado} onOpenChange={setAmpliado}>
-            <DialogContent className="flex h-[90vh] w-full max-w-[min(1100px,95vw)] flex-col gap-3 sm:max-w-[min(1100px,95vw)]">
-              <DialogTitle className="pr-8 text-sm font-semibold text-foreground truncate">
+            {/* Esc cierra el diálogo SOLO si el foco está en la página de
+                Karia: una tecla pulsada dentro del iframe aislado la recibe el
+                documento del correo, y Karia no puede escucharla (es otro
+                origen, y así tiene que ser). Por eso el foco inicial va al
+                título y no al iframe, y vuelve al título cuando el puntero sale
+                del correo. */}
+            <DialogContent
+              initialFocus={tituloAmpliadoRef}
+              className="flex h-[90vh] w-full max-w-[min(1100px,95vw)] flex-col gap-3 sm:max-w-[min(1100px,95vw)]"
+            >
+              <DialogTitle
+                ref={tituloAmpliadoRef}
+                tabIndex={-1}
+                className="pr-8 text-sm font-semibold text-foreground truncate outline-none"
+              >
                 {asunto?.trim() || "(Sin asunto)"}
               </DialogTitle>
-              {ampliado && <HojaCorreo src={url as string} className="flex-1 min-h-0" />}
+              <p className="-mt-2 text-[11px] text-muted-foreground">Esc para cerrar</p>
+              {ampliado && (
+                <HojaCorreo
+                  src={url as string}
+                  className="flex-1 min-h-0"
+                  onPunteroFuera={() => {
+                    if (document.activeElement?.tagName === "IFRAME") tituloAmpliadoRef.current?.focus();
+                  }}
+                />
+              )}
             </DialogContent>
           </Dialog>
         </>
@@ -149,9 +172,19 @@ function BotonVista({ activo, onClick, children }: { activo: boolean; onClick: (
  * fondo claro. El desplazamiento es interno y la barra la oculta el estilo
  * del documento servido (no se puede tocar desde acá: origen distinto).
  */
-function HojaCorreo({ src, className, onError }: { src: string; className?: string; onError?: () => void }) {
+function HojaCorreo({
+  src,
+  className,
+  onError,
+  onPunteroFuera,
+}: {
+  src: string;
+  className?: string;
+  onError?: () => void;
+  onPunteroFuera?: () => void;
+}) {
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-border bg-white", className)}>
+    <div onMouseLeave={onPunteroFuera} className={cn("overflow-hidden rounded-lg border border-border bg-white", className)}>
       <iframe
         src={src}
         sandbox={PERMISOS_SANDBOX}

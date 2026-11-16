@@ -40,6 +40,11 @@ interface InputMensajeProps {
    * redactado antes de adjuntar la cotización.
    */
   textoExterno?: { texto: string; n: number } | null;
+  /**
+   * Selector "Responder por" con los canales del CONTACTO. Si viene, reemplaza
+   * al selector de cuentas del negocio (que no cambia por dónde sale el mensaje).
+   */
+  selectorCanal?: React.ReactNode;
 }
 
 export function InputMensaje({
@@ -50,6 +55,7 @@ export function InputMensaje({
   onEnviar,
   enviando = false,
   textoExterno = null,
+  selectorCanal,
 }: InputMensajeProps) {
   const [texto, setTexto] = useState("");
   const [esNota, setEsNota] = useState(false);
@@ -243,11 +249,13 @@ export function InputMensaje({
 
       {/* Toolbar superior */}
       <div className="flex items-center justify-between gap-2">
-        <SelectorCuentaCanal
-          cuentas={cuentas}
-          seleccionada={cuentaSeleccionadaId}
-          onSeleccionar={onCambiarCuenta}
-        />
+        {selectorCanal ?? (
+          <SelectorCuentaCanal
+            cuentas={cuentas}
+            seleccionada={cuentaSeleccionadaId}
+            onSeleccionar={onCambiarCuenta}
+          />
+        )}
         <div className="flex items-center gap-1.5">
           {instanciaId && (
             <button
