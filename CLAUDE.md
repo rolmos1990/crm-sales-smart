@@ -244,9 +244,31 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
    sí.
 
    Tres reglas del canal que no se negocian:
-   - **El HTML de un correo entrante nunca se renderiza.** Se usa el texto que
-     `mailparser` ya deriva. Es una decisión de seguridad (XSS y píxeles de
-     rastreo), no de formato: `parsed.html` no se lee en ningún lado.
+   - **El HTML entrante solo se muestra limpio, en un iframe sandbox sin
+     scripts ni mismo origen y con CSP restrictiva; nunca dentro de la página
+     de Karia** (035). Tres capas independientes, y ninguna se relaja para que
+     un correo "se vea mejor":
+     1. *Limpieza*: `sanitize-html` con lista blanca
+        (`mensaje/html/politica.ts`) al recibir, en el worker; solo se guarda
+        el HTML limpio, en `MensajeCorreo` — el original no se guarda nunca. Al
+        servir se vuelve a limpiar con la misma política.
+     2. *Aislamiento*: `<iframe sandbox="allow-popups allow-popups-to-escape-sandbox">`
+        (`PERMISOS_SANDBOX` en `vista/documento.ts`). Prohibidos
+        `allow-scripts`, `allow-same-origin`, `allow-forms` y
+        `allow-top-navigation*`, y prohibido `srcdoc` o
+        `dangerouslySetInnerHTML` con contenido de un correo. La ruta de vista
+        manda CSP con `script-src 'none'`, `connect-src 'none'` y `sandbox`.
+     3. *Autorización*: el iframe no envía la cookie de sesión, así que vista,
+        imágenes `cid:` y proxy usan un token HMAC de 15 min
+        (`CORREO_VISTA_SECRETO`), emitido por una ruta con sesión; cada ruta
+        vuelve a verificar el comercio contra la base y responde 404 ante
+        cualquier discrepancia.
+
+     Las imágenes externas quedan bloqueadas por defecto y solo se cargan por
+     el proxy SSRF-seguro (`vista/proxy-imagen.ts`: DNS validado y fijado,
+     `net.BlockList`, redirecciones revalidadas, solo raster re-codificado).
+     El TEXTO del correo sigue siendo la fuente para IA, búsqueda, lista y
+     Workflows. Detalle: `specs/035-correo-html-seguro/`.
    - **Auto-respuestas, rebotes y correos del propio buzón se descartan antes
      de crear nada** (`mensaje/filtros.ts`). Sin eso, un aviso de vacaciones
      crea oportunidad, dispara a la IA, la IA responde y el aviso vuelve a

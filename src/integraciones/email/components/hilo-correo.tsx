@@ -10,6 +10,10 @@ import { AvatarContacto } from "@/conversaciones/components/avatar-contacto";
 import { BloqueErrorEnvio, BurbujaImagen } from "@/conversaciones/components/burbuja-mensaje";
 import { EventoSistema } from "@/conversaciones/components/evento-sistema";
 import type { EstadoMensaje, MensajeConMeta } from "@/conversaciones/types";
+import { AdjuntosCorreo, etiquetaTipoArchivo } from "./adjuntos-correo";
+import { CabecerasCorreo } from "./cabeceras-correo";
+import { CuerpoCorreo } from "./cuerpo-correo";
+import { useCorreoMensaje } from "./use-correo-mensaje";
 
 export interface ParticipantesHilo {
   /** La foto es la del contacto: la primera que llegó por cualquier canal
@@ -75,8 +79,9 @@ interface HiloCorreoProps extends ParticipantesHilo {
  * Vista de hilo para el canal correo: cada mensaje es una tarjeta plegable,
  * los anteriores contraídos y el último abierto, como en un cliente de correo.
  *
- * El cuerpo es siempre el texto que derivó mailparser: el HTML entrante no se
- * renderiza nunca (regla de seguridad del canal, ver CLAUDE.md §9).
+ * El cuerpo se muestra con formato solo dentro de un iframe aislado
+ * (CuerpoCorreo); el HTML del correo nunca entra en el DOM de esta página
+ * (regla de seguridad del canal, ver CLAUDE.md §9).
  */
 export function HiloCorreo({
   mensajes,
@@ -177,6 +182,9 @@ function TarjetaCorreo({
 
   const resumen = (mensaje.contenido ?? "").replace(/\s+/g, " ").trim();
 
+  // Cabeceras, HTML aislado y adjuntos: se piden recién al abrir la tarjeta.
+  const correo = useCorreoMensaje(mensaje.id, abierto && !esNota);
+
   return (
     <article
       data-slot="tarjeta-correo"
@@ -234,11 +242,6 @@ function TarjetaCorreo({
 
           {abierto ? (
             <div className="mt-0.5 space-y-0.5 text-[11px] text-muted-foreground">
-              {para && (
-                <p className="truncate">
-                  <span className="text-text-secondary">Para:</span> {para}
-                </p>
-              )}
               {esAppNativa && (
                 <p className="flex items-center gap-1">
                   <Smartphone className="h-2.5 w-2.5" />
@@ -268,20 +271,37 @@ function TarjetaCorreo({
 
       {abierto && (
         <div className="px-3 md:px-4 pb-3 md:pl-[3.75rem]">
-          {mensaje.contenido ? (
-            <p
-              className={cn(
-                "whitespace-pre-wrap break-words text-sm leading-relaxed",
-                esNota ? "text-stage-amber-text" : "text-foreground",
-              )}
-            >
-              {mensaje.contenido}
-            </p>
+          {esNota ? (
+            mensaje.contenido ? (
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-stage-amber-text">
+                {mensaje.contenido}
+              </p>
+            ) : (
+              <p className="text-xs italic text-muted-foreground">(Sin contenido de texto)</p>
+            )
           ) : (
-            <p className="text-xs italic text-muted-foreground">(Sin contenido de texto)</p>
+            <>
+              <CabecerasCorreo
+                cabeceras={correo.data?.cabeceras ?? null}
+                respaldoPara={para}
+                fechaRespaldo={mensaje.creadoEn}
+                className="mb-3"
+              />
+              <CuerpoCorreo
+                textoPlano={mensaje.contenido ?? ""}
+                datos={correo.data}
+                cargando={correo.isLoading}
+                error={correo.isError}
+                asunto={correo.data?.cabeceras?.asunto ?? null}
+              />
+            </>
           )}
 
-          {tieneAdjunto && <AdjuntoCorreo mensaje={mensaje} />}
+          {correo.data && correo.data.adjuntos.length > 0 ? (
+            <AdjuntosCorreo adjuntos={correo.data.adjuntos} />
+          ) : (
+            tieneAdjunto && <AdjuntoCorreo mensaje={mensaje} />
+          )}
 
           {fallido && <BloqueErrorEnvio codigoError={mensaje.codigoError} motivoError={mensaje.motivoError} />}
 
@@ -316,21 +336,12 @@ function TarjetaCorreo({
   );
 }
 
-// ── Adjunto ──────────────────────────────────────────────────────────────────
-
-function etiquetaTipoArchivo(mime: string | null): string {
-  if (!mime) return "Archivo";
-  const sub = mime.split("/")[1] ?? mime;
-  if (sub === "pdf") return "PDF";
-  if (sub.includes("wordprocessing") || sub === "msword") return "Word";
-  if (sub.includes("spreadsheet") || sub === "vnd.ms-excel") return "Excel";
-  if (sub.includes("presentation")) return "PowerPoint";
-  return sub.toUpperCase().slice(0, 12);
-}
+// ── Adjunto (correos previos a 035) ──────────────────────────────────────────
 
 /**
- * El adjunto principal viaja en los campos de media del mensaje (ver
- * normalizar.ts); los demás vienen listados por nombre dentro del cuerpo.
+ * Para correos sin datos de correo guardados: el adjunto principal viaja en
+ * los campos de media del mensaje (ver normalizar.ts) y los demás vienen
+ * listados por nombre dentro del cuerpo. Desde 035 se usa AdjuntosCorreo.
  */
 function AdjuntoCorreo({ mensaje }: { mensaje: MensajeConMeta }) {
   return (

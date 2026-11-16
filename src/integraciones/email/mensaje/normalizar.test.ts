@@ -48,19 +48,85 @@ describe("normalización de un correo entrante", () => {
     expect(r.correo.asunto).toBe("Consulta de precios");
   });
 
-  it("un correo HTML se guarda como texto legible, nunca como HTML", async () => {
-    const r = await normalizar(
-      { "Content-Type": "text/html; charset=utf-8" },
-      '<html><body><p>Hola, quiero el <b>precio</b>.</p><p>Ver <a href="https://x.com/p">catálogo</a></p></body></html>',
-    );
+  // 035 — Reemplaza la regla de 034 ("el HTML nunca se guarda"). La nueva:
+  // el texto sigue igual para IA/búsqueda/lista, y el HTML se guarda SOLO
+  // limpio, para mostrarse en un iframe aislado.
+  describe("HTML del correo (035)", () => {
+    const HTML =
+      '<html><body><p>Hola, quiero el <b>precio</b>.</p><p>Ver <a href="https://x.com/p">catálogo</a></p>' +
+      '<script>alert(1)</script><img src="https://t.test/p.gif" onerror="alert(2)"></body></html>';
 
-    if (r.tipo !== "ACEPTADO") throw new Error("debería aceptarse");
-    const contenido = r.correo.payload.contenido ?? "";
+    it("el texto del mensaje sigue siendo texto legible, igual que antes (FR-008)", async () => {
+      const r = await normalizar({ "Content-Type": "text/html; charset=utf-8" }, HTML);
 
-    expect(contenido).toContain("Hola, quiero el precio.");
-    expect(contenido).toContain("https://x.com/p");
-    expect(contenido).not.toContain("<p>");
-    expect(contenido).not.toContain("<html");
+      if (r.tipo !== "ACEPTADO") throw new Error("debería aceptarse");
+      const contenido = r.correo.payload.contenido ?? "";
+
+      expect(contenido).toContain("Hola, quiero el precio.");
+      expect(contenido).toContain("https://x.com/p");
+      expect(contenido).not.toContain("<p>");
+      expect(contenido).not.toContain("<html");
+    });
+
+    it("se guarda una versión LIMPIA del HTML, nunca el original", async () => {
+      const r = await normalizar({ "Content-Type": "text/html; charset=utf-8" }, HTML);
+
+      if (r.tipo !== "ACEPTADO") throw new Error("debería aceptarse");
+      const correo = r.correo.payload.correo;
+      expect(correo?.estadoHtml).toBe("DISPONIBLE");
+      expect(correo?.htmlLimpio).toContain("<b>precio</b>");
+      expect(correo?.htmlLimpio).not.toBe(HTML);
+      expect(correo?.htmlLimpio).not.toMatch(/<script|onerror|alert|t\.test/i);
+      expect(correo?.imagenesExternas).toEqual(["https://t.test/p.gif"]);
+    });
+
+    it("guarda las cabeceras propias del correo (US2)", async () => {
+      const r = await normalizar(
+        {
+          To: "ventas@negocio.com, Gerente <gerente@negocio.com>",
+          Cc: "compras@cliente.com",
+          Subject: "Cambio de asunto",
+          Date: "Mon, 16 Nov 2026 10:30:00 -0500",
+        },
+        "Texto.",
+      );
+
+      if (r.tipo !== "ACEPTADO") throw new Error("debería aceptarse");
+      expect(r.correo.payload.correo).toMatchObject({
+        de: { nombre: "Juan Pérez", direccion: "juan@cliente.com" },
+        para: [
+          { nombre: null, direccion: "ventas@negocio.com" },
+          { nombre: "Gerente", direccion: "gerente@negocio.com" },
+        ],
+        paraTotal: 2,
+        cc: [{ nombre: null, direccion: "compras@cliente.com" }],
+        ccTotal: 1,
+        asunto: "Cambio de asunto",
+        fechaEnvio: "2026-11-16T15:30:00.000Z",
+      });
+    });
+
+    it("un correo solo texto no tiene HTML", async () => {
+      const r = await normalizar({}, "Solo texto.");
+
+      if (r.tipo !== "ACEPTADO") throw new Error("debería aceptarse");
+      expect(r.correo.payload.correo).toMatchObject({ estadoHtml: "SIN_HTML", htmlLimpio: null });
+    });
+
+    it("un HTML más grande que el límite entra solo como texto, sin perder el correo", async () => {
+      const enorme = `<p>Inicio del correo.</p><p>${"x".repeat(1_100_000)}</p>`;
+      const r = await normalizar({ "Content-Type": "text/html; charset=utf-8" }, enorme);
+
+      if (r.tipo !== "ACEPTADO") throw new Error("debería aceptarse");
+      expect(r.correo.payload.correo).toMatchObject({
+        estadoHtml: "NO_DISPONIBLE",
+        motivoHtml: "DEMASIADO_GRANDE",
+        htmlLimpio: null,
+      });
+      expect(r.correo.payload.contenido).toContain("Inicio del correo.");
+      // El tiempo de este caso es del recorte de cita sobre ~1 MB de texto
+      // (camino previo a 035); la limpieza de HTML corta antes por tamaño.
+    }, 30_000);
   });
 
   it("recorta el hilo citado de una respuesta", async () => {

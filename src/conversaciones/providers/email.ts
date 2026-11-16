@@ -112,9 +112,10 @@ export class EmailProvider implements ICanalProvider {
         from: remitente,
         to: payload.destinatario,
         subject: configuracion.asunto ?? "Mensaje",
-        // Solo texto plano: Karia no compone HTML y tampoco lo renderiza al
-        // recibir (ver research.md R10). Un correo de texto llega igual a
-        // todos los clientes y no arrastra una superficie de rastreo.
+        // Solo texto plano: Karia no compone HTML (el HTML que RECIBE se
+        // muestra limpio y aislado desde 035, pero el envío no cambió). Un
+        // correo de texto llega igual a todos los clientes y no arrastra una
+        // superficie de rastreo.
         text: payload.contenido ?? "",
         ...(configuracion.inReplyTo ? { inReplyTo: conAngulos(configuracion.inReplyTo) } : {}),
         ...(configuracion.references?.length

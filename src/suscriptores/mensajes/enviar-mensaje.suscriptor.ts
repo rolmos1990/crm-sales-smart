@@ -9,6 +9,7 @@ import { obtenerProvider } from "@/conversaciones/providers/registry";
 import { resolverUrlMedia } from "@/lib/resolve-media-url";
 import { EnvioMensajeError } from "@/conversaciones/errores";
 import { obtenerEstadoVentanaMensajeria } from "@/conversaciones/providers/instagram-ventana";
+import { VERSION_POLITICA } from "@/integraciones/email/mensaje/html/politica";
 
 export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensajePayload> {
   readonly queue = QUEUES.MENSAJE_ENVIAR;
@@ -112,6 +113,37 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
       where: { id: mensajeId },
       data: { estado: "ENTREGADO", idExterno: result.idExterno, enviadoEn: new Date() },
     });
+
+    // 035 — Cabeceras con que salió la respuesta, para que su tarjeta muestre
+    // De = buzón, Para = cliente y el asunto real. Best effort: el correo ya
+    // salió, y un fallo acá NO puede marcarlo como fallido ni reintentarlo
+    // (eso lo reenviaría al cliente).
+    if (cuentaCanal.canal === "email") {
+      try {
+        await prisma.mensajeCorreo.upsert({
+          where: { mensajeId },
+          update: {},
+          create: {
+            mensajeId,
+            instanciaId,
+            estadoHtml: "SIN_HTML",
+            versionPolitica: VERSION_POLITICA,
+            de: { nombre: cuentaCanal.nombre || null, direccion: cuentaCanal.identificador },
+            para: [{ nombre: null, direccion: destinatario }],
+            paraTotal: 1,
+            asunto: typeof contextoHilo.asunto === "string" ? contextoHilo.asunto : null,
+            fechaEnvio: new Date(),
+          },
+        });
+      } catch (err) {
+        console.warn("[EnviarMensaje] No se guardaron las cabeceras del correo enviado", {
+          messageId: mensajeId,
+          // Solo el código: el mensaje de Prisma puede traer los datos de la
+          // consulta (direcciones de correo) y no deben ir a los logs.
+          codigo: (err as { code?: string } | null)?.code ?? (err instanceof Error ? err.name : "desconocido"),
+        });
+      }
+    }
 
     void publicadorEventos.publicar(EventosSistema.MensajeEnviado, instanciaId, {
       mensajeId,

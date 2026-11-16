@@ -144,6 +144,15 @@ TOKENS_CIFRADO_KEY="..."
 # No confundir con el "Email transaccional" de más arriba (Resend): ese manda
 # los correos que Karia le escribe al usuario del CRM. Este es el canal de
 # atención con el cliente final. Ver src/integraciones/email/.
+#
+# Vista HTML aislada de correos (035). Firma las URLs de vida corta con las que
+# el iframe aislado pide el correo y sus imágenes: ese iframe no manda la cookie
+# de sesión, así que la autorización viaja en la URL. ≥ 32 bytes aleatorios:
+#   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+# Solo la necesita la app Next.js. Sin ella, la vista HTML queda apagada y los
+# correos se ven en texto, igual que antes de 035 (falla cerrado). Rotarla
+# invalida las vistas abiertas en ese momento, nada más.
+CORREO_VISTA_SECRETO="..."
 ```
 
 ---

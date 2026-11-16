@@ -287,3 +287,21 @@ export function eliminarMensajesPorIdExterno(idExterno: string) {
 export function vaciarOportunidades(instanciaId: string) {
   return llamar<{ ok: true }>("vaciarOportunidades", [instanciaId]);
 }
+
+// ─── 035 — Correo HTML aislado ─────────────────────────────────────────────
+
+export interface ConversacionCorreoHtml {
+  conversacionId: string;
+  mensajeId: string;
+  cuentaCanalId: string;
+  contactoId: string;
+  asunto: string;
+}
+
+export function crearConversacionCorreoHtml(overrides: { instanciaId: string; usuarioId: string; html: string }) {
+  return llamar<ConversacionCorreoHtml>("crearConversacionCorreoHtml", [overrides]);
+}
+
+export function eliminarConversacionCorreoHtml(ids: { conversacionId: string; cuentaCanalId: string; contactoId: string }) {
+  return llamar<{ ok: true }>("eliminarConversacionCorreoHtml", [ids]);
+}
