@@ -15,14 +15,18 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
-  Download,
+  Inbox,
+  Info,
+  Layers,
   Eye,
   EyeOff,
   Loader2,
   Lock,
+  LockOpen,
   Mail,
   Plug,
   Send,
+  UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +62,7 @@ import {
 } from "../proveedores";
 import { actualizarBuzon, probarConexionBuzon, registrarBuzon } from "../actions";
 import { FilaResumen, IndicadorPasos, Segmentado, TarjetaOpcion } from "./pasos-buzon";
+import { LogoProveedor } from "./logos-proveedores";
 
 interface PipelineOpcion {
   id: string;
@@ -299,60 +304,74 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
     onCerrar();
   }
 
+
   const encabezados: Record<number, { titulo: string; descripcion: string }> = {
-    1: { titulo: "Conectar buzón de correo", descripcion: "¿Qué casilla querés atender desde Karia?" },
-    2: { titulo: "Datos de conexión", descripcion: "Con esto Karia lee y envía correos por tu buzón." },
-    3: { titulo: "Cómo entran los correos", descripcion: "Dónde caen en el pipeline y si hace falta aprobarlos." },
-    4: { titulo: "Revisá antes de activar", descripcion: "Así va a quedar configurado el buzón." },
+    1: {
+      titulo: "Conectar buzón de correo",
+      descripcion: "Elegí tu proveedor e indicá qué casilla querés atender desde Karia.",
+    },
+    2: {
+      titulo: "Datos de conexión",
+      descripcion: "Configurá IMAP y SMTP para recibir y enviar mensajes desde Karia.",
+    },
+    3: {
+      titulo: "Configurá cómo entran los correos",
+      descripcion: "Elegí cómo se agrupan, a qué etapa llegan y si requieren aprobación.",
+    },
+    4: {
+      titulo: "Revisá antes de activar",
+      descripcion: "Así va a quedar configurado el buzón.",
+    },
   };
+
+  const etiquetaPassword = datosProveedor.clave === "otro" ? "Contraseña" : "Contraseña de aplicación";
+  const etapaInicialNombre =
+    pipelineElegido?.stages.find((s) => s.id === v.stageId)?.nombre ?? "Primera etapa";
+  const etapaRespuestaNombre = (() => {
+    if (v.stageIdRespuestaAutomatica === SIN_ETAPA_RESPUESTA) return "No mover la oportunidad";
+    for (const p of pipelines) {
+      const s = p.stages.find((x) => x.id === v.stageIdRespuestaAutomatica);
+      if (s) return `${p.nombre} · ${s.nombre}`;
+    }
+    return "No mover la oportunidad";
+  })();
 
   return (
     <Dialog open={abierto} onOpenChange={(o) => !o && onCerrar()}>
-      <DialogContent className="flex max-h-[88vh] max-w-2xl flex-col gap-0 p-0">
-        <DialogHeader className="shrink-0 space-y-4 border-b border-border p-6 pb-5">
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-info/10">
-              <Mail className="h-5 w-5 text-info" />
+      {/* `sm:max-w-*` es obligatorio: DialogContent trae `sm:max-w-sm` de base y
+          un `max-w-*` sin prefijo pierde contra él desde 640px, que es lo que
+          dejaba el asistente angosto y cortado. */}
+      <DialogContent className="flex max-h-[min(92vh,900px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
+        <DialogHeader className="shrink-0 gap-6 px-6 pt-6 pb-5 sm:px-8">
+          <div className="flex items-start gap-4 pr-8">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10">
+              <Mail className="h-6 w-6 text-primary" />
             </span>
-            <div className="min-w-0">
-              <DialogTitle>{esEdicion ? "Editar buzón" : encabezados[paso].titulo}</DialogTitle>
-              <DialogDescription className="mt-0.5">{encabezados[paso].descripcion}</DialogDescription>
+            <div className="min-w-0 space-y-1">
+              <DialogTitle className="text-xl font-semibold leading-tight">
+                {esEdicion ? "Editar buzón" : encabezados[paso].titulo}
+              </DialogTitle>
+              <DialogDescription>{encabezados[paso].descripcion}</DialogDescription>
             </div>
           </div>
 
-          <IndicadorPasos pasos={PASOS} actual={paso} maximoAlcanzado={maximoAlcanzado} onIr={setPaso} />
+          <div className="mx-auto w-full max-w-3xl">
+            <IndicadorPasos pasos={PASOS} actual={paso} maximoAlcanzado={maximoAlcanzado} onIr={setPaso} />
+          </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(guardar)} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pt-1 pb-6 sm:px-8">
             {/* ── Paso 1: identidad del buzón ───────────────────────────── */}
             {paso === 1 && (
               <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="direccion">Dirección de correo</Label>
-                    <Input
-                      id="direccion"
-                      type="email"
-                      placeholder="ventas@minegocio.com"
-                      autoFocus
-                      {...register("direccion", {
-                        onChange: (e) => alEscribirDireccion(e.target.value),
-                      })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="nombre">Nombre del buzón</Label>
-                    <Input id="nombre" placeholder="Ventas" {...register("nombre")} />
-                    <p className="text-[11px] text-muted-foreground">
-                      Solo para reconocerlo en el Inbox.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Proveedor de correo</Label>
-                  <div role="radiogroup" aria-label="Proveedor de correo" className="space-y-2">
+                <section className="space-y-3">
+                  <TituloSeccion>Proveedor de correo</TituloSeccion>
+                  <div
+                    role="radiogroup"
+                    aria-label="Proveedor de correo"
+                    className="grid gap-3 sm:grid-cols-3"
+                  >
                     {PROVEEDORES.map((p) => (
                       <TarjetaOpcion
                         key={p.clave}
@@ -360,14 +379,39 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                         onSeleccionar={() => elegirProveedor(p.clave)}
                         titulo={p.nombre}
                         descripcion={p.descripcion}
+                        icono={<LogoProveedor clave={p.clave} />}
                       />
                     ))}
                   </div>
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     Elegir Gmail u Outlook solo completa los servidores y puertos por vos. La
                     conexión sigue siendo con usuario y contraseña: Karia no inicia sesión con tu
                     cuenta de Google ni de Microsoft.
                   </p>
+                </section>
+
+                <div className="h-px bg-border" />
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="direccion">Correo electrónico</Label>
+                    <Input
+                      id="direccion"
+                      type="email"
+                      placeholder="ventas@minegocio.com"
+                      autoFocus
+                      className={CAMPO}
+                      {...register("direccion", {
+                        onChange: (e) => alEscribirDireccion(e.target.value),
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nombre">Nombre del buzón</Label>
+                    <Input id="nombre" placeholder="Ventas" className={CAMPO} {...register("nombre")} />
+                    <p className="text-xs text-muted-foreground">Solo para reconocerlo en el Inbox.</p>
+                  </div>
                 </div>
               </>
             )}
@@ -375,97 +419,87 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
             {/* ── Paso 2: credenciales y servidores ─────────────────────── */}
             {paso === 2 && (
               <>
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
+                  <LogoProveedor clave={proveedor} className="h-6 w-6" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {v.nombre || "Buzón"}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {v.direccion} · {datosProveedor.nombre}
+                    </p>
+                  </div>
+                  {!esEdicion && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setPaso(1)}>
+                      Cambiar
+                    </Button>
+                  )}
+                </div>
+
                 {datosProveedor.aviso && (
-                  <p className="flex items-start gap-2 rounded-xl border border-warning/25 bg-warning/8 p-3 text-xs leading-relaxed text-foreground">
+                  <p className="flex items-start gap-2.5 rounded-xl border border-warning/25 bg-warning/8 p-3.5 text-xs leading-relaxed text-foreground">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                     {datosProveedor.aviso}
                   </p>
                 )}
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="entrada-password">
-                    {datosProveedor.clave === "otro" ? "Contraseña" : "Contraseña de aplicación"}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="entrada-password"
-                      type={verPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      placeholder={esEdicion ? "Dejar vacío para conservar la actual" : ""}
-                      className="pr-10"
-                      {...register("entradaPassword", {
-                        onChange: (e) => {
-                          // Un buzón usa la misma contraseña para leer y enviar
-                          // en la enorme mayoría de los casos; se separa abajo
-                          // si hace falta.
-                          if (!v.salidaPassword || v.salidaPassword === v.entradaPassword) {
-                            setValue("salidaPassword", e.target.value);
-                          }
-                        },
-                      })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setVerPassword((x) => !x)}
-                      aria-label={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                      className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {verPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-4 lg:grid-cols-2">
                   <BloqueServidor
-                    titulo="Entrada · IMAP"
+                    titulo="Servidor de entrada · IMAP"
                     descripcion="Para recibir correos en Karia."
-                    icono={<Download className="h-4 w-4 text-info" />}
+                    icono={<Inbox className="h-5 w-5" />}
                     idPrefijo="entrada"
                     seguridad={v.entradaSeguridad}
                     onSeguridad={(s) => aplicarSeguridad("entrada", s)}
                     registroServidor={register("entradaServidor")}
                     registroPuerto={register("entradaPuerto", { valueAsNumber: true })}
                     registroUsuario={register("entradaUsuario")}
+                    registroPassword={register("entradaPassword", {
+                      onChange: (e) => {
+                        // Un buzón usa la misma contraseña para leer y enviar
+                        // en la enorme mayoría de los casos: se copia a la de
+                        // salida mientras no la hayan cambiado a mano.
+                        if (!v.salidaPassword || v.salidaPassword === v.entradaPassword) {
+                          setValue("salidaPassword", e.target.value);
+                        }
+                      },
+                    })}
+                    etiquetaPassword={etiquetaPassword}
                     placeholderServidor="imap.minegocio.com"
+                    placeholderPassword={esEdicion ? "Vacío = conservar la actual" : ""}
+                    verPassword={verPassword}
+                    onAlternarPassword={() => setVerPassword((x) => !x)}
                   />
                   <BloqueServidor
-                    titulo="Salida · SMTP"
+                    titulo="Servidor de salida · SMTP"
                     descripcion="Para enviar correos desde Karia."
-                    icono={<Send className="h-4 w-4 text-info" />}
+                    icono={<Send className="h-5 w-5" />}
                     idPrefijo="salida"
                     seguridad={v.salidaSeguridad}
                     onSeguridad={(s) => aplicarSeguridad("salida", s)}
                     registroServidor={register("salidaServidor")}
                     registroPuerto={register("salidaPuerto", { valueAsNumber: true })}
                     registroUsuario={register("salidaUsuario")}
+                    registroPassword={register("salidaPassword")}
+                    etiquetaPassword={etiquetaPassword}
                     placeholderServidor="smtp.minegocio.com"
+                    placeholderPassword={esEdicion ? "Vacío = conservar la actual" : ""}
+                    verPassword={verPassword}
+                    onAlternarPassword={() => setVerPassword((x) => !x)}
                   />
                 </div>
 
-                <details className="rounded-xl border border-border p-3">
-                  <summary className="cursor-pointer text-xs text-muted-foreground">
-                    El servidor de salida usa otra contraseña
-                  </summary>
-                  <div className="mt-3 space-y-1.5">
-                    <Label htmlFor="salida-password" className="text-xs">
-                      Contraseña de salida
-                    </Label>
-                    <Input
-                      id="salida-password"
-                      type="password"
-                      autoComplete="new-password"
-                      {...register("salidaPassword")}
-                    />
-                  </div>
-                </details>
-
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label htmlFor="nombreRemitente">Nombre que verá el cliente</Label>
                   <Input
                     id="nombreRemitente"
                     placeholder="Ventas Mi Negocio"
+                    className={CAMPO}
                     {...register("nombreRemitente")}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Aparece como remitente en los correos que envíes desde Karia.
+                  </p>
                 </div>
 
                 <ResultadoPrueba estado={prueba} />
@@ -475,26 +509,32 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
             {/* ── Paso 3: reglas de recepción ───────────────────────────── */}
             {paso === 3 && (
               <>
-                <div className="space-y-2">
-                  <Label>Cómo se agrupan los correos</Label>
-                  <div role="radiogroup" aria-label="Agrupación de correos" className="space-y-2">
+                <section className="space-y-3">
+                  <TituloSeccion>Cómo se agrupan los correos</TituloSeccion>
+                  <div
+                    role="radiogroup"
+                    aria-label="Agrupación de correos"
+                    className="grid gap-3 sm:grid-cols-2"
+                  >
                     <TarjetaOpcion
                       seleccionada={v.agrupacion === "POR_REMITENTE"}
                       onSeleccionar={() => setValue("agrupacion", "POR_REMITENTE")}
                       titulo="Una conversación por remitente"
                       descripcion="Todo lo que escriba esa persona cae en la misma conversación, aunque abra asuntos distintos."
+                      icono={<UserRound className="h-7 w-7" strokeWidth={1.5} />}
                     />
                     <TarjetaOpcion
                       seleccionada={v.agrupacion === "POR_HILO"}
                       onSeleccionar={() => setValue("agrupacion", "POR_HILO")}
                       titulo="Una conversación por hilo de correo"
-                      descripcion="Cada asunto nuevo abre su propia conversación. Útil si la misma persona consulta por temas que no tienen relación entre sí."
+                      descripcion="Cada asunto nuevo abre su propia conversación. Útil si la misma persona consulta por temas sin relación."
+                      icono={<Layers className="h-7 w-7" strokeWidth={1.5} />}
                     />
                   </div>
-                </div>
+                </section>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
                     <Label>Pipeline de entrada</Label>
                     <Select
                       items={{
@@ -507,7 +547,7 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                         setValue("stageId", SIN_PIPELINE);
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={TRIGGER}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -521,8 +561,8 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                     </Select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label>Etapa de entrada</Label>
+                  <div className="space-y-2">
+                    <Label>Etapa inicial</Label>
                     <Select
                       items={{
                         [SIN_PIPELINE]: "Primera etapa",
@@ -534,7 +574,7 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                       onValueChange={(valor) => setValue("stageId", valor as string)}
                       disabled={!pipelineElegido}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={TRIGGER}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -549,91 +589,108 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label>Etapa al responder</Label>
-                  <Select
-                    items={{
-                      [SIN_ETAPA_RESPUESTA]: "No mover la oportunidad",
-                      ...Object.fromEntries(
-                        pipelines.flatMap((p) =>
-                          p.stages.map((s) => [s.id, `${p.nombre} · ${s.nombre}`] as const),
-                        ),
-                      ),
-                    }}
-                    value={v.stageIdRespuestaAutomatica}
-                    onValueChange={(valor) => setValue("stageIdRespuestaAutomatica", valor as string)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={SIN_ETAPA_RESPUESTA}>No mover la oportunidad</SelectItem>
-                      {pipelines.flatMap((p) =>
-                        p.stages.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {p.nombre} · {s.nombre}
-                          </SelectItem>
-                        )),
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground">
-                    Al responder por primera vez un correo que está en la etapa inicial, su
-                    oportunidad se mueve acá. Aplica siempre, con o sin aprobación.
-                  </p>
-                </div>
+                <div className="h-px bg-border" />
 
-                <div
+                <section
                   className={cn(
-                    "space-y-3 rounded-xl border p-4 transition-colors",
-                    v.requiereAprobacion ? "border-warning/30 bg-warning/8" : "border-border",
+                    "space-y-5 rounded-xl border p-5 transition-colors",
+                    v.requiereAprobacion
+                      ? "border-warning/30 bg-warning/5"
+                      : "border-border bg-muted/30",
                   )}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-4">
+                    <span
+                      className={cn(
+                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                        v.requiereAprobacion
+                          ? "border-warning/30 bg-warning/15 text-warning"
+                          : "border-border bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {v.requiereAprobacion ? (
+                        <Lock className="h-5 w-5" />
+                      ) : (
+                        <LockOpen className="h-5 w-5" />
+                      )}
+                    </span>
+                    <div className="min-w-0 space-y-1.5">
                       <span
                         className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
+                          "inline-flex items-center rounded-md border px-2.5 py-0.5 text-sm font-semibold",
                           v.requiereAprobacion
                             ? "border-warning/30 bg-warning/15 text-warning"
-                            : "border-border bg-muted text-muted-foreground",
+                            : "border-primary/30 bg-primary/10 text-primary",
                         )}
                       >
-                        <Lock className="h-4 w-4" />
+                        {v.requiereAprobacion ? "Requiere aprobación" : "Entrada automática"}
                       </span>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          Aprobar remitentes desconocidos
-                        </p>
-                        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                          {v.requiereAprobacion
-                            ? "Los correos de direcciones que no están en tu CRM quedan bloqueados: nadie puede responderlos —ni vos, ni el agente de IA, ni un Workflow— hasta aprobar al remitente."
-                            : "Cada dirección nueva que escriba se convierte en contacto y oportunidad automáticamente."}
-                        </p>
-                      </div>
+                      <p className="text-sm leading-relaxed text-muted-foreground">
+                        {v.requiereAprobacion
+                          ? "Los correos de direcciones que no están en tu CRM quedan bloqueados: nadie puede responderlos —ni vos, ni el agente de IA, ni un Workflow— hasta aprobar al remitente."
+                          : "Cada dirección nueva que escriba se convierte en contacto y oportunidad automáticamente."}
+                      </p>
                     </div>
+                  </div>
+
+                  <label className="flex cursor-pointer items-center gap-3">
                     <Switch
                       checked={v.requiereAprobacion}
                       onCheckedChange={(x) => setValue("requiereAprobacion", x)}
-                      aria-label="Aprobar remitentes desconocidos"
                     />
-                  </div>
+                    <span className="text-sm font-medium text-foreground">
+                      Aprobar remitentes desconocidos antes de responder
+                    </span>
+                  </label>
                   {v.requiereAprobacion && (
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    <p className="-mt-2 text-xs leading-relaxed text-muted-foreground">
                       Conviene si tu dirección está publicada y recibís proveedores, facturas o
                       spam. Una vez aprobado un remitente, sus correos siguientes entran solos.
                     </p>
                   )}
-                </div>
+
+                  <div className="space-y-2 border-t border-border pt-4">
+                    <Label>Etapa al responder</Label>
+                    <Select
+                      items={{
+                        [SIN_ETAPA_RESPUESTA]: "No mover la oportunidad",
+                        ...Object.fromEntries(
+                          pipelines.flatMap((p) =>
+                            p.stages.map((s) => [s.id, `${p.nombre} · ${s.nombre}`] as const),
+                          ),
+                        ),
+                      }}
+                      value={v.stageIdRespuestaAutomatica}
+                      onValueChange={(valor) => setValue("stageIdRespuestaAutomatica", valor as string)}
+                    >
+                      <SelectTrigger className={TRIGGER}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SIN_ETAPA_RESPUESTA}>No mover la oportunidad</SelectItem>
+                        {pipelines.flatMap((p) =>
+                          p.stages.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {p.nombre} · {s.nombre}
+                            </SelectItem>
+                          )),
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Al responder por primera vez un correo que está en la etapa inicial, su
+                      oportunidad se mueve acá. Aplica siempre, con o sin aprobación.
+                    </p>
+                  </div>
+                </section>
               </>
             )}
 
             {/* ── Paso 4: confirmación ──────────────────────────────────── */}
             {paso === 4 && (
               <>
-                <div className="rounded-xl border border-border p-4">
-                  <p className="mb-1 text-xs font-medium text-muted-foreground">Buzón</p>
-                  <div className="divide-y divide-border">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <BloqueResumen titulo="Buzón" icono={<LogoProveedor clave={proveedor} className="h-5 w-5" />}>
                     <FilaResumen etiqueta="Nombre" valor={v.nombre} />
                     <FilaResumen etiqueta="Dirección" valor={v.direccion} />
                     <FilaResumen
@@ -651,7 +708,7 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                       valor={
                         conexionesOk ? (
                           <span className="flex items-center justify-end gap-1 text-success">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <CheckCircle2 className="h-4 w-4" />
                             Verificada
                           </span>
                         ) : (
@@ -659,31 +716,33 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                         )
                       }
                     />
-                  </div>
-                </div>
+                  </BloqueResumen>
 
-                <div className="rounded-xl border border-border p-4">
-                  <p className="mb-1 text-xs font-medium text-muted-foreground">Recepción</p>
-                  <div className="divide-y divide-border">
+                  <BloqueResumen titulo="Recepción" icono={<Inbox className="h-5 w-5 text-primary" />}>
                     <FilaResumen
                       etiqueta="Agrupación"
                       valor={v.agrupacion === "POR_HILO" ? "Por hilo de correo" : "Por remitente"}
                     />
                     <FilaResumen
                       etiqueta="Entra en"
-                      valor={`${pipelineElegido?.nombre ?? "Pipeline por defecto"} · ${
-                        pipelineElegido?.stages.find((s) => s.id === v.stageId)?.nombre ??
-                        "Primera etapa"
-                      }`}
+                      valor={`${pipelineElegido?.nombre ?? "Pipeline por defecto"} · ${etapaInicialNombre}`}
                     />
+                    <FilaResumen etiqueta="Al responder" valor={etapaRespuestaNombre} />
                     <FilaResumen
                       etiqueta="Remitentes desconocidos"
-                      valor={v.requiereAprobacion ? "Requieren aprobación" : "Se crean automáticamente"}
+                      valor={
+                        v.requiereAprobacion ? (
+                          <span className="text-warning">Requieren aprobación</span>
+                        ) : (
+                          "Se crean automáticamente"
+                        )
+                      }
                     />
-                  </div>
+                  </BloqueResumen>
                 </div>
 
-                <p className="text-xs leading-relaxed text-muted-foreground">
+                <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   Al activar, Karia empieza a leer desde los correos que lleguen de ahora en
                   adelante: lo que ya estaba en la casilla no se importa.
                 </p>
@@ -691,7 +750,7 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
             )}
 
             {errorGuardado && (
-              <p className="flex items-start gap-2 text-sm text-destructive">
+              <p className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/8 p-3 text-sm text-destructive">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                 {errorGuardado}
               </p>
@@ -699,71 +758,106 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
           </div>
 
           {/* ── Pie ───────────────────────────────────────────────────────── */}
-          <div className="shrink-0 border-t border-border">
-            <div className="flex items-center justify-between gap-3 p-4">
-              {paso === 1 ? (
-                <Button type="button" variant="ghost" onClick={onCerrar} disabled={guardando}>
-                  Cancelar
-                </Button>
-              ) : (
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/20 px-6 py-4 sm:px-8">
+            {paso === 1 ? (
+              <Button type="button" variant="outline" size="lg" onClick={onCerrar} disabled={guardando}>
+                Cancelar
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => setPaso(paso - 1)}
+                disabled={guardando}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Atrás
+              </Button>
+            )}
+
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {paso === 2 && !conexionesOk && (
+                <span className="hidden text-xs text-muted-foreground md:inline">
+                  Probá la conexión para poder continuar.
+                </span>
+              )}
+
+              {paso === 2 && (
                 <Button
                   type="button"
-                  variant="ghost"
-                  onClick={() => setPaso(paso - 1)}
-                  disabled={guardando}
+                  variant="outline"
+                  size="lg"
+                  onClick={probar}
+                  disabled={prueba.fase === "probando" || !datosServidorCompletos}
                 >
-                  <ArrowLeft className="h-4 w-4" />
-                  Atrás
+                  {prueba.fase === "probando" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plug className="h-4 w-4" />
+                  )}
+                  Probar conexión
                 </Button>
               )}
 
-              <div className="flex items-center gap-2">
-                {paso === 2 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={probar}
-                    disabled={prueba.fase === "probando" || !datosServidorCompletos}
-                  >
-                    {prueba.fase === "probando" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plug className="h-4 w-4" />
-                    )}
-                    Probar conexión
-                  </Button>
-                )}
-
-                {paso < 4 ? (
-                  <Button
-                    type="button"
-                    onClick={avanzar}
-                    disabled={
-                      (paso === 1 && !pasoUnoCompleto) ||
-                      (paso === 2 && !(datosServidorCompletos && conexionesOk))
-                    }
-                  >
-                    Continuar
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button type="submit" disabled={guardando || !conexionesOk}>
-                    {guardando && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {esEdicion ? "Guardar cambios" : "Activar buzón"}
-                  </Button>
-                )}
-              </div>
+              {paso < 4 ? (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="px-4"
+                  onClick={avanzar}
+                  disabled={
+                    (paso === 1 && !pasoUnoCompleto) ||
+                    (paso === 2 && !(datosServidorCompletos && conexionesOk))
+                  }
+                >
+                  Continuar
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button type="submit" size="lg" className="px-4" disabled={guardando || !conexionesOk}>
+                  {guardando && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {esEdicion ? "Guardar cambios" : "Activar buzón"}
+                </Button>
+              )}
             </div>
-
-            {paso === 2 && !conexionesOk && (
-              <p className="px-4 pb-3 text-right text-[11px] text-muted-foreground">
-                Probá la conexión para poder continuar.
-              </p>
-            )}
           </div>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Piezas locales ──────────────────────────────────────────────────────────
+
+const CAMPO = "h-10";
+// El trigger fija su alto con `data-[size=default]:h-8`; un `h-10` suelto
+// pierde por especificidad, así que se pisa la misma variante.
+const TRIGGER = "w-full data-[size=default]:h-10";
+
+function TituloSeccion({ children }: { children: ReactNode }) {
+  return <h3 className="text-sm font-semibold text-foreground">{children}</h3>;
+}
+
+function BloqueResumen({
+  titulo,
+  icono,
+  children,
+}: {
+  titulo: string;
+  icono: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-2 flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted/50">
+          {icono}
+        </span>
+        <p className="text-sm font-semibold text-foreground">{titulo}</p>
+      </div>
+      <div className="divide-y divide-border">{children}</div>
+    </div>
   );
 }
 
@@ -781,7 +875,12 @@ function BloqueServidor({
   registroServidor,
   registroPuerto,
   registroUsuario,
+  registroPassword,
+  etiquetaPassword,
   placeholderServidor,
+  placeholderPassword,
+  verPassword,
+  onAlternarPassword,
 }: {
   titulo: string;
   descripcion: string;
@@ -792,37 +891,43 @@ function BloqueServidor({
   registroServidor: RegistroCampo;
   registroPuerto: RegistroCampo;
   registroUsuario: RegistroCampo;
+  registroPassword: RegistroCampo;
+  etiquetaPassword: string;
   placeholderServidor: string;
+  placeholderPassword: string;
+  verPassword: boolean;
+  onAlternarPassword: () => void;
 }) {
   return (
-    <div className="space-y-3 rounded-xl border border-border p-4">
-      <div className="flex items-start gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-info/10">
+    <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-foreground">
           {icono}
         </span>
         <div>
-          <p className="text-sm font-medium text-foreground">{titulo}</p>
-          <p className="text-[11px] text-muted-foreground">{descripcion}</p>
+          <p className="text-sm font-semibold text-foreground">{titulo}</p>
+          <p className="text-xs text-muted-foreground">{descripcion}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-[1fr_5rem] gap-2">
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefijo}-servidor`} className="text-xs">
-            Servidor
-          </Label>
-          <Input id={`${idPrefijo}-servidor`} placeholder={placeholderServidor} {...registroServidor} />
+      <div className="grid grid-cols-[1fr_6rem] gap-3">
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefijo}-servidor`}>Servidor</Label>
+          <Input
+            id={`${idPrefijo}-servidor`}
+            placeholder={placeholderServidor}
+            className={CAMPO}
+            {...registroServidor}
+          />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefijo}-puerto`} className="text-xs">
-            Puerto
-          </Label>
-          <Input id={`${idPrefijo}-puerto`} type="number" {...registroPuerto} />
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefijo}-puerto`}>Puerto</Label>
+          <Input id={`${idPrefijo}-puerto`} type="number" className={CAMPO} {...registroPuerto} />
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="text-xs">Seguridad</Label>
+      <div className="space-y-2">
+        <Label>Seguridad</Label>
         <Segmentado
           valor={seguridad}
           opciones={OPCIONES_SEGURIDAD}
@@ -831,11 +936,32 @@ function BloqueServidor({
         />
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefijo}-usuario`} className="text-xs">
-          Usuario
-        </Label>
-        <Input id={`${idPrefijo}-usuario`} {...registroUsuario} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefijo}-usuario`}>Usuario</Label>
+          <Input id={`${idPrefijo}-usuario`} className={CAMPO} {...registroUsuario} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefijo}-password`}>{etiquetaPassword}</Label>
+          <div className="relative">
+            <Input
+              id={`${idPrefijo}-password`}
+              type={verPassword ? "text" : "password"}
+              autoComplete="new-password"
+              placeholder={placeholderPassword}
+              className={cn(CAMPO, "pr-10")}
+              {...registroPassword}
+            />
+            <button
+              type="button"
+              onClick={onAlternarPassword}
+              aria-label={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              className="absolute top-1/2 right-2.5 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {verPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -850,9 +976,15 @@ function ResultadoPrueba({ estado }: { estado: EstadoPrueba }) {
     { etiqueta: "Entrada", ...estado.entrada },
     { etiqueta: "Salida", ...estado.salida },
   ];
+  const todoOk = filas.every((f) => f.ok);
 
   return (
-    <div className="space-y-2 rounded-xl border border-border p-3">
+    <div
+      className={cn(
+        "grid gap-2 rounded-xl border p-4 sm:grid-cols-2",
+        todoOk ? "border-success/30 bg-success/8" : "border-destructive/30 bg-destructive/5",
+      )}
+    >
       {filas.map((f) => (
         <div key={f.etiqueta} className="flex items-start gap-2 text-sm">
           {f.ok ? (
@@ -860,8 +992,8 @@ function ResultadoPrueba({ estado }: { estado: EstadoPrueba }) {
           ) : (
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           )}
-          <span className="w-16 shrink-0 font-medium text-foreground">{f.etiqueta}</span>
-          <span className={cn("text-muted-foreground", f.ok && "text-success")}>
+          <span className="shrink-0 font-medium text-foreground">{f.etiqueta}</span>
+          <span className={cn("min-w-0 break-words text-muted-foreground", f.ok && "text-success")}>
             {f.ok ? "Conexión correcta" : (f.mensaje ?? "No se pudo conectar")}
           </span>
         </div>
