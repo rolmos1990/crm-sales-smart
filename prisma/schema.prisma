@@ -405,6 +405,7 @@ model Instancia {
   cuentasCanal         CuentaCanal[]
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
+  buzonesCorreoEstado  BuzonCorreoEstado[]
 
   flujosVenta            FlujoVenta[]
   importaciones          HistorialImportacion[]
@@ -455,7 +456,7 @@ model Instancia {
   /// forma de pre-crear a mano un store por cada tenant. Null = esta cuenta
   /// todavía no subió documentación. Vive en la organización de OpenAI de
   /// Karia (OPENAI_DOCUMENTACION_API_KEY), no en la del cliente.
-  vectorStoreDocumentacionId    String?
+  vectorStoreDocumentacionId String?
 
   @@index([slug])
   @@index([estado])
@@ -771,8 +772,13 @@ model Oportunidad {
   metadata            Json?
   nuevoMensaje        Boolean   @default(false)
   ultimaInteraccionEn DateTime?
-  creadoEn            DateTime  @default(now())
-  actualizadoEn       DateTime  @updatedAt
+
+  /// 034 — Bandera derivada: la oportunidad nació de un remitente de correo
+  /// todavía sin aprobar. Se desnormaliza acá para que el Kanban la distinga
+  /// con su `select` fijo por etapa, sin una consulta por columna.
+  aprobacionPendiente Boolean  @default(false)
+  creadoEn            DateTime @default(now())
+  actualizadoEn       DateTime @updatedAt
 
   empresaId String?
   empresa   Empresa? @relation(fields: [empresaId], references: [id])
@@ -812,6 +818,7 @@ model Oportunidad {
   @@index([stageId])
   @@index([empresaId])
   @@index([etapa])
+  @@index([instanciaId, aprobacionPendiente])
 }
 
 // Una fila por cada cambio de etapa del pipeline dinámico, venga de donde
@@ -2733,6 +2740,14 @@ model ContactoIdentificadorCanal {
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
+  // 034 — Aprobación de remitentes desconocidos. SOLO se consulta para el canal
+  // "email", y solo cuando ese buzón tiene desactivada la creación automática
+  // de contactos: es la fuente de verdad de que un remitente ya fue aprobado,
+  // para que sus correos siguientes entren sin volver a pedirlo. En cualquier
+  // otro canal queda null para siempre y nadie lo mira.
+  aprobadoEn    DateTime?
+  aprobadoPorId String?
+
   creadoEn DateTime @default(now())
 
   @@unique([canal, identificador, instanciaId])
@@ -2774,7 +2789,8 @@ model CuentaCanal {
   stageIdRespuestaAutomatica String?
   stageRespuestaAutomatica   PipelineStage? @relation("CuentaCanalStageRespuesta", fields: [stageIdRespuestaAutomatica], references: [id], onDelete: SetNull)
 
-  conversaciones Conversacion[]
+  conversaciones    Conversacion[]
+  buzonCorreoEstado BuzonCorreoEstado?
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
@@ -2814,6 +2830,18 @@ model Conversacion {
   // Ejecución de Workflow que controla la conversación (modoAtencion = WORKFLOW).
   atencionEjecucionId String?
 
+  // 034 — Bandera derivada de ContactoIdentificadorCanal.aprobadoEn. Existe
+  // para que los tres puntos que pueden emitir un mensaje saliente (agente
+  // humano en envio.ts, IA en orquestar-ia.suscriptor.ts y Workflows en
+  // workflows/motor/disparo.ts) corten con la conversación que YA cargan, sin
+  // una consulta extra. Solo el canal de correo la pone en true.
+  bloqueadaPorAprobacion Boolean @default(false)
+
+  // 034 — Raíz del hilo de correo (Message-ID normalizado). Solo se usa cuando
+  // el buzón agrupa POR_HILO; null en el resto de los canales y en los buzones
+  // que agrupan por remitente.
+  hiloExterno String?
+
   oportunidadGanadaRelId String?
   oportunidadGanadaRel   Oportunidad? @relation("ConvOportunidadGanada", fields: [oportunidadGanadaRelId], references: [id], onDelete: SetNull)
 
@@ -2846,6 +2874,8 @@ model Conversacion {
   @@index([cuentaCanalId])
   @@index([estado])
   @@index([clasificacion])
+  @@index([instanciaId, bloqueadaPorAprobacion])
+  @@index([instanciaId, hiloExterno])
 }
 
 // Mensaje individual dentro de una conversación
@@ -2913,6 +2943,44 @@ model MensajeReaccion {
   @@unique([mensajeId, usuarioId, emoji])
   @@unique([mensajeId, contactoId, emoji])
   @@index([mensajeId])
+}
+
+// 034 — Estado operativo de la lectura de un buzón de correo.
+//
+// Vive aparte de CuentaCanal.configuracion a propósito: esto se escribe en
+// CADA ciclo de lectura (cada 60s por buzón), y no corresponde reescribir en
+// cada ciclo la fila que guarda las credenciales cifradas del comercio.
+model BuzonCorreoEstado {
+  id String @id @default(cuid())
+
+  cuentaCanalId String      @unique
+  cuentaCanal   CuentaCanal @relation(fields: [cuentaCanalId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  // Marca de posición IMAP. El UID es un entero sin signo de 32 bits: no entra
+  // en Int. Se anclan al UID más alto existente al activar el buzón, para no
+  // importar el historial previo de la casilla.
+  uidValidity BigInt?
+  ultimoUid   BigInt?
+
+  ultimaLecturaEn   DateTime?
+  ultimaLecturaOkEn DateTime?
+  correosLeidos     Int       @default(0)
+
+  // Estado de error visible para el negocio. El texto crudo del servidor NO se
+  // guarda acá: solo el código funcional y un mensaje ya traducido, porque esto
+  // se muestra en pantalla.
+  errorCodigo    String?
+  errorMensaje   String?
+  errorDesde     DateTime?
+  fallosSeguidos Int       @default(0)
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([instanciaId])
 }
 
 // Relación conversación ↔ oportunidad
@@ -3273,7 +3341,7 @@ model DocumentoAgenteIA {
   errorIndexacion String?
   /// Desactivado sigue cargado e indexado, pero la búsqueda lo excluye: el
   /// agente no lo encuentra.
-  activo          Boolean @default(true)
+  activo          Boolean                 @default(true)
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt

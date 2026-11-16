@@ -39,6 +39,16 @@ export const CATALOGO_INTEGRACIONES: IntegracionCatalogo[] = [
     badges:      ["Nuevo"],
   },
 
+  {
+    clave:       "email",
+    nombre:      "Correo electrónico",
+    descripcion: "Conectá el buzón de tu negocio y atendé los correos desde el CRM. Cada correo entrante crea su contacto y su oportunidad, y respondés desde la misma bandeja que el resto de tus canales.",
+    categoria:   "mensajeria",
+    logoEmoji:   "📧",
+    disponible:  true,
+    badges:      ["Nuevo"],
+  },
+
   // ── Marketing ──────────────────────────────────────────────────
   {
     clave:       "mailchimp",

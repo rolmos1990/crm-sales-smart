@@ -158,27 +158,9 @@ function CardIntegracion({ integracion }: { integracion: IntegracionConEstado })
                 {isPending ? "Desactivando…" : "Desactivar"}
               </button>
             )}
-            {instalada.estado === "ACTIVA" && integracion.clave === "whatsapp_lite" && (
+            {instalada.estado === "ACTIVA" && RUTAS_CONFIGURACION[integracion.clave] && (
               <Link
-                href="/integraciones/whatsapp-lite"
-                className="py-2 px-3 rounded-xl text-xs font-semibold border border-lime-500/25 text-lime-700 dark:text-lime-400 hover:bg-lime-500/8 transition-all flex items-center gap-1.5"
-              >
-                <Settings2 className="h-3 w-3" />
-                Configurar
-              </Link>
-            )}
-            {instalada.estado === "ACTIVA" && integracion.clave === "instagram" && (
-              <Link
-                href="/integraciones/instagram"
-                className="py-2 px-3 rounded-xl text-xs font-semibold border border-lime-500/25 text-lime-700 dark:text-lime-400 hover:bg-lime-500/8 transition-all flex items-center gap-1.5"
-              >
-                <Settings2 className="h-3 w-3" />
-                Configurar
-              </Link>
-            )}
-            {instalada.estado === "ACTIVA" && integracion.clave === "facebook_messenger" && (
-              <Link
-                href="/integraciones/facebook-messenger"
+                href={RUTAS_CONFIGURACION[integracion.clave]}
                 className="py-2 px-3 rounded-xl text-xs font-semibold border border-lime-500/25 text-lime-700 dark:text-lime-400 hover:bg-lime-500/8 transition-all flex items-center gap-1.5"
               >
                 <Settings2 className="h-3 w-3" />
@@ -198,6 +180,15 @@ function CardIntegracion({ integracion }: { integracion: IntegracionConEstado })
     </div>
   );
 }
+
+// Canales con pantalla propia de configuración. Era un bloque JSX repetido por
+// canal; como mapa, sumar uno nuevo es una línea y no una cuarta copia.
+const RUTAS_CONFIGURACION: Record<string, string> = {
+  whatsapp_lite: "/integraciones/whatsapp-lite",
+  instagram: "/integraciones/instagram",
+  facebook_messenger: "/integraciones/facebook-messenger",
+  email: "/integraciones/email",
+};
 
 // ── Lista principal ───────────────────────────────────────────────
 

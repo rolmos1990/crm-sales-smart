@@ -28,6 +28,22 @@ import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 // misma resolución de contacto/conversación sin duplicar el manejo de
 // condición de carrera ni el criterio de qué cuenta como "conversación
 // previa" — ambos flujos deben comportarse igual en ese punto.
+/**
+ * ¿Este canal debe tener su propia conversación, separada del resto?
+ *
+ * Hoy devuelve `true` SOLO para correo (034): el correo de un contacto va a su
+ * propia conversación y no se mezcla con su WhatsApp. Para cualquier otro
+ * canal devuelve `false` y la resolución de abajo queda exactamente como
+ * estaba —ver los tests de línea base en actions.conversacion-por-canal.test.ts,
+ * que fijan ese comportamiento, incluido el caso de re-escaneo de QR de
+ * WhatsApp, donde la conversación se reutiliza aunque cambie la cuenta.
+ */
+// Sin `export`: este archivo lleva "use server", y ahí Next.js solo admite
+// exportar funciones async — un predicado sincrónico exportado rompe el build.
+function requiereConversacionPropiaPorCanal(canal: string): boolean {
+  return canal === "email";
+}
+
 async function resolverContactoYConversacion(payload: {
   canal: string;
   identificadorContacto: string;
@@ -56,7 +72,20 @@ async function resolverContactoYConversacion(payload: {
     const esLid = esCanalTelefonico && identificadorContacto.endsWith("@lid");
     const soloNumeros = esCanalTelefonico && !esLid ? normalizarTelefono(identificadorContacto) : null;
 
-    const contactoExistente = soloNumeros
+    // 034 — Para correo, el identificador SÍ es un dato que el CRM ya guarda
+    // (Contacto.email): antes de crear un contacto nuevo hay que ver si ese
+    // cliente ya existe, o la misma persona queda duplicada por haber escrito
+    // por otro canal primero (FR-016).
+    const correoDelRemitente =
+      canal === "email" ? identificadorContacto.trim().toLowerCase() : null;
+
+    const contactoPorCorreo = correoDelRemitente
+      ? await prisma.contacto.findFirst({
+          where: { instanciaId, email: { equals: correoDelRemitente, mode: "insensitive" } },
+        })
+      : null;
+
+    const contactoExistente = contactoPorCorreo ?? (soloNumeros
       ? await prisma.contacto.findFirst({
           where: {
             instanciaId,
@@ -70,7 +99,7 @@ async function resolverContactoYConversacion(payload: {
             ],
           },
         })
-      : null;
+      : null);
 
     if (contactoExistente) {
       // Crear el mapping para que futuras búsquedas sean O(1)
@@ -94,6 +123,10 @@ async function resolverContactoYConversacion(payload: {
           instanciaId,
           estado: "LEAD",
           ...(telefonoGuardar ? { telefonoPrincipal: telefonoGuardar } : {}),
+          // 034 — El identificador del canal correo SÍ es un email de verdad:
+          // guardarlo en la ficha evita que el mismo cliente se duplique si
+          // después escribe por otro canal.
+          ...(correoDelRemitente ? { email: correoDelRemitente } : {}),
           ...(avatarUrl ? { avatarUrl } : {}),
         },
       });
@@ -128,8 +161,22 @@ async function resolverContactoYConversacion(payload: {
   // 3. Buscar conversación abierta o en espera para contacto + instancia
   // Se busca por instanciaId en vez de cuentaCanalId para tolerar re-escaneos de QR
   // (cada re-escaneo crea un nuevo CuentaCanal; la conversación existente tiene el id anterior)
+  //
+  // 034 — El canal correo es la única excepción: sus conversaciones son propias
+  // y no se mezclan con las de WhatsApp o Instagram del mismo contacto
+  // (FR-017). Para todos los demás canales `filtroPorCanal` queda vacío y esta
+  // consulta es idéntica a la de siempre (FR-018, SC-011).
+  const filtroPorCanal = requiereConversacionPropiaPorCanal(canal)
+    ? { cuentaCanal: { canal } }
+    : {};
+
   let conversacion = await prisma.conversacion.findFirst({
-    where: { contactoId, instanciaId, estado: { in: ["ABIERTA", "EN_ESPERA", "CERRADA"] } },
+    where: {
+      contactoId,
+      instanciaId,
+      estado: { in: ["ABIERTA", "EN_ESPERA", "CERRADA"] },
+      ...filtroPorCanal,
+    },
     orderBy: { actualizadoEn: "desc" },
   });
 
