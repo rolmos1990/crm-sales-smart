@@ -31,11 +31,12 @@ import { BarraAprobacionRemitente } from "@/integraciones/email/components/barra
 import { EncabezadoHiloCorreo, HiloCorreo } from "@/integraciones/email/components/hilo-correo";
 import { ComposerCorreo, type ComposerCorreoHandle } from "@/integraciones/email/components/composer-correo";
 import { SelectorCanalRespuesta } from "./selector-canal-respuesta";
-import { canalesDeRespuesta } from "./canales-respuesta";
+import { canalesDeRespuesta, type CanalRespuesta } from "./canales-respuesta";
 import {
   cerrarConversacion,
   devolverAtencionAutomatica,
   enviarMensaje,
+  iniciarConversacion,
   marcarMensajesLeidos,
   marcarRespondida,
   reabrirConversacion,
@@ -284,26 +285,48 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     [conversaciones, seleccionada]
   );
 
-  // "Responder por": canales en los que el contacto ya tiene conversación.
-  // Se derivan de la lista ya cargada (abiertas + últimas cerradas), sin
-  // llamadas nuevas. Cambiar de canal es pasar a esa conversación, porque un
-  // mensaje sale siempre por la cuenta de su conversación.
+  // "Responder por": cuentas activas del negocio por las que se le puede
+  // escribir al contacto (ver canalesDeRespuesta). Un mensaje sale siempre por
+  // la cuenta de su conversación, así que cambiar de cuenta es pasar a la
+  // conversación del contacto en ella, o iniciarla si todavía no existe.
   const canalesContacto = useMemo(
-    () => (convActiva ? canalesDeRespuesta(convActiva, conversaciones) : []),
-    [convActiva, conversaciones]
+    () => (convActiva ? canalesDeRespuesta(convActiva, conversaciones, cuentas) : []),
+    [convActiva, conversaciones, cuentas]
   );
+  const [cambiandoCanal, startCambiarCanal] = useTransition();
   const cambiarCanalRespuesta = useCallback(
-    (conversacionId: string) => {
-      setSeleccionada(conversacionId);
-      setCuentaSeleccionadaId(conversaciones.find((c) => c.id === conversacionId)?.cuentaCanalId ?? null);
+    (canal: CanalRespuesta) => {
+      if (canal.conversacionId) {
+        setSeleccionada(canal.conversacionId);
+        setCuentaSeleccionadaId(canal.cuentaCanalId);
+        return;
+      }
+      if (!convActiva) return;
+      const contactoId = convActiva.contactoId;
+      startCambiarCanal(async () => {
+        const r = await iniciarConversacion({ contactoId, cuentaCanalId: canal.cuentaCanalId });
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+        const nueva = await obtenerConversacionAction(r.conversacionId).catch(() => null);
+        if (!nueva) {
+          toast.error("No se pudo abrir la conversación — intenta de nuevo.");
+          return;
+        }
+        setConversaciones((prev) => (prev.some((c) => c.id === nueva.id) ? prev.map((c) => (c.id === nueva.id ? nueva : c)) : [nueva, ...prev]));
+        setSeleccionada(nueva.id);
+        setCuentaSeleccionadaId(canal.cuentaCanalId);
+      });
     },
-    [conversaciones]
+    [convActiva]
   );
   const selectorCanal = convActiva ? (
     <SelectorCanalRespuesta
       canales={canalesContacto}
       conversacionActivaId={convActiva.id}
       onCambiar={cambiarCanalRespuesta}
+      cambiando={cambiandoCanal}
     />
   ) : null;
 

@@ -72,6 +72,9 @@ export interface ContactoResumen {
   telefonoPrincipal: string | null;
   email: string | null;
   avatarUrl: string | null;
+  /** Cómo se identifica al contacto en cada canal (JID, IGSID, PSID, correo…).
+   *  Define por qué canales se le puede responder — ver canalesDeRespuesta. */
+  identificadoresCanal?: { canal: string; identificador: string; handle: string | null }[];
 }
 
 /** Última oportunidad FINALIZADA del contacto (ganada o perdida) — el nombre
