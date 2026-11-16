@@ -251,6 +251,14 @@ renderiza, tampoco hace falta un sanitizador y se evita una dependencia más.
 y agrega complejidad de UI que ninguna historia pide); escribir el conversor a mano (descartado al
 comprobar que `mailparser` ya lo hace, ver arriba).
 
+> **Reemplazado por 035 (2026-11-16)**: el HTML entrante ahora sí se muestra, pero **solo limpio y
+> aislado**. Se limpia con `sanitize-html` (lista blanca) al recibir, se guarda solo la versión limpia en
+> `MensajeCorreo`, y se sirve a un iframe con sandbox sin scripts ni mismo origen, con CSP restrictiva; nunca
+> dentro de la página de Karia. El rastreo que motivó esta decisión se resuelve bloqueando las imágenes
+> externas por defecto (carga opcional por un proxy con protección SSRF). El texto sigue siendo la fuente
+> para la IA y la búsqueda, como decía esta decisión, y el **envío** sigue siendo solo texto. Ver
+> `specs/035-correo-html-seguro/research.md` (R1–R10).
+
 ---
 
 ## R11 — Límites de tamaño

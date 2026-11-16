@@ -603,7 +603,86 @@ async function vaciarOportunidades(instanciaId: string) {
   return { ok: true };
 }
 
+// ─── 035 — Correo HTML aislado ─────────────────────────────────────────────
+
+/**
+ * Conversación de correo con un mensaje cuyo HTML pasó por la limpieza REAL
+ * (la misma que corre en el worker). La cuenta queda inactiva para que el
+ * lector de buzones nunca intente conectarse a ella.
+ */
+async function crearConversacionCorreoHtml(overrides: { instanciaId: string; usuarioId: string; html: string }) {
+  const { limpiarHtmlEntrante } = await import("../../src/integraciones/email/mensaje/html/limpiar-html");
+  const limpio = limpiarHtmlEntrante(overrides.html);
+  if (limpio.estado !== "DISPONIBLE") throw new Error(`HTML de prueba no disponible: ${limpio.estado}`);
+
+  const sufijo = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const cuenta = await prisma.cuentaCanal.create({
+    data: {
+      instanciaId: overrides.instanciaId,
+      canal: "email",
+      identificador: `buzon-${sufijo}@negocio.test`,
+      nombre: `Buzón e2e ${sufijo}`,
+      activa: false,
+      configuracion: {} as never,
+    },
+  });
+  const contacto = await prisma.contacto.create({
+    data: {
+      nombre: "Correo",
+      apellido: `HTML-${sufijo}`,
+      email: `cliente-${sufijo}@cliente.test`,
+      estado: "ACTIVO",
+      instanciaId: overrides.instanciaId,
+      usuarioId: overrides.usuarioId,
+    },
+  });
+  const conversacion = await prisma.conversacion.create({
+    data: {
+      instanciaId: overrides.instanciaId,
+      contactoId: contacto.id,
+      cuentaCanalId: cuenta.id,
+      asunto: `Correo malicioso e2e ${sufijo}`,
+    },
+  });
+  const mensaje = await prisma.mensajeConversacion.create({
+    data: {
+      conversacionId: conversacion.id,
+      contenido: "Texto plano del correo de prueba",
+      tipo: "TEXTO",
+      remitente: "CONTACTO",
+      estado: "RECIBIDO",
+      idExterno: `e2e-${sufijo}@cliente.test`,
+      correo: {
+        create: {
+          instanciaId: overrides.instanciaId,
+          estadoHtml: "DISPONIBLE",
+          htmlLimpio: limpio.html,
+          versionPolitica: limpio.versionPolitica,
+          tieneImagenesExternas: limpio.imagenesExternas.length > 0,
+          imagenesExternas: limpio.imagenesExternas,
+          de: { nombre: "Cliente", direccion: contacto.email },
+          para: [{ nombre: null, direccion: cuenta.identificador }],
+          paraTotal: 1,
+          asunto: `Correo malicioso e2e ${sufijo}`,
+          fechaEnvio: new Date(),
+        },
+      },
+    },
+  });
+  return { conversacionId: conversacion.id, mensajeId: mensaje.id, cuentaCanalId: cuenta.id, contactoId: contacto.id, asunto: conversacion.asunto };
+}
+
+async function eliminarConversacionCorreoHtml(ids: { conversacionId: string; cuentaCanalId: string; contactoId: string }) {
+  await prisma.conversacion.deleteMany({ where: { id: ids.conversacionId } });
+  await prisma.contacto.deleteMany({ where: { id: ids.contactoId } });
+  await prisma.cuentaCanal.deleteMany({ where: { id: ids.cuentaCanalId } });
+  return { ok: true };
+}
+
 const OPERACIONES: Record<string, (...args: any[]) => Promise<unknown>> = {
+  // 035-correo-html-seguro
+  crearConversacionCorreoHtml,
+  eliminarConversacionCorreoHtml,
   obtenerInstanciaPruebas,
   obtenerUsuarioOwner,
   crearActividad,

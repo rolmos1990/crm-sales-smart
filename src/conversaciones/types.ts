@@ -6,6 +6,7 @@ import type {
   ClasificacionConversacion,
   ModoAtencionConversacion,
 } from "@/generated/prisma/enums";
+import type { DatosCorreoEntrante } from "@/integraciones/email/vista/schema";
 
 export type {
   TipoMensaje,
@@ -162,4 +163,8 @@ export interface MensajeEntranteNormalizado {
   /** 034 — Solo correo: raíz del hilo (Message-ID normalizado), para la
    *  agrupación por hilo. */
   hiloExterno?: string;
+  /** 035 — Solo correo: HTML ya limpio, cabeceras y adjuntos. Se guarda en
+   *  MensajeCorreo; el texto de `contenido` sigue siendo la fuente para IA,
+   *  búsqueda y lista. */
+  correo?: DatosCorreoEntrante;
 }

@@ -28,6 +28,10 @@ const RUTAS_PUBLICAS = [
   "/terms-of-service",
   "/data-deletion-status",
   "/api/webhooks",
+  // 035 — Vista aislada de correos. La pide un iframe con sandbox, que no
+  // manda la cookie de sesión; se autoriza con un token firmado de vida corta
+  // emitido por una ruta que sí exige sesión (src/integraciones/email/vista/token.ts).
+  "/api/correo-aislado",
 ];
 
 function esRutaPublica(pathname: string) {

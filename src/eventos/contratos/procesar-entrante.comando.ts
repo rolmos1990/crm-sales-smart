@@ -1,3 +1,5 @@
+import type { DatosCorreoEntrante } from "@/integraciones/email/vista/schema";
+
 export interface ComandoProcesarEntrantePayload extends Record<string, unknown> {
   instanciaId: string;
   canal: string;
@@ -17,4 +19,8 @@ export interface ComandoProcesarEntrantePayload extends Record<string, unknown> 
    *  no los mandan y el consumidor los ignora si faltan. */
   asunto?: string;
   hiloExterno?: string;
+  /** 035 — Solo canal "email": HTML YA LIMPIO (nunca el original), cabeceras
+   *  y adjuntos del correo. Opcional por el mismo motivo que `asunto`; el
+   *  consumidor lo valida con Zod antes de guardarlo. */
+  correo?: DatosCorreoEntrante;
 }
