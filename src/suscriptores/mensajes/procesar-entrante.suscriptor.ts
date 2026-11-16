@@ -24,6 +24,8 @@ export class ProcesarEntranteSuscriptor extends ConsumidorBase<ComandoProcesarEn
       mediaUrl: payload.mediaUrl,
       mediaMimeType: payload.mediaMimeType,
       mediaDuracion: payload.mediaDuracion,
+      asunto: payload.asunto,
+      hiloExterno: payload.hiloExterno,
     });
     // La orquestación IA se maneja en OrquestarIASuscriptor (escucha MensajeRecibido)
   }

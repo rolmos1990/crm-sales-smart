@@ -106,6 +106,10 @@ export async function normalizarCorreo(
   const contenidoFinal =
     contenido || (adjuntos.length > 0 ? `[Correo con ${adjuntos.length} archivo(s) adjunto(s)]` : "");
 
+  const asunto = correo.subject?.trim() || null;
+  const hiloExterno =
+    primerReferencia(correo) ?? normalizarMessageId(correo.inReplyTo) ?? messageId;
+
   const payload: ComandoProcesarEntrantePayload = {
     instanciaId: ctx.instanciaId,
     canal: "email",
@@ -115,15 +119,17 @@ export async function normalizarCorreo(
     tipo: "TEXTO",
     idExterno: calcularIdExterno(messageId, ctx.cuentaCanalId, ctx.uidValidity, ctx.uid),
     ...(nombreRemitente(correo) ? { pushName: nombreRemitente(correo) } : {}),
+    ...(asunto ? { asunto } : {}),
+    ...(hiloExterno ? { hiloExterno } : {}),
   };
 
   return {
     tipo: "ACEPTADO",
     correo: {
       payload,
-      asunto: correo.subject?.trim() || null,
+      asunto,
       messageId,
-      hiloExterno: primerReferencia(correo) ?? normalizarMessageId(correo.inReplyTo) ?? messageId,
+      hiloExterno,
       adjuntos,
     },
   };

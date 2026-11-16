@@ -154,6 +154,7 @@ export async function registrarBuzon(input: unknown): Promise<Resultado<{ id: st
       instanciaId: sesion.instanciaId,
       pipelineId: datos.pipelineId ?? null,
       stageId: datos.stageId ?? null,
+      stageIdRespuestaAutomatica: datos.stageIdRespuestaAutomatica ?? null,
     },
     select: { id: true },
   });
@@ -226,6 +227,7 @@ export async function actualizarBuzon(input: unknown): Promise<Resultado<{ id: s
       configuracion: configuracionAJson(configuracion),
       pipelineId: datos.pipelineId ?? null,
       stageId: datos.stageId ?? null,
+      stageIdRespuestaAutomatica: datos.stageIdRespuestaAutomatica ?? null,
     },
   });
 
@@ -279,10 +281,16 @@ export async function obtenerBuzonesAction(): Promise<BuzonParaCliente[]> {
 // ── Validaciones compartidas ────────────────────────────────────────────────
 
 async function validarPipelineYEtapa(
-  datos: { pipelineId?: string | null; stageId?: string | null },
+  datos: {
+    pipelineId?: string | null;
+    stageId?: string | null;
+    stageIdRespuestaAutomatica?: string | null;
+  },
   instanciaId: string,
 ): Promise<{ ok: true; data: null } | { ok: false; error: string }> {
-  if (!datos.pipelineId && !datos.stageId) return { ok: true, data: null };
+  if (!datos.pipelineId && !datos.stageId && !datos.stageIdRespuestaAutomatica) {
+    return { ok: true, data: null };
+  }
 
   if (datos.pipelineId) {
     const pipeline = await prisma.pipeline.findFirst({
@@ -301,6 +309,17 @@ async function validarPipelineYEtapa(
       select: { id: true },
     });
     if (!stage) return error("La etapa elegida no pertenece al pipeline seleccionado");
+  }
+
+  // La etapa de respuesta puede vivir en otro pipeline (igual que en los
+  // canales de mensajería, donde el pipeline destino se deriva del stage):
+  // solo se exige que pertenezca a la instancia.
+  if (datos.stageIdRespuestaAutomatica) {
+    const stage = await prisma.pipelineStage.findFirst({
+      where: { id: datos.stageIdRespuestaAutomatica, pipeline: { instanciaId } },
+      select: { id: true },
+    });
+    if (!stage) return error("La etapa de respuesta elegida no existe en esta cuenta");
   }
 
   return { ok: true, data: null };

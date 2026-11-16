@@ -152,4 +152,11 @@ export interface MensajeEntranteNormalizado {
   avatarUrl?: string;
   /** @usuario visible del contacto en el canal (ej. Instagram), si el canal lo expone. */
   handleCanal?: string;
+  /** 034 — Solo correo: asunto del mensaje. Alimenta Conversacion.asunto, de
+   *  donde sale el "Re: …" de la respuesta. Los canales de mensajería no lo
+   *  traen y queda undefined. */
+  asunto?: string;
+  /** 034 — Solo correo: raíz del hilo (Message-ID normalizado), para la
+   *  agrupación por hilo. */
+  hiloExterno?: string;
 }

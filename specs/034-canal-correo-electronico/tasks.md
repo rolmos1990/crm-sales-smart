@@ -119,12 +119,13 @@ casos de no-duplicación, de correo descartado y de buzón con credenciales rota
 **Independent Test**: sobre una conversación recibida en US1, enviar una respuesta desde el Inbox y
 confirmar en el cliente de correo del destinatario que llegó dentro del hilo original.
 
-- [ ] T037 [US2] Implementar `src/integraciones/email/mensaje/hilo.ts`: construir `ContextoHiloCorreo` (asunto de la conversación, `In-Reply-To` con el `Message-ID` del último correo entrante, cadena `References` acotada) a partir de los `MensajeConversacion.idExterno` ya guardados, y el asunto `Re: …` sin duplicar el prefijo (research.md R6, FR-028)
-- [ ] T038 [US2] Reescribir `src/conversaciones/providers/email.ts`: envío SMTP real con nodemailer usando las credenciales descifradas, corrigiendo `capacidades` (`plantillas: false`, `reacciones: false`, `marcarLeidoExterno: false`) y devolviendo el `Message-ID` generado como `idExterno` (contracts/provider-email.md §1 y §2, FR-027, FR-031)
-- [ ] T039 [US2] Resolver el `ContextoHiloCorreo` en `src/suscriptores/mensajes/enviar-mensaje.suscriptor.ts` **antes** de llamar al provider y pasarlo dentro de `configuracion`, igual que ya se hace con la ventana de mensajería de Meta — sin cambiar la firma de `ICanalProvider`
-- [ ] T040 [US2] Traducir los fallos SMTP a `EnvioMensajeError` con los códigos de contracts/provider-email.md §2, marcando correctamente cuáles son reintentables, para que el Inbox los muestre como ya muestra los de Meta (FR-029)
-- [ ] T041 [US2] Verificar que `procesarPrimeraRespuestaProspecto` mueve la oportunidad a `stageIdRespuestaAutomatica` también en correo, sin tocar esa función (FR-030)
-- [ ] T042 [P] [US2] Escribir `src/integraciones/email/mensaje/hilo.test.ts`: `Re:` no se duplica, `In-Reply-To` apunta al último entrante, `References` respeta el orden y el tope, y una conversación sin asunto previo usa el asunto neutro
+- [X] T036b [US2] **Tarea que faltaba en el plan.** `Conversacion.asunto` no se escribía en ninguna parte: la US1 normalizaba el asunto pero el contrato `ComandoProcesarEntrantePayload` no lo transportaba, así que el `Re: …` de FR-028 era imposible. Se agregaron `asunto` e `hiloExterno` como campos **opcionales** al contrato y a `MensajeEntranteNormalizado` (los canales que ya existían no los mandan y el consumidor los ignora), y `resolverContactoYConversacion` los persiste al crear la conversación, completando el asunto si venía vacío sin pisar uno ya puesto
+- [X] T037 [US2] Implementar `src/integraciones/email/mensaje/hilo.ts`: construir `ContextoHiloCorreo` (asunto de la conversación, `In-Reply-To` con el `Message-ID` del último correo entrante, cadena `References` acotada) a partir de los `MensajeConversacion.idExterno` ya guardados, y el asunto `Re: …` sin duplicar el prefijo (research.md R6, FR-028)
+- [X] T038 [US2] Reescribir `src/conversaciones/providers/email.ts`: envío SMTP real con nodemailer usando las credenciales descifradas, corrigiendo `capacidades` (`plantillas: false`, `reacciones: false`, `marcarLeidoExterno: false`) y devolviendo el `Message-ID` generado como `idExterno` (contracts/provider-email.md §1 y §2, FR-027, FR-031)
+- [X] T039 [US2] Resolver el `ContextoHiloCorreo` en `src/suscriptores/mensajes/enviar-mensaje.suscriptor.ts` **antes** de llamar al provider y pasarlo dentro de `configuracion`, igual que ya se hace con la ventana de mensajería de Meta — sin cambiar la firma de `ICanalProvider`
+- [X] T040 [US2] Traducir los fallos SMTP a `EnvioMensajeError` con los códigos de contracts/provider-email.md §2, marcando correctamente cuáles son reintentables, para que el Inbox los muestre como ya muestra los de Meta (FR-029)
+- [X] T041 [US2] Verificar que `procesarPrimeraRespuestaProspecto` mueve la oportunidad a `stageIdRespuestaAutomatica` también en correo, sin tocar esa función (FR-030). **Verificado**: la función es agnóstica del canal, solo usa `conversacion.cuentaCanalId`. Pero el campo era **inconfigurable** para correo —el formulario no lo exponía—, así que se sumó el selector "Etapa al responder" en `modal-registrar-buzon.tsx` con su validación en `actions.ts`; sin eso FR-030 no se podía cumplir en la práctica
+- [X] T042 [P] [US2] Escribir `src/integraciones/email/mensaje/hilo.test.ts`: `Re:` no se duplica, `In-Reply-To` apunta al último entrante, `References` respeta el orden y el tope, y una conversación sin asunto previo usa el asunto neutro
 
 **Checkpoint US2**: el bloque "Historia 2" de quickstart.md pasa, verificado en **dos clientes de correo
 distintos** (SC-007).
@@ -263,3 +264,11 @@ Lo que cambió respecto del plan, y por qué. Todo verificado contra el código 
    fallaron y mostraron la diferencia antes de que llegara a producción.
 6. **`lista-integraciones.tsx` simplificado** — había tres bloques JSX idénticos para el botón "Configurar"
    (uno por canal); se reemplazaron por un mapa `clave → ruta`. Sumar correo habría sido una cuarta copia.
+
+7. **`Conversacion.asunto` no se escribía (hueco de la US1)** — la normalización lo extraía pero el contrato
+   `ProcesarEntrante` no lo transportaba, así que llegaba a la base como `null` y el `Re: …` era imposible.
+   Se cerró en la US2 agregando `asunto` e `hiloExterno` como campos opcionales del contrato. Es el tipo de
+   hueco que solo aparece al construir la pieza siguiente.
+8. **La etapa de respuesta era inconfigurable para correo** — `CuentaCanal.stageIdRespuestaAutomatica` ya
+   existía y `procesarPrimeraRespuestaProspecto` ya la respetaba, pero el formulario del buzón no la
+   exponía: FR-030 estaba implementado y era inalcanzable. Se agregó el selector.

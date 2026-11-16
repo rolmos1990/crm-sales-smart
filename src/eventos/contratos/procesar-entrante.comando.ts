@@ -13,4 +13,8 @@ export interface ComandoProcesarEntrantePayload extends Record<string, unknown> 
   mediaMimeType?: string;
   mediaDuracion?: number;
   mediaArchivoId?: string;
+  /** 034 — Solo canal "email". Campos opcionales: los canales que ya existían
+   *  no los mandan y el consumidor los ignora si faltan. */
+  asunto?: string;
+  hiloExterno?: string;
 }

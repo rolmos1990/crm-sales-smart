@@ -27,6 +27,10 @@ const camposBuzon = {
   }),
   pipelineId: z.string().nullish(),
   stageId: z.string().nullish(),
+  /** Etapa a la que se mueve la oportunidad al responder por primera vez
+   *  estando en la etapa inicial (FR-030). Mismo comportamiento que en los
+   *  canales de mensajería. */
+  stageIdRespuestaAutomatica: z.string().nullish(),
 };
 
 /**

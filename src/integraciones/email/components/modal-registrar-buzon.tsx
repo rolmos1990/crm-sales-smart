@@ -64,6 +64,7 @@ interface FormBuzon {
   crearContactosAutomaticamente: boolean;
   pipelineId: string;
   stageId: string;
+  stageIdRespuestaAutomatica: string;
 }
 
 type EstadoPrueba =
@@ -101,6 +102,7 @@ function valoresIniciales(buzon?: BuzonParaCliente | null): FormBuzon {
     crearContactosAutomaticamente: buzon?.recepcion.crearContactosAutomaticamente ?? true,
     pipelineId: buzon?.pipelineId ?? SIN_PIPELINE,
     stageId: buzon?.stageId ?? SIN_PIPELINE,
+    stageIdRespuestaAutomatica: buzon?.stageIdRespuestaAutomatica ?? SIN_PIPELINE,
   };
 }
 
@@ -124,6 +126,15 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
   const itemsEtapa: Record<string, string> = {
     [SIN_PIPELINE]: "Primera etapa del pipeline",
     ...Object.fromEntries((pipelineElegido?.stages ?? []).map((s) => [s.id, s.nombre])),
+  };
+  // La etapa de respuesta puede estar en cualquier pipeline, igual que en los
+  // canales de mensajería: el pipeline destino se deriva del stage.
+  const todasLasEtapas = pipelines.flatMap((p) =>
+    p.stages.map((s) => [s.id, `${p.nombre} · ${s.nombre}`] as const),
+  );
+  const itemsEtapaRespuesta: Record<string, string> = {
+    [SIN_PIPELINE]: "No mover la oportunidad",
+    ...Object.fromEntries(todasLasEtapas),
   };
 
   function aplicarSeguridad(lado: "entrada" | "salida", seguridad: SeguridadCorreo) {
@@ -163,6 +174,8 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
       },
       pipelineId: v.pipelineId === SIN_PIPELINE ? null : v.pipelineId,
       stageId: v.stageId === SIN_PIPELINE ? null : v.stageId,
+      stageIdRespuestaAutomatica:
+        v.stageIdRespuestaAutomatica === SIN_PIPELINE ? null : v.stageIdRespuestaAutomatica,
     };
   }
 
@@ -326,6 +339,33 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Etapa al responder</Label>
+              <Select
+                items={itemsEtapaRespuesta}
+                value={valores.stageIdRespuestaAutomatica}
+                onValueChange={(v) => setValue("stageIdRespuestaAutomatica", v as string)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SIN_PIPELINE}>No mover la oportunidad</SelectItem>
+                  {pipelines.flatMap((p) =>
+                    p.stages.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {p.nombre} · {s.nombre}
+                      </SelectItem>
+                    )),
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Al responder por primera vez un correo que está en la etapa inicial, la oportunidad
+                se mueve acá.
+              </p>
             </div>
 
             <div className="space-y-1.5">

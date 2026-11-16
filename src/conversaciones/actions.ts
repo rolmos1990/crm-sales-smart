@@ -52,8 +52,10 @@ async function resolverContactoYConversacion(payload: {
   pushName?: string;
   avatarUrl?: string;
   handleCanal?: string;
+  asunto?: string;
+  hiloExterno?: string;
 }) {
-  const { canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal } = payload;
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal, asunto, hiloExterno } = payload;
 
   // 1. Buscar contacto por identificador de canal
   let identificador = await prisma.contactoIdentificadorCanal.findUnique({
@@ -197,12 +199,29 @@ async function resolverContactoYConversacion(payload: {
         await registrarEventoConversacion(conversacion.id, "REABIERTA");
       }
     }
+
+    // 034 — Completar el asunto si la conversación venía sin uno. No se pisa
+    // el existente: el hilo lo define el primer correo, no el último.
+    if (asunto && !conversacion.asunto) {
+      await prisma.conversacion.update({ where: { id: conversacion.id }, data: { asunto } });
+      conversacion = { ...conversacion, asunto };
+    }
   }
 
   // 4. Si no existe, crear conversación nueva
   if (!conversacion) {
     conversacion = await prisma.conversacion.create({
-      data: { contactoId, cuentaCanalId, instanciaId, estado: "ABIERTA" },
+      data: {
+        contactoId,
+        cuentaCanalId,
+        instanciaId,
+        estado: "ABIERTA",
+        // 034 — Solo el correo los trae. El asunto es de donde sale el "Re: …"
+        // de la respuesta: sin esto no hay forma de contestar dentro del hilo
+        // del cliente.
+        ...(asunto ? { asunto } : {}),
+        ...(hiloExterno ? { hiloExterno } : {}),
+      },
     });
 
     void publicadorEventos.publicar(EventosSistema.ConversacionCreada, instanciaId, {
@@ -224,6 +243,7 @@ export async function procesarMensajeEntrante(
 
   const { contactoId, conversacion } = await resolverContactoYConversacion({
     canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal,
+    asunto: payload.asunto, hiloExterno: payload.hiloExterno,
   });
 
   // 4.5 Deduplicar por idExterno ANTES de crear oportunidades (evita duplicados en procesamiento concurrente)
