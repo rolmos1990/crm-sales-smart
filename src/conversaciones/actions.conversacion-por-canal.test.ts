@@ -37,6 +37,7 @@ const oportunidadContactoFindFirst = vi.fn();
 const oportunidadUpdate = vi.fn();
 const oportunidadConversacionUpsert = vi.fn();
 const pipelineStageFindUnique = vi.fn();
+const cuentaCanalFindUnique = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
@@ -63,6 +64,7 @@ vi.mock("@/shared/db/prisma", () => ({
     oportunidad: { update: (...a: unknown[]) => oportunidadUpdate(...a) },
     oportunidadConversacion: { upsert: (...a: unknown[]) => oportunidadConversacionUpsert(...a) },
     pipelineStage: { findUnique: (...a: unknown[]) => pipelineStageFindUnique(...a) },
+    cuentaCanal: { findUnique: (...a: unknown[]) => cuentaCanalFindUnique(...a) },
     mediaArchivo: { update: vi.fn().mockResolvedValue({}) },
   },
 }));
@@ -75,6 +77,12 @@ const ESTADOS_CONVERSACION_REUTILIZABLE = ["ABIERTA", "EN_ESPERA", "CERRADA"];
 /** Deja todo listo para que el flujo llegue hasta el final con una oportunidad activa. */
 function escenarioBase() {
   identificadorFindUnique.mockResolvedValue({ id: "ident-1", handle: "@ana", contacto: CONTACTO });
+  // Buzón con creación automática de contactos activada: el comportamiento por
+  // defecto. El bloqueo por aprobación se prueba en bloqueo-aprobacion.test.ts
+  // y en aprobacion/reglas.test.ts.
+  cuentaCanalFindUnique.mockResolvedValue({
+    configuracion: { recepcion: { crearContactosAutomaticamente: true } },
+  });
   conversacionFindFirst.mockResolvedValue({
     id: "conv-1",
     estado: "ABIERTA",

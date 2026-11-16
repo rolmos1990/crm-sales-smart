@@ -85,6 +85,7 @@ function mapearConversacion(conv: any): ConversacionResumen {
     contactoId: conv.contactoId,
     cuentaCanalId: conv.cuentaCanalId,
     asunto: conv.asunto,
+    bloqueadaPorAprobacion: conv.bloqueadaPorAprobacion === true,
     estado: conv.estado,
     clasificacion: conv.clasificacion,
     modoAtencion: conv.modoAtencion,

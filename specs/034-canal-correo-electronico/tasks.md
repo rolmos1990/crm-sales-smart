@@ -144,19 +144,19 @@ la misma dirección ya no pide aprobación.
 > **Las tres tareas de corte (T046, T047, T048) se entregan juntas.** Implementar una sola deja un agujero
 > por el que la IA o un Workflow responden un correo no aprobado — exactamente lo que FR-033 prohíbe.
 
-- [ ] T043 [US3] Implementar `src/integraciones/email/aprobacion/reglas.ts`: `requiereAprobacion(buzón, identificador)` y el predicado de bloqueo. Devuelve `false` para todo canal que no sea correo (FR-039)
-- [ ] T044 [US3] En `src/conversaciones/actions.ts`, al crear contacto, conversación y oportunidad desde un remitente de correo sin aprobar: crear el contacto con `activo: false`, dejar `aprobadoEn` en `null`, y poner `Conversacion.bloqueadaPorAprobacion` y `Oportunidad.aprobacionPendiente` en `true` (research.md R7 y R8, FR-032)
-- [ ] T045 [US3] Garantizar que un correo que llega mientras la aprobación sigue pendiente se suma a la misma conversación bloqueada, **sin** crear otra oportunidad ni otro pendiente (FR-038)
-- [ ] T046 [US3] Corte 1 — en `src/conversaciones/envio.ts`, sumar `bloqueadaPorAprobacion` al `select` de la conversación y cortar **antes** de crear el `MensajeConversacion`, devolviendo el mensaje de FR-034
-- [ ] T047 [US3] Corte 2 — en `src/suscriptores/ai/orquestar-ia.suscriptor.ts`, sumar el campo al `select` que ya trae `modoAtencion` y cortar junto a ese gate, con log del motivo (FR-033)
-- [ ] T048 [US3] Corte 3 — en `src/workflows/motor/disparo.ts`, dentro de `enrutarMensajeEntrante`, sumar el campo al `select` que ya trae `modoAtencion` y devolver `{ atendido: true }` sin tomar la conversación. **Imprescindible**: esta función se evalúa *antes* que la IA en el mismo suscriptor
-- [ ] T049 [US3] Implementar `src/integraciones/email/aprobacion/actions.ts` con `aprobarRemitenteConContactoNuevo` y `aprobarRemitenteConContactoExistente`, ambas sobre la única función interna `aprobarRemitenteCorreo` que escribe las tres banderas **en una sola transacción** (contracts/server-actions.md §2, FR-035, FR-036, FR-037)
-- [ ] T050 [US3] Implementar la reasignación al aprobar contra un contacto existente: mover `ContactoIdentificadorCanal` y la conversación al contacto elegido y eliminar el contacto provisional, sin dejar huérfanos (FR-035)
-- [ ] T051 [US3] Mostrar el estado pendiente en el Inbox (`src/conversaciones/components/inbox-layout.tsx`) con el aviso de bloqueo y las dos acciones de aprobación, y deshabilitar el input de mensaje mientras esté bloqueada (FR-034, FR-040)
-- [ ] T052 [US3] Mostrar el distintivo de pendiente en el tablero de pipeline agregando `aprobacionPendiente` al `select` compartido de `src/crm/pipeline/queries.ts` y al componente de tarjeta — sin agregar una consulta por columna (FR-040)
-- [ ] T053 [P] [US3] Escribir `src/integraciones/email/aprobacion/reglas.test.ts`: con creación automática activada nunca requiere aprobación; una dirección ya aprobada nunca vuelve a requerirla; ningún canal distinto de correo requiere aprobación jamás
-- [ ] T054 [P] [US3] Escribir `src/integraciones/email/aprobacion/actions.test.ts`: la aprobación deja las tres banderas consistentes, y un fallo a mitad de camino no aplica ninguna (transacción)
-- [ ] T055 [US3] Escribir los tres tests de corte —uno por archivo tocado en T046, T047 y T048— verificando además que una conversación **no** bloqueada se comporta exactamente como antes
+- [X] T043 [US3] Implementar `src/integraciones/email/aprobacion/reglas.ts`: `requiereAprobacion(buzón, identificador)` y el predicado de bloqueo. Devuelve `false` para todo canal que no sea correo (FR-039)
+- [X] T044 [US3] En `src/conversaciones/actions.ts`, al crear contacto, conversación y oportunidad desde un remitente de correo sin aprobar: crear el contacto con `activo: false`, dejar `aprobadoEn` en `null`, y poner `Conversacion.bloqueadaPorAprobacion` y `Oportunidad.aprobacionPendiente` en `true` (research.md R7 y R8, FR-032)
+- [X] T045 [US3] Garantizar que un correo que llega mientras la aprobación sigue pendiente se suma a la misma conversación bloqueada, **sin** crear otra oportunidad ni otro pendiente (FR-038)
+- [X] T046 [US3] Corte 1 — en `src/conversaciones/envio.ts`, sumar `bloqueadaPorAprobacion` al `select` de la conversación y cortar **antes** de crear el `MensajeConversacion`, devolviendo el mensaje de FR-034
+- [X] T047 [US3] Corte 2 — en `src/suscriptores/ai/orquestar-ia.suscriptor.ts`, sumar el campo al `select` que ya trae `modoAtencion` y cortar junto a ese gate, con log del motivo (FR-033)
+- [X] T048 [US3] Corte 3 — en `src/workflows/motor/disparo.ts`, dentro de `enrutarMensajeEntrante`, sumar el campo al `select` que ya trae `modoAtencion` y devolver `{ atendido: true }` sin tomar la conversación. **Imprescindible**: esta función se evalúa *antes* que la IA en el mismo suscriptor
+- [X] T049 [US3] Implementar `src/integraciones/email/aprobacion/actions.ts` con `aprobarRemitenteConContactoNuevo` y `aprobarRemitenteConContactoExistente`, ambas sobre la única función interna `aprobarRemitenteCorreo` que escribe las tres banderas **en una sola transacción** (contracts/server-actions.md §2, FR-035, FR-036, FR-037)
+- [X] T050 [US3] Implementar la reasignación al aprobar contra un contacto existente: mover `ContactoIdentificadorCanal` y la conversación al contacto elegido y eliminar el contacto provisional, sin dejar huérfanos (FR-035)
+- [X] T051 [US3] Mostrar el estado pendiente en el Inbox (`src/conversaciones/components/inbox-layout.tsx`) con el aviso de bloqueo y las dos acciones de aprobación, y deshabilitar el input de mensaje mientras esté bloqueada (FR-034, FR-040)
+- [X] T052 [US3] Mostrar el distintivo de pendiente en el tablero de pipeline agregando `aprobacionPendiente` al `select` compartido de `src/crm/pipeline/queries.ts` y al componente de tarjeta — sin agregar una consulta por columna (FR-040)
+- [X] T053 [P] [US3] Escribir `src/integraciones/email/aprobacion/reglas.test.ts`: con creación automática activada nunca requiere aprobación; una dirección ya aprobada nunca vuelve a requerirla; ningún canal distinto de correo requiere aprobación jamás
+- [X] T054 [P] [US3] Escribir `src/integraciones/email/aprobacion/actions.test.ts`: la aprobación deja las tres banderas consistentes, y un fallo a mitad de camino no aplica ninguna (transacción)
+- [X] T055 [US3] Escribir los tres tests de corte —uno por archivo tocado en T046, T047 y T048— verificando además que una conversación **no** bloqueada se comporta exactamente como antes
 
 **Checkpoint US3**: el bloque "Historia 3" de quickstart.md pasa completo, incluidos los puntos 4 (la IA no
 responde) y 5 (el Workflow no toma la conversación).
@@ -272,3 +272,14 @@ Lo que cambió respecto del plan, y por qué. Todo verificado contra el código 
 8. **La etapa de respuesta era inconfigurable para correo** — `CuentaCanal.stageIdRespuestaAutomatica` ya
    existía y `procesarPrimeraRespuestaProspecto` ya la respetaba, pero el formulario del buzón no la
    exponía: FR-030 estaba implementado y era inalcanzable. Se agregó el selector.
+
+9. **Los tests de los tres cortes revelaron una fuga entre bloques de test** — el bloque que prueba la IA
+   mockea `@/workflows/motor/disparo` entero, y esa registración persiste en el archivo: sin un
+   `vi.doUnmock`, el bloque de Workflows terminaba probando el mock en vez del código real y "pasaba" sin
+   ejercitar nada. Cada corte se prueba ahora con su caso positivo **y** su caso negativo (conversación no
+   bloqueada → comportamiento idéntico al de antes).
+10. **El Kanban necesitó un ajuste extra** — `pipeline-kanban-dinamico.tsx` construye una tarjeta optimista
+    al mover una oportunidad; sin incluir `aprobacionPendiente` ahí, arrastrar una tarjeta pendiente le
+    borraba el distintivo hasta la siguiente recarga.
+11. **No existe la tríada `warning-muted/border/text`** en `globals.css` (sí la de `danger` y `success`), así
+    que la insignia compone desde el token `--warning` que sí existe, en vez de inventar tokens nuevos.

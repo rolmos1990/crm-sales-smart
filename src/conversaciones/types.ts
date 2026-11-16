@@ -133,6 +133,9 @@ export interface ConversacionResumen {
   identificadorCanal?: string | null;
   /** @usuario visible del contacto en el canal (ej. Instagram), si el canal lo expone. */
   handleCanal?: string | null;
+  /** 034 — Solo correo: el remitente todavía no fue aprobado, así que nadie
+   *  —ni humano, ni IA, ni Workflow— puede responder esta conversación. */
+  bloqueadaPorAprobacion?: boolean;
 }
 
 export interface MensajeEntranteNormalizado {

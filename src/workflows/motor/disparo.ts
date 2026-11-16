@@ -36,12 +36,22 @@ export async function enrutarMensajeEntrante(p: {
   const [conv, mensaje] = await Promise.all([
     prisma.conversacion.findFirst({
       where: { id: p.conversacionId, instanciaId: p.instanciaId },
-      select: { modoAtencion: true, contactoId: true },
+      // 034 — bloqueadaPorAprobacion es el corte 3 de 3 (ver más abajo).
+      select: { modoAtencion: true, contactoId: true, bloqueadaPorAprobacion: true },
     }),
     prisma.mensajeConversacion.findUnique({ where: { id: p.mensajeId }, select: { contenido: true } }),
   ]);
   if (!conv) return { atendido: true };
   if (conv.modoAtencion === "HUMANO") return { atendido: true };
+
+  // 034 — Corte 3 de 3 del bloqueo por aprobación pendiente. Tiene que estar
+  // acá además de en el orquestador de IA: enrutarMensajeEntrante se evalúa
+  // ANTES que la IA dentro del mismo suscriptor, así que cortar solo en la IA
+  // dejaría a los Workflows respondiendo un correo no aprobado (FR-033).
+  //
+  // Devuelve atendido: true —y no false— para que el mensaje quede consumido
+  // y la IA tampoco lo tome.
+  if (conv.bloqueadaPorAprobacion) return { atendido: true };
 
   const activas = await prisma.workflowEjecucion.findMany({
     where: { conversacionId: p.conversacionId, instanciaId: p.instanciaId, estado: { in: ESTADOS_ACTIVOS } },

@@ -27,7 +27,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
-  CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle, Loader2, FileText, FileCheck2,
+  CalendarDays, Building2, Plus, User, Receipt, Trophy, XCircle, Loader2, FileText, FileCheck2, ShieldAlert,
   MoreVertical, ArrowRightLeft, Pencil,
 } from "lucide-react";
 import Link from "next/link";
@@ -82,6 +82,22 @@ function InsigniaCotizacion({ estado }: { estado: OportunidadEnStage["estadoCoti
   );
 }
 
+// ── Insignia de remitente pendiente de aprobación (034) ───────────
+// Una oportunidad nacida de un correo cuyo remitente todavía no se aprobó no
+// se puede atender: nadie —humano, IA ni Workflow— puede responderle. Tiene
+// que distinguirse en el tablero o se confunde con trabajo pendiente normal.
+function InsigniaAprobacionPendiente({ pendiente }: { pendiente: boolean }) {
+  if (!pendiente) return null;
+  return (
+    <span
+      title="Remitente de correo pendiente de aprobación — no se puede responder hasta aprobarlo"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border bg-warning/10 border-warning/25 text-warning"
+    >
+      <ShieldAlert className="h-3.5 w-3.5" />
+    </span>
+  );
+}
+
 // ── Tarjeta — contenido puro ──────────────────────────────────────
 // Sin dnd-kit ni wrapper: la misma UI para la tarjeta Kanban (arrastrable,
 // ver TarjetaOportunidad) y la tarjeta móvil (sin drag, ver
@@ -127,7 +143,10 @@ function ContenidoTarjetaOportunidad({
           <p className={cn("font-semibold leading-snug line-clamp-2 text-foreground", esMovil ? "text-[15px]" : "text-[14px]")}>
             {oportunidad.titulo}
           </p>
-          <InsigniaCotizacion estado={oportunidad.estadoCotizacion} />
+          <div className="flex items-start gap-1.5 shrink-0">
+            <InsigniaAprobacionPendiente pendiente={oportunidad.aprobacionPendiente} />
+            <InsigniaCotizacion estado={oportunidad.estadoCotizacion} />
+          </div>
         </div>
         {(oportunidad.contacto || oportunidad.empresa) && (
           <div className="space-y-0.5">
@@ -1354,12 +1373,17 @@ export function PipelineKanbanDinamico({
       let tagsExistentes: OportunidadEnStage["tags"] = [];
       let contactoExistente: OportunidadEnStage["contacto"] = null;
       let estadoCotizacionExistente: OportunidadEnStage["estadoCotizacion"] = null;
+      // 034 — Se conserva igual que estadoCotizacion: mover o editar una
+      // oportunidad no aprueba a su remitente, así que la tarjeta optimista no
+      // debe perder el distintivo de pendiente.
+      let aprobacionPendienteExistente = false;
       for (const [key, ops] of next) {
         const found = ops.find((o) => o.id === updated.id);
         if (found) {
           tagsExistentes = found.tags;
           contactoExistente = found.contacto;
           estadoCotizacionExistente = found.estadoCotizacion;
+          aprobacionPendienteExistente = found.aprobacionPendiente;
           stageAnterior = key;
           valorAnterior = found.valor;
           break;
@@ -1380,6 +1404,7 @@ export function PipelineKanbanDinamico({
           stageId: updated.stageId ?? null,
           pipelineId: updated.pipelineId ?? pipeline.id,
           nuevoMensaje: false,
+          aprobacionPendiente: aprobacionPendienteExistente,
           empresa: updated.empresa,
           contacto: updated.contactos?.[0]?.contacto ?? contactoExistente,
           tags: updated.tags ?? tagsExistentes,

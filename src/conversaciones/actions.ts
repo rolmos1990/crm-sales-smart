@@ -19,6 +19,7 @@ import {
   type ResultadoEnvio,
 } from "./envio";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
+import { requiereAprobacion } from "@/integraciones/email/aprobacion/reglas";
 
 // ── Resolución compartida de contacto + conversación ────────────────────────
 //
@@ -54,8 +55,28 @@ async function resolverContactoYConversacion(payload: {
   handleCanal?: string;
   asunto?: string;
   hiloExterno?: string;
+  /** 034 — Solo correo: `false` hace que un remitente desconocido entre
+   *  bloqueado hasta que alguien lo apruebe. Los demás canales no lo mandan. */
+  crearContactosAutomaticamente?: boolean;
 }) {
   const { canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal, asunto, hiloExterno } = payload;
+
+  // 034 — Si el buzón no crea contactos solo, un remitente nunca visto entra
+  // bloqueado. La decisión se toma ANTES de crear nada, porque cambia cómo se
+  // crean el contacto, la conversación y la oportunidad.
+  const identificadorPrevio =
+    canal === "email"
+      ? await prisma.contactoIdentificadorCanal.findUnique({
+          where: { canal_identificador_instanciaId: { canal, identificador: identificadorContacto, instanciaId } },
+          select: { aprobadoEn: true },
+        })
+      : null;
+
+  const bloqueadaPorAprobacion = requiereAprobacion({
+    canal,
+    recepcion: { crearContactosAutomaticamente: payload.crearContactosAutomaticamente ?? true },
+    aprobadoEn: identificadorPrevio?.aprobadoEn ?? null,
+  });
 
   // 1. Buscar contacto por identificador de canal
   let identificador = await prisma.contactoIdentificadorCanal.findUnique({
@@ -106,7 +127,13 @@ async function resolverContactoYConversacion(payload: {
     if (contactoExistente) {
       // Crear el mapping para que futuras búsquedas sean O(1)
       identificador = await prisma.contactoIdentificadorCanal.create({
-        data: { canal, identificador: identificadorContacto, contactoId: contactoExistente.id, instanciaId, handle: handleCanal ?? null },
+        data: {
+          canal, identificador: identificadorContacto, contactoId: contactoExistente.id, instanciaId,
+          handle: handleCanal ?? null,
+          // Aprobado de entrada salvo que este buzón exija aprobación: así el
+          // caso normal no deja a nadie esperando (FR-008).
+          ...(bloqueadaPorAprobacion ? {} : { aprobadoEn: new Date() }),
+        },
         include: { contacto: true },
       });
     } else {
@@ -129,11 +156,19 @@ async function resolverContactoYConversacion(payload: {
           // guardarlo en la ficha evita que el mismo cliente se duplique si
           // después escribe por otro canal.
           ...(correoDelRemitente ? { email: correoDelRemitente } : {}),
+          // 034 — Un remitente sin aprobar no debe ensuciar el listado de
+          // contactos del CRM. La conversación exige un contacto (contactoId
+          // es obligatorio), así que se crea inactivo y se activa al aprobar.
+          ...(bloqueadaPorAprobacion ? { activo: false } : {}),
           ...(avatarUrl ? { avatarUrl } : {}),
         },
       });
       identificador = await prisma.contactoIdentificadorCanal.create({
-        data: { canal, identificador: identificadorContacto, contactoId: contacto.id, instanciaId, handle: handleCanal ?? null },
+        data: {
+          canal, identificador: identificadorContacto, contactoId: contacto.id, instanciaId,
+          handle: handleCanal ?? null,
+          ...(bloqueadaPorAprobacion ? {} : { aprobadoEn: new Date() }),
+        },
         include: { contacto: true },
       });
     }
@@ -221,6 +256,7 @@ async function resolverContactoYConversacion(payload: {
         // del cliente.
         ...(asunto ? { asunto } : {}),
         ...(hiloExterno ? { hiloExterno } : {}),
+        ...(bloqueadaPorAprobacion ? { bloqueadaPorAprobacion: true } : {}),
       },
     });
 
@@ -231,7 +267,7 @@ async function resolverContactoYConversacion(payload: {
     });
   }
 
-  return { contactoId, conversacion };
+  return { contactoId, conversacion, bloqueadaPorAprobacion };
 }
 
 // ── Procesar mensaje entrante desde webhook ─────────────────────────────────
@@ -241,9 +277,23 @@ export async function procesarMensajeEntrante(
 ) {
   const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl, handleCanal, mediaUrl, mediaMimeType, mediaDuracion } = payload;
 
-  const { contactoId, conversacion } = await resolverContactoYConversacion({
+  // 034 — Política de recepción del buzón. Solo se consulta para correo: el
+  // resto de los canales no tiene nada que leer acá.
+  const recepcionBuzon =
+    canal === "email" && cuentaCanalId
+      ? await prisma.cuentaCanal.findUnique({
+          where: { id: cuentaCanalId },
+          select: { configuracion: true },
+        })
+      : null;
+  const crearContactosAutomaticamente =
+    (recepcionBuzon?.configuracion as { recepcion?: { crearContactosAutomaticamente?: boolean } } | null)
+      ?.recepcion?.crearContactosAutomaticamente ?? true;
+
+  const { contactoId, conversacion, bloqueadaPorAprobacion } = await resolverContactoYConversacion({
     canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal,
     asunto: payload.asunto, hiloExterno: payload.hiloExterno,
+    crearContactosAutomaticamente,
   });
 
   // 4.5 Deduplicar por idExterno ANTES de crear oportunidades (evita duplicados en procesamiento concurrente)
@@ -384,6 +434,10 @@ export async function procesarMensajeEntrante(
             pipelineId: pipelineDefault?.id ?? null,
             stageId: stageInicial?.id ?? null,
             probabilidad: stageInicial?.probabilidad ?? 20,
+            // 034 — Bandera desnormalizada para que el Kanban distinga los
+            // pendientes con su `select` fijo por etapa, sin una consulta por
+            // columna (FR-040).
+            ...(bloqueadaPorAprobacion ? { aprobacionPendiente: true } : {}),
             contactos: { create: { contactoId, principal: true } },
           },
         });
