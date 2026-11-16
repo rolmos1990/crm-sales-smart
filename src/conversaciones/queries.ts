@@ -101,6 +101,7 @@ function mapearConversacion(conv: any): ConversacionResumen {
       telefonoPrincipal: conv.contacto.telefonoPrincipal,
       email: conv.contacto.email,
       avatarUrl: conv.contacto.avatarUrl ?? null,
+      identificadoresCanal: conv.contacto.identificadoresCanal ?? [],
     },
     cuentaCanal: conv.cuentaCanal,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
