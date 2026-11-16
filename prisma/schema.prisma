@@ -2969,6 +2969,15 @@ model BuzonCorreoEstado {
   ultimaLecturaOkEn DateTime?
   correosLeidos     Int       @default(0)
 
+  // Arrendamiento de lectura. Reemplaza al pg_try_advisory_lock que usaba
+  // antes: ese es un lock de SESIÓN, y la base se accede por un pooler en modo
+  // transacción, donde cada sentencia puede caer en un backend distinto. El
+  // lock se tomaba en uno y el unlock salía por otro, así que quedaba colgado
+  // para siempre y el buzón no se volvía a leer nunca. Esto es un UPDATE
+  // condicional atómico: funciona por cualquier pooler y se auto-libera si el
+  // worker muere a mitad de una lectura.
+  leyendoDesde DateTime?
+
   // Estado de error visible para el negocio. El texto crudo del servidor NO se
   // guarda acá: solo el código funcional y un mensaje ya traducido, porque esto
   // se muestra en pantalla.
