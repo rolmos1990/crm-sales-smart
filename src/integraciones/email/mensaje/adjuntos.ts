@@ -1,5 +1,7 @@
-import "server-only";
-
+// NO lleva `import "server-only"`: este módulo lo alcanza el worker
+// (worker/disparadores.ts → … → acá), que corre con `tsx` en Node pelado y no
+// puede resolver ese paquete. Costó una caída del worker en producción con
+// MODULE_NOT_FOUND. Lo cubre src/worker/grafo-importaciones.test.ts.
 // Adjuntos de un correo entrante (FR-024, FR-025).
 //
 // No se escribe un camino de almacenamiento propio: se reutilizan los dos que
