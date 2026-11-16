@@ -3,6 +3,7 @@ import { ejecutarJobsPendientes } from "../crm/pipeline/disparadores/ejecutor";
 import { cicloWorkflows } from "../workflows/motor/disparo";
 import { registrarTodosSuscriptores } from "../suscriptores/registrar";
 import { reconectarSesionesWA } from "../integraciones/whatsapp-lite/reconectar";
+import { iniciarPollingCorreo } from "../integraciones/email/imap/polling";
 
 const INTERVALO_MS = 10_000;
 
@@ -10,6 +11,12 @@ async function run() {
   // Conectar sockets WA para envío (Next.js maneja los entrantes).
   await reconectarSesionesWA({ soloEnvio: true });
   await registrarTodosSuscriptores();
+
+  // Lectura de buzones de correo (034). Ciclo propio, no dentro del `while` de
+  // abajo: un servidor IMAP lento no debe retrasar los disparadores de
+  // pipeline ni los timers de Workflows. Corre solo acá — si la app Next.js
+  // también leyera, cada réplica duplicaría la lectura.
+  await iniciarPollingCorreo();
   console.log(`[worker:disparadores] iniciando — polling cada ${INTERVALO_MS / 1000}s`);
 
   while (true) {

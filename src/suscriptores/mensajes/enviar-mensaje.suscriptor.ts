@@ -57,6 +57,22 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
       // VENTANA_NORMAL → tag queda undefined, envío normal (sin tag).
     }
 
+    // Contexto del hilo de correo (034). Se resuelve ACÁ por el mismo motivo
+    // que la ventana de mensajería de Meta: el provider no tiene acceso a
+    // Prisma. Viaja dentro de `configuracion` para no cambiar la firma de
+    // ICanalProvider, que es común a todos los canales.
+    let contextoHilo: Record<string, unknown> = {};
+    if (cuentaCanal.canal === "email") {
+      const { resolverContextoHilo } = await import("@/integraciones/email/mensaje/hilo");
+      const hilo = await resolverContextoHilo(conversacionId, instanciaId, cuentaCanal.nombre);
+      contextoHilo = {
+        asunto: hilo.asunto,
+        inReplyTo: hilo.inReplyTo,
+        references: hilo.references,
+        direccionBuzon: cuentaCanal.identificador,
+      };
+    }
+
     console.log(`[EnviarMensaje] Enviando por ${cuentaCanal.canal} → ${destinatario}${mediaUrl ? ` | media: ${mediaUrl}` : ""}${tag ? ` | tag: ${tag}` : ""}`);
 
     let result: { idExterno: string };
@@ -69,7 +85,7 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
         // configuracion) — se mezcla acá para que el provider de Instagram
         // pueda elegir el host de Graph API correcto sin que cada canal tenga
         // que saber de esta diferencia. Ver instagram-estrategia-auth.ts.
-        configuracion: { ...(cuentaCanal.configuracion as Record<string, unknown>), proveedorAuth: cuentaCanal.proveedorAuth },
+        configuracion: { ...(cuentaCanal.configuracion as Record<string, unknown>), proveedorAuth: cuentaCanal.proveedorAuth, ...contextoHilo },
         mediaUrl,
         tag,
       });

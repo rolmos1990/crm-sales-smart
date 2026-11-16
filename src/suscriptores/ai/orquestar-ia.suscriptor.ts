@@ -32,6 +32,8 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
         where: { id: conversacionId },
         select: {
           modoAtencion: true,
+          // 034 — Corte 2 de 3 del bloqueo por aprobación pendiente.
+          bloqueadaPorAprobacion: true,
           cuentaCanal: { select: { canal: true } },
           oportunidades: {
             select: {
@@ -71,6 +73,16 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
 
     if (conv?.modoAtencion === "HUMANO") {
       console.log(`[OrquestarIA] Conversación ${conversacionId} atendida por humano — IA no responde`);
+      return;
+    }
+
+    // 034 — Remitente de correo sin aprobar: nadie responde hasta que alguien
+    // lo apruebe, y eso incluye a la IA. Solo el canal correo pone esta
+    // bandera en true, así que para los demás canales no cambia nada.
+    if (conv?.bloqueadaPorAprobacion) {
+      console.log(
+        `[OrquestarIA] Conversación ${conversacionId} pendiente de aprobación del remitente — IA no responde`,
+      );
       return;
     }
 

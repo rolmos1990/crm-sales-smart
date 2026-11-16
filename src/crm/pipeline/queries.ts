@@ -118,6 +118,9 @@ const selectOportunidadEnStage = {
   stageId: true,
   pipelineId: true,
   nuevoMensaje: true,
+  // 034 — Bandera desnormalizada a propósito: derivarla por relación costaría
+  // una consulta por columna del Kanban (ver research.md R7).
+  aprobacionPendiente: true,
   empresa: { select: { id: true, nombre: true } },
   contactos: {
     orderBy: { principal: "desc" as const },

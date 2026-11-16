@@ -14,6 +14,9 @@ export type CanalOrigen =
   | "whatsapp"
   | "instagram"
   | "facebook"
+  // 034 — adjuntos de correo entrante. MediaArchivo.canalOrigen es una
+  // columna String, así que sumar el valor no requiere migración.
+  | "email"
   | "tiktok"
   | "api";
 

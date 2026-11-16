@@ -19,6 +19,7 @@ import {
   type ResultadoEnvio,
 } from "./envio";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
+import { requiereAprobacion } from "@/integraciones/email/aprobacion/reglas";
 
 // ── Resolución compartida de contacto + conversación ────────────────────────
 //
@@ -28,6 +29,22 @@ import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 // misma resolución de contacto/conversación sin duplicar el manejo de
 // condición de carrera ni el criterio de qué cuenta como "conversación
 // previa" — ambos flujos deben comportarse igual en ese punto.
+/**
+ * ¿Este canal debe tener su propia conversación, separada del resto?
+ *
+ * Hoy devuelve `true` SOLO para correo (034): el correo de un contacto va a su
+ * propia conversación y no se mezcla con su WhatsApp. Para cualquier otro
+ * canal devuelve `false` y la resolución de abajo queda exactamente como
+ * estaba —ver los tests de línea base en actions.conversacion-por-canal.test.ts,
+ * que fijan ese comportamiento, incluido el caso de re-escaneo de QR de
+ * WhatsApp, donde la conversación se reutiliza aunque cambie la cuenta.
+ */
+// Sin `export`: este archivo lleva "use server", y ahí Next.js solo admite
+// exportar funciones async — un predicado sincrónico exportado rompe el build.
+function requiereConversacionPropiaPorCanal(canal: string): boolean {
+  return canal === "email";
+}
+
 async function resolverContactoYConversacion(payload: {
   canal: string;
   identificadorContacto: string;
@@ -36,8 +53,32 @@ async function resolverContactoYConversacion(payload: {
   pushName?: string;
   avatarUrl?: string;
   handleCanal?: string;
+  asunto?: string;
+  hiloExterno?: string;
+  /** 034 — Solo correo: `false` hace que un remitente desconocido entre
+   *  bloqueado hasta que alguien lo apruebe. Los demás canales no lo mandan. */
+  crearContactosAutomaticamente?: boolean;
+  /** 034 — Solo correo: cada hilo abre su propia conversación (FR-007). */
+  agruparPorHilo?: boolean;
 }) {
-  const { canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal } = payload;
+  const { canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal, asunto, hiloExterno } = payload;
+
+  // 034 — Si el buzón no crea contactos solo, un remitente nunca visto entra
+  // bloqueado. La decisión se toma ANTES de crear nada, porque cambia cómo se
+  // crean el contacto, la conversación y la oportunidad.
+  const identificadorPrevio =
+    canal === "email"
+      ? await prisma.contactoIdentificadorCanal.findUnique({
+          where: { canal_identificador_instanciaId: { canal, identificador: identificadorContacto, instanciaId } },
+          select: { aprobadoEn: true },
+        })
+      : null;
+
+  const bloqueadaPorAprobacion = requiereAprobacion({
+    canal,
+    recepcion: { crearContactosAutomaticamente: payload.crearContactosAutomaticamente ?? true },
+    aprobadoEn: identificadorPrevio?.aprobadoEn ?? null,
+  });
 
   // 1. Buscar contacto por identificador de canal
   let identificador = await prisma.contactoIdentificadorCanal.findUnique({
@@ -56,7 +97,20 @@ async function resolverContactoYConversacion(payload: {
     const esLid = esCanalTelefonico && identificadorContacto.endsWith("@lid");
     const soloNumeros = esCanalTelefonico && !esLid ? normalizarTelefono(identificadorContacto) : null;
 
-    const contactoExistente = soloNumeros
+    // 034 — Para correo, el identificador SÍ es un dato que el CRM ya guarda
+    // (Contacto.email): antes de crear un contacto nuevo hay que ver si ese
+    // cliente ya existe, o la misma persona queda duplicada por haber escrito
+    // por otro canal primero (FR-016).
+    const correoDelRemitente =
+      canal === "email" ? identificadorContacto.trim().toLowerCase() : null;
+
+    const contactoPorCorreo = correoDelRemitente
+      ? await prisma.contacto.findFirst({
+          where: { instanciaId, email: { equals: correoDelRemitente, mode: "insensitive" } },
+        })
+      : null;
+
+    const contactoExistente = contactoPorCorreo ?? (soloNumeros
       ? await prisma.contacto.findFirst({
           where: {
             instanciaId,
@@ -70,12 +124,18 @@ async function resolverContactoYConversacion(payload: {
             ],
           },
         })
-      : null;
+      : null);
 
     if (contactoExistente) {
       // Crear el mapping para que futuras búsquedas sean O(1)
       identificador = await prisma.contactoIdentificadorCanal.create({
-        data: { canal, identificador: identificadorContacto, contactoId: contactoExistente.id, instanciaId, handle: handleCanal ?? null },
+        data: {
+          canal, identificador: identificadorContacto, contactoId: contactoExistente.id, instanciaId,
+          handle: handleCanal ?? null,
+          // Aprobado de entrada salvo que este buzón exija aprobación: así el
+          // caso normal no deja a nadie esperando (FR-008).
+          ...(bloqueadaPorAprobacion ? {} : { aprobadoEn: new Date() }),
+        },
         include: { contacto: true },
       });
     } else {
@@ -94,11 +154,23 @@ async function resolverContactoYConversacion(payload: {
           instanciaId,
           estado: "LEAD",
           ...(telefonoGuardar ? { telefonoPrincipal: telefonoGuardar } : {}),
+          // 034 — El identificador del canal correo SÍ es un email de verdad:
+          // guardarlo en la ficha evita que el mismo cliente se duplique si
+          // después escribe por otro canal.
+          ...(correoDelRemitente ? { email: correoDelRemitente } : {}),
+          // 034 — Un remitente sin aprobar no debe ensuciar el listado de
+          // contactos del CRM. La conversación exige un contacto (contactoId
+          // es obligatorio), así que se crea inactivo y se activa al aprobar.
+          ...(bloqueadaPorAprobacion ? { activo: false } : {}),
           ...(avatarUrl ? { avatarUrl } : {}),
         },
       });
       identificador = await prisma.contactoIdentificadorCanal.create({
-        data: { canal, identificador: identificadorContacto, contactoId: contacto.id, instanciaId, handle: handleCanal ?? null },
+        data: {
+          canal, identificador: identificadorContacto, contactoId: contacto.id, instanciaId,
+          handle: handleCanal ?? null,
+          ...(bloqueadaPorAprobacion ? {} : { aprobadoEn: new Date() }),
+        },
         include: { contacto: true },
       });
     }
@@ -128,8 +200,30 @@ async function resolverContactoYConversacion(payload: {
   // 3. Buscar conversación abierta o en espera para contacto + instancia
   // Se busca por instanciaId en vez de cuentaCanalId para tolerar re-escaneos de QR
   // (cada re-escaneo crea un nuevo CuentaCanal; la conversación existente tiene el id anterior)
+  //
+  // 034 — El canal correo es la única excepción: sus conversaciones son propias
+  // y no se mezclan con las de WhatsApp o Instagram del mismo contacto
+  // (FR-017). Para todos los demás canales `filtroPorCanal` queda vacío y esta
+  // consulta es idéntica a la de siempre (FR-018, SC-011).
+  // 034 — Con agrupación POR_HILO cada hilo de correo abre su propia
+  // conversación; con POR_REMITENTE (el default) todos los hilos de una misma
+  // persona caen en la suya. El filtro por hilo se suma SOLO en ese modo y
+  // SOLO si el correo trae raíz de hilo: sin ella no hay con qué agrupar y es
+  // preferible caer en la conversación del remitente que abrir una suelta.
+  const filtroPorCanal = requiereConversacionPropiaPorCanal(canal)
+    ? {
+        cuentaCanal: { canal },
+        ...(payload.agruparPorHilo && hiloExterno ? { hiloExterno } : {}),
+      }
+    : {};
+
   let conversacion = await prisma.conversacion.findFirst({
-    where: { contactoId, instanciaId, estado: { in: ["ABIERTA", "EN_ESPERA", "CERRADA"] } },
+    where: {
+      contactoId,
+      instanciaId,
+      estado: { in: ["ABIERTA", "EN_ESPERA", "CERRADA"] },
+      ...filtroPorCanal,
+    },
     orderBy: { actualizadoEn: "desc" },
   });
 
@@ -150,12 +244,30 @@ async function resolverContactoYConversacion(payload: {
         await registrarEventoConversacion(conversacion.id, "REABIERTA");
       }
     }
+
+    // 034 — Completar el asunto si la conversación venía sin uno. No se pisa
+    // el existente: el hilo lo define el primer correo, no el último.
+    if (asunto && !conversacion.asunto) {
+      await prisma.conversacion.update({ where: { id: conversacion.id }, data: { asunto } });
+      conversacion = { ...conversacion, asunto };
+    }
   }
 
   // 4. Si no existe, crear conversación nueva
   if (!conversacion) {
     conversacion = await prisma.conversacion.create({
-      data: { contactoId, cuentaCanalId, instanciaId, estado: "ABIERTA" },
+      data: {
+        contactoId,
+        cuentaCanalId,
+        instanciaId,
+        estado: "ABIERTA",
+        // 034 — Solo el correo los trae. El asunto es de donde sale el "Re: …"
+        // de la respuesta: sin esto no hay forma de contestar dentro del hilo
+        // del cliente.
+        ...(asunto ? { asunto } : {}),
+        ...(hiloExterno ? { hiloExterno } : {}),
+        ...(bloqueadaPorAprobacion ? { bloqueadaPorAprobacion: true } : {}),
+      },
     });
 
     void publicadorEventos.publicar(EventosSistema.ConversacionCreada, instanciaId, {
@@ -165,7 +277,7 @@ async function resolverContactoYConversacion(payload: {
     });
   }
 
-  return { contactoId, conversacion };
+  return { contactoId, conversacion, bloqueadaPorAprobacion };
 }
 
 // ── Procesar mensaje entrante desde webhook ─────────────────────────────────
@@ -175,8 +287,27 @@ export async function procesarMensajeEntrante(
 ) {
   const { canal, identificadorContacto, cuentaCanalId, instanciaId, contenido, tipo, idExterno, pushName, avatarUrl, handleCanal, mediaUrl, mediaMimeType, mediaDuracion } = payload;
 
-  const { contactoId, conversacion } = await resolverContactoYConversacion({
+  // 034 — Política de recepción del buzón. Solo se consulta para correo: el
+  // resto de los canales no tiene nada que leer acá.
+  const recepcionBuzon =
+    canal === "email" && cuentaCanalId
+      ? await prisma.cuentaCanal.findUnique({
+          where: { id: cuentaCanalId },
+          select: { configuracion: true },
+        })
+      : null;
+  const recepcionCfg = (
+    recepcionBuzon?.configuracion as {
+      recepcion?: { crearContactosAutomaticamente?: boolean; agrupacion?: string };
+    } | null
+  )?.recepcion;
+  const crearContactosAutomaticamente = recepcionCfg?.crearContactosAutomaticamente ?? true;
+  const agruparPorHilo = recepcionCfg?.agrupacion === "POR_HILO";
+
+  const { contactoId, conversacion, bloqueadaPorAprobacion } = await resolverContactoYConversacion({
     canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal,
+    asunto: payload.asunto, hiloExterno: payload.hiloExterno,
+    crearContactosAutomaticamente, agruparPorHilo,
   });
 
   // 4.5 Deduplicar por idExterno ANTES de crear oportunidades (evita duplicados en procesamiento concurrente)
@@ -317,6 +448,10 @@ export async function procesarMensajeEntrante(
             pipelineId: pipelineDefault?.id ?? null,
             stageId: stageInicial?.id ?? null,
             probabilidad: stageInicial?.probabilidad ?? 20,
+            // 034 — Bandera desnormalizada para que el Kanban distinga los
+            // pendientes con su `select` fijo por etapa, sin una consulta por
+            // columna (FR-040).
+            ...(bloqueadaPorAprobacion ? { aprobacionPendiente: true } : {}),
             contactos: { create: { contactoId, principal: true } },
           },
         });

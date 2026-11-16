@@ -8,6 +8,7 @@ import { EventosSistema, ComandosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { moverOportunidadAEtapa } from "@/crm/pipeline/mover-stage";
 import { EnviarMensajeSchema } from "./schema";
+import { MENSAJE_BLOQUEO_APROBACION } from "@/integraciones/email/aprobacion/reglas";
 
 export interface EnviarMensajeInternoInput {
   conversacionId: string;
@@ -38,6 +39,30 @@ export async function enviarMensajeInterno(input: EnviarMensajeInternoInput): Pr
     // Aislamiento multi-tenant: nunca se confía en la conversación por su solo id.
     if (conversacion.instanciaId !== input.instanciaId) {
       return { ok: false, error: "Conversación no encontrada" };
+    }
+
+    // 034 — Corte 1 de 3 del bloqueo por aprobación pendiente. Va ANTES de
+    // crear el MensajeConversacion: si se creara primero, el agente vería su
+    // mensaje en pantalla aunque nunca salga. Los otros dos cortes están en
+    // suscriptores/ai/orquestar-ia.suscriptor.ts y workflows/motor/disparo.ts
+    // — entregar uno solo deja un agujero por el que la IA o un Workflow
+    // responden un correo no aprobado (FR-033).
+    //
+    // Para todo canal que no sea correo esta bandera es siempre false y el
+    // comportamiento queda idéntico al de antes.
+    if (conversacion.bloqueadaPorAprobacion) {
+      return { ok: false, error: MENSAJE_BLOQUEO_APROBACION };
+    }
+
+    // 034 — Un buzón desactivado deja de leerse (el ciclo filtra por `activa`)
+    // y también de poder responderse: si no, el agente escribe una respuesta
+    // que sale por un canal que el negocio dio de baja.
+    //
+    // Acotado al correo a propósito: extenderlo a WhatsApp/Instagram/Messenger
+    // cambiaría el comportamiento de canales que hoy sí envían con la cuenta
+    // inactiva, y eso está fuera del alcance de esta feature (SC-011).
+    if (conversacion.cuentaCanal?.canal === "email" && conversacion.cuentaCanal.activa === false) {
+      return { ok: false, error: "Este buzón está desactivado. Activalo para poder responder." };
     }
 
     // Crear mensaje en BD de inmediato (optimistic — el agente lo ve al instante)

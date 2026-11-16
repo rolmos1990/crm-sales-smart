@@ -81,6 +81,9 @@ export interface OportunidadEnStage {
   stageId: string | null;
   pipelineId: string | null;
   nuevoMensaje: boolean;
+  /** 034 — Nació de un remitente de correo sin aprobar: no se puede atender
+   *  hasta aprobarlo, y por eso se distingue en el tablero (FR-040). */
+  aprobacionPendiente: boolean;
   empresa: { id: string; nombre: string } | null;
   contacto: { id: string; nombre: string; apellido: string } | null;
   tags: Array<{ tagId: string; tag: { id: string; nombre: string; color: string | null } }>;

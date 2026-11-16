@@ -234,7 +234,33 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
    proveedor; la indexación no registra tokens porque OpenAI la factura por
    storage. Leer **`docs/documentacion-agente-aislamiento.md`** antes de tocar
    `src/ai/documentacion/`.
-9. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
+9. **Canal de correo vs. correo transaccional**: son dos sistemas distintos y
+   confundirlos es el error esperable. `src/integraciones/email/` es el **canal
+   de atención**: el buzón IMAP/SMTP del comercio, con credenciales propias
+   cifradas en `CuentaCanal.configuracion`, leído **solo desde el worker** (si
+   la app Next.js leyera, cada réplica duplicaría la lectura). `src/lib/email/`
+   (Resend) manda los correos que **Karia** le escribe al usuario del CRM
+   —bienvenida, notificaciones—: otra credencial, otro dueño, no se tocan entre
+   sí.
+
+   Tres reglas del canal que no se negocian:
+   - **El HTML de un correo entrante nunca se renderiza.** Se usa el texto que
+     `mailparser` ya deriva. Es una decisión de seguridad (XSS y píxeles de
+     rastreo), no de formato: `parsed.html` no se lee en ningún lado.
+   - **Auto-respuestas, rebotes y correos del propio buzón se descartan antes
+     de crear nada** (`mensaje/filtros.ts`). Sin eso, un aviso de vacaciones
+     crea oportunidad, dispara a la IA, la IA responde y el aviso vuelve a
+     dispararse.
+   - **El bloqueo por aprobación de remitente corta en TRES lugares**:
+     `conversaciones/envio.ts`, `suscriptores/ai/orquestar-ia.suscriptor.ts` y
+     `workflows/motor/disparo.ts`. Tocar uno solo deja un agujero por el que la
+     IA o un Workflow responden un correo no aprobado. La fuente de verdad es
+     `ContactoIdentificadorCanal.aprobadoEn`; las banderas de `Conversacion` y
+     `Oportunidad` son derivadas y se escriben en la misma transacción, en
+     `aprobacion/actions.ts`.
+
+   Detalle completo en `specs/034-canal-correo-electronico/`.
+10. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
 
 ---
 

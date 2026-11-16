@@ -120,6 +120,30 @@ OPENAI_DOCUMENTACION_MODELO="gpt-6-luna"   # modelo que sintetiza la respuesta d
 # los tokens, así que el modelo se elige por calidad, no por costo.
 OPENAI_DOCUMENTACION_COSTO_INPUT_POR_MIL="0.0001"
 OPENAI_DOCUMENTACION_COSTO_OUTPUT_POR_MIL="0.0005"
+
+# ─── Cifrado de credenciales de canal ─────────────────────────────────────────
+# Cifra en reposo los tokens y contraseñas que el negocio guarda en sus canales
+# (access token de Instagram/Messenger, contraseñas IMAP/SMTP del buzón de
+# correo). 32 bytes en base64: generar con `openssl rand -base64 32`.
+#
+# DEBE estar definida TAMBIÉN en el worker: es quien descifra para leer buzones
+# y enviar mensajes. Sin ella, conectar un canal falla a propósito.
+TOKENS_CIFRADO_KEY="..."
+
+# ─── Canal de correo electrónico (IMAP/SMTP) ─────────────────────────────────
+# No lleva variables propias: las credenciales de cada buzón las carga el
+# negocio desde Integraciones → Correo electrónico y se guardan cifradas con
+# TOKENS_CIFRADO_KEY.
+#
+# Sí tiene dos requisitos de entorno:
+#   1. El WORKER es quien lee los buzones (la app Next.js no lee ninguno), así
+#      que necesita salida de red a los puertos IMAP y SMTP de los proveedores
+#      de correo de los clientes: 993/143 y 465/587.
+#   2. TOKENS_CIFRADO_KEY definida en el worker, igual que en la app.
+#
+# No confundir con el "Email transaccional" de más arriba (Resend): ese manda
+# los correos que Karia le escribe al usuario del CRM. Este es el canal de
+# atención con el cliente final. Ver src/integraciones/email/.
 ```
 
 ---

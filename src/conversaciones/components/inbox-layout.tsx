@@ -27,6 +27,7 @@ import { InputMensaje } from "./input-mensaje";
 import { PanelContactoInbox } from "./panel-contacto-inbox";
 import { BarraClasificacion } from "./barra-clasificacion";
 import { BarraAtencionHumana } from "./barra-atencion-humana";
+import { BarraAprobacionRemitente } from "@/integraciones/email/components/barra-aprobacion-remitente";
 import {
   cerrarConversacion,
   devolverAtencionAutomatica,
@@ -966,6 +967,23 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               />
             )}
 
+            {/* 034 — Remitente de correo sin aprobar. El corte real está en el
+                servidor; esto lo explica y ofrece la salida. */}
+            {convActiva.bloqueadaPorAprobacion && (
+              <BarraAprobacionRemitente
+                conversacionId={convActiva.id}
+                direccion={convActiva.identificadorCanal ?? convActiva.contacto.email ?? null}
+                nombreSugerido={convActiva.contacto.nombre || null}
+                onAprobado={() =>
+                  setConversaciones((prev) =>
+                    prev.map((c) =>
+                      c.id === convActiva.id ? { ...c, bloqueadaPorAprobacion: false } : c,
+                    ),
+                  )
+                }
+              />
+            )}
+
             {/* Área de mensajes */}
             <div
               ref={messagesAreaRef}
@@ -1061,15 +1079,20 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                   </button>
                 )}
 
-                <InputMensaje
-                  textoExterno={textoChat}
-                  conversacionId={seleccionada}
-                  cuentas={cuentas}
-                  cuentaSeleccionadaId={cuentaSeleccionadaId}
-                  onCambiarCuenta={setCuentaSeleccionadaId}
-                  onEnviar={handleEnviar}
-                  enviando={enviando}
-                />
+                {/* 034 — Con el remitente sin aprobar no hay nada que escribir:
+                    el servidor rechazaría el envío igual. Se oculta el
+                    compositor en vez de dejar al agente redactar para nada. */}
+                {!convActiva.bloqueadaPorAprobacion && (
+                  <InputMensaje
+                    textoExterno={textoChat}
+                    conversacionId={seleccionada}
+                    cuentas={cuentas}
+                    cuentaSeleccionadaId={cuentaSeleccionadaId}
+                    onCambiarCuenta={setCuentaSeleccionadaId}
+                    onEnviar={handleEnviar}
+                    enviando={enviando}
+                  />
+                )}
               </>
             )}
           </>
