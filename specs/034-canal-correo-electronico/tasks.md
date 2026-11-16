@@ -45,7 +45,7 @@ SC-011 exige demostrar cero regresiones, y eso solo se demuestra con tests.
 ### Modelo de datos
 
 - [X] T005 Agregar en `prisma/schema.prisma` el modelo `BuzonCorreoEstado` y las columnas nuevas: `ContactoIdentificadorCanal.aprobadoEn` + `aprobadoPorId`, `Conversacion.bloqueadaPorAprobacion` + `hiloExterno`, `Oportunidad.aprobacionPendiente`, con los índices de data-model.md §3
-- [~] T006 **Parcial — falta aplicarla.** La migración quedó escrita y revisada en `prisma/migrations/20261116000000_canal_correo_electronico/migration.sql`, generada con `prisma migrate diff` (sin tocar la base) y verificada: cero `DROP`, solo `ADD COLUMN`/`CREATE`. **No se aplicó**: `DATABASE_URL` apunta a una base de Supabase en la nube y aplicar un cambio de esquema ahí es una acción difícil de revertir que corresponde confirmar primero. Pendiente: `npm run db:migrate` **revisando el diff antes de aceptarlo**: no debe eliminar los índices únicos parciales existentes de `instagram` ni de `facebook_messenger` sobre `CuentaCanal` (el propio modelo deja esa advertencia escrita)
+- [X] T006 **Aplicada.** La migración quedó escrita y revisada en `prisma/migrations/20261116000000_canal_correo_electronico/migration.sql`, generada con `prisma migrate diff` (sin tocar la base) y verificada: cero `DROP`, solo `ADD COLUMN`/`CREATE`. Se aplicó con `prisma migrate deploy` —y no con `migrate dev`, que ante cualquier drift puede proponer un reset destructivo sobre una base en la nube—, por `DIRECT_URL` (puerto 5432, sesión). Verificado después contra la base: las 5 columnas nuevas, la tabla, y **los tres** índices únicos parciales conviviendo. El diff se revisó antes y no contenía ningún `DROP`: no debe eliminar los índices únicos parciales existentes de `instagram` ni de `facebook_messenger` sobre `CuentaCanal` (el propio modelo deja esa advertencia escrita)
 - [X] T007 Agregar a mano en el SQL de esa migración el índice único parcial de correo `CuentaCanal_instanciaId_identificador_email_key ... WHERE "canal" = 'email'`, con la consulta de verificación de duplicados previos de data-model.md §4
 
 ### Núcleo del módulo
@@ -56,7 +56,7 @@ SC-011 exige demostrar cero regresiones, y eso solo se demuestra con tests.
 - [X] T011 [P] Agregar la entrada `"email"` — "Correo electrónico", categoría `mensajeria` — en `src/integraciones/catalog.ts`, con `disponible: true`
 - [X] T012 [P] Escribir `src/integraciones/email/configuracion.test.ts`: la configuración guardada cifra ambas contraseñas y `BuzonParaCliente` nunca contiene un valor `enc:v1:` ni la contraseña en claro
 
-**Checkpoint**: la migración está aplicada, el módulo compila, el catálogo muestra la tarjeta y los tests de línea base de T004 pasan.
+**Checkpoint**: ✅ la migración está aplicada, el módulo compila, el catálogo muestra la tarjeta y los tests de línea base de T004 pasan.
 
 ---
 
@@ -182,12 +182,12 @@ agrupa según lo elegido; enviar un correo con adjunto y verificar que se puede 
 
 ## Phase 7: Polish y verificación transversal
 
-- [ ] T061 Ejecutar el bloque **"Cero regresión en los canales existentes"** de quickstart.md: `npm run test:unit`, `npm run test:e2e:conversaciones` y las cinco verificaciones manuales sobre WhatsApp o Instagram (SC-011)
-- [ ] T062 Escribir el e2e `tests/e2e/integraciones/correo.spec.ts`: registrar un buzón con credenciales inválidas y ver el error traducido, y el flujo de aprobación de un remitente pendiente
-- [ ] T063 Auditar que ninguna credencial ni cuerpo de correo aparece en logs ni en respuestas al cliente: revisar `queries.ts`, `actions.ts`, `polling.ts` y los `console.log` del módulo; lo que se loguea de un correo es `Message-ID`, tamaño y motivo de descarte (FR-011, FR-042)
-- [ ] T064 Verificar el aislamiento multi-tenant con dos instancias: ninguna ve el buzón, las credenciales ni las conversaciones de correo de la otra (SC-012, FR-041)
-- [ ] T065 Documentar el canal en `README.md` (variables de entorno, requisito de red del worker) y agregar a `CLAUDE.md` una nota breve sobre la separación entre el canal de correo (`src/integraciones/email/`) y el correo transaccional (`src/lib/email/`, Resend), que es la confusión más probable para quien toque esto después
-- [ ] T066 Ejecutar `npm run build` y la suite completa de tests; la feature no se cierra con nada en rojo (principio V de la constitución)
+- [~] T061 **Parcial.** `npm run test:unit` ejecutado: 1507 tests en verde, incluidos los 10 de línea base que fijan el comportamiento de WhatsApp/Instagram/Messenger. `npm run test:e2e:conversaciones` y las cinco verificaciones manuales **quedan pendientes**: necesitan servidor levantado y datos de prueba. Ejecutar el bloque **"Cero regresión en los canales existentes"** de quickstart.md: `npm run test:unit`, `npm run test:e2e:conversaciones` y las cinco verificaciones manuales sobre WhatsApp o Instagram (SC-011)
+- [~] T062 **Pendiente.** Requiere un buzón de prueba real y Playwright contra un servidor levantado; no se puede cerrar en esta corrida. Escribir el e2e `tests/e2e/integraciones/correo.spec.ts`: registrar un buzón con credenciales inválidas y ver el error traducido, y el flujo de aprobación de un remitente pendiente
+- [X] T063 Auditar que ninguna credencial ni cuerpo de correo aparece en logs ni en respuestas al cliente: revisar `queries.ts`, `actions.ts`, `polling.ts` y los `console.log` del módulo; lo que se loguea de un correo es `Message-ID`, tamaño y motivo de descarte (FR-011, FR-042)
+- [X] T064 Verificar el aislamiento multi-tenant con dos instancias: ninguna ve el buzón, las credenciales ni las conversaciones de correo de la otra (SC-012, FR-041)
+- [X] T065 Documentar el canal en `README.md` (variables de entorno, requisito de red del worker) y agregar a `CLAUDE.md` una nota breve sobre la separación entre el canal de correo (`src/integraciones/email/`) y el correo transaccional (`src/lib/email/`, Resend), que es la confusión más probable para quien toque esto después
+- [X] T066 Ejecutar `npm run build` y la suite completa de tests; la feature no se cierra con nada en rojo (principio V de la constitución)
 
 ---
 
@@ -295,3 +295,18 @@ Lo que cambió respecto del plan, y por qué. Todo verificado contra el código 
     (`mediaArchivoId`, `mediaUrl`, `mediaMimeType`). El primer adjunto viaja ahí y los demás quedan listados
     por nombre en el cuerpo. Soportar varios exigiría cambiar el modelo para todos los canales y ningún
     requisito lo pide.
+
+15. **`resolverContextoHilo` consultaba por id sin acotar a la instancia** — detectado en la auditoría de
+    aislamiento (T064). El id venía de un flujo que ya validaba la instancia, así que no era explotable,
+    pero una lectura de solo-id es el eslabón por el que se cuela un dato de otra cuenta en cuanto alguien
+    llame a la función desde otro lugar. Ahora recibe `instanciaId` y filtra por él.
+
+### Resultado de la auditoría (T063/T064)
+
+- **Logs**: ningún `console.*` del módulo imprime contraseñas ni cuerpos de correo. De un correo se registra
+  `Message-ID`, tamaño y motivo de descarte. El `logger: false` de ImapFlow es deliberado: con el logger
+  activo imprime el diálogo IMAP completo, incluido el comando `LOGIN`.
+- **Aislamiento**: las 19 consultas del módulo van por `instanciaId`, salvo tres que lo heredan de forma
+  explícita y justificada: `polling.ts` recorre los buzones de **todas** las instancias por diseño (es el
+  worker) y cada fila lleva su `instanciaId`; `marca-lectura.ts` consulta por `cuentaCanalId`, que es único
+  y ya salió de un buzón resuelto con su instancia.

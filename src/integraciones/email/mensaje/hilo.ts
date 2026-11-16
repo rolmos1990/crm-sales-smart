@@ -54,11 +54,15 @@ export function conAngulos(messageId: string): string {
  */
 export async function resolverContextoHilo(
   conversacionId: string,
+  instanciaId: string,
   nombreNegocio?: string,
 ): Promise<ContextoHiloCorreo> {
   const [conversacion, mensajesConId] = await Promise.all([
-    prisma.conversacion.findUnique({
-      where: { id: conversacionId },
+    // Acotado por instancia aunque el id ya venga de un flujo que la validó:
+    // una lectura de solo-id es el eslabón por el que se cuela un dato de otra
+    // cuenta si mañana alguien llama a esta función desde otro lugar.
+    prisma.conversacion.findFirst({
+      where: { id: conversacionId, instanciaId },
       select: { asunto: true },
     }),
     // Todos los correos de la conversación que tienen Message-ID real, del más
@@ -66,7 +70,7 @@ export async function resolverContextoHilo(
     // posición en el buzón (ver normalizar.ts): ese no es un Message-ID válido
     // y no debe entrar en References.
     prisma.mensajeConversacion.findMany({
-      where: { conversacionId, idExterno: { not: null } },
+      where: { conversacionId, conversacion: { instanciaId }, idExterno: { not: null } },
       select: { idExterno: true, remitente: true, creadoEn: true },
       orderBy: { creadoEn: "asc" },
     }),

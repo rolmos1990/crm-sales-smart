@@ -1,12 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { asuntoDeRespuesta, conAngulos } from "./hilo";
 
-const conversacionFindUnique = vi.fn();
+const conversacionFindFirst = vi.fn();
 const mensajeFindMany = vi.fn();
 
 vi.mock("@/shared/db/prisma", () => ({
   prisma: {
-    conversacion: { findUnique: (...a: unknown[]) => conversacionFindUnique(...a) },
+    conversacion: { findFirst: (...a: unknown[]) => conversacionFindFirst(...a) },
     mensajeConversacion: { findMany: (...a: unknown[]) => mensajeFindMany(...a) },
   },
 }));
@@ -19,7 +19,7 @@ function mensaje(idExterno: string | null, remitente: "CONTACTO" | "AGENTE", min
 
 beforeEach(() => {
   vi.clearAllMocks();
-  conversacionFindUnique.mockResolvedValue({ asunto: "Consulta de precios" });
+  conversacionFindFirst.mockResolvedValue({ asunto: "Consulta de precios" });
   mensajeFindMany.mockResolvedValue([]);
 });
 
@@ -63,7 +63,7 @@ describe("contexto del hilo", () => {
       mensaje("otra@negocio.com", "AGENTE", 15),
     ]);
 
-    const ctx = await resolverContextoHilo("conv-1");
+    const ctx = await resolverContextoHilo("conv-1", "inst-1");
 
     expect(ctx.inReplyTo).toBe("segundo@cliente.com");
   });
@@ -75,7 +75,7 @@ describe("contexto del hilo", () => {
       mensaje("ultimo@cliente.com", "CONTACTO", 10),
     ]);
 
-    const ctx = await resolverContextoHilo("conv-1");
+    const ctx = await resolverContextoHilo("conv-1", "inst-1");
 
     expect(ctx.references).toEqual(["raiz@cliente.com", "medio@negocio.com", "ultimo@cliente.com"]);
   });
@@ -85,7 +85,7 @@ describe("contexto del hilo", () => {
       Array.from({ length: 20 }, (_, i) => mensaje(`m${i}@x.com`, "CONTACTO", i)),
     );
 
-    const ctx = await resolverContextoHilo("conv-1");
+    const ctx = await resolverContextoHilo("conv-1", "inst-1");
 
     expect(ctx.references).toHaveLength(10);
     expect(ctx.references[0]).toBe("m0@x.com");
@@ -101,7 +101,7 @@ describe("contexto del hilo", () => {
       mensaje("real@cliente.com", "CONTACTO", 5),
     ]);
 
-    const ctx = await resolverContextoHilo("conv-1");
+    const ctx = await resolverContextoHilo("conv-1", "inst-1");
 
     expect(ctx.references).toEqual(["real@cliente.com"]);
     expect(ctx.inReplyTo).toBe("real@cliente.com");
@@ -110,7 +110,7 @@ describe("contexto del hilo", () => {
   it("una conversación sin correos previos no rompe", async () => {
     mensajeFindMany.mockResolvedValue([]);
 
-    const ctx = await resolverContextoHilo("conv-1");
+    const ctx = await resolverContextoHilo("conv-1", "inst-1");
 
     expect(ctx.inReplyTo).toBeNull();
     expect(ctx.references).toEqual([]);
@@ -118,10 +118,11 @@ describe("contexto del hilo", () => {
   });
 
   it("solo pide los mensajes que tienen idExterno", async () => {
-    await resolverContextoHilo("conv-1");
+    await resolverContextoHilo("conv-1", "inst-1");
 
     expect(mensajeFindMany.mock.calls[0][0].where).toEqual({
       conversacionId: "conv-1",
+      conversacion: { instanciaId: "inst-1" },
       idExterno: { not: null },
     });
   });

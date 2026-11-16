@@ -64,7 +64,7 @@ export class EnviarMensajeSuscriptor extends ConsumidorBase<ComandoEnviarMensaje
     let contextoHilo: Record<string, unknown> = {};
     if (cuentaCanal.canal === "email") {
       const { resolverContextoHilo } = await import("@/integraciones/email/mensaje/hilo");
-      const hilo = await resolverContextoHilo(conversacionId, cuentaCanal.nombre);
+      const hilo = await resolverContextoHilo(conversacionId, instanciaId, cuentaCanal.nombre);
       contextoHilo = {
         asunto: hilo.asunto,
         inReplyTo: hilo.inReplyTo,
