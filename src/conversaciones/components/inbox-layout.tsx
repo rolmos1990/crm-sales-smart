@@ -28,6 +28,8 @@ import { PanelContactoInbox } from "./panel-contacto-inbox";
 import { BarraClasificacion } from "./barra-clasificacion";
 import { BarraAtencionHumana } from "./barra-atencion-humana";
 import { BarraAprobacionRemitente } from "@/integraciones/email/components/barra-aprobacion-remitente";
+import { EncabezadoHiloCorreo, HiloCorreo } from "@/integraciones/email/components/hilo-correo";
+import { ComposerCorreo, type ComposerCorreoHandle } from "@/integraciones/email/components/composer-correo";
 import {
   cerrarConversacion,
   devolverAtencionAutomatica,
@@ -262,6 +264,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   const [reaccionesOptimistas, setReaccionesOptimistas] = useState<Map<string, MensajeReaccionResumen[]>>(new Map());
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerCorreoRef = useRef<ComposerCorreoHandle>(null);
   const messagesAreaRef = useRef<HTMLDivElement>(null);
 
   // Mensajes de la conversación seleccionada
@@ -640,6 +643,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   const convNombre = convNombreBase || convActiva?.contacto.telefonoPrincipal || "Sin nombre";
   const convSinIdentificar = convActiva ? !convNombreBase : false;
 
+  // El correo usa su propia vista en el panel central (hilo plegable +
+  // compositor de correo). Lista, barras de estado y panel derecho son los
+  // mismos para todos los canales.
+  const esCorreo = convActiva?.cuentaCanal?.canal === "email";
+  const direccionContacto = convActiva ? convActiva.identificadorCanal ?? convActiva.contacto.email ?? null : null;
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -847,7 +856,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
           que el EmptyState, así que ocultarlo es barato; con conversación
           seleccionada pasa a `flex` (pantalla completa en móvil, columna
           central en tablet/escritorio). */}
-      <div className={cn("flex-1 flex-col overflow-hidden bg-background", !seleccionada ? "hidden md:flex" : "flex")}>
+      <div className={cn("relative flex-1 flex-col overflow-hidden bg-background", !seleccionada ? "hidden md:flex" : "flex")}>
         {seleccionada === null || !convActiva ? (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
@@ -886,7 +895,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     </span>
                   )}
                 </div>
-                {convActiva.cuentaCanal && (
+                {esCorreo && direccionContacto ? (
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {direccionContacto}
+                    {convActiva.cuentaCanal && <> · vía {convActiva.cuentaCanal.nombre}</>}
+                  </p>
+                ) : convActiva.cuentaCanal && (
                   <p className="text-[10px] text-muted-foreground truncate">{convActiva.cuentaCanal.nombre}</p>
                 )}
               </div>
@@ -984,10 +998,14 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               />
             )}
 
+            {esCorreo && (
+              <EncabezadoHiloCorreo asunto={convActiva.asunto} mensajes={todosLosMensajes} />
+            )}
+
             {/* Área de mensajes */}
             <div
               ref={messagesAreaRef}
-              className="flex-1 inbox-scroll px-4 py-3"
+              className={cn("flex-1 inbox-scroll py-3", esCorreo ? "px-3 md:px-4" : "px-4")}
             >
               {hayMasAnteriores && (
                 <div className="flex justify-center pb-3">
@@ -1005,7 +1023,19 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 </div>
               )}
 
-              {grupos.length === 0 && !isFetching ? (
+              {esCorreo ? (
+                // `key`: el estado de plegado es de cada conversación.
+                <HiloCorreo
+                  key={convActiva.id}
+                  mensajes={todosLosMensajes}
+                  idsLeidosLocal={idsLeidosLocal}
+                  onMarcarLeido={(id) => handleMarcarLeidos([id])}
+                  onResponder={() => composerCorreoRef.current?.enfocar()}
+                  contacto={convActiva.contacto}
+                  direccionContacto={direccionContacto}
+                  buzon={convActiva.cuentaCanal}
+                />
+              ) : grupos.length === 0 && !isFetching ? (
                 <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
                   Sin mensajes aún
                 </div>
@@ -1082,7 +1112,20 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 {/* 034 — Con el remitente sin aprobar no hay nada que escribir:
                     el servidor rechazaría el envío igual. Se oculta el
                     compositor en vez de dejar al agente redactar para nada. */}
-                {!convActiva.bloqueadaPorAprobacion && (
+                {!convActiva.bloqueadaPorAprobacion && esCorreo && (
+                  <ComposerCorreo
+                    key={convActiva.id}
+                    ref={composerCorreoRef}
+                    conversacionId={convActiva.id}
+                    instanciaId={convActiva.instanciaId}
+                    destinatario={direccionContacto}
+                    asunto={convActiva.asunto}
+                    onEnviar={handleEnviar}
+                    enviando={enviando}
+                    textoExterno={textoChat}
+                  />
+                )}
+                {!convActiva.bloqueadaPorAprobacion && !esCorreo && (
                   <InputMensaje
                     textoExterno={textoChat}
                     conversacionId={seleccionada}

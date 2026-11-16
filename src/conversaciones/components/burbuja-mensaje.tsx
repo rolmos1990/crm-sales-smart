@@ -37,7 +37,7 @@ function LightboxImagen({ src, onClose }: { src: string; onClose: () => void }) 
 
 // ── Burbuja de imagen con thumbnail cliqueable ────────────────────────────────
 
-function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
+export function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
   const [lightboxAbierto, setLightboxAbierto] = useState(false);
 
   const estado = mensaje.mediaEstado;
@@ -142,7 +142,7 @@ const iconoEstado: Record<EstadoMensaje, React.ReactNode> = {
 // cae en el tono neutro por defecto.
 const CODIGOS_ACCION_KARIA = new Set(["TOKEN_INVALIDO"]);
 
-function BloqueErrorEnvio({
+export function BloqueErrorEnvio({
   codigoError,
   motivoError,
 }: {

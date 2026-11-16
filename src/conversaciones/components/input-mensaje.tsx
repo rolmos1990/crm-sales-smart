@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { generarSugerenciaIA } from "../actions-ia";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { SelectorPlantillas, registrarUsoPlantilla } from "./selector-plantillas";
+import { SelectorPlantillas, fetchPlantillas, registrarUsoPlantilla } from "./selector-plantillas";
 import type { PlantillaItem } from "./selector-plantillas";
 import { SelectorCuentaCanal } from "./selector-cuenta-canal";
 import { EMOJIS_GRID } from "./reacciones-mensaje";
@@ -40,12 +40,6 @@ interface InputMensajeProps {
    * redactado antes de adjuntar la cotización.
    */
   textoExterno?: { texto: string; n: number } | null;
-}
-
-async function fetchPlantillas(instanciaId: string): Promise<PlantillaItem[]> {
-  const res = await fetch(`/api/plantillas?instanciaId=${instanciaId}`);
-  if (!res.ok) return [];
-  return res.json() as Promise<PlantillaItem[]>;
 }
 
 export function InputMensaje({

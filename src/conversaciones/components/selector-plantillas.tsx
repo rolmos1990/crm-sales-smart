@@ -16,6 +16,13 @@ export interface PlantillaItem {
   activo: boolean;
 }
 
+/** Compartido por el compositor de chat y el de correo. */
+export async function fetchPlantillas(instanciaId: string): Promise<PlantillaItem[]> {
+  const res = await fetch(`/api/plantillas?instanciaId=${instanciaId}`);
+  if (!res.ok) return [];
+  return res.json() as Promise<PlantillaItem[]>;
+}
+
 const USOS_KEY = "crm-plantillas-usos";
 const MAX_FAV = 5;
 
