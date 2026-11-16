@@ -52,6 +52,7 @@ import {
 } from "../tipos";
 import {
   PROVEEDORES,
+  avisoPuertoSeguridad,
   detectarProveedor,
   obtenerProveedor,
   type ClaveProveedor,
@@ -427,6 +428,7 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                     registroPuerto={register("entradaPuerto", { valueAsNumber: true })}
                     registroUsuario={register("entradaUsuario")}
                     placeholderServidor="imap.minegocio.com"
+                    puerto={v.entradaPuerto}
                   />
                   <BloqueServidor
                     titulo="Salida · SMTP"
@@ -439,6 +441,7 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
                     registroPuerto={register("salidaPuerto", { valueAsNumber: true })}
                     registroUsuario={register("salidaUsuario")}
                     placeholderServidor="smtp.minegocio.com"
+                    puerto={v.salidaPuerto}
                   />
                 </div>
 
@@ -782,6 +785,7 @@ function BloqueServidor({
   registroPuerto,
   registroUsuario,
   placeholderServidor,
+  puerto,
 }: {
   titulo: string;
   descripcion: string;
@@ -793,7 +797,10 @@ function BloqueServidor({
   registroPuerto: RegistroCampo;
   registroUsuario: RegistroCampo;
   placeholderServidor: string;
+  puerto: number;
 }) {
+  const avisoCombinacion = avisoPuertoSeguridad(Number(puerto), seguridad);
+
   return (
     <div className="space-y-3 rounded-xl border border-border p-4">
       <div className="flex items-start gap-2.5">
@@ -829,6 +836,12 @@ function BloqueServidor({
           onCambiar={onSeguridad}
           etiquetaAccesible={`Seguridad de ${titulo}`}
         />
+        {avisoCombinacion && (
+          <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warning">
+            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+            {avisoCombinacion}
+          </p>
+        )}
       </div>
 
       <div className="space-y-1.5">
