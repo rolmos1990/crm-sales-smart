@@ -1,8 +1,29 @@
 "use client";
 
-import { useState } from "react";
+// Asistente de conexión de un buzón, en 4 pasos.
+//
+// Antes era un formulario único y largo donde convivían la dirección, las
+// credenciales, los dos servidores y las reglas de recepción: el negocio veía
+// una veintena de campos de golpe, sin saber cuáles eran obligatorios ni en
+// qué orden resolverlos. Partirlo por decisión —a quién conecto, con qué
+// datos, cómo entran los correos, confirmar— deja cada paso con una pregunta.
+import { useEffect, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
-import { AlertCircle, CheckCircle2, Loader2, Plug } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Download,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Mail,
+  Plug,
+  Send,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,14 +44,20 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-  ETIQUETAS_AGRUPACION,
   ETIQUETAS_SEGURIDAD,
   PUERTOS_SUGERIDOS,
   type AgrupacionCorreo,
   type BuzonParaCliente,
   type SeguridadCorreo,
 } from "../tipos";
+import {
+  PROVEEDORES,
+  detectarProveedor,
+  obtenerProveedor,
+  type ClaveProveedor,
+} from "../proveedores";
 import { actualizarBuzon, probarConexionBuzon, registrarBuzon } from "../actions";
+import { FilaResumen, IndicadorPasos, Segmentado, TarjetaOpcion } from "./pasos-buzon";
 
 interface PipelineOpcion {
   id: string;
@@ -61,7 +88,7 @@ interface FormBuzon {
   salidaPassword: string;
   nombreRemitente: string;
   agrupacion: AgrupacionCorreo;
-  crearContactosAutomaticamente: boolean;
+  requiereAprobacion: boolean;
   pipelineId: string;
   stageId: string;
   stageIdRespuestaAutomatica: string;
@@ -77,11 +104,19 @@ type EstadoPrueba =
     };
 
 const SIN_PIPELINE = "__sin_pipeline__";
+const SIN_ETAPA_RESPUESTA = "__sin_etapa_respuesta__";
 
-// El mapa valor → etiqueta que exige el <Select> de Base UI (ver docs/selects.md):
-// sin esto el trigger muestra "SSL_TLS" crudo hasta que el usuario abre el popup.
-const ITEMS_SEGURIDAD: Record<string, string> = ETIQUETAS_SEGURIDAD;
-const ITEMS_AGRUPACION: Record<string, string> = ETIQUETAS_AGRUPACION;
+const PASOS = [
+  { numero: 1, etiqueta: "Correo" },
+  { numero: 2, etiqueta: "Servidores" },
+  { numero: 3, etiqueta: "Recepción" },
+  { numero: 4, etiqueta: "Confirmar" },
+];
+
+const OPCIONES_SEGURIDAD = (Object.keys(ETIQUETAS_SEGURIDAD) as SeguridadCorreo[]).map((s) => ({
+  valor: s,
+  etiqueta: ETIQUETAS_SEGURIDAD[s],
+}));
 
 function valoresIniciales(buzon?: BuzonParaCliente | null): FormBuzon {
   return {
@@ -99,43 +134,72 @@ function valoresIniciales(buzon?: BuzonParaCliente | null): FormBuzon {
     salidaPassword: "",
     nombreRemitente: buzon?.salida.nombreRemitente ?? "",
     agrupacion: buzon?.recepcion.agrupacion ?? "POR_REMITENTE",
-    crearContactosAutomaticamente: buzon?.recepcion.crearContactosAutomaticamente ?? true,
+    // En el formulario se expresa como "pedir aprobación", que es el efecto que
+    // el negocio ve. En la configuración se guarda al revés.
+    requiereAprobacion: buzon ? !buzon.recepcion.crearContactosAutomaticamente : false,
     pipelineId: buzon?.pipelineId ?? SIN_PIPELINE,
     stageId: buzon?.stageId ?? SIN_PIPELINE,
-    stageIdRespuestaAutomatica: buzon?.stageIdRespuestaAutomatica ?? SIN_PIPELINE,
+    stageIdRespuestaAutomatica: buzon?.stageIdRespuestaAutomatica ?? SIN_ETAPA_RESPUESTA,
   };
 }
 
 export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Props) {
   const esEdicion = Boolean(buzon);
+
+  const [paso, setPaso] = useState(1);
+  const [maximoAlcanzado, setMaximoAlcanzado] = useState(1);
+  const [proveedor, setProveedor] = useState<ClaveProveedor>("otro");
   const [prueba, setPrueba] = useState<EstadoPrueba>({ fase: "sin_probar" });
   const [guardando, setGuardando] = useState(false);
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
+  const [verPassword, setVerPassword] = useState(false);
 
-  const form = useForm<FormBuzon>({ defaultValues: valoresIniciales(buzon) });
-  const { register, handleSubmit, watch, setValue, formState } = form;
+  const { register, handleSubmit, watch, setValue } = useForm<FormBuzon>({
+    defaultValues: valoresIniciales(buzon),
+  });
 
-  const valores = watch();
-  const pipelineElegido = pipelines.find((p) => p.id === valores.pipelineId);
+  const v = watch();
+  const pipelineElegido = pipelines.find((p) => p.id === v.pipelineId);
   const conexionesOk = prueba.fase === "listo" && prueba.entrada.ok && prueba.salida.ok;
+  const datosProveedor = obtenerProveedor(proveedor);
 
-  const itemsPipeline: Record<string, string> = {
-    [SIN_PIPELINE]: "Pipeline por defecto de la cuenta",
-    ...Object.fromEntries(pipelines.map((p) => [p.id, p.nombre])),
-  };
-  const itemsEtapa: Record<string, string> = {
-    [SIN_PIPELINE]: "Primera etapa del pipeline",
-    ...Object.fromEntries((pipelineElegido?.stages ?? []).map((s) => [s.id, s.nombre])),
-  };
-  // La etapa de respuesta puede estar en cualquier pipeline, igual que en los
-  // canales de mensajería: el pipeline destino se deriva del stage.
-  const todasLasEtapas = pipelines.flatMap((p) =>
-    p.stages.map((s) => [s.id, `${p.nombre} · ${s.nombre}`] as const),
-  );
-  const itemsEtapaRespuesta: Record<string, string> = {
-    [SIN_PIPELINE]: "No mover la oportunidad",
-    ...Object.fromEntries(todasLasEtapas),
-  };
+  // Cualquier cambio en los datos de conexión invalida la prueba anterior: sin
+  // esto se podía probar con éxito, cambiar el servidor y guardar credenciales
+  // que nunca se probaron.
+  const huellaConexion = [
+    v.entradaServidor, v.entradaPuerto, v.entradaSeguridad, v.entradaUsuario, v.entradaPassword,
+    v.salidaServidor, v.salidaPuerto, v.salidaSeguridad, v.salidaUsuario, v.salidaPassword,
+  ].join("|");
+  useEffect(() => {
+    setPrueba((actual) => (actual.fase === "sin_probar" ? actual : { fase: "sin_probar" }));
+  }, [huellaConexion]);
+
+  function elegirProveedor(clave: ClaveProveedor) {
+    setProveedor(clave);
+    const datos = obtenerProveedor(clave);
+    if (!datos.entrada || !datos.salida) return;
+    setValue("entradaServidor", datos.entrada.servidor);
+    setValue("entradaPuerto", datos.entrada.puerto);
+    setValue("entradaSeguridad", datos.entrada.seguridad);
+    setValue("salidaServidor", datos.salida.servidor);
+    setValue("salidaPuerto", datos.salida.puerto);
+    setValue("salidaSeguridad", datos.salida.seguridad);
+  }
+
+  function alEscribirDireccion(valor: string) {
+    // El usuario de IMAP/SMTP es la dirección en casi todos los proveedores:
+    // se copia mientras el negocio no lo haya cambiado a mano.
+    if (!v.entradaUsuario || v.entradaUsuario === v.direccion) {
+      setValue("entradaUsuario", valor);
+    }
+    if (!v.salidaUsuario || v.salidaUsuario === v.direccion) {
+      setValue("salidaUsuario", valor);
+    }
+    if (!esEdicion && proveedor === "otro") {
+      const detectado = detectarProveedor(valor);
+      if (detectado !== "otro") elegirProveedor(detectado);
+    }
+  }
 
   function aplicarSeguridad(lado: "entrada" | "salida", seguridad: SeguridadCorreo) {
     if (lado === "entrada") {
@@ -145,44 +209,57 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
       setValue("salidaSeguridad", seguridad);
       setValue("salidaPuerto", PUERTOS_SUGERIDOS[seguridad].salida);
     }
-    // Cambió la conexión: la prueba anterior ya no vale.
-    setPrueba({ fase: "sin_probar" });
   }
 
-  function aPayload(v: FormBuzon) {
+  const pasoUnoCompleto = Boolean(v.nombre.trim() && /.+@.+\..+/.test(v.direccion.trim()));
+  const datosServidorCompletos = Boolean(
+    v.entradaServidor.trim() && v.salidaServidor.trim() &&
+    v.entradaUsuario.trim() && v.salidaUsuario.trim() &&
+    (esEdicion || (v.entradaPassword && v.salidaPassword)),
+  );
+
+  function avanzar() {
+    const siguiente = paso + 1;
+    setPaso(siguiente);
+    setMaximoAlcanzado((m) => Math.max(m, siguiente));
+  }
+
+  function aPayload(datos: FormBuzon) {
     return {
-      nombre: v.nombre,
-      direccion: v.direccion,
+      nombre: datos.nombre,
+      direccion: datos.direccion,
       entrada: {
-        servidor: v.entradaServidor,
-        puerto: Number(v.entradaPuerto),
-        seguridad: v.entradaSeguridad,
-        usuario: v.entradaUsuario || v.direccion,
-        ...(v.entradaPassword ? { password: v.entradaPassword } : {}),
+        servidor: datos.entradaServidor,
+        puerto: Number(datos.entradaPuerto),
+        seguridad: datos.entradaSeguridad,
+        usuario: datos.entradaUsuario || datos.direccion,
+        ...(datos.entradaPassword ? { password: datos.entradaPassword } : {}),
       },
       salida: {
-        servidor: v.salidaServidor,
-        puerto: Number(v.salidaPuerto),
-        seguridad: v.salidaSeguridad,
-        usuario: v.salidaUsuario || v.direccion,
-        ...(v.salidaPassword ? { password: v.salidaPassword } : {}),
-        ...(v.nombreRemitente ? { nombreRemitente: v.nombreRemitente } : {}),
+        servidor: datos.salidaServidor,
+        puerto: Number(datos.salidaPuerto),
+        seguridad: datos.salidaSeguridad,
+        usuario: datos.salidaUsuario || datos.direccion,
+        ...(datos.salidaPassword ? { password: datos.salidaPassword } : {}),
+        ...(datos.nombreRemitente ? { nombreRemitente: datos.nombreRemitente } : {}),
       },
       recepcion: {
-        agrupacion: v.agrupacion,
-        crearContactosAutomaticamente: v.crearContactosAutomaticamente,
+        agrupacion: datos.agrupacion,
+        crearContactosAutomaticamente: !datos.requiereAprobacion,
       },
-      pipelineId: v.pipelineId === SIN_PIPELINE ? null : v.pipelineId,
-      stageId: v.stageId === SIN_PIPELINE ? null : v.stageId,
+      pipelineId: datos.pipelineId === SIN_PIPELINE ? null : datos.pipelineId,
+      stageId: datos.stageId === SIN_PIPELINE ? null : datos.stageId,
       stageIdRespuestaAutomatica:
-        v.stageIdRespuestaAutomatica === SIN_PIPELINE ? null : v.stageIdRespuestaAutomatica,
+        datos.stageIdRespuestaAutomatica === SIN_ETAPA_RESPUESTA
+          ? null
+          : datos.stageIdRespuestaAutomatica,
     };
   }
 
   async function probar() {
     setPrueba({ fase: "probando" });
     setErrorGuardado(null);
-    const payload = aPayload(valores);
+    const payload = aPayload(v);
 
     const resultado = await probarConexionBuzon({
       ...(buzon ? { cuentaCanalId: buzon.id } : {}),
@@ -190,33 +267,31 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
       salida: payload.salida,
     });
 
-    if (!resultado.ok) {
-      setPrueba({
-        fase: "listo",
-        entrada: { ok: false, mensaje: resultado.error },
-        salida: { ok: false, mensaje: resultado.error },
-      });
-      return;
-    }
-
-    setPrueba({
-      fase: "listo",
-      entrada: { ok: resultado.data.entrada.ok, mensaje: resultado.data.entrada.mensaje },
-      salida: { ok: resultado.data.salida.ok, mensaje: resultado.data.salida.mensaje },
-    });
+    setPrueba(
+      resultado.ok
+        ? {
+            fase: "listo",
+            entrada: { ok: resultado.data.entrada.ok, mensaje: resultado.data.entrada.mensaje },
+            salida: { ok: resultado.data.salida.ok, mensaje: resultado.data.salida.mensaje },
+          }
+        : {
+            fase: "listo",
+            entrada: { ok: false, mensaje: resultado.error },
+            salida: { ok: false, mensaje: resultado.error },
+          },
+    );
   }
 
-  async function guardar(v: FormBuzon) {
+  async function guardar(datos: FormBuzon) {
     setGuardando(true);
     setErrorGuardado(null);
 
-    const payload = aPayload(v);
+    const payload = aPayload(datos);
     const resultado = esEdicion
       ? await actualizarBuzon({ ...payload, id: buzon!.id })
       : await registrarBuzon(payload);
 
     setGuardando(false);
-
     if (!resultado.ok) {
       setErrorGuardado(resultado.error);
       return;
@@ -224,307 +299,543 @@ export function ModalRegistrarBuzon({ abierto, onCerrar, buzon, pipelines }: Pro
     onCerrar();
   }
 
+  const encabezados: Record<number, { titulo: string; descripcion: string }> = {
+    1: { titulo: "Conectar buzón de correo", descripcion: "¿Qué casilla querés atender desde Karia?" },
+    2: { titulo: "Datos de conexión", descripcion: "Con esto Karia lee y envía correos por tu buzón." },
+    3: { titulo: "Cómo entran los correos", descripcion: "Dónde caen en el pipeline y si hace falta aprobarlos." },
+    4: { titulo: "Revisá antes de activar", descripcion: "Así va a quedar configurado el buzón." },
+  };
+
   return (
-    <Dialog open={abierto} onOpenChange={(v) => !v && onCerrar()}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{esEdicion ? "Editar buzón" : "Agregar buzón de correo"}</DialogTitle>
-          <DialogDescription>
-            {esEdicion
-              ? "Dejá las contraseñas vacías para conservar las que ya están guardadas."
-              : "Necesitás los datos IMAP y SMTP de tu proveedor de correo. Si pide contraseña de aplicación, generala antes."}
-          </DialogDescription>
+    <Dialog open={abierto} onOpenChange={(o) => !o && onCerrar()}>
+      <DialogContent className="flex max-h-[88vh] max-w-2xl flex-col gap-0 p-0">
+        <DialogHeader className="shrink-0 space-y-4 border-b border-border p-6 pb-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-info/10">
+              <Mail className="h-5 w-5 text-info" />
+            </span>
+            <div className="min-w-0">
+              <DialogTitle>{esEdicion ? "Editar buzón" : encabezados[paso].titulo}</DialogTitle>
+              <DialogDescription className="mt-0.5">{encabezados[paso].descripcion}</DialogDescription>
+            </div>
+          </div>
+
+          <IndicadorPasos pasos={PASOS} actual={paso} maximoAlcanzado={maximoAlcanzado} onIr={setPaso} />
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(guardar)} className="space-y-5">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="nombre">Nombre</Label>
-              <Input id="nombre" placeholder="Ventas" {...register("nombre", { required: true })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="direccion">Dirección</Label>
-              <Input
-                id="direccion"
-                type="email"
-                placeholder="ventas@minegocio.com"
-                {...register("direccion", { required: true })}
-              />
-            </div>
-          </div>
+        <form onSubmit={handleSubmit(guardar)} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
+            {/* ── Paso 1: identidad del buzón ───────────────────────────── */}
+            {paso === 1 && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="direccion">Dirección de correo</Label>
+                    <Input
+                      id="direccion"
+                      type="email"
+                      placeholder="ventas@minegocio.com"
+                      autoFocus
+                      {...register("direccion", {
+                        onChange: (e) => alEscribirDireccion(e.target.value),
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nombre">Nombre del buzón</Label>
+                    <Input id="nombre" placeholder="Ventas" {...register("nombre")} />
+                    <p className="text-[11px] text-muted-foreground">
+                      Solo para reconocerlo en el Inbox.
+                    </p>
+                  </div>
+                </div>
 
-          <ConexionCampos
-            titulo="Entrada (recepción)"
-            lado="entrada"
-            seguridad={valores.entradaSeguridad}
-            onSeguridad={(s) => aplicarSeguridad("entrada", s)}
-            registroServidor={register("entradaServidor", { required: true })}
-            registroPuerto={register("entradaPuerto", { required: true, valueAsNumber: true })}
-            registroUsuario={register("entradaUsuario")}
-            registroPassword={register("entradaPassword")}
-            placeholderServidor="imap.minegocio.com"
-            passwordRequerida={!esEdicion}
-            direccion={valores.direccion}
-          />
-
-          <ConexionCampos
-            titulo="Salida (envío)"
-            lado="salida"
-            seguridad={valores.salidaSeguridad}
-            onSeguridad={(s) => aplicarSeguridad("salida", s)}
-            registroServidor={register("salidaServidor", { required: true })}
-            registroPuerto={register("salidaPuerto", { required: true, valueAsNumber: true })}
-            registroUsuario={register("salidaUsuario")}
-            registroPassword={register("salidaPassword")}
-            placeholderServidor="smtp.minegocio.com"
-            passwordRequerida={!esEdicion}
-            direccion={valores.direccion}
-          />
-
-          <div className="space-y-1.5">
-            <Label htmlFor="nombreRemitente">Nombre que ve el cliente</Label>
-            <Input
-              id="nombreRemitente"
-              placeholder="Ventas Mi Negocio"
-              {...register("nombreRemitente")}
-            />
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-border p-4">
-            <p className="text-sm font-medium text-foreground">Recepción</p>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Pipeline de entrada</Label>
-                <Select
-                  items={itemsPipeline}
-                  value={valores.pipelineId}
-                  onValueChange={(v) => {
-                    setValue("pipelineId", v as string);
-                    setValue("stageId", SIN_PIPELINE);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SIN_PIPELINE}>Pipeline por defecto de la cuenta</SelectItem>
-                    {pipelines.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.nombre}
-                      </SelectItem>
+                <div className="space-y-2">
+                  <Label>Proveedor de correo</Label>
+                  <div role="radiogroup" aria-label="Proveedor de correo" className="space-y-2">
+                    {PROVEEDORES.map((p) => (
+                      <TarjetaOpcion
+                        key={p.clave}
+                        seleccionada={proveedor === p.clave}
+                        onSeleccionar={() => elegirProveedor(p.clave)}
+                        titulo={p.nombre}
+                        descripcion={p.descripcion}
+                      />
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Elegir Gmail u Outlook solo completa los servidores y puertos por vos. La
+                    conexión sigue siendo con usuario y contraseña: Karia no inicia sesión con tu
+                    cuenta de Google ni de Microsoft.
+                  </p>
+                </div>
+              </>
+            )}
 
-              <div className="space-y-1.5">
-                <Label>Etapa de entrada</Label>
-                <Select
-                  items={itemsEtapa}
-                  value={valores.stageId}
-                  onValueChange={(v) => setValue("stageId", v as string)}
-                  disabled={!pipelineElegido}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SIN_PIPELINE}>Primera etapa del pipeline</SelectItem>
-                    {(pipelineElegido?.stages ?? []).map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* ── Paso 2: credenciales y servidores ─────────────────────── */}
+            {paso === 2 && (
+              <>
+                {datosProveedor.aviso && (
+                  <p className="flex items-start gap-2 rounded-xl border border-warning/25 bg-warning/8 p-3 text-xs leading-relaxed text-foreground">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    {datosProveedor.aviso}
+                  </p>
+                )}
 
-            <div className="space-y-1.5">
-              <Label>Etapa al responder</Label>
-              <Select
-                items={itemsEtapaRespuesta}
-                value={valores.stageIdRespuestaAutomatica}
-                onValueChange={(v) => setValue("stageIdRespuestaAutomatica", v as string)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SIN_PIPELINE}>No mover la oportunidad</SelectItem>
-                  {pipelines.flatMap((p) =>
-                    p.stages.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {p.nombre} · {s.nombre}
-                      </SelectItem>
-                    )),
+                <div className="space-y-1.5">
+                  <Label htmlFor="entrada-password">
+                    {datosProveedor.clave === "otro" ? "Contraseña" : "Contraseña de aplicación"}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="entrada-password"
+                      type={verPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder={esEdicion ? "Dejar vacío para conservar la actual" : ""}
+                      className="pr-10"
+                      {...register("entradaPassword", {
+                        onChange: (e) => {
+                          // Un buzón usa la misma contraseña para leer y enviar
+                          // en la enorme mayoría de los casos; se separa abajo
+                          // si hace falta.
+                          if (!v.salidaPassword || v.salidaPassword === v.entradaPassword) {
+                            setValue("salidaPassword", e.target.value);
+                          }
+                        },
+                      })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setVerPassword((x) => !x)}
+                      aria-label={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {verPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <BloqueServidor
+                    titulo="Entrada · IMAP"
+                    descripcion="Para recibir correos en Karia."
+                    icono={<Download className="h-4 w-4 text-info" />}
+                    idPrefijo="entrada"
+                    seguridad={v.entradaSeguridad}
+                    onSeguridad={(s) => aplicarSeguridad("entrada", s)}
+                    registroServidor={register("entradaServidor")}
+                    registroPuerto={register("entradaPuerto", { valueAsNumber: true })}
+                    registroUsuario={register("entradaUsuario")}
+                    placeholderServidor="imap.minegocio.com"
+                  />
+                  <BloqueServidor
+                    titulo="Salida · SMTP"
+                    descripcion="Para enviar correos desde Karia."
+                    icono={<Send className="h-4 w-4 text-info" />}
+                    idPrefijo="salida"
+                    seguridad={v.salidaSeguridad}
+                    onSeguridad={(s) => aplicarSeguridad("salida", s)}
+                    registroServidor={register("salidaServidor")}
+                    registroPuerto={register("salidaPuerto", { valueAsNumber: true })}
+                    registroUsuario={register("salidaUsuario")}
+                    placeholderServidor="smtp.minegocio.com"
+                  />
+                </div>
+
+                <details className="rounded-xl border border-border p-3">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">
+                    El servidor de salida usa otra contraseña
+                  </summary>
+                  <div className="mt-3 space-y-1.5">
+                    <Label htmlFor="salida-password" className="text-xs">
+                      Contraseña de salida
+                    </Label>
+                    <Input
+                      id="salida-password"
+                      type="password"
+                      autoComplete="new-password"
+                      {...register("salidaPassword")}
+                    />
+                  </div>
+                </details>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="nombreRemitente">Nombre que verá el cliente</Label>
+                  <Input
+                    id="nombreRemitente"
+                    placeholder="Ventas Mi Negocio"
+                    {...register("nombreRemitente")}
+                  />
+                </div>
+
+                <ResultadoPrueba estado={prueba} />
+              </>
+            )}
+
+            {/* ── Paso 3: reglas de recepción ───────────────────────────── */}
+            {paso === 3 && (
+              <>
+                <div className="space-y-2">
+                  <Label>Cómo se agrupan los correos</Label>
+                  <div role="radiogroup" aria-label="Agrupación de correos" className="space-y-2">
+                    <TarjetaOpcion
+                      seleccionada={v.agrupacion === "POR_REMITENTE"}
+                      onSeleccionar={() => setValue("agrupacion", "POR_REMITENTE")}
+                      titulo="Una conversación por remitente"
+                      descripcion="Todo lo que escriba esa persona cae en la misma conversación, aunque abra asuntos distintos."
+                    />
+                    <TarjetaOpcion
+                      seleccionada={v.agrupacion === "POR_HILO"}
+                      onSeleccionar={() => setValue("agrupacion", "POR_HILO")}
+                      titulo="Una conversación por hilo de correo"
+                      descripcion="Cada asunto nuevo abre su propia conversación. Útil si la misma persona consulta por temas que no tienen relación entre sí."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Pipeline de entrada</Label>
+                    <Select
+                      items={{
+                        [SIN_PIPELINE]: "Pipeline por defecto",
+                        ...Object.fromEntries(pipelines.map((p) => [p.id, p.nombre])),
+                      }}
+                      value={v.pipelineId}
+                      onValueChange={(valor) => {
+                        setValue("pipelineId", valor as string);
+                        setValue("stageId", SIN_PIPELINE);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SIN_PIPELINE}>Pipeline por defecto</SelectItem>
+                        {pipelines.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Etapa de entrada</Label>
+                    <Select
+                      items={{
+                        [SIN_PIPELINE]: "Primera etapa",
+                        ...Object.fromEntries(
+                          (pipelineElegido?.stages ?? []).map((s) => [s.id, s.nombre]),
+                        ),
+                      }}
+                      value={v.stageId}
+                      onValueChange={(valor) => setValue("stageId", valor as string)}
+                      disabled={!pipelineElegido}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SIN_PIPELINE}>Primera etapa</SelectItem>
+                        {(pipelineElegido?.stages ?? []).map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Etapa al responder</Label>
+                  <Select
+                    items={{
+                      [SIN_ETAPA_RESPUESTA]: "No mover la oportunidad",
+                      ...Object.fromEntries(
+                        pipelines.flatMap((p) =>
+                          p.stages.map((s) => [s.id, `${p.nombre} · ${s.nombre}`] as const),
+                        ),
+                      ),
+                    }}
+                    value={v.stageIdRespuestaAutomatica}
+                    onValueChange={(valor) => setValue("stageIdRespuestaAutomatica", valor as string)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SIN_ETAPA_RESPUESTA}>No mover la oportunidad</SelectItem>
+                      {pipelines.flatMap((p) =>
+                        p.stages.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {p.nombre} · {s.nombre}
+                          </SelectItem>
+                        )),
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Al responder por primera vez un correo que está en la etapa inicial, su
+                    oportunidad se mueve acá. Aplica siempre, con o sin aprobación.
+                  </p>
+                </div>
+
+                <div
+                  className={cn(
+                    "space-y-3 rounded-xl border p-4 transition-colors",
+                    v.requiereAprobacion ? "border-warning/30 bg-warning/8" : "border-border",
                   )}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">
-                Al responder por primera vez un correo que está en la etapa inicial, la oportunidad
-                se mueve acá.
-              </p>
-            </div>
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={cn(
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
+                          v.requiereAprobacion
+                            ? "border-warning/30 bg-warning/15 text-warning"
+                            : "border-border bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <Lock className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          Aprobar remitentes desconocidos
+                        </p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                          {v.requiereAprobacion
+                            ? "Los correos de direcciones que no están en tu CRM quedan bloqueados: nadie puede responderlos —ni vos, ni el agente de IA, ni un Workflow— hasta aprobar al remitente."
+                            : "Cada dirección nueva que escriba se convierte en contacto y oportunidad automáticamente."}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={v.requiereAprobacion}
+                      onCheckedChange={(x) => setValue("requiereAprobacion", x)}
+                      aria-label="Aprobar remitentes desconocidos"
+                    />
+                  </div>
+                  {v.requiereAprobacion && (
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      Conviene si tu dirección está publicada y recibís proveedores, facturas o
+                      spam. Una vez aprobado un remitente, sus correos siguientes entran solos.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
 
-            <div className="space-y-1.5">
-              <Label>Agrupación de correos</Label>
-              <Select
-                items={ITEMS_AGRUPACION}
-                value={valores.agrupacion}
-                onValueChange={(v) => setValue("agrupacion", v as AgrupacionCorreo)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(ETIQUETAS_AGRUPACION) as AgrupacionCorreo[]).map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {ETIQUETAS_AGRUPACION[a]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* ── Paso 4: confirmación ──────────────────────────────────── */}
+            {paso === 4 && (
+              <>
+                <div className="rounded-xl border border-border p-4">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Buzón</p>
+                  <div className="divide-y divide-border">
+                    <FilaResumen etiqueta="Nombre" valor={v.nombre} />
+                    <FilaResumen etiqueta="Dirección" valor={v.direccion} />
+                    <FilaResumen
+                      etiqueta="Entrada"
+                      valor={`${v.entradaServidor}:${v.entradaPuerto} · ${ETIQUETAS_SEGURIDAD[v.entradaSeguridad]}`}
+                      tenue
+                    />
+                    <FilaResumen
+                      etiqueta="Salida"
+                      valor={`${v.salidaServidor}:${v.salidaPuerto} · ${ETIQUETAS_SEGURIDAD[v.salidaSeguridad]}`}
+                      tenue
+                    />
+                    <FilaResumen
+                      etiqueta="Conexión"
+                      valor={
+                        conexionesOk ? (
+                          <span className="flex items-center justify-end gap-1 text-success">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Verificada
+                          </span>
+                        ) : (
+                          <span className="text-destructive">Sin verificar</span>
+                        )
+                      }
+                    />
+                  </div>
+                </div>
 
-            <div className="flex items-start justify-between gap-4 pt-1">
-              <div>
-                <p className="text-sm text-foreground">Crear contactos automáticamente</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Si lo desactivás, los correos de remitentes desconocidos quedan pendientes de
-                  aprobación y no se pueden responder hasta aprobarlos.
+                <div className="rounded-xl border border-border p-4">
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">Recepción</p>
+                  <div className="divide-y divide-border">
+                    <FilaResumen
+                      etiqueta="Agrupación"
+                      valor={v.agrupacion === "POR_HILO" ? "Por hilo de correo" : "Por remitente"}
+                    />
+                    <FilaResumen
+                      etiqueta="Entra en"
+                      valor={`${pipelineElegido?.nombre ?? "Pipeline por defecto"} · ${
+                        pipelineElegido?.stages.find((s) => s.id === v.stageId)?.nombre ??
+                        "Primera etapa"
+                      }`}
+                    />
+                    <FilaResumen
+                      etiqueta="Remitentes desconocidos"
+                      valor={v.requiereAprobacion ? "Requieren aprobación" : "Se crean automáticamente"}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Al activar, Karia empieza a leer desde los correos que lleguen de ahora en
+                  adelante: lo que ya estaba en la casilla no se importa.
                 </p>
-              </div>
-              <Switch
-                checked={valores.crearContactosAutomaticamente}
-                onCheckedChange={(v) => setValue("crearContactosAutomaticamente", v)}
-              />
-            </div>
+              </>
+            )}
+
+            {errorGuardado && (
+              <p className="flex items-start gap-2 text-sm text-destructive">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                {errorGuardado}
+              </p>
+            )}
           </div>
 
-          <ResultadoPrueba estado={prueba} />
-
-          {errorGuardado && (
-            <p className="flex items-start gap-2 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              {errorGuardado}
-            </p>
-          )}
-
-          <div className="flex items-center justify-between gap-3 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={probar}
-              disabled={prueba.fase === "probando" || guardando}
-            >
-              {prueba.fase === "probando" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+          {/* ── Pie ───────────────────────────────────────────────────────── */}
+          <div className="shrink-0 border-t border-border">
+            <div className="flex items-center justify-between gap-3 p-4">
+              {paso === 1 ? (
+                <Button type="button" variant="ghost" onClick={onCerrar} disabled={guardando}>
+                  Cancelar
+                </Button>
               ) : (
-                <Plug className="h-4 w-4" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setPaso(paso - 1)}
+                  disabled={guardando}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Atrás
+                </Button>
               )}
-              Probar conexión
-            </Button>
 
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="ghost" onClick={onCerrar} disabled={guardando}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={!conexionesOk || guardando || !formState.isValid}>
-                {guardando && <Loader2 className="h-4 w-4 animate-spin" />}
-                {esEdicion ? "Guardar cambios" : "Agregar buzón"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {paso === 2 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={probar}
+                    disabled={prueba.fase === "probando" || !datosServidorCompletos}
+                  >
+                    {prueba.fase === "probando" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plug className="h-4 w-4" />
+                    )}
+                    Probar conexión
+                  </Button>
+                )}
+
+                {paso < 4 ? (
+                  <Button
+                    type="button"
+                    onClick={avanzar}
+                    disabled={
+                      (paso === 1 && !pasoUnoCompleto) ||
+                      (paso === 2 && !(datosServidorCompletos && conexionesOk))
+                    }
+                  >
+                    Continuar
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={guardando || !conexionesOk}>
+                    {guardando && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {esEdicion ? "Guardar cambios" : "Activar buzón"}
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
 
-          {!conexionesOk && (
-            <p className="text-xs text-muted-foreground text-right">
-              Probá la conexión antes de guardar.
-            </p>
-          )}
+            {paso === 2 && !conexionesOk && (
+              <p className="px-4 pb-3 text-right text-[11px] text-muted-foreground">
+                Probá la conexión para poder continuar.
+              </p>
+            )}
+          </div>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
 
-// ── Bloque de una conexión ──────────────────────────────────────────────────
+// ── Bloque de un servidor ───────────────────────────────────────────────────
 
 type RegistroCampo = ReturnType<ReturnType<typeof useForm<FormBuzon>>["register"]>;
 
-function ConexionCampos(props: {
+function BloqueServidor({
+  titulo,
+  descripcion,
+  icono,
+  idPrefijo,
+  seguridad,
+  onSeguridad,
+  registroServidor,
+  registroPuerto,
+  registroUsuario,
+  placeholderServidor,
+}: {
   titulo: string;
-  lado: "entrada" | "salida";
+  descripcion: string;
+  icono: ReactNode;
+  idPrefijo: string;
   seguridad: SeguridadCorreo;
   onSeguridad: (s: SeguridadCorreo) => void;
   registroServidor: RegistroCampo;
   registroPuerto: RegistroCampo;
   registroUsuario: RegistroCampo;
-  registroPassword: RegistroCampo;
   placeholderServidor: string;
-  passwordRequerida: boolean;
-  direccion: string;
 }) {
-  const id = props.lado;
   return (
     <div className="space-y-3 rounded-xl border border-border p-4">
-      <p className="text-sm font-medium text-foreground">{props.titulo}</p>
-
-      <div className="grid grid-cols-[1fr_auto] gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor={`${id}-servidor`}>Servidor</Label>
-          <Input
-            id={`${id}-servidor`}
-            placeholder={props.placeholderServidor}
-            {...props.registroServidor}
-          />
+      <div className="flex items-start gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-info/10">
+          {icono}
+        </span>
+        <div>
+          <p className="text-sm font-medium text-foreground">{titulo}</p>
+          <p className="text-[11px] text-muted-foreground">{descripcion}</p>
         </div>
-        <div className="space-y-1.5 w-24">
-          <Label htmlFor={`${id}-puerto`}>Puerto</Label>
-          <Input id={`${id}-puerto`} type="number" {...props.registroPuerto} />
+      </div>
+
+      <div className="grid grid-cols-[1fr_5rem] gap-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefijo}-servidor`} className="text-xs">
+            Servidor
+          </Label>
+          <Input id={`${idPrefijo}-servidor`} placeholder={placeholderServidor} {...registroServidor} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefijo}-puerto`} className="text-xs">
+            Puerto
+          </Label>
+          <Input id={`${idPrefijo}-puerto`} type="number" {...registroPuerto} />
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label>Seguridad</Label>
-        <Select
-          items={ITEMS_SEGURIDAD}
-          value={props.seguridad}
-          onValueChange={(v) => props.onSeguridad(v as SeguridadCorreo)}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(ETIQUETAS_SEGURIDAD) as SeguridadCorreo[]).map((s) => (
-              <SelectItem key={s} value={s}>
-                {ETIQUETAS_SEGURIDAD[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label className="text-xs">Seguridad</Label>
+        <Segmentado
+          valor={seguridad}
+          opciones={OPCIONES_SEGURIDAD}
+          onCambiar={onSeguridad}
+          etiquetaAccesible={`Seguridad de ${titulo}`}
+        />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor={`${id}-usuario`}>Usuario</Label>
-          <Input
-            id={`${id}-usuario`}
-            placeholder={props.direccion || "usuario"}
-            {...props.registroUsuario}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`${id}-password`}>Contraseña</Label>
-          <Input
-            id={`${id}-password`}
-            type="password"
-            placeholder={props.passwordRequerida ? "" : "Sin cambios"}
-            autoComplete="new-password"
-            {...props.registroPassword}
-          />
-        </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefijo}-usuario`} className="text-xs">
+          Usuario
+        </Label>
+        <Input id={`${idPrefijo}-usuario`} {...registroUsuario} />
       </div>
     </div>
   );
@@ -545,12 +856,12 @@ function ResultadoPrueba({ estado }: { estado: EstadoPrueba }) {
       {filas.map((f) => (
         <div key={f.etiqueta} className="flex items-start gap-2 text-sm">
           {f.ok ? (
-            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-emerald-500" />
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
           ) : (
-            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           )}
-          <span className="font-medium text-foreground w-16 shrink-0">{f.etiqueta}</span>
-          <span className={cn("text-muted-foreground", f.ok && "text-emerald-500")}>
+          <span className="w-16 shrink-0 font-medium text-foreground">{f.etiqueta}</span>
+          <span className={cn("text-muted-foreground", f.ok && "text-success")}>
             {f.ok ? "Conexión correcta" : (f.mensaje ?? "No se pudo conectar")}
           </span>
         </div>
