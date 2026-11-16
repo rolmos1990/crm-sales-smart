@@ -30,6 +30,8 @@ import { BarraAtencionHumana } from "./barra-atencion-humana";
 import { BarraAprobacionRemitente } from "@/integraciones/email/components/barra-aprobacion-remitente";
 import { EncabezadoHiloCorreo, HiloCorreo } from "@/integraciones/email/components/hilo-correo";
 import { ComposerCorreo, type ComposerCorreoHandle } from "@/integraciones/email/components/composer-correo";
+import { SelectorCanalRespuesta } from "./selector-canal-respuesta";
+import { canalesDeRespuesta } from "./canales-respuesta";
 import {
   cerrarConversacion,
   devolverAtencionAutomatica,
@@ -222,6 +224,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
   const [conversaciones, setConversaciones] = useState(conversacionesIniciales);
   const [seleccionada, setSeleccionada] = useState<string | null>(null);
+  const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("abiertas");
   const [busqueda, setBusqueda] = useState("");
   // Panel de info: en escritorio (>=1024) es una columna fija, controlada
@@ -280,6 +283,29 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     () => conversaciones.find((c) => c.id === seleccionada) ?? null,
     [conversaciones, seleccionada]
   );
+
+  // "Responder por": canales en los que el contacto ya tiene conversación.
+  // Se derivan de la lista ya cargada (abiertas + últimas cerradas), sin
+  // llamadas nuevas. Cambiar de canal es pasar a esa conversación, porque un
+  // mensaje sale siempre por la cuenta de su conversación.
+  const canalesContacto = useMemo(
+    () => (convActiva ? canalesDeRespuesta(convActiva, conversaciones) : []),
+    [convActiva, conversaciones]
+  );
+  const cambiarCanalRespuesta = useCallback(
+    (conversacionId: string) => {
+      setSeleccionada(conversacionId);
+      setCuentaSeleccionadaId(conversaciones.find((c) => c.id === conversacionId)?.cuentaCanalId ?? null);
+    },
+    [conversaciones]
+  );
+  const selectorCanal = convActiva ? (
+    <SelectorCanalRespuesta
+      canales={canalesContacto}
+      conversacionActivaId={convActiva.id}
+      onCambiar={cambiarCanalRespuesta}
+    />
+  ) : null;
 
   // Lista filtrada y ordenada — el filtro de texto es puramente local, sobre
   // los datos ya cargados (sin llamadas nuevas al backend).
@@ -606,7 +632,6 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
   // ── Datos derivados ───────────────────────────────────────────────────────
 
-  const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState<string | null>(null);
 
   const todosLosMensajes = [...mensajesAnteriores, ...mensajesRecientes];
   const grupos = agruparPorFecha(todosLosMensajes);
@@ -999,7 +1024,13 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
             )}
 
             {esCorreo && (
-              <EncabezadoHiloCorreo asunto={convActiva.asunto} mensajes={todosLosMensajes} />
+              <EncabezadoHiloCorreo
+                asunto={convActiva.asunto}
+                mensajes={todosLosMensajes}
+                noLeidos={mensajesNoLeidos.length}
+                marcandoLeidos={marcandoLeido}
+                onMarcarTodosLeidos={() => handleMarcarLeidos(mensajesNoLeidos.map((m) => m.id))}
+              />
             )}
 
             {/* Área de mensajes */}
@@ -1123,6 +1154,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     onEnviar={handleEnviar}
                     enviando={enviando}
                     textoExterno={textoChat}
+                    selectorCanal={selectorCanal}
                   />
                 )}
                 {!convActiva.bloqueadaPorAprobacion && !esCorreo && (
@@ -1134,6 +1166,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     onCambiarCuenta={setCuentaSeleccionadaId}
                     onEnviar={handleEnviar}
                     enviando={enviando}
+                    selectorCanal={selectorCanal}
                   />
                 )}
               </>
