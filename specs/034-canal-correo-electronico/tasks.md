@@ -170,11 +170,11 @@ responde) y 5 (el Workflow no toma la conversación).
 **Independent Test**: sobre un buzón operativo, cambiar la agrupación y verificar que el siguiente correo se
 agrupa según lo elegido; enviar un correo con adjunto y verificar que se puede abrir desde la conversación.
 
-- [ ] T056 [US4] Implementar la agrupación `POR_HILO`: calcular `hiloExterno` (raíz del hilo desde `References`/`In-Reply-To`, con respaldo en el asunto normalizado) en `src/integraciones/email/mensaje/hilo.ts` y usarlo en el filtro de `resolverContactoYConversacion` cuando el buzón lo tenga configurado (FR-007)
-- [ ] T057 [US4] Implementar `src/integraciones/email/mensaje/adjuntos.ts`: descarga acotada (≤ 10 MB por adjunto, ≤ 5 por correo), guardado por el servicio de media ya existente (`src/lib/media`) y vínculo a `MensajeConversacion.mediaArchivoId` (FR-024, FR-025)
-- [ ] T058 [US4] Dejar constancia en la conversación cuando un correo se recibió recortado por tamaño de cuerpo o por adjuntos descartados (FR-025)
-- [ ] T059 [US4] Completar la edición del buzón en `modal-registrar-buzon.tsx` y `actions.ts`: contraseña vacía conserva la actual, cambiar una conexión vuelve a exigir prueba, y desactivar detiene lectura y envío dejando las conversaciones visibles (FR-009, FR-012)
-- [ ] T060 [P] [US4] Escribir `src/integraciones/email/mensaje/adjuntos.test.ts`: adjunto dentro del límite se guarda; adjunto que lo excede se descarta y se deja constancia; un correo con solo adjunto y sin texto entra igual
+- [X] T056 [US4] Implementar la agrupación `POR_HILO`: calcular `hiloExterno` (raíz del hilo desde `References`/`In-Reply-To`, con respaldo en el asunto normalizado) en `src/integraciones/email/mensaje/hilo.ts` y usarlo en el filtro de `resolverContactoYConversacion` cuando el buzón lo tenga configurado (FR-007)
+- [X] T057 [US4] Implementar `src/integraciones/email/mensaje/adjuntos.ts`. **Reutiliza los dos caminos que el proyecto ya tiene** (`subirImagenConversacion` para imágenes, `guardarArchivoRaw` para PDF/Word/Excel/audio/video), que ya resuelven deduplicación por hash, proveedor de storage y la fila de `MediaArchivo` — no se escribió un tercer camino: descarga acotada (≤ 10 MB por adjunto, ≤ 5 por correo), guardado por el servicio de media ya existente (`src/lib/media`) y vínculo a `MensajeConversacion.mediaArchivoId` (FR-024, FR-025)
+- [X] T058 [US4] Dejar constancia en la conversación cuando un correo se recibió recortado por tamaño de cuerpo o por adjuntos descartados (FR-025)
+- [X] T059 [US4] Completar la edición del buzón en `modal-registrar-buzon.tsx` y `actions.ts`: contraseña vacía conserva la actual, cambiar una conexión vuelve a exigir prueba, y desactivar detiene lectura y envío dejando las conversaciones visibles (FR-009, FR-012)
+- [X] T060 [P] [US4] Escribir `src/integraciones/email/mensaje/adjuntos.test.ts`: adjunto dentro del límite se guarda; adjunto que lo excede se descarta y se deja constancia; un correo con solo adjunto y sin texto entra igual
 
 **Checkpoint US4**: el bloque "Historia 4" de quickstart.md pasa completo.
 
@@ -283,3 +283,15 @@ Lo que cambió respecto del plan, y por qué. Todo verificado contra el código 
     borraba el distintivo hasta la siguiente recarga.
 11. **No existe la tríada `warning-muted/border/text`** en `globals.css` (sí la de `danger` y `success`), así
     que la insignia compone desde el token `--warning` que sí existe, en vez de inventar tokens nuevos.
+
+12. **`CanalOrigen` no contemplaba el correo** — el tipo de `src/lib/media/types.ts` enumeraba
+    web/whatsapp/instagram/facebook/tiktok/api. Se sumó `"email"`; la columna `MediaArchivo.canalOrigen` es
+    `String`, así que no hizo falta migración.
+13. **Un buzón desactivado dejaba de leerse pero seguía pudiendo enviar** — el ciclo de lectura filtra por
+    `activa`, pero `enviarMensajeInterno` no lo miraba: el agente podía responder por un canal dado de baja.
+    Se agregó el corte, **acotado al correo**: extenderlo a los demás canales cambiaría su comportamiento
+    actual y está fuera del alcance de esta feature (SC-011).
+14. **Un mensaje lleva un solo adjunto** — `MensajeConversacion` tiene campos de media para uno
+    (`mediaArchivoId`, `mediaUrl`, `mediaMimeType`). El primer adjunto viaja ahí y los demás quedan listados
+    por nombre en el cuerpo. Soportar varios exigiría cambiar el modelo para todos los canales y ningún
+    requisito lo pide.

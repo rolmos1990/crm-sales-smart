@@ -54,6 +54,17 @@ export async function enviarMensajeInterno(input: EnviarMensajeInternoInput): Pr
       return { ok: false, error: MENSAJE_BLOQUEO_APROBACION };
     }
 
+    // 034 — Un buzón desactivado deja de leerse (el ciclo filtra por `activa`)
+    // y también de poder responderse: si no, el agente escribe una respuesta
+    // que sale por un canal que el negocio dio de baja.
+    //
+    // Acotado al correo a propósito: extenderlo a WhatsApp/Instagram/Messenger
+    // cambiaría el comportamiento de canales que hoy sí envían con la cuenta
+    // inactiva, y eso está fuera del alcance de esta feature (SC-011).
+    if (conversacion.cuentaCanal?.canal === "email" && conversacion.cuentaCanal.activa === false) {
+      return { ok: false, error: "Este buzón está desactivado. Activalo para poder responder." };
+    }
+
     // Crear mensaje en BD de inmediato (optimistic — el agente lo ve al instante)
     const mensaje = await prisma.mensajeConversacion.create({
       data: {

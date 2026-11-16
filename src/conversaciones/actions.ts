@@ -58,6 +58,8 @@ async function resolverContactoYConversacion(payload: {
   /** 034 — Solo correo: `false` hace que un remitente desconocido entre
    *  bloqueado hasta que alguien lo apruebe. Los demás canales no lo mandan. */
   crearContactosAutomaticamente?: boolean;
+  /** 034 — Solo correo: cada hilo abre su propia conversación (FR-007). */
+  agruparPorHilo?: boolean;
 }) {
   const { canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal, asunto, hiloExterno } = payload;
 
@@ -203,8 +205,16 @@ async function resolverContactoYConversacion(payload: {
   // y no se mezclan con las de WhatsApp o Instagram del mismo contacto
   // (FR-017). Para todos los demás canales `filtroPorCanal` queda vacío y esta
   // consulta es idéntica a la de siempre (FR-018, SC-011).
+  // 034 — Con agrupación POR_HILO cada hilo de correo abre su propia
+  // conversación; con POR_REMITENTE (el default) todos los hilos de una misma
+  // persona caen en la suya. El filtro por hilo se suma SOLO en ese modo y
+  // SOLO si el correo trae raíz de hilo: sin ella no hay con qué agrupar y es
+  // preferible caer en la conversación del remitente que abrir una suelta.
   const filtroPorCanal = requiereConversacionPropiaPorCanal(canal)
-    ? { cuentaCanal: { canal } }
+    ? {
+        cuentaCanal: { canal },
+        ...(payload.agruparPorHilo && hiloExterno ? { hiloExterno } : {}),
+      }
     : {};
 
   let conversacion = await prisma.conversacion.findFirst({
@@ -286,14 +296,18 @@ export async function procesarMensajeEntrante(
           select: { configuracion: true },
         })
       : null;
-  const crearContactosAutomaticamente =
-    (recepcionBuzon?.configuracion as { recepcion?: { crearContactosAutomaticamente?: boolean } } | null)
-      ?.recepcion?.crearContactosAutomaticamente ?? true;
+  const recepcionCfg = (
+    recepcionBuzon?.configuracion as {
+      recepcion?: { crearContactosAutomaticamente?: boolean; agrupacion?: string };
+    } | null
+  )?.recepcion;
+  const crearContactosAutomaticamente = recepcionCfg?.crearContactosAutomaticamente ?? true;
+  const agruparPorHilo = recepcionCfg?.agrupacion === "POR_HILO";
 
   const { contactoId, conversacion, bloqueadaPorAprobacion } = await resolverContactoYConversacion({
     canal, identificadorContacto, cuentaCanalId, instanciaId, pushName, avatarUrl, handleCanal,
     asunto: payload.asunto, hiloExterno: payload.hiloExterno,
-    crearContactosAutomaticamente,
+    crearContactosAutomaticamente, agruparPorHilo,
   });
 
   // 4.5 Deduplicar por idExterno ANTES de crear oportunidades (evita duplicados en procesamiento concurrente)

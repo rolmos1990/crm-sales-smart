@@ -9,6 +9,7 @@ import { simpleParser, type ParsedMail } from "mailparser";
 import type { ComandoProcesarEntrantePayload } from "@/eventos/contratos/procesar-entrante.comando";
 import { direccionRemitente, evaluarCorreoEntrante, nombreRemitente, type MotivoDescarte } from "./filtros";
 import { limpiarCita } from "./limpiar-cita";
+import { avisoAdjuntosDescartados, guardarAdjuntos } from "./adjuntos";
 
 /** Tope de texto que se guarda de un correo. Más que esto no aporta y sí pesa. */
 export const MAX_CARACTERES_CUERPO = 100_000;
@@ -97,14 +98,23 @@ export async function normalizarCorreo(
 
   const remitente = direccionRemitente(correo);
   const contenido = cuerpoLegible(correo);
-  const adjuntos = (correo.attachments ?? [])
-    .map((a) => a.filename)
-    .filter((n): n is string => Boolean(n));
+
+  const { guardados, descartados } = await guardarAdjuntos(correo.attachments ?? [], {
+    instanciaId: ctx.instanciaId,
+  });
+  const adjuntos = guardados.map((a) => a.nombre);
 
   // Un correo que solo trae adjunto no debe entrar con el cuerpo vacío: sin
   // texto, la conversación se ve rota en el Inbox.
-  const contenidoFinal =
+  const contenidoBase =
     contenido || (adjuntos.length > 0 ? `[Correo con ${adjuntos.length} archivo(s) adjunto(s)]` : "");
+  const contenidoFinal = contenidoBase + avisoAdjuntosDescartados(descartados);
+
+  // El primer adjunto viaja en los campos de media del mensaje, que es lo que
+  // el Inbox ya sabe mostrar. Los demás quedan registrados por nombre en el
+  // cuerpo: soportar varios adjuntos por mensaje exigiría cambiar
+  // MensajeConversacion para todos los canales, y ningún requisito lo pide.
+  const principal = guardados[0];
 
   const asunto = correo.subject?.trim() || null;
   const hiloExterno =
@@ -121,7 +131,20 @@ export async function normalizarCorreo(
     ...(nombreRemitente(correo) ? { pushName: nombreRemitente(correo) } : {}),
     ...(asunto ? { asunto } : {}),
     ...(hiloExterno ? { hiloExterno } : {}),
+    ...(principal
+      ? {
+          tipo: principal.esImagen ? "IMAGEN" : "DOCUMENTO",
+          mediaArchivoId: principal.mediaArchivoId,
+          mediaMimeType: principal.mediaMimeType,
+          ...(principal.mediaUrl ? { mediaUrl: principal.mediaUrl } : {}),
+        }
+      : {}),
   };
+
+  if (guardados.length > 1) {
+    const extras = guardados.slice(1).map((a) => `· ${a.nombre}`).join("\n");
+    payload.contenido = `${payload.contenido ?? ""}\n\n[Otros adjuntos del correo:\n${extras}]`.trim();
+  }
 
   return {
     tipo: "ACEPTADO",
