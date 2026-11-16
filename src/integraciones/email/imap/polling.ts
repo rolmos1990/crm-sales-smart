@@ -8,7 +8,6 @@
 // Ciclo propio y no dentro del `while` de disparadores.ts a propósito: un
 // servidor IMAP lento no debe retrasar los disparadores de pipeline ni los
 // timers de Workflows.
-import { createHash } from "node:crypto";
 import { prisma } from "@/shared/db/prisma";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { TIPOS_COMANDO } from "@/shared/eventos/registro";
@@ -23,6 +22,7 @@ import { mensajeErrorCorreo, traducirErrorCorreo, type CodigoErrorCorreo } from 
 import { normalizarCorreo } from "../mensaje/normalizar";
 import {
   anclarMarca,
+  crearEstadoBuzon,
   obtenerMarca,
   registrarLecturaFallida,
   registrarLecturaOk,
@@ -37,29 +37,39 @@ export const INTERVALO_MS = 60_000;
 export const TOPE_POR_CICLO = 25;
 
 /**
- * Lock de aplicación de PostgreSQL por buzón.
+ * Arrendamiento de lectura por buzón.
  *
- * Es la única defensa contra el escenario que sí duplica correos de verdad:
- * dos réplicas del worker leyendo la misma casilla a la vez. `pg_try_advisory_lock`
- * no espera: si otra réplica lo tiene, esta salta el buzón y lo toma en el
- * ciclo siguiente.
+ * Antes esto era `pg_try_advisory_lock`, y fue un error: ese lock es de
+ * SESIÓN, y la base se accede por un pooler en modo transacción (puerto 6543),
+ * donde cada sentencia puede ejecutarse en un backend distinto. El lock se
+ * tomaba en un backend y el unlock salía por otro, así que no liberaba nada:
+ * quedaba colgado para siempre y, a partir de ahí, cada ciclo recibía `false`
+ * y salía sin leer. Visto en producción: el buzón leyó un correo y no volvió a
+ * leer nunca más, sin un solo error registrado.
+ *
+ * Un UPDATE condicional sobre la propia fila no tiene ese problema: es una
+ * sola sentencia atómica, no depende de qué backend la ejecute, y se
+ * auto-libera por vencimiento si el worker muere a mitad de una lectura.
  */
-function claveLock(cuentaCanalId: string): bigint {
-  const hash = createHash("sha256").update(`buzon:${cuentaCanalId}`).digest();
-  // pg_try_advisory_lock toma un bigint CON SIGNO: se reinterpretan los 64
-  // bits en vez de recortarlos, así dos buzones distintos no colisionan.
-  return BigInt.asIntN(64, hash.readBigUInt64BE(0));
-}
+const VENCIMIENTO_ARRIENDO_MIN = 5;
 
-async function tomarLock(clave: bigint): Promise<boolean> {
-  const filas = await prisma.$queryRaw<{ tomado: boolean }[]>`
-    SELECT pg_try_advisory_lock(${clave}::bigint) AS "tomado"
+export async function tomarArriendo(cuentaCanalId: string): Promise<boolean> {
+  // El vencimiento se calcula con el reloj de la BASE y no con el del worker:
+  // un worker con la hora corrida no debe poder pisarle la lectura a otro.
+  const filas = await prisma.$executeRaw`
+    UPDATE "BuzonCorreoEstado"
+       SET "leyendoDesde" = now()
+     WHERE "cuentaCanalId" = ${cuentaCanalId}
+       AND ("leyendoDesde" IS NULL
+            OR "leyendoDesde" < now() - make_interval(mins => ${VENCIMIENTO_ARRIENDO_MIN}))
   `;
-  return filas[0]?.tomado === true;
+  return filas === 1;
 }
 
-async function soltarLock(clave: bigint): Promise<void> {
-  await prisma.$queryRaw`SELECT pg_advisory_unlock(${clave}::bigint)`;
+export async function soltarArriendo(cuentaCanalId: string): Promise<void> {
+  await prisma.$executeRaw`
+    UPDATE "BuzonCorreoEstado" SET "leyendoDesde" = NULL WHERE "cuentaCanalId" = ${cuentaCanalId}
+  `;
 }
 
 interface BuzonActivo {
@@ -91,15 +101,19 @@ export interface ResultadoLectura {
 }
 
 /**
- * Lee un buzón: toma el lock, trae los correos nuevos, los encola y recién
+ * Lee un buzón: toma el arriendo, trae los correos nuevos, los encola y recién
  * entonces avanza la marca.
  *
  * El orden importa y no es negociable: si la marca avanzara antes de encolar,
  * un corte a mitad de camino perdería correos sin dejar rastro.
  */
 export async function leerBuzon(buzon: BuzonActivo): Promise<ResultadoLectura> {
-  const clave = claveLock(buzon.id);
-  if (!(await tomarLock(clave))) {
+  // La fila de estado tiene que existir para poder arrendarla. Normalmente la
+  // crea el alta del buzón; esto cubre el caso de un buzón creado antes de
+  // que existiera el arrendamiento.
+  await crearEstadoBuzon(buzon.id, buzon.instanciaId);
+
+  if (!(await tomarArriendo(buzon.id))) {
     return { correos: 0, descartados: 0 };
   }
 
@@ -182,7 +196,7 @@ export async function leerBuzon(buzon: BuzonActivo): Promise<ResultadoLectura> {
 
     return { correos: encolados, descartados };
   } finally {
-    await soltarLock(clave).catch(() => undefined);
+    await soltarArriendo(buzon.id).catch(() => undefined);
   }
 }
 
