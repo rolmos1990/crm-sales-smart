@@ -9,6 +9,7 @@
 // la conversación ya están en MensajeConversacion.idExterno, así que la cadena
 // del hilo se reconstruye desde ahí.
 import { prisma } from "@/shared/db/prisma";
+import { asuntoDeRespuesta } from "./asunto";
 
 /** Tope de la cadena References. Los clientes de correo no necesitan más y
  *  una cabecera enorme es motivo de rechazo en algunos servidores. */
@@ -21,23 +22,6 @@ export interface ContextoHiloCorreo {
   inReplyTo: string | null;
   /** Cadena del hilo, del más viejo al más nuevo. */
   references: string[];
-}
-
-/**
- * Agrega "Re: " sin duplicarlo.
- *
- * Un "Re: Re: Re:" no rompe nada técnicamente, pero delata que el sistema no
- * entiende el hilo, y el cliente lo ve.
- */
-export function asuntoDeRespuesta(asuntoOriginal: string | null, nombreNegocio?: string): string {
-  const limpio = (asuntoOriginal ?? "").trim();
-  if (!limpio) {
-    return nombreNegocio ? `Mensaje de ${nombreNegocio}` : "Mensaje";
-  }
-  // Cubre "Re:", "RE:", "re :" y el "RE:" repetido que arrastran algunos
-  // clientes de correo.
-  const sinPrefijo = limpio.replace(/^((re|rv|fwd|fw)\s*:\s*)+/i, "").trim();
-  return `Re: ${sinPrefijo || limpio}`;
 }
 
 /** Envuelve un Message-ID en ángulos, como exige el formato de las cabeceras. */

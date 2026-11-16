@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { asuntoDeRespuesta, conAngulos } from "./hilo";
+import { conAngulos } from "./hilo";
+import { asuntoDeRespuesta } from "./asunto";
 
 const conversacionFindFirst = vi.fn();
 const mensajeFindMany = vi.fn();
