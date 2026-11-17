@@ -209,19 +209,34 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
     accessorKey: "empresa",
     header: "Cliente",
     cell: ({ row }) => {
-      const { empresa, contacto, nombre, apellido, empresaNombre } = row.original;
+      const { empresa, contacto, nombre, apellido, empresaNombre, entrega } = row.original;
       // Sin contacto/empresa del CRM, el pedido guarda los datos del comprador
       // en sus propias columnas (pedido manual o generado por IA).
       const razonSocial = empresa?.nombre ?? empresaNombre;
       const persona = contacto
         ? `${contacto.nombre} ${contacto.apellido}`
         : [nombre, apellido].map((v) => v?.trim()).filter(Boolean).join(" ");
+      // Quién recibe el envío, que no siempre es quien compra. Se rotula
+      // "Recibe" igual que en el detalle del pedido y de la cotización. El
+      // campo es texto libre y en producción se usa como cajón de sastre
+      // (nombre + teléfonos + ciudad), de ahí el truncado con `title`: sin eso
+      // una fila ensancha la columna y desacomoda la tabla entera.
+      const recibe = entrega?.nombreDestinatario?.trim();
 
       return (
         <div className="text-sm">
           {razonSocial && <p className="font-medium">{razonSocial}</p>}
           {persona && <p className="text-muted-foreground">{persona}</p>}
           {!razonSocial && !persona && <span className="text-muted-foreground">—</span>}
+          {recibe && (
+            <span
+              data-slot="chip-destinatario"
+              title={`Recibe: ${recibe}`}
+              className="mt-1 inline-flex max-w-[200px] items-center gap-1 rounded-full border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+            >
+              <span className="truncate">Recibe: {recibe}</span>
+            </span>
+          )}
         </div>
       );
     },
