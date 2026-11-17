@@ -23,6 +23,7 @@ import { SmartDatePicker } from "@/components/ui/smart-date-picker";
 import { vincularConversacionAContacto, clasificarConversacion } from "../actions";
 import { AvatarContacto } from "./avatar-contacto";
 import { SelectorAtencion } from "@/workflows/components/selector-atencion";
+import { SeccionIdentidadesCanal } from "./seccion-identidades-canal";
 import type { ConversacionResumen, ClasificacionConversacion, OportunidadActivaResumen } from "../types";
 
 type Contacto = ConversacionResumen["contacto"];
@@ -41,6 +42,11 @@ type CotizacionEnPanel = { id: string; numero: string; total: number; moneda: st
 
 interface PanelContactoInboxProps {
   conversacion: ConversacionResumen;
+  /** 035 — Conversaciones del contacto que el Inbox ya tiene cargadas. Es el
+   *  universo de la sección de identidades: no se consulta nada fuera de acá. */
+  conversacionesDelContacto?: ConversacionResumen[];
+  /** 035 — Abre otra conversación del mismo contacto desde las identidades. */
+  onAbrirConversacion?: (conversacionId: string) => void;
   /** Escribe texto en el compositor del chat; ausente = sin chat a la vista. */
   onTextoAlChat?: (texto: string) => void;
   onContactoActualizado: (conversacionId: string, nuevoContacto: Contacto) => void;
@@ -550,7 +556,14 @@ function SeccionOportunidadesAnteriores({
   );
 }
 
-export function PanelContactoInbox({ conversacion, onContactoActualizado, onConversacionActualizada, onTextoAlChat }: PanelContactoInboxProps) {
+export function PanelContactoInbox({
+  conversacion,
+  conversacionesDelContacto = [],
+  onAbrirConversacion,
+  onContactoActualizado,
+  onConversacionActualizada,
+  onTextoAlChat,
+}: PanelContactoInboxProps) {
   const contacto = conversacion.contacto;
   const [vinculando, startVinculando] = useTransition();
   const [busqueda, setBusqueda] = useState("");
@@ -618,6 +631,10 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
         email: candidato.email,
         telefonoPrincipal: candidato.telefonoPrincipal,
         avatarUrl: null,
+        // `vincularConversacionAContacto` transfiere los identificadores del
+        // contacto anterior al nuevo, así que estos ya son suyos. Los que el
+        // candidato tuviera de antes llegan con el próximo refresco.
+        identificadoresCanal: contacto.identificadoresCanal,
       });
       setMostrarBusqueda(false);
       setBusqueda("");
@@ -817,6 +834,16 @@ export function PanelContactoInbox({ conversacion, onContactoActualizado, onConv
             </div>
           </>
         )}
+
+        {/* 035 — Todos los canales por los que esta persona está registrada.
+            Va pegado a "Canal" (el de ESTA conversación) a propósito: uno dice
+            por dónde estoy hablando, el otro por dónde más me pueden escribir. */}
+        <SeccionIdentidadesCanal
+          identidades={contacto.identificadoresCanal}
+          conversacionesDelContacto={conversacionesDelContacto}
+          conversacionActualId={conversacion.id}
+          onAbrirConversacion={onAbrirConversacion}
+        />
 
         {/* Clasificación de conversación — visible siempre que haya una
             clasificación aplicada (Comercial/Postventa/Soporte) o quede una

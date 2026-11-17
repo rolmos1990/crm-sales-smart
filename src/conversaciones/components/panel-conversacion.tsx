@@ -171,6 +171,9 @@ export function PanelConversacion({
           avatarUrl: null,
           telefonoPrincipal: telefonoContacto ?? null,
           email: null,
+          // Optimista: las identidades reales del contacto llegan con el
+          // próximo refresco; acá todavía no se conocen.
+          identificadoresCanal: [],
         },
         cuentaCanal: cuentaSeleccionada,
         oportunidades: [],
@@ -329,7 +332,6 @@ export function PanelConversacion({
           conversacionId={conversacionActiva ?? ""}
           cuentas={cuentas}
           cuentaSeleccionadaId={cuentaSeleccionadaId}
-          onCambiarCuenta={setCuentaSeleccionadaId}
           onEnviar={handleEnviar}
           enviando={enviando}
         />

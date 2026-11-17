@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useRef, useMemo, useCallback, useEffect, useTransition } from "react";
-import { Send, Lock, Paperclip, X, ImageIcon, Loader2, Sparkles, Smile } from "lucide-react";
+import {
+  Send, Lock, Paperclip, X, ImageIcon, Loader2, Sparkles, Smile,
+  MessageCircle, Camera, Mail, Send as SendIcon, type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { generarSugerenciaIA } from "../actions-ia";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { SelectorPlantillas, registrarUsoPlantilla } from "./selector-plantillas";
 import type { PlantillaItem } from "./selector-plantillas";
-import { SelectorCuentaCanal } from "./selector-cuenta-canal";
 import { EMOJIS_GRID } from "./reacciones-mensaje";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { CuentaCanalResumen } from "../types";
@@ -20,8 +22,11 @@ import {
 interface InputMensajeProps {
   conversacionId: string;
   cuentas: CuentaCanalResumen[];
+  /** 035 — Ya no alimenta un selector: de acá sale el `instanciaId` que
+   *  habilita plantillas y la sugerencia de IA. El canal por el que se envía
+   *  lo decide el servidor con `conversacion.cuentaCanalId` (ver envio.ts),
+   *  nunca esta prop. */
   cuentaSeleccionadaId: string | null;
-  onCambiarCuenta: (id: string) => void;
   onEnviar: (opts: {
     contenido: string;
     esNotaInterna: boolean;
@@ -42,6 +47,34 @@ interface InputMensajeProps {
   textoExterno?: { texto: string; n: number } | null;
 }
 
+// 035 — El canal de la conversación se muestra, no se elige: el envío sale
+// siempre por `conversacion.cuentaCanalId` (src/conversaciones/envio.ts), así
+// que un selector acá prometería algo que el sistema no hace. Cuando el
+// enrutamiento real exista, esto vuelve a ser un control.
+function EtiquetaCanal({ cuenta }: { cuenta: CuentaCanalResumen | null }) {
+  if (!cuenta) {
+    return <span className="text-xs text-muted-foreground px-2">Sin canal asignado</span>;
+  }
+
+  const { Icono, clase } = iconoCanal(cuenta.canal);
+
+  return (
+    <span className="flex items-center gap-1.5 rounded-lg border border-badge-border bg-badge-bg px-2 py-1.5 text-xs text-text-secondary">
+      <Icono className={cn("h-3.5 w-3.5 shrink-0", clase)} />
+      <span>Respondiendo por</span>
+      <span className="max-w-[120px] truncate font-medium text-foreground">{cuenta.nombre}</span>
+    </span>
+  );
+}
+
+function iconoCanal(canal: string): { Icono: LucideIcon; clase: string } {
+  if (canal.startsWith("whatsapp")) return { Icono: MessageCircle, clase: "text-success" };
+  if (canal === "instagram") return { Icono: Camera, clase: "text-pink-600 dark:text-pink-400" };
+  if (canal === "facebook_messenger") return { Icono: SendIcon, clase: "text-blue-600 dark:text-blue-400" };
+  if (canal === "email") return { Icono: Mail, clase: "text-info" };
+  return { Icono: MessageCircle, clase: "text-muted-foreground" };
+}
+
 async function fetchPlantillas(instanciaId: string): Promise<PlantillaItem[]> {
   const res = await fetch(`/api/plantillas?instanciaId=${instanciaId}`);
   if (!res.ok) return [];
@@ -52,7 +85,6 @@ export function InputMensaje({
   conversacionId,
   cuentas,
   cuentaSeleccionadaId,
-  onCambiarCuenta,
   onEnviar,
   enviando = false,
   textoExterno = null,
@@ -102,9 +134,19 @@ export function InputMensaje({
     });
   };
 
-  const instanciaId = useMemo(
-    () => cuentas.find((c) => c.id === cuentaSeleccionadaId)?.instanciaId ?? null,
+  const cuentaDeLaConversacion = useMemo(
+    () => cuentas.find((c) => c.id === cuentaSeleccionadaId) ?? null,
     [cuentas, cuentaSeleccionadaId]
+  );
+
+  // 035 — NO tocar esta derivación al cambiar la etiqueta de canal: de este
+  // `instanciaId` dependen la consulta de plantillas y el botón "Generar
+  // respuesta con IA" de abajo. Todas las cuentas que llegan acá son de la
+  // instancia de la sesión (obtenerCuentasCanal filtra por ella), así que el
+  // fallback a cuentas[0] que aplica el padre resuelve al mismo tenant.
+  const instanciaId = useMemo(
+    () => cuentaDeLaConversacion?.instanciaId ?? cuentas[0]?.instanciaId ?? null,
+    [cuentaDeLaConversacion, cuentas]
   );
 
   const { data: plantillas = [] } = useQuery<PlantillaItem[]>({
@@ -249,11 +291,7 @@ export function InputMensaje({
 
       {/* Toolbar superior */}
       <div className="flex items-center justify-between gap-2">
-        <SelectorCuentaCanal
-          cuentas={cuentas}
-          seleccionada={cuentaSeleccionadaId}
-          onSeleccionar={onCambiarCuenta}
-        />
+        <EtiquetaCanal cuenta={cuentaDeLaConversacion} />
         <div className="flex items-center gap-1.5">
           {instanciaId && (
             <button

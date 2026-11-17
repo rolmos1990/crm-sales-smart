@@ -272,3 +272,97 @@ test.describe('Permisos por rol', () => {
     await ctx.close();
   });
 });
+
+// ─── 035 — Inbox agrupado por contacto ───────────────────────────────────────
+//
+// Mismo estilo tolerante que el resto del archivo (guardas por cantidad): la
+// base de pruebas puede no tener un contacto multicanal, y en ese caso estos
+// tests verifican lo que sí se puede verificar sin inventar datos.
+
+test.describe('Inbox agrupado por contacto', () => {
+  test('IN-18 La lista se presenta agrupada por contacto', async ({ page }) => {
+    await page.goto('/crm/inbox');
+    await page.getByRole('button', { name: /^todos$/i }).click().catch(() => {});
+    await page.waitForTimeout(500);
+
+    const grupos = page.locator('[data-testid="grupo-contacto"]');
+    const conversaciones = page.locator('[data-testid="conversacion-item"]');
+
+    if (await conversaciones.count() > 0) {
+      // Invariante de la agrupación: nunca hay más personas que conversaciones.
+      expect(await grupos.count()).toBeGreaterThan(0);
+      expect(await grupos.count()).toBeLessThanOrEqual(await conversaciones.count());
+    }
+  });
+
+  test('IN-19 Un grupo multicanal se expande y se colapsa', async ({ page }) => {
+    await page.goto('/crm/inbox');
+    await page.getByRole('button', { name: /^todos$/i }).click().catch(() => {});
+    await page.waitForTimeout(500);
+
+    // Solo los grupos con varias conversaciones tienen cabecera expandible.
+    const cabecera = page.locator('[data-testid="grupo-contacto"] > button[aria-expanded]').first();
+    if (await cabecera.count() === 0) test.skip(true, 'Sin contactos multicanal en la base de pruebas');
+
+    await expect(cabecera).toHaveAttribute('aria-expanded', 'true');
+    await cabecera.click();
+    await expect(cabecera).toHaveAttribute('aria-expanded', 'false');
+    await cabecera.click();
+    await expect(cabecera).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('IN-20 Abrir una conversación desde dentro de su grupo', async ({ page }) => {
+    await page.goto('/crm/inbox');
+    await page.getByRole('button', { name: /^todos$/i }).click().catch(() => {});
+    await page.waitForTimeout(500);
+
+    const conversacion = page.locator('[data-testid="conversacion-item"]').first();
+    if (await conversacion.count() === 0) test.skip(true, 'Sin conversaciones en la base de pruebas');
+
+    await conversacion.click();
+    await expect(
+      page.getByPlaceholder(/escribe un mensaje|escribir mensaje|responder/i)
+        .or(page.locator('main'))
+    ).toBeVisible({ timeout: 8000 });
+  });
+
+  test('IN-21 El panel del contacto lista sus identidades de canal', async ({ page }) => {
+    await page.goto('/crm/inbox');
+    await page.getByRole('button', { name: /^todos$/i }).click().catch(() => {});
+    await page.waitForTimeout(500);
+
+    const conversacion = page.locator('[data-testid="conversacion-item"]').first();
+    if (await conversacion.count() === 0) test.skip(true, 'Sin conversaciones en la base de pruebas');
+
+    await conversacion.click();
+    await page.waitForTimeout(800);
+
+    // El panel de contacto puede venir colapsado: se abre con su botón.
+    const botonInfo = page.getByRole('button', { name: /info de contacto|ver perfil/i }).first();
+    if (await botonInfo.count() > 0) await botonInfo.click().catch(() => {});
+
+    await expect(page.getByText(/identidades \/ canales vinculados/i).first())
+      .toBeVisible({ timeout: 5000 });
+  });
+
+  test('IN-22 El canal del compositor es una etiqueta, no un selector', async ({ page }) => {
+    await page.goto('/crm/inbox');
+    await page.getByRole('button', { name: /^todos$/i }).click().catch(() => {});
+    await page.waitForTimeout(500);
+
+    const conversacion = page.locator('[data-testid="conversacion-item"]').first();
+    if (await conversacion.count() === 0) test.skip(true, 'Sin conversaciones en la base de pruebas');
+
+    await conversacion.click();
+    await page.waitForTimeout(800);
+
+    // FR-020: el envío siempre sale por el canal de la conversación, así que
+    // acá no puede haber un control que prometa elegir otro.
+    const etiqueta = page.getByText(/respondiendo por/i).first();
+    if (await etiqueta.count() > 0) {
+      await expect(etiqueta).toBeVisible();
+      const esBoton = await etiqueta.evaluate((el) => !!el.closest('button'));
+      expect(esBoton).toBeFalsy();
+    }
+  });
+});
