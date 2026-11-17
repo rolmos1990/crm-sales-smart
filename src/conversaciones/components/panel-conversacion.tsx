@@ -332,6 +332,7 @@ export function PanelConversacion({
           conversacionId={conversacionActiva ?? ""}
           cuentas={cuentas}
           cuentaSeleccionadaId={cuentaSeleccionadaId}
+          onCambiarCuenta={setCuentaSeleccionadaId}
           onEnviar={handleEnviar}
           enviando={enviando}
         />

@@ -406,6 +406,7 @@ model Instancia {
   conversaciones       Conversacion[]
   identificadoresCanal ContactoIdentificadorCanal[]
   buzonesCorreoEstado  BuzonCorreoEstado[]
+  mensajesCorreo       MensajeCorreo[]
 
   flujosVenta            FlujoVenta[]
   importaciones          HistorialImportacion[]
@@ -2915,6 +2916,11 @@ model MensajeConversacion {
 
   reacciones MensajeReaccion[]
 
+  // 035 — Datos propios de correo (HTML limpio, cabeceras, adjuntos). Solo
+  // existe para mensajes del canal email desde 035; el resto de los canales
+  // nunca lo tiene.
+  correo MensajeCorreo?
+
   @@index([conversacionId])
   @@index([creadoEn])
   @@index([remitente])
@@ -2922,6 +2928,55 @@ model MensajeConversacion {
   // mensajería de Instagram se calcula desde ahí, no desde el último
   // mensaje en general (ver instagram-ventana.ts).
   @@index([conversacionId, remitente, creadoEn])
+}
+
+// 035 — Datos propios de correo de un mensaje de conversación.
+//
+// SEGURIDAD: `htmlLimpio` es SIEMPRE la salida de la política de limpieza
+// (src/integraciones/email/mensaje/html/). El HTML original del correo no se
+// guarda en ningún lado. Y aun limpio, nunca se inserta en la página de Karia:
+// se sirve solo a un iframe aislado (ver specs/035-correo-html-seguro/).
+enum EstadoHtmlCorreo {
+  SIN_HTML // el correo no traía HTML, o quedó vacío tras limpiarlo
+  DISPONIBLE // hay htmlLimpio
+  NO_DISPONIBLE // traía HTML pero no se pudo limpiar dentro de los límites
+}
+
+model MensajeCorreo {
+  id String @id @default(cuid())
+
+  // @unique: reprocesar un correo nunca duplica este registro (FR-011).
+  mensajeId String              @unique
+  mensaje   MensajeConversacion @relation(fields: [mensajeId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  estadoHtml      EstadoHtmlCorreo @default(SIN_HTML)
+  motivoHtml      String? // código estable; nunca contenido del correo
+  htmlLimpio      String?          @db.Text
+  versionPolitica Int              @default(1)
+
+  // URLs remotas que el correo traía como imágenes. El proxy de imágenes solo
+  // descarga direcciones de esta lista, por índice. No sale al navegador.
+  tieneImagenesExternas Boolean @default(false)
+  imagenesExternas      Json    @default("[]")
+
+  // AdjuntoCorreo[]: incluye el vínculo cid → MediaArchivo.
+  adjuntos Json @default("[]")
+
+  // Cabeceras de ESTE correo (no las de la conversación).
+  de         Json?
+  para       Json      @default("[]")
+  paraTotal  Int       @default(0)
+  cc         Json      @default("[]")
+  ccTotal    Int       @default(0)
+  asunto     String?
+  fechaEnvio DateTime?
+
+  creadoEn DateTime @default(now())
+
+  @@index([instanciaId])
 }
 
 model MensajeReaccion {
@@ -2968,6 +3023,15 @@ model BuzonCorreoEstado {
   ultimaLecturaEn   DateTime?
   ultimaLecturaOkEn DateTime?
   correosLeidos     Int       @default(0)
+
+  // Arrendamiento de lectura. Reemplaza al pg_try_advisory_lock que usaba
+  // antes: ese es un lock de SESIÓN, y la base se accede por un pooler en modo
+  // transacción, donde cada sentencia puede caer en un backend distinto. El
+  // lock se tomaba en uno y el unlock salía por otro, así que quedaba colgado
+  // para siempre y el buzón no se volvía a leer nunca. Esto es un UPDATE
+  // condicional atómico: funciona por cualquier pooler y se auto-libera si el
+  // worker muere a mitad de una lectura.
+  leyendoDesde DateTime?
 
   // Estado de error visible para el negocio. El texto crudo del servidor NO se
   // guarda acá: solo el código funcional y un mensaje ya traducido, porque esto

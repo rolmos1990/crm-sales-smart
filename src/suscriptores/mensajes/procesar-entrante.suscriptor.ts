@@ -26,6 +26,9 @@ export class ProcesarEntranteSuscriptor extends ConsumidorBase<ComandoProcesarEn
       mediaDuracion: payload.mediaDuracion,
       asunto: payload.asunto,
       hiloExterno: payload.hiloExterno,
+      // 035 — Solo correo. Sin esto el HTML limpio y las cabeceras se perderían
+      // en silencio: este suscriptor copia campo por campo.
+      correo: payload.correo,
     });
     // La orquestación IA se maneja en OrquestarIASuscriptor (escucha MensajeRecibido)
   }

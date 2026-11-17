@@ -6,6 +6,7 @@ import type {
   ClasificacionConversacion,
   ModoAtencionConversacion,
 } from "@/generated/prisma/enums";
+import type { DatosCorreoEntrante } from "@/integraciones/email/vista/schema";
 
 export type {
   TipoMensaje,
@@ -82,8 +83,10 @@ export interface ContactoResumen {
   telefonoPrincipal: string | null;
   email: string | null;
   avatarUrl: string | null;
-  /** 035 — Todas las identidades de canal registradas del contacto. */
-  identificadoresCanal: IdentidadCanalResumen[];
+  /** Cómo se identifica al contacto en cada canal (JID, IGSID, PSID, correo…).
+   *  Define por qué canales se le puede responder (ver canalesDeRespuesta) y
+   *  alimenta la sección "Identidades / canales vinculados" del panel (035). */
+  identificadoresCanal?: IdentidadCanalResumen[];
 }
 
 /** Última oportunidad FINALIZADA del contacto (ganada o perdida) — el nombre
@@ -175,6 +178,10 @@ export interface MensajeEntranteNormalizado {
   /** 034 — Solo correo: raíz del hilo (Message-ID normalizado), para la
    *  agrupación por hilo. */
   hiloExterno?: string;
+  /** 035 — Solo correo: HTML ya limpio, cabeceras y adjuntos. Se guarda en
+   *  MensajeCorreo; el texto de `contenido` sigue siendo la fuente para IA,
+   *  búsqueda y lista. */
+  correo?: DatosCorreoEntrante;
 }
 
 // ── 035-inbox-agrupado-contacto ──────────────────────────────────────────────

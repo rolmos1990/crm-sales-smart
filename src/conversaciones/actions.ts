@@ -20,6 +20,7 @@ import {
 } from "./envio";
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 import { requiereAprobacion } from "@/integraciones/email/aprobacion/reglas";
+import { filaMensajeCorreo } from "@/integraciones/email/mensaje/persistir-correo";
 
 // ── Resolución compartida de contacto + conversación ────────────────────────
 //
@@ -502,6 +503,14 @@ export async function procesarMensajeEntrante(
     }).catch(() => { /* ignorar si el registro no existe */ });
   }
 
+  const filaCorreo =
+    canal === "email" && payload.correo ? filaMensajeCorreo(payload.correo, instanciaId) : null;
+  if (canal === "email" && payload.correo && !filaCorreo) {
+    console.warn("[correo] datos de correo con forma inesperada; el mensaje entra solo en texto", {
+      conversacionId: conversacion.id,
+    });
+  }
+
   const mensaje = await prisma.mensajeConversacion.create({
     data: {
       conversacionId: conversacion.id,
@@ -515,6 +524,9 @@ export async function procesarMensajeEntrante(
       mediaDuracion: (mediaDuracion as number | undefined) ?? null,
       mediaArchivoId: mediaArchivoIdPayload ?? null,
       creadoEn: new Date(),
+      // 035 — HTML limpio, cabeceras y adjuntos del correo. Anidado en este
+      // mismo create: si el mensaje se deduplicó arriba, esto no se crea.
+      ...(filaCorreo ? { correo: { create: filaCorreo } } : {}),
     },
   });
 

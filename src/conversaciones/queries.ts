@@ -101,16 +101,11 @@ function mapearConversacion(conv: any): ConversacionResumen {
       telefonoPrincipal: conv.contacto.telefonoPrincipal,
       email: conv.contacto.email,
       avatarUrl: conv.contacto.avatarUrl ?? null,
-      // 035 — El arreglo completo, no solo la identidad del canal activo: lo
-      // consume la sección "Identidades / canales vinculados" del panel. Ya
-      // venía en el select de `contactoSelect`, así que esto no agrega
-      // ninguna consulta — antes simplemente se descartaba acá.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      identificadoresCanal: (conv.contacto.identificadoresCanal ?? []).map((i: any) => ({
-        canal: i.canal,
-        identificador: i.identificador,
-        handle: i.handle ?? null,
-      })),
+      // El arreglo completo, no solo la identidad del canal activo: lo usan
+      // los canales de respuesta y la sección de identidades del panel. Ya
+      // venía en el select de `contactoSelect` — antes se descartaba acá, así
+      // que exponerlo no agrega ninguna consulta.
+      identificadoresCanal: conv.contacto.identificadoresCanal ?? [],
     },
     cuentaCanal: conv.cuentaCanal,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

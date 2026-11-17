@@ -132,3 +132,47 @@ describe("aviso de adjuntos descartados", () => {
     expect(aviso).toContain("supera los 10 MB");
   });
 });
+
+// 035 — Imágenes en línea (cid) del HTML.
+describe("guardarAdjuntos — imágenes en línea (035)", () => {
+  function conCid(nombre: string, cid: string, mime = "image/png"): Attachment {
+    return { ...adjunto(nombre, mime), contentId: `<${cid}>` } as Attachment;
+  }
+
+  it("una imagen cuyo cid usa el HTML queda en línea y con su cid normalizado", async () => {
+    const r = await guardarAdjuntos([conCid("logo.png", "Logo@Banco")], { ...CTX, cidsUsados: ["logo@banco"] });
+
+    expect(r.guardados[0]).toMatchObject({ enLinea: true, cid: "logo@banco", mimeTypeDeclarado: "image/png", bytes: 1024 });
+  });
+
+  it("una imagen con cid que el HTML NO usa es un adjunto normal", async () => {
+    const r = await guardarAdjuntos([conCid("foto.png", "otro")], { ...CTX, cidsUsados: ["logo@banco"] });
+
+    expect(r.guardados[0]).toMatchObject({ enLinea: false, cid: "otro" });
+  });
+
+  it("las imágenes en línea tienen su propio tope y no desplazan a los adjuntos", async () => {
+    const enLinea = Array.from({ length: 25 }, (_, i) => conCid(`i${i}.png`, `img${i}`));
+    const normales = Array.from({ length: 5 }, (_, i) => adjunto(`doc${i}.pdf`, "application/pdf"));
+    const r = await guardarAdjuntos([...enLinea, ...normales], {
+      ...CTX,
+      cidsUsados: enLinea.map((_, i) => `img${i}`),
+    });
+
+    expect(r.guardados.filter((a) => !a.enLinea)).toHaveLength(5);
+    expect(r.guardados.filter((a) => a.enLinea)).toHaveLength(20);
+    // Las que pasan del tope en línea no se anotan como adjuntos perdidos.
+    expect(r.descartados).toEqual([]);
+  });
+
+  it("sin cidsUsados (HTML no disponible) todo se trata como antes", async () => {
+    const r = await guardarAdjuntos(
+      [conCid("logo.png", "logo"), ...Array.from({ length: 5 }, (_, i) => adjunto(`d${i}.pdf`, "application/pdf"))],
+      CTX,
+    );
+
+    expect(r.guardados.every((a) => !a.enLinea)).toBe(true);
+    expect(r.guardados).toHaveLength(MAX_ADJUNTOS);
+    expect(r.descartados).toHaveLength(1);
+  });
+});

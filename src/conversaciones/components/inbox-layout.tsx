@@ -31,10 +31,15 @@ import { PanelContactoInbox } from "./panel-contacto-inbox";
 import { BarraClasificacion } from "./barra-clasificacion";
 import { BarraAtencionHumana } from "./barra-atencion-humana";
 import { BarraAprobacionRemitente } from "@/integraciones/email/components/barra-aprobacion-remitente";
+import { EncabezadoHiloCorreo, HiloCorreo } from "@/integraciones/email/components/hilo-correo";
+import { ComposerCorreo, type ComposerCorreoHandle } from "@/integraciones/email/components/composer-correo";
+import { SelectorCanalRespuesta } from "./selector-canal-respuesta";
+import { canalesDeRespuesta, type CanalRespuesta } from "./canales-respuesta";
 import {
   cerrarConversacion,
   devolverAtencionAutomatica,
   enviarMensaje,
+  iniciarConversacion,
   marcarMensajesLeidos,
   marcarRespondida,
   reabrirConversacion,
@@ -221,6 +226,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
   const [conversaciones, setConversaciones] = useState(conversacionesIniciales);
   const [seleccionada, setSeleccionada] = useState<string | null>(null);
+  const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("abiertas");
   const [busqueda, setBusqueda] = useState("");
   // 035 — Contactos COLAPSADOS (ausencia = expandido, que es el default: un
@@ -272,6 +278,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   const [reaccionesOptimistas, setReaccionesOptimistas] = useState<Map<string, MensajeReaccionResumen[]>>(new Map());
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerCorreoRef = useRef<ComposerCorreoHandle>(null);
   const messagesAreaRef = useRef<HTMLDivElement>(null);
 
   // Mensajes de la conversación seleccionada
@@ -287,6 +294,51 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     () => conversaciones.find((c) => c.id === seleccionada) ?? null,
     [conversaciones, seleccionada]
   );
+
+  // "Responder por": cuentas activas del negocio por las que se le puede
+  // escribir al contacto (ver canalesDeRespuesta). Un mensaje sale siempre por
+  // la cuenta de su conversación, así que cambiar de cuenta es pasar a la
+  // conversación del contacto en ella, o iniciarla si todavía no existe.
+  const canalesContacto = useMemo(
+    () => (convActiva ? canalesDeRespuesta(convActiva, conversaciones, cuentas) : []),
+    [convActiva, conversaciones, cuentas]
+  );
+  const [cambiandoCanal, startCambiarCanal] = useTransition();
+  const cambiarCanalRespuesta = useCallback(
+    (canal: CanalRespuesta) => {
+      if (canal.conversacionId) {
+        setSeleccionada(canal.conversacionId);
+        setCuentaSeleccionadaId(canal.cuentaCanalId);
+        return;
+      }
+      if (!convActiva) return;
+      const contactoId = convActiva.contactoId;
+      startCambiarCanal(async () => {
+        const r = await iniciarConversacion({ contactoId, cuentaCanalId: canal.cuentaCanalId });
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+        const nueva = await obtenerConversacionAction(r.conversacionId).catch(() => null);
+        if (!nueva) {
+          toast.error("No se pudo abrir la conversación — intenta de nuevo.");
+          return;
+        }
+        setConversaciones((prev) => (prev.some((c) => c.id === nueva.id) ? prev.map((c) => (c.id === nueva.id ? nueva : c)) : [nueva, ...prev]));
+        setSeleccionada(nueva.id);
+        setCuentaSeleccionadaId(canal.cuentaCanalId);
+      });
+    },
+    [convActiva]
+  );
+  const selectorCanal = convActiva ? (
+    <SelectorCanalRespuesta
+      canales={canalesContacto}
+      conversacionActivaId={convActiva.id}
+      onCambiar={cambiarCanalRespuesta}
+      cambiando={cambiandoCanal}
+    />
+  ) : null;
 
   // Lista filtrada y ordenada — el filtro de texto es puramente local, sobre
   // los datos ya cargados (sin llamadas nuevas al backend).
@@ -662,7 +714,6 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
   // ── Datos derivados ───────────────────────────────────────────────────────
 
-  const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState<string | null>(null);
 
   const todosLosMensajes = [...mensajesAnteriores, ...mensajesRecientes];
   const grupos = agruparPorFecha(todosLosMensajes);
@@ -698,6 +749,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     : "";
   const convNombre = convNombreBase || convActiva?.contacto.telefonoPrincipal || "Sin nombre";
   const convSinIdentificar = convActiva ? !convNombreBase : false;
+
+  // El correo usa su propia vista en el panel central (hilo plegable +
+  // compositor de correo). Lista, barras de estado y panel derecho son los
+  // mismos para todos los canales.
+  const esCorreo = convActiva?.cuentaCanal?.canal === "email";
+  const direccionContacto = convActiva ? convActiva.identificadorCanal ?? convActiva.contacto.email ?? null : null;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -816,7 +873,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
           que el EmptyState, así que ocultarlo es barato; con conversación
           seleccionada pasa a `flex` (pantalla completa en móvil, columna
           central en tablet/escritorio). */}
-      <div className={cn("flex-1 flex-col overflow-hidden bg-background", !seleccionada ? "hidden md:flex" : "flex")}>
+      <div className={cn("relative flex-1 flex-col overflow-hidden bg-background", !seleccionada ? "hidden md:flex" : "flex")}>
         {seleccionada === null || !convActiva ? (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
@@ -855,7 +912,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     </span>
                   )}
                 </div>
-                {convActiva.cuentaCanal && (
+                {esCorreo && direccionContacto ? (
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {direccionContacto}
+                    {convActiva.cuentaCanal && <> · vía {convActiva.cuentaCanal.nombre}</>}
+                  </p>
+                ) : convActiva.cuentaCanal && (
                   <p className="text-[10px] text-muted-foreground truncate">{convActiva.cuentaCanal.nombre}</p>
                 )}
               </div>
@@ -954,9 +1016,9 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
             )}
 
             {/* 035 — El mismo contacto escribió algo más nuevo por otro canal.
-                Va acá, pegado al chat, porque es información que hay que ver
-                ANTES de contestar — no en la lista, que puede estar fuera de
-                vista en móvil. */}
+                Va con las demás barras de aviso y antes del encabezado del
+                hilo: es información que hay que ver ANTES de contestar, y en
+                móvil la lista puede estar fuera de vista. */}
             {avisoOtroCanal && (
               <AvisoOtroCanalBanner
                 aviso={avisoOtroCanal}
@@ -971,10 +1033,20 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               />
             )}
 
+            {esCorreo && (
+              <EncabezadoHiloCorreo
+                asunto={convActiva.asunto}
+                mensajes={todosLosMensajes}
+                noLeidos={mensajesNoLeidos.length}
+                marcandoLeidos={marcandoLeido}
+                onMarcarTodosLeidos={() => handleMarcarLeidos(mensajesNoLeidos.map((m) => m.id))}
+              />
+            )}
+
             {/* Área de mensajes */}
             <div
               ref={messagesAreaRef}
-              className="flex-1 inbox-scroll px-4 py-3"
+              className={cn("flex-1 inbox-scroll py-3", esCorreo ? "px-3 md:px-4" : "px-4")}
             >
               {hayMasAnteriores && (
                 <div className="flex justify-center pb-3">
@@ -992,7 +1064,19 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 </div>
               )}
 
-              {grupos.length === 0 && !isFetching ? (
+              {esCorreo ? (
+                // `key`: el estado de plegado es de cada conversación.
+                <HiloCorreo
+                  key={convActiva.id}
+                  mensajes={todosLosMensajes}
+                  idsLeidosLocal={idsLeidosLocal}
+                  onMarcarLeido={(id) => handleMarcarLeidos([id])}
+                  onResponder={() => composerCorreoRef.current?.enfocar()}
+                  contacto={convActiva.contacto}
+                  direccionContacto={direccionContacto}
+                  buzon={convActiva.cuentaCanal}
+                />
+              ) : grupos.length === 0 && !isFetching ? (
                 <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
                   Sin mensajes aún
                 </div>
@@ -1069,7 +1153,21 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 {/* 034 — Con el remitente sin aprobar no hay nada que escribir:
                     el servidor rechazaría el envío igual. Se oculta el
                     compositor en vez de dejar al agente redactar para nada. */}
-                {!convActiva.bloqueadaPorAprobacion && (
+                {!convActiva.bloqueadaPorAprobacion && esCorreo && (
+                  <ComposerCorreo
+                    key={convActiva.id}
+                    ref={composerCorreoRef}
+                    conversacionId={convActiva.id}
+                    instanciaId={convActiva.instanciaId}
+                    destinatario={direccionContacto}
+                    asunto={convActiva.asunto}
+                    onEnviar={handleEnviar}
+                    enviando={enviando}
+                    textoExterno={textoChat}
+                    selectorCanal={selectorCanal}
+                  />
+                )}
+                {!convActiva.bloqueadaPorAprobacion && !esCorreo && (
                   <InputMensaje
                     textoExterno={textoChat}
                     conversacionId={seleccionada}
@@ -1077,6 +1175,8 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     cuentaSeleccionadaId={cuentaSeleccionadaId}
                     onEnviar={handleEnviar}
                     enviando={enviando}
+                    selectorCanal={selectorCanal}
+                    onCambiarCuenta={setCuentaSeleccionadaId}
                   />
                 )}
               </>

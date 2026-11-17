@@ -839,7 +839,7 @@ export function PanelContactoInbox({
             Va pegado a "Canal" (el de ESTA conversación) a propósito: uno dice
             por dónde estoy hablando, el otro por dónde más me pueden escribir. */}
         <SeccionIdentidadesCanal
-          identidades={contacto.identificadoresCanal}
+          identidades={contacto.identificadoresCanal ?? []}
           conversacionesDelContacto={conversacionesDelContacto}
           conversacionActualId={conversacion.id}
           onAbrirConversacion={onAbrirConversacion}
