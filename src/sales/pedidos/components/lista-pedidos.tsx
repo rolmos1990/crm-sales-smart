@@ -35,7 +35,7 @@ const formatearMoneda = (valor: number, moneda: string) =>
  * que ambos coincidan siempre.
  */
 function EntregaEstimadaCell({ pedido, zonaHoraria }: { pedido: Pedido; zonaHoraria: string }) {
-  if (!pedido.fechaEntrega) return <span className="text-stone-400 dark:text-stone-600">—</span>;
+  if (!pedido.fechaEntrega) return <span className="text-muted-foreground">—</span>;
 
   const fecha = new Date(pedido.fechaEntrega);
   const ymd = fechaYMDEnZona(fecha, zonaHoraria);
@@ -48,9 +48,9 @@ function EntregaEstimadaCell({ pedido, zonaHoraria }: { pedido: Pedido; zonaHora
     <span
       className={cn(
         "text-sm",
-        esHoy && "text-emerald-600 dark:text-emerald-400 font-medium",
-        esManana && "text-sky-500 dark:text-sky-400 font-medium",
-        !esHoy && !esManana && "text-stone-600 dark:text-stone-400"
+        esHoy && "font-medium text-success",
+        esManana && "font-medium text-info",
+        !esHoy && !esManana && "text-muted-foreground"
       )}
     >
       {esHoy ? "Hoy · " : esManana ? "Mañana · " : ""}
@@ -60,7 +60,7 @@ function EntregaEstimadaCell({ pedido, zonaHoraria }: { pedido: Pedido; zonaHora
 }
 
 function ExpiracionCell({ pedido }: { pedido: Pedido }) {
-  if (!pedido.fechaExpiracion) return <span className="text-stone-400 dark:text-stone-600">—</span>;
+  if (!pedido.fechaExpiracion) return <span className="text-muted-foreground">—</span>;
 
   const fecha = new Date(pedido.fechaExpiracion);
   const cerrado = pedido.estado === "ENTREGADO" || pedido.estado === "CANCELADO";
@@ -71,9 +71,9 @@ function ExpiracionCell({ pedido }: { pedido: Pedido }) {
     <span
       className={cn(
         "text-sm font-medium",
-        vencido && "text-red-500 dark:text-red-400",
-        porVencer && "text-amber-500 dark:text-amber-400",
-        (cerrado || (!vencido && !porVencer)) && "text-emerald-600 dark:text-emerald-400"
+        vencido && "text-danger",
+        porVencer && "text-warning",
+        (cerrado || (!vencido && !porVencer)) && "text-success"
       )}
     >
       <FechaHora valor={fecha} modo="fecha" />
@@ -144,7 +144,7 @@ function AccionesPedido({ pedido, etapasFlujo }: { pedido: Pedido; etapasFlujo: 
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => router.push(`/sales/pedidos/${pedido.id}`)}>Ver detalle</DropdownMenuItem>
         {pendienteConfirmacion && (
-          <DropdownMenuItem onClick={handleConfirmarGeneradoPorIA} className="text-lime-600 dark:text-lime-400 focus:text-lime-700 dark:focus:text-lime-300">
+          <DropdownMenuItem onClick={handleConfirmarGeneradoPorIA} className="text-primary focus:text-primary-hover">
             <Sparkles className="mr-2 h-4 w-4" />Confirmar (generado por IA)
           </DropdownMenuItem>
         )}
@@ -184,8 +184,12 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
   {
     accessorKey: "numero",
     header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Número <ArrowUpDown className="ml-2 h-4 w-4" />
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="-ml-2.5 h-7 text-xs font-semibold tracking-wide uppercase"
+      >
+        Número <ArrowUpDown className="ml-1.5 h-3.5 w-3.5" />
       </Button>
     ),
     cell: ({ row }) => (
@@ -194,7 +198,7 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
           {row.original.numero}
         </Link>
         {row.original.generadoPorIA && !row.original.confirmadoPorHumano && (
-          <Badge variant="outline" className="gap-1 text-lime-600 dark:text-lime-400 border-lime-500/30">
+          <Badge variant="outline" className="gap-1 border-primary-border text-primary">
             <Sparkles className="h-3 w-3" />generado por IA · pendiente
           </Badge>
         )}
@@ -224,9 +228,11 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
   },
   {
     accessorKey: "total",
-    header: "Total",
+    header: () => <div className="text-right">Total</div>,
     cell: ({ row }) => (
-      <span className="font-semibold tabular-nums">{formatearMoneda(row.original.total, row.original.moneda)}</span>
+      <div className="text-right font-semibold tabular-nums">
+        {formatearMoneda(row.original.total, row.original.moneda)}
+      </div>
     ),
   },
   {
@@ -269,8 +275,12 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
   {
     accessorKey: "fechaEntrega",
     header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Entrega estimada <ArrowUpDown className="ml-2 h-4 w-4" />
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="-ml-2.5 h-7 text-xs font-semibold tracking-wide uppercase"
+      >
+        Entrega estimada <ArrowUpDown className="ml-1.5 h-3.5 w-3.5" />
       </Button>
     ),
     cell: ({ row }) => <EntregaEstimadaCell pedido={row.original} zonaHoraria={zonaHoraria} />,
@@ -298,7 +308,14 @@ export function ListaPedidos({ pedidos, etapasFlujo, zonaHoraria }: ListaPedidos
   const columnas: ColumnDef<Pedido>[] = [
     ...construirColumnasFijas(zonaHoraria),
     ...(puedeMod
-      ? [{ id: "acciones", cell: ({ row }: { row: { original: Pedido } }) => <AccionesPedido pedido={row.original} etapasFlujo={etapasFlujo} /> }]
+      ? [{
+          id: "acciones",
+          cell: ({ row }: { row: { original: Pedido } }) => (
+            <div className="flex justify-end">
+              <AccionesPedido pedido={row.original} etapasFlujo={etapasFlujo} />
+            </div>
+          ),
+        }]
       : []),
   ];
 

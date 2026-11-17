@@ -61,7 +61,7 @@ export function DataTable<TData, TValue>({
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {filtroPor && (
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -74,18 +74,18 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="rounded-xl border border-card-border overflow-hidden shadow-sm bg-card dark:backdrop-blur-xl dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)]">
+      <div className="overflow-hidden rounded-xl border border-card-border bg-card shadow-sm dark:backdrop-blur-xl dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)]">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow
                 key={headerGroup.id}
-                className="border-card-border bg-muted hover:bg-muted"
+                className="border-card-border bg-surface-2 hover:bg-surface-2"
               >
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className="text-muted-foreground font-semibold text-xs uppercase tracking-wide"
+                    className="h-11 px-4 text-xs font-semibold tracking-wide text-text-secondary uppercase"
                   >
                     {header.isPlaceholder
                       ? null
@@ -101,10 +101,10 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="border-card-divider hover:bg-card-hover transition-colors"
+                  className="border-card-divider transition-colors hover:bg-card-hover"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="px-4 py-3">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -114,7 +114,7 @@ export function DataTable<TData, TValue>({
               <TableRow>
                 <TableCell
                   colSpan={columnas.length}
-                  className="h-24 text-center text-muted-foreground"
+                  className="h-24 px-4 text-center text-muted-foreground"
                 >
                   Sin resultados.
                 </TableCell>
@@ -122,55 +122,57 @@ export function DataTable<TData, TValue>({
             )}
           </TableBody>
         </Table>
-      </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length} registro(s)
-        </p>
-        <div className="flex items-center gap-2">
-          {opcionesTamanoPagina && (
-            <div className="mr-2 hidden items-center gap-2 text-sm text-muted-foreground sm:flex">
-              Filas por página
-              <Select
-                items={Object.fromEntries(opcionesTamanoPagina.map((n) => [String(n), String(n)]))}
-                value={String(table.getState().pagination.pageSize)}
-                onValueChange={(v) => v && table.setPageSize(Number(v))}
-              >
-                <SelectTrigger size="sm" aria-label="Filas por página" className="w-18">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {opcionesTamanoPagina.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground tabular-nums">
-            {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Siguiente
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+        {/* Pie dentro del mismo recuadro: el conteo y la paginación hablan de
+            la tabla que tienen encima, no son una fila suelta de la página. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-card-divider bg-surface-2 px-4 py-2">
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {table.getFilteredRowModel().rows.length} registro(s)
+          </p>
+          <div className="ml-auto flex items-center gap-2">
+            {opcionesTamanoPagina && (
+              <div className="mr-1 hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
+                Filas por página
+                <Select
+                  items={Object.fromEntries(opcionesTamanoPagina.map((n) => [String(n), String(n)]))}
+                  value={String(table.getState().pagination.pageSize)}
+                  onValueChange={(v) => v && table.setPageSize(Number(v))}
+                >
+                  <SelectTrigger size="sm" aria-label="Filas por página" className="w-18">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {opcionesTamanoPagina.map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </Button>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Siguiente
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
