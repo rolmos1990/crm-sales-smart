@@ -13,6 +13,9 @@ import { formatDistanceToNow, format, differenceInMinutes, differenceInHours, di
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { requiereAtencionHumana, cuentaParaAtencionHumana } from "../atencion-humana";
+import { PRIORIDAD, agruparPorContacto, elegirAvisoOtroCanal } from "../agrupacion";
+import { GrupoContactoInbox } from "./grupo-contacto-inbox";
+import { AvisoOtroCanalBanner } from "./aviso-otro-canal";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -147,10 +150,8 @@ const FILTROS: {
   { key: "cerradas",  label: "Cerradas",  estados: ["CERRADA"],   Icono: Check },
 ];
 
-// Prioridad de ordenación para vista "Todos"
-const PRIORIDAD: Record<EstadoConv, number> = {
-  ABIERTA: 0, EN_ESPERA: 1, CERRADA: 2, ARCHIVADA: 3,
-};
+// 035 — PRIORIDAD se mudó a ../agrupacion (módulo puro) para que el orden de
+// la lista sea uno solo y se pueda probar sin montar el componente.
 
 // ── Canal: icono + color discreto para identificar rápido en la lista ────────
 
@@ -228,6 +229,15 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
   const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("abiertas");
   const [busqueda, setBusqueda] = useState("");
+  // 035 — Contactos COLAPSADOS (ausencia = expandido, que es el default: un
+  // grupo que aparece por SSE se ve abierto). Vive fuera del arreglo de datos
+  // a propósito: el auto-refresco lo reemplaza entero cada 30s, y si el estado
+  // de expansión viviera ahí, los grupos se cerrarían solos mientras se trabaja.
+  const [colapsados, setColapsados] = useState<Set<string>>(new Set());
+  // 035 — Ids de MENSAJE cuyo aviso de otro canal ya se descartó. Por mensaje
+  // y no por conversación: si el cliente vuelve a escribir, hay que avisar de
+  // nuevo.
+  const [avisosDescartados, setAvisosDescartados] = useState<Set<string>>(new Set());
   // Panel de info: en escritorio (>=1024) es una columna fija, controlada
   // por `panelContactoAbierto` (default visible, sin cambios de
   // comportamiento). Por debajo de eso pasa a Sheet (drawer en
@@ -355,6 +365,55 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     }
     return lista;
   }, [conversaciones, filtro, busqueda]);
+
+  // 035 — La lista se presenta agrupada por persona. Se agrupa lo YA filtrado:
+  // así cada grupo cuenta sus conversaciones visibles y la suma de los grupos
+  // cuadra con el número de la pestaña activa. Es un derivado en memoria sobre
+  // datos ya cargados — no dispara ninguna consulta.
+  const gruposContacto = useMemo(() => agruparPorContacto(filtradas), [filtradas]);
+
+  // 035 — ¿Esta persona escribió algo más nuevo por otro lado? Se mira sobre
+  // TODAS las conversaciones cargadas, no sobre las filtradas: el aviso tiene
+  // que aparecer aunque la otra conversación no pase el filtro activo.
+  const avisoOtroCanal = useMemo(() => {
+    if (!convActiva) return null;
+    return elegirAvisoOtroCanal({
+      conversacionAbierta: convActiva,
+      todasLasConversaciones: conversaciones,
+      descartados: avisosDescartados,
+    });
+  }, [convActiva, conversaciones, avisosDescartados]);
+
+  const handleDescartarAviso = useCallback((mensajeId: string) => {
+    setAvisosDescartados((prev) => new Set(prev).add(mensajeId));
+  }, []);
+
+  // 035 — Las conversaciones del contacto abierto que el Inbox ya tiene
+  // cargadas. Alimenta la sección de identidades del panel: una identidad con
+  // conversación acá se puede abrir; una sin ella se muestra igual, pero sin
+  // acceso y sin fecha — nunca se va a buscarla al servidor (FR-018).
+  const conversacionesDelContacto = useMemo(
+    () => (convActiva ? conversaciones.filter((c) => c.contactoId === convActiva.contactoId) : []),
+    [conversaciones, convActiva],
+  );
+
+  const abrirConversacionDelContacto = useCallback(
+    (conversacionId: string) => {
+      const destino = conversaciones.find((c) => c.id === conversacionId);
+      setSeleccionada(conversacionId);
+      setCuentaSeleccionadaId(destino?.cuentaCanalId ?? cuentas[0]?.id ?? null);
+    },
+    [conversaciones, cuentas],
+  );
+
+  const handleToggleColapsado = useCallback((contactoId: string) => {
+    setColapsados((prev) => {
+      const next = new Set(prev);
+      if (next.has(contactoId)) next.delete(contactoId);
+      else next.add(contactoId);
+      return next;
+    });
+  }, []);
 
   // Conteos por filtro (sobre el total, no afectados por la búsqueda de texto)
   const conteos = useMemo(() => {
@@ -781,7 +840,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
 
         {/* Lista */}
         <ul className="flex-1 inbox-scroll divide-y divide-card-divider">
-          {filtradas.length === 0 ? (
+          {gruposContacto.length === 0 ? (
             <li className="flex flex-col items-center justify-center gap-2 h-40 text-center px-4">
               <MessageSquare className="h-5 w-5 text-muted-foreground/50" />
               <p className="text-xs text-muted-foreground">
@@ -789,111 +848,21 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               </p>
             </li>
           ) : (
-            filtradas.map((conv) => {
-              const esActiva = seleccionada === conv.id;
-              const nombreContacto = `${conv.contacto.nombre} ${conv.contacto.apellido}`.trim();
-              const sinIdentificar = !nombreContacto;
-              const nombre = nombreContacto || conv.contacto.telefonoPrincipal || "Sin nombre";
-              const cfg = ESTADO_CFG[conv.estado] ?? ESTADO_CFG.CERRADA;
-              const canal = infoCanal(conv.cuentaCanal?.canal);
-              const noLeido = conv.ultimoMensaje?.remitente === "CONTACTO" && conv.ultimoMensaje?.estado !== "LEIDO";
-
-              return (
-                <li key={conv.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSeleccionada(conv.id);
-                      setCuentaSeleccionadaId(conv.cuentaCanalId ?? cuentas[0]?.id ?? null);
-                    }}
-                    className={cn(
-                      "w-full text-left flex items-start gap-3 px-4 py-3 transition-colors border-l-2",
-                      esActiva
-                        ? "bg-inbox-accent-muted border-l-inbox-accent"
-                        : "border-l-transparent hover:bg-muted/70"
-                    )}
-                  >
-                    {/* Avatar */}
-                    <AvatarContacto
-                      nombre={conv.contacto.nombre}
-                      apellido={conv.contacto.apellido}
-                      avatarUrl={conv.contacto.avatarUrl}
-                      className="h-9 w-9 text-xs"
-                    />
-
-                    <div className="flex-1 min-w-0">
-                      {/* Nombre + tiempo */}
-                      <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <p className={cn(
-                            "text-xs truncate",
-                            noLeido ? "font-bold" : "font-semibold",
-                            "text-foreground"
-                          )}>
-                            {nombre}
-                          </p>
-                          {sinIdentificar && (
-                            <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
-                              ?
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[9px] text-muted-foreground shrink-0 whitespace-nowrap">
-                          {formatDistanceToNow(new Date(conv.actualizadoEn), { addSuffix: false, locale: es })}
-                        </span>
-                      </div>
-
-                      {/* Último mensaje */}
-                      <p className={cn(
-                        "text-[11px] truncate leading-snug",
-                        noLeido ? "text-text-secondary" : "text-muted-foreground"
-                      )}>
-                        {conv.ultimoMensaje?.contenido
-                          ? conv.ultimoMensaje.contenido.slice(0, 55)
-                          : <span className="italic text-muted-foreground">Sin mensajes</span>}
-                      </p>
-
-                      {/* Canal + badge de estado */}
-                      <div className="flex items-center justify-between mt-1 gap-1">
-                        {conv.cuentaCanal ? (
-                          <span className={cn("inline-flex items-center gap-1 text-[9px] font-medium truncate", canal.clase)}>
-                            <canal.Icono className="h-2.5 w-2.5 shrink-0" />
-                            {conv.cuentaCanal.nombre}
-                          </span>
-                        ) : <span />}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {noLeido && <span className="h-1.5 w-1.5 rounded-full bg-inbox-accent" />}
-                          {/* Va antes del badge de estado y no lo reemplaza:
-                              son dos cosas distintas. "Abierta" dice en qué
-                              punto del ciclo está; "Atención humana" dice que
-                              no avanza sin una persona. */}
-                          {cuentaParaAtencionHumana(conv) && (
-                            <span
-                              className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[9px] font-semibold text-warning"
-                              title={
-                                conv.modoAtencion === "HUMANO"
-                                  ? conv.atencionMotivo ?? "La atiende una persona"
-                                  : "Hay una respuesta de la IA esperando aprobación"
-                              }
-                            >
-                              <UserRound className="h-2.5 w-2.5 shrink-0" />
-                              Atención humana
-                            </span>
-                          )}
-                          <span className={cn(
-                            "flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border",
-                            cfg.badgeBg, cfg.badgeText
-                          )}>
-                            <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", cfg.dot, cfg.pulse && "animate-pulse")} />
-                            {cfg.badgeLabel}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                </li>
-              );
-            })
+            gruposContacto.map((grupo) => (
+              <GrupoContactoInbox
+                key={grupo.contactoId}
+                grupo={grupo}
+                seleccionada={seleccionada}
+                colapsado={colapsados.has(grupo.contactoId)}
+                onToggleColapsado={handleToggleColapsado}
+                onSeleccionar={(conv) => {
+                  setSeleccionada(conv.id);
+                  setCuentaSeleccionadaId(conv.cuentaCanalId ?? cuentas[0]?.id ?? null);
+                }}
+                estadoCfg={ESTADO_CFG}
+                infoCanal={infoCanal}
+              />
+            ))
           )}
         </ul>
       </aside>
@@ -1046,6 +1015,24 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               />
             )}
 
+            {/* 035 — El mismo contacto escribió algo más nuevo por otro canal.
+                Va con las demás barras de aviso y antes del encabezado del
+                hilo: es información que hay que ver ANTES de contestar, y en
+                móvil la lista puede estar fuera de vista. */}
+            {avisoOtroCanal && (
+              <AvisoOtroCanalBanner
+                aviso={avisoOtroCanal}
+                nombreContacto={convNombre}
+                onIr={(conversacionId) => {
+                  const destino = conversaciones.find((c) => c.id === conversacionId);
+                  setSeleccionada(conversacionId);
+                  setCuentaSeleccionadaId(destino?.cuentaCanalId ?? cuentas[0]?.id ?? null);
+                }}
+                onDescartar={handleDescartarAviso}
+                infoCanal={infoCanal}
+              />
+            )}
+
             {esCorreo && (
               <EncabezadoHiloCorreo
                 asunto={convActiva.asunto}
@@ -1186,10 +1173,10 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                     conversacionId={seleccionada}
                     cuentas={cuentas}
                     cuentaSeleccionadaId={cuentaSeleccionadaId}
-                    onCambiarCuenta={setCuentaSeleccionadaId}
                     onEnviar={handleEnviar}
                     enviando={enviando}
                     selectorCanal={selectorCanal}
+                    onCambiarCuenta={setCuentaSeleccionadaId}
                   />
                 )}
               </>
@@ -1219,6 +1206,8 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
               <div className="flex-1 overflow-y-auto min-h-0">
                 <PanelContactoInbox
                   conversacion={convActiva}
+                  conversacionesDelContacto={conversacionesDelContacto}
+                  onAbrirConversacion={abrirConversacionDelContacto}
                   onContactoActualizado={handleContactoActualizado}
                   onConversacionActualizada={handleConversacionActualizada}
                   onTextoAlChat={escribirEnChat}
@@ -1232,6 +1221,8 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
           <div className="w-64 lg:w-72 xl:w-80 shrink-0 flex flex-col min-h-0">
             <PanelContactoInbox
               conversacion={convActiva}
+              conversacionesDelContacto={conversacionesDelContacto}
+              onAbrirConversacion={abrirConversacionDelContacto}
               onContactoActualizado={handleContactoActualizado}
               onConversacionActualizada={handleConversacionActualizada}
               onTextoAlChat={escribirEnChat}

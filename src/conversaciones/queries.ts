@@ -101,6 +101,10 @@ function mapearConversacion(conv: any): ConversacionResumen {
       telefonoPrincipal: conv.contacto.telefonoPrincipal,
       email: conv.contacto.email,
       avatarUrl: conv.contacto.avatarUrl ?? null,
+      // El arreglo completo, no solo la identidad del canal activo: lo usan
+      // los canales de respuesta y la sección de identidades del panel. Ya
+      // venía en el select de `contactoSelect` — antes se descartaba acá, así
+      // que exponerlo no agrega ninguna consulta.
       identificadoresCanal: conv.contacto.identificadoresCanal ?? [],
     },
     cuentaCanal: conv.cuentaCanal,

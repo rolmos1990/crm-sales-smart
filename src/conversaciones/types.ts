@@ -65,6 +65,17 @@ export interface CuentaCanalResumen {
   instanciaId?: string;
 }
 
+/** 035 — Una identidad del contacto en un canal: la dirección, el número o el
+ *  id externo por el que esa persona está registrada ahí. Ya venía en el
+ *  `select` del Inbox (contactoSelect.identificadoresCanal) y se descartaba al
+ *  mapear; mostrarla no cuesta una consulta nueva. */
+export interface IdentidadCanalResumen {
+  canal: string;
+  identificador: string;
+  /** @usuario visible, si el canal lo expone (ej. Instagram). */
+  handle: string | null;
+}
+
 export interface ContactoResumen {
   id: string;
   nombre: string;
@@ -73,8 +84,9 @@ export interface ContactoResumen {
   email: string | null;
   avatarUrl: string | null;
   /** Cómo se identifica al contacto en cada canal (JID, IGSID, PSID, correo…).
-   *  Define por qué canales se le puede responder — ver canalesDeRespuesta. */
-  identificadoresCanal?: { canal: string; identificador: string; handle: string | null }[];
+   *  Define por qué canales se le puede responder (ver canalesDeRespuesta) y
+   *  alimenta la sección "Identidades / canales vinculados" del panel (035). */
+  identificadoresCanal?: IdentidadCanalResumen[];
 }
 
 /** Última oportunidad FINALIZADA del contacto (ganada o perdida) — el nombre
@@ -170,4 +182,46 @@ export interface MensajeEntranteNormalizado {
    *  MensajeCorreo; el texto de `contenido` sigue siendo la fuente para IA,
    *  búsqueda y lista. */
   correo?: DatosCorreoEntrante;
+}
+
+// ── 035-inbox-agrupado-contacto ──────────────────────────────────────────────
+// Modelo derivado del Inbox: se arma en memoria a partir de las conversaciones
+// ya cargadas y no se persiste en ningún lado. Vive acá, junto al resto de los
+// tipos del módulo, para que `agrupacion.ts` (puro) y los componentes compartan
+// una sola definición.
+
+/** Una persona con las conversaciones suyas que pasan el filtro activo. */
+export interface GrupoContacto {
+  contactoId: string;
+  contacto: ContactoResumen;
+  /** Solo las conversaciones VISIBLES bajo el filtro/búsqueda, ya ordenadas. */
+  conversaciones: ConversacionResumen[];
+  /** La más prioritaria: define el orden del grupo y lo que muestra colapsado. */
+  lider: ConversacionResumen;
+  /** Cantidad de conversaciones visibles — no el total del contacto. */
+  totalConversaciones: number;
+  /** Canales distintos entre las conversaciones visibles. */
+  totalCanales: number;
+  /** Conversaciones visibles con mensajes del contacto sin leer. */
+  noLeidos: number;
+  requiereAtencionHumana: boolean;
+  /** true cuando hay una sola conversación: se pinta como fila simple. */
+  esSimple: boolean;
+}
+
+/** Lo que el chat abierto debe avisar sobre otro canal del mismo contacto. */
+export interface AvisoOtroCanal {
+  /** La OTRA conversación, a la que lleva el salto. */
+  conversacionId: string;
+  canal: string;
+  nombreCanal: string;
+  /** Mensaje que motiva el aviso — es la clave con la que se descarta. */
+  mensajeId: string;
+  fecha: Date;
+}
+
+/** Identidad del contacto más la conversación cargada que le corresponde. */
+export interface IdentidadConAcceso extends IdentidadCanalResumen {
+  conversacionId: string | null;
+  ultimaActividad: Date | null;
 }
