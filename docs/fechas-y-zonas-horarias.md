@@ -123,7 +123,7 @@ where.fecha = { gte: hoy.desde, lt: hoy.hasta };
 
 Helpers en `src/shared/fechas/rangos.ts`: `rangoHoy`, `rangoAyer`,
 `rangoManana`, `rangoUltimosDias`, `rangoEstaSemana` (semana calendario, lunes a
-domingo), `rangoEsteMes`, `rangoMesHastaAhora`, `rangoEntreFechas`,
+domingo), `rangoEsteMes`, `rangoMesHastaHoy`, `rangoEntreFechas`,
 `aFiltroPrisma`.
 
 Los pares desde/hasta de la URL se parsean con

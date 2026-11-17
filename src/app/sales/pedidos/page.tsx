@@ -6,7 +6,7 @@ import { VistaPedidos } from "@/sales/pedidos/components/vista-pedidos";
 import { cargarVistaPedidos, type EtapaFlujoVista, type VistaPedidos as DatosVistaPedidos } from "@/sales/pedidos/vista";
 import { FILTROS_VISTA_PEDIDOS_DEFECTO } from "@/sales/pedidos/schema";
 import { etiquetaMesAnioEnZona } from "@/shared/fechas/zona";
-import { rangoMesHastaAhora } from "@/shared/fechas/rangos";
+import { rangoMesHastaHoy } from "@/shared/fechas/rangos";
 import { obtenerFlujoVenta } from "@/sales/flujo-venta/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
 import { obtenerProductosCatalogo } from "@/shared/productos/queries";
@@ -44,7 +44,9 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
     console.error("[PedidosPage] Error al cargar el flujo de venta:", err);
   }
 
-  const etiquetaMesActual = etiquetaMesAnioEnZona(rangoMesHastaAhora(zonaHoraria).hasta, zonaHoraria);
+  // Del extremo `desde` (el 1° del mes a medianoche local), no de `hasta`: ese
+  // es el inicio de mañana, y el último día del mes cae ya en el mes siguiente.
+  const etiquetaMesActual = etiquetaMesAnioEnZona(rangoMesHastaHoy(zonaHoraria).desde, zonaHoraria);
 
   let inicial: DatosVistaPedidos = {
     pedidos: [],

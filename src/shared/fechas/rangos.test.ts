@@ -7,7 +7,7 @@ import {
   rangoEstaSemana,
   rangoHoy,
   rangoManana,
-  rangoMesHastaAhora,
+  rangoMesHastaHoy,
   rangoUltimosDias,
 } from "./rangos";
 import { fechaYMDEnZona } from "./zona";
@@ -72,7 +72,7 @@ describe("rangoEstaSemana — semana calendario de lunes a domingo", () => {
   });
 });
 
-describe("rangoEsteMes / rangoMesHastaAhora", () => {
+describe("rangoEsteMes / rangoMesHastaHoy", () => {
   it("el mes completo va del día 1 al 1 del mes siguiente", () => {
     const r = rangoEsteMes("America/Lima", REF_LIMA);
     expect(fechaYMDEnZona(r.desde, "America/Lima")).toBe("2026-09-01");
@@ -85,11 +85,24 @@ describe("rangoEsteMes / rangoMesHastaAhora", () => {
     expect(fechaYMDEnZona(r.hasta, "America/Lima")).toBe("2027-01-01");
   });
 
-  it("mes-hasta-ahora comparte el inicio pero corta en el instante actual", () => {
+  it("mes-hasta-hoy comparte el inicio pero corta al final del día de hoy", () => {
     const completo = rangoEsteMes("America/Lima", REF_LIMA);
-    const parcial = rangoMesHastaAhora("America/Lima", REF_LIMA);
+    const parcial = rangoMesHastaHoy("America/Lima", REF_LIMA);
     expect(parcial.desde.toISOString()).toBe(completo.desde.toISOString());
-    expect(parcial.hasta.toISOString()).toBe(REF_LIMA.toISOString());
+    // Incluye el día de hoy entero, no solo hasta el instante de referencia:
+    // el límite superior es la medianoche siguiente en la zona de negocio.
+    expect(parcial.hasta.getTime()).toBeGreaterThan(REF_LIMA.getTime());
+    expect(fechaYMDEnZona(new Date(parcial.hasta.getTime() - 1), "America/Lima"))
+      .toBe(fechaYMDEnZona(REF_LIMA, "America/Lima"));
+    expect(parcial.hasta.toISOString())
+      .toBe(rangoHoy("America/Lima", REF_LIMA).hasta.toISOString());
+  });
+
+  it("el último día del mes no se desborda al mes siguiente por el lado `desde`", () => {
+    // 30/09 23:00 en Lima — `hasta` ya cae en octubre, `desde` sigue en septiembre.
+    const r = rangoMesHastaHoy("America/Lima", new Date("2026-10-01T04:00:00.000Z"));
+    expect(fechaYMDEnZona(r.desde, "America/Lima")).toBe("2026-09-01");
+    expect(fechaYMDEnZona(r.hasta, "America/Lima")).toBe("2026-10-01");
   });
 });
 
@@ -130,7 +143,7 @@ describe("invariantes de todos los rangos", () => {
     ["ultimos30", () => rangoUltimosDias("America/Santiago", 30, REF_LIMA)],
     ["semana", () => rangoEstaSemana("America/Santiago", REF_LIMA)],
     ["mes", () => rangoEsteMes("America/Santiago", REF_LIMA)],
-    ["mesHastaAhora", () => rangoMesHastaAhora("America/Santiago", REF_LIMA)],
+    ["mesHastaHoy", () => rangoMesHastaHoy("America/Santiago", REF_LIMA)],
   ] as const;
 
   it.each(constructores)("%s cumple desde < hasta", (_nombre, construir) => {

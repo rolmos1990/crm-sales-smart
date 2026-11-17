@@ -82,12 +82,21 @@ export function rangoEsteMes(zonaHoraria: string, referencia: Date = new Date())
 }
 
 /**
- * Del día 1 del mes actual hasta ahora — no hasta el fin del mes, que todavía
- * no pasó. Es el criterio de "Total ventas · mes actual".
+ * Del día 1 del mes actual hasta el final del día de hoy — no hasta el fin del
+ * mes, que todavía no pasó. Es el criterio de "Total ventas · mes actual".
+ *
+ * El límite superior es el inicio de mañana, no el instante actual: cortar en
+ * `ahora` dejaba fuera los pedidos con `fechaPedido` más adelante en el día de
+ * hoy, que sí entran en "Total ventas" del mismo mes — dos KPIs lado a lado
+ * que no cuadraban. Además mantiene la invariante del módulo: el rango es
+ * semiabierto y sus dos extremos son medianoches de la zona de negocio.
  */
-export function rangoMesHastaAhora(zonaHoraria: string, referencia: Date = new Date()): RangoUtc {
-  const { anio, mes } = hoyEnZona(zonaHoraria, referencia);
-  return { desde: inicioDiaEnZona({ anio, mes, dia: 1 }, zonaHoraria), hasta: referencia };
+export function rangoMesHastaHoy(zonaHoraria: string, referencia: Date = new Date()): RangoUtc {
+  const hoy = hoyEnZona(zonaHoraria, referencia);
+  return {
+    desde: inicioDiaEnZona({ anio: hoy.anio, mes: hoy.mes, dia: 1 }, zonaHoraria),
+    hasta: inicioDiaEnZona(sumarDias(hoy, 1), zonaHoraria),
+  };
 }
 
 /**
