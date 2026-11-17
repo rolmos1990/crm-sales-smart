@@ -429,6 +429,24 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
         },
       });
 
+      // `Pedido.fechaEntrega` (columna "Entrega estimada" del listado, su
+      // filtro, los KPIs y Preparación) y `EntregaPedido.fechaEstimada` (lo
+      // que muestra la sección "Entrega y seguimiento" del detalle) son dos
+      // campos distintos que deben quedar siempre con el mismo valor — la
+      // misma trampa que ya cubren actualizarEntregaPedido y
+      // generarPedidoDesdeCotizacion. Sin esto, editar el pedido dejaba el
+      // detalle mostrando la fecha vieja —o una fecha ya borrada— mientras el
+      // listado mostraba la nueva.
+      // `updateMany` y no `update`/`upsert`: si el pedido no tiene entrega
+      // registrada (servicio, entrega digital, o envío aún sin registrar) esto
+      // es un no-op; `update` tiraría P2025 y `upsert` le crearía una entrega
+      // con método por defecto, haciendo aparecer un bloque de envío en un
+      // pedido que nunca lo tuvo.
+      await tx.entregaPedido.updateMany({
+        where: { pedidoId: id },
+        data: { fechaEstimada: fechaEntrega ?? null },
+      });
+
       if (lineasEliminadas.length > 0) {
         await tx.pedidoLinea.deleteMany({ where: { id: { in: lineasEliminadas.map(l => l.id) } } });
       }
