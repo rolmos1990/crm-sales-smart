@@ -365,4 +365,50 @@ test.describe('Inbox agrupado por contacto', () => {
       expect(esBoton).toBeFalsy();
     }
   });
+
+  test('IN-23 Filtrar y buscar no dispara ninguna consulta al servidor (FR-019)', async ({ page }) => {
+    await page.goto('/crm/inbox');
+    await page.waitForTimeout(1500);
+
+    // La agrupación por contacto es un derivado en memoria: ninguna de estas
+    // interacciones puede costar un viaje al servidor. Si alguna vez se cae
+    // en pedir datos al expandir o al filtrar, este test lo caza.
+    const peticiones: string[] = [];
+    page.on('request', (r) => {
+      const u = r.url();
+      if (!/_next\/static|\.(css|js|map|png|svg|ico|woff2?)(\?|$)/.test(u)) peticiones.push(`${r.method()} ${u}`);
+    });
+
+    await page.getByRole('button', { name: /^todos/i }).first().click();
+    await page.waitForTimeout(400);
+    await page.getByRole('button', { name: /^cerradas/i }).first().click();
+    await page.waitForTimeout(400);
+    await page.getByPlaceholder(/buscar conversaciones/i).fill('ab');
+    await page.waitForTimeout(800);
+
+    const cabecera = page.locator('[data-testid="grupo-contacto"] > button[aria-expanded]').first();
+    if (await cabecera.count() > 0) {
+      await cabecera.click();
+      await page.waitForTimeout(300);
+      await cabecera.click();
+      await page.waitForTimeout(300);
+    }
+
+    expect(peticiones, `peticiones inesperadas: ${peticiones.join(' | ')}`).toHaveLength(0);
+  });
+
+  test('IN-24 En pantalla angosta la lista ocupa el ancho completo', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 760 });
+    await page.goto('/crm/inbox');
+    await page.waitForTimeout(1000);
+
+    // El <aside> del Inbox, no el menú lateral de la app: se distingue porque
+    // contiene el buscador.
+    const aside = page
+      .locator('aside')
+      .filter({ has: page.getByPlaceholder(/buscar conversaciones/i) });
+    await expect(aside).toBeVisible();
+    const caja = await aside.boundingBox();
+    expect(caja!.width).toBeGreaterThan(300);
+  });
 });

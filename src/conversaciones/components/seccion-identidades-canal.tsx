@@ -45,7 +45,12 @@ function etiquetaCanal(canal: string): string {
  *  el identificador — con el formato de WhatsApp cuando corresponde, para no
  *  mostrar un JID crudo. */
 function textoIdentidad(identidad: IdentidadCanalResumen): string {
-  if (identidad.handle) return identidad.handle;
+  // El handle se guarda SIN arroba (sale del `username` que devuelve la API de
+  // Instagram, ver el webhook) y el resto del panel lo muestra con ella. Se
+  // normaliza acá para no depender de cómo venga guardado.
+  if (identidad.handle) {
+    return identidad.handle.startsWith("@") ? identidad.handle : `@${identidad.handle}`;
+  }
   if (identidad.canal.startsWith("whatsapp")) {
     return formatearIdentificadorWA(identidad.identificador) || identidad.identificador;
   }

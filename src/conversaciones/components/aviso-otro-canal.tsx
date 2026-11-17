@@ -47,7 +47,10 @@ export function AvisoOtroCanalBanner({
       </span>
 
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-foreground truncate">
+        {/* Sin `truncate`: el nombre del canal es justo el dato por el que
+            existe este aviso, y en una columna angosta era lo primero que se
+            cortaba ("…mensaje nuevo por 035T…"). Preferimos dos líneas. */}
+        <p className="text-xs font-semibold text-foreground leading-snug">
           También hay un mensaje nuevo por {aviso.nombreCanal}.
         </p>
         <p className="text-[11px] text-muted-foreground truncate">
