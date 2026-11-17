@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, SlidersHorizontal, RotateCcw, Download, HelpCircle, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, RotateCcw, Download, HelpCircle, Info, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -116,30 +116,38 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <form onSubmit={handleBuscarSubmit} className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 dark:text-stone-500" />
-          <Input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            onBlur={() => actualizarParam("q", busqueda || null)}
-            placeholder="Buscar pedido, cliente o número..."
-            className="pl-9 bg-white dark:bg-white/5 border-stone-200 dark:border-white/10 rounded-xl"
+      {/* Panel de filtros: superficie apenas distinta a la de la página, para
+          agrupar los controles sin competir con las KPIs ni con la tabla. */}
+      <div className="flex flex-col gap-2.5 rounded-xl border border-border-subtle bg-surface-1 p-3">
+        {/* Fila 1 — búsqueda amplia + rango de fechas */}
+        <div className="flex flex-wrap items-center gap-2">
+          <form onSubmit={handleBuscarSubmit} className="relative min-w-[240px] flex-1 sm:max-w-lg">
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              onBlur={() => actualizarParam("q", busqueda || null)}
+              placeholder="Buscar pedido, cliente o número..."
+              className="pl-9"
+            />
+          </form>
+
+          <FiltroRangoFechas
+            valor={rangoPedido}
+            onChange={handleRangoPedido}
+            zonaNegocio={zonaNegocio}
+            placeholder="Todas las fechas"
+            presets={PRESETS_RANGO_PASADO}
+            align="start"
+            className="shrink-0"
           />
-        </form>
+        </div>
 
-        <FiltroRangoFechas
-          valor={rangoPedido}
-          onChange={handleRangoPedido}
-          zonaNegocio={zonaNegocio}
-          placeholder="Todas las fechas"
-          presets={PRESETS_RANGO_PASADO}
-          align="start"
-        />
-
+        {/* Fila 2 — estado, método, entrega estimada, más filtros, limpiar */}
+        <div className="flex flex-wrap items-center gap-2">
         {hayFlujoDinamico ? (
           <Select value={filtros.etapa ?? "todos"} onValueChange={(v) => actualizarParam("etapa", v === "todos" ? null : v)}>
-            <SelectTrigger className="w-[180px] rounded-xl">
+            <SelectTrigger className="w-[190px]">
               <SelectValue>
                 {etapaSeleccionada ? etapaSeleccionada.nombre : "Estado: Todos"}
               </SelectValue>
@@ -158,7 +166,7 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
           </Select>
         ) : (
           <Select value={filtros.estado ?? "todos"} onValueChange={(v) => actualizarParam("estado", v === "todos" ? null : v)}>
-            <SelectTrigger className="w-[170px] rounded-xl">
+            <SelectTrigger className="w-[190px]">
               <SelectValue>
                 {filtros.estado
                   ? (ESTADO_PEDIDO_CONFIG[filtros.estado as EstadoPedido]?.etiqueta ?? filtros.estado)
@@ -175,7 +183,7 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
         )}
 
         <Select value={filtros.metodo ?? "todos"} onValueChange={(v) => actualizarParam("metodo", v === "todos" ? null : v)}>
-          <SelectTrigger className="w-[190px] rounded-xl">
+          <SelectTrigger className="w-[200px]">
             <SelectValue>
               {filtros.metodo
                 ? (METODO_ENTREGA_LABELS[filtros.metodo] ?? filtros.metodo)
@@ -191,8 +199,8 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
         </Select>
 
         {/* Entrega estimada — segmented control compacto, no 4 botones sueltos */}
-        <div className="flex items-center gap-1.5 rounded-xl border border-stone-200 dark:border-white/10 bg-white dark:bg-white/5 p-1">
-          <span className="hidden lg:inline pl-1.5 pr-0.5 text-xs text-stone-400 dark:text-stone-500">Entrega estimada</span>
+        <div className="flex h-8 items-center gap-1 rounded-lg border border-input bg-background p-1 dark:bg-input/30">
+          <span className="hidden pr-0.5 pl-1.5 text-xs text-muted-foreground lg:inline">Entrega estimada</span>
           {ENTREGA_OPCIONES.map((op) => {
             const activo = entregaActiva === op.valor;
             return (
@@ -201,7 +209,7 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
                 type="button"
                 onClick={() => seleccionarEntrega(op.valor)}
                 className={cn(
-                  "px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap",
+                  "rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors",
                   activo
                     ? op.valor === "todos"
                       ? "bg-muted text-foreground"
@@ -226,16 +234,16 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
         </div>
 
         <Popover open={masFiltrosAbierto} onOpenChange={setMasFiltrosAbierto}>
-          <PopoverTrigger className={cn(buttonVariants({ variant: "outline" }), "rounded-xl gap-2")}>
+          <PopoverTrigger className={cn(buttonVariants({ variant: "outline" }), "gap-2")}>
             <SlidersHorizontal className="h-4 w-4" />
             Más filtros
             {(filtros.contactoId || filtros.productoId) && (
-              <span className="h-1.5 w-1.5 rounded-full bg-lime-500" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
             )}
           </PopoverTrigger>
           <PopoverContent align="end" className="w-80 p-4 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide">
+              <label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 Cliente (Contacto)
               </label>
               <Combobox
@@ -247,7 +255,7 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide">
+              <label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 Producto
               </label>
               <Combobox
@@ -261,13 +269,6 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
           </PopoverContent>
         </Popover>
 
-        {hayFiltros && (
-          <Button variant="ghost" onClick={limpiarFiltros} className="gap-1.5 text-stone-500 dark:text-stone-400">
-            <RotateCcw className="h-3.5 w-3.5" />
-            Limpiar filtros
-          </Button>
-        )}
-
         {/* Los controles siguen habilitados mientras carga, para poder
             encadenar cambios sin esperar cada round-trip. */}
         {actualizando && (
@@ -276,13 +277,22 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
             Actualizando…
           </span>
         )}
+
+        {hayFiltros && (
+          <Button variant="ghost" onClick={limpiarFiltros} className="ml-auto gap-1.5 text-muted-foreground">
+            <RotateCcw className="h-3.5 w-3.5" />
+            Limpiar filtros
+          </Button>
+        )}
+        </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-xl border border-dashed border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/[0.03] px-4 py-2.5">
-        <p className="text-xs text-stone-500 dark:text-stone-400">
-          💡 Tip: puedes exportar tus pedidos filtrados desde el menú de acciones.
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-dashed border-border-subtle bg-background-subtle px-3 py-2">
+        <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Info className="h-3.5 w-3.5 shrink-0" />
+          Tip: puedes exportar tus pedidos filtrados desde el menú de acciones.
         </p>
-        <div className="flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-3">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger
@@ -293,8 +303,8 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
                 onClick={cerradosForzados ? undefined : () => onCambiar({ cerrados: !verCerrados })}
               >
                 <Checkbox checked={verCerrados || cerradosForzados} className="pointer-events-none" />
-                <span className="text-xs font-medium text-stone-600 dark:text-stone-300">Ver cerrados</span>
-                <HelpCircle className="h-3.5 w-3.5 text-stone-400 dark:text-stone-500" />
+                <span className="text-xs font-medium text-foreground">Ver cerrados</span>
+                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-xs">
                 {cerradosForzados

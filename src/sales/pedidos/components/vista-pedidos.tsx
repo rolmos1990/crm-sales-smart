@@ -56,11 +56,11 @@ export function VistaPedidos({ inicial, contactos, productos, etapasFlujo, zonaN
       <ZonaResultados actualizando={actualizando}>
         <PedidosKpiCards kpis={datos.kpis} moneda={moneda} hayRangoFecha={datos.hayRangoFecha} etiquetaMesActual={etiquetaMesActual} />
         {datos.pedidos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-stone-200 dark:border-white/10 py-16">
-            <div className="h-12 w-12 rounded-2xl bg-stone-100 dark:bg-white/5 flex items-center justify-center">
-              <SearchX className="h-5 w-5 text-stone-300 dark:text-stone-600" />
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-subtle py-16">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+              <SearchX className="h-5 w-5 text-muted-foreground" />
             </div>
-            <p className="text-sm font-medium text-stone-500 dark:text-stone-400">
+            <p className="text-sm font-medium text-muted-foreground">
               {datos.hayFiltrosActivos
                 ? "No encontramos pedidos con estos filtros."
                 : "Todos tus pedidos están cerrados (entregados o cancelados)."}
