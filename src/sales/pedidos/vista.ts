@@ -1,7 +1,7 @@
 import "server-only";
 
 import { obtenerPedidos, obtenerPedidosKpis, type PedidosFiltros, type PedidosKpis } from "./queries";
-import { rangoHoy, rangoManana, rangoMesHastaAhora } from "@/shared/fechas/rangos";
+import { rangoHoy, rangoManana, rangoMesHastaHoy } from "@/shared/fechas/rangos";
 import { parsearExtremosDeSearchParams } from "@/shared/fechas/searchparams";
 import type { FiltrosVistaPedidos } from "./schema";
 import type { Pedido } from "./types";
@@ -94,7 +94,7 @@ export async function cargarVistaPedidos(
 
   const [datos, kpis] = await Promise.all([
     obtenerPedidos(instanciaId, filtros),
-    obtenerPedidosKpis(instanciaId, filtros, rangoMesHastaAhora(zonaHoraria)),
+    obtenerPedidosKpis(instanciaId, filtros, rangoMesHastaHoy(zonaHoraria)),
   ]);
 
   const pedidos = datos.map((p) => ({

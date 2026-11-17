@@ -1,5 +1,6 @@
 import { prisma } from "@/shared/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { aFiltroPrisma, type RangoUtc } from "@/shared/fechas/rangos";
 import { obtenerEtapasFlujoActivo } from "@/sales/flujo-venta/queries";
 import { ocultarCodigo } from "@/shared/lib/codigo-sensible";
 
@@ -149,9 +150,9 @@ export async function obtenerPedidos(instanciaId: string, filtros?: PedidosFiltr
 export interface PedidosKpis {
   totalPedidos: number;
   totalVentas: number;
-  /** Suma de `total` con fechaPedido entre el 1° del mes actual y ahora —
-   *  siempre ese rango exacto, sin importar filtros de fecha/entrega
-   *  aplicados en pantalla (ver rangoMesActual). */
+  /** Suma de `total` con fechaPedido entre el 1° del mes actual y el final
+   *  del día de hoy — siempre ese rango exacto, sin importar filtros de
+   *  fecha/entrega aplicados en pantalla (ver rangoMesActual). */
   totalVentasMesActual: number;
   pendientes: number;
   expirados: number;
@@ -172,13 +173,13 @@ export interface PedidosKpis {
  * dinámico, se usa el enum legacy como siempre.
  *
  * `rangoMesActual` viene ya resuelto en la zona horaria de negocio (ver
- * utils/fechas-zona.ts) — esta función no calcula fechas, solo agrega en BD
+ * rangoMesHastaHoy) — esta función no calcula fechas, solo agrega en BD
  * (SUM/COUNT), nunca trae los pedidos completos a memoria para sumarlos.
  */
 export async function obtenerPedidosKpis(
   instanciaId: string,
   filtros: PedidosFiltros | undefined,
-  rangoMesActual: { desde: Date; hasta: Date }
+  rangoMesActual: RangoUtc
 ): Promise<PedidosKpis> {
   const where = construirWhere(instanciaId, filtros);
   // "Total ventas · mes actual" usa las mismas condiciones no-relacionadas a
@@ -188,7 +189,9 @@ export async function obtenerPedidosKpis(
   // "ventas del mes actual según fecha de pedido".
   const whereMesActual: Prisma.PedidoWhereInput = {
     ...construirWhereBase(instanciaId, filtros),
-    fechaPedido: { gte: rangoMesActual.desde, lte: rangoMesActual.hasta },
+    // Semiabierto como todo rango de día del proyecto: `hasta` es el inicio de
+    // mañana en la zona de negocio, nunca un `lte` sobre un límite de día.
+    fechaPedido: aFiltroPrisma(rangoMesActual),
   };
   const ahora = new Date();
 

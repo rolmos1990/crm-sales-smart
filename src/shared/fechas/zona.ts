@@ -171,20 +171,6 @@ export function rangoDiaEnZona(
   return { desde, hasta };
 }
 
-/**
- * Rango [primer día del mes actual 00:00, ahora] en la zona horaria de
- * negocio — usado para "Total ventas · mes actual". El límite superior es
- * el instante actual, no el fin del mes (todavía no pasó).
- */
-export function rangoMesActualEnZona(
-  zonaHoraria: string,
-  referencia: Date = new Date(),
-): { desde: Date; hasta: Date } {
-  const { anio, mes } = hoyEnZona(zonaHoraria, referencia);
-  const desde = inicioDiaEnZona({ anio, mes, dia: 1 }, zonaHoraria);
-  return { desde, hasta: referencia };
-}
-
 // ── Conversiones de borde ───────────────────────────────────────────────────
 
 /** "YYYY-MM-DD" de una fecha, tal como se ve en la zona horaria dada — para

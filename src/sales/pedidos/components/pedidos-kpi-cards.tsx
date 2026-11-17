@@ -34,8 +34,8 @@ export function PedidosKpiCards({ kpis, moneda, hayRangoFecha, etiquetaMesActual
       bgIcono: "bg-sky-500/10 ring-1 ring-sky-500/20",
     },
     {
-      // Siempre 1° del mes actual → hoy, sin importar filtros de fecha
-      // activos en pantalla (ver obtenerPedidosKpis / rangoMesActualEnZona).
+      // Siempre 1° del mes actual → fin del día de hoy, sin importar filtros
+      // de fecha activos en pantalla (ver obtenerPedidosKpis / rangoMesHastaHoy).
       etiqueta: "Total ventas · mes actual",
       valor: formatearMoneda(kpis.totalVentasMesActual, moneda),
       subvalor: `${etiquetaMesActual} · hasta hoy`,
