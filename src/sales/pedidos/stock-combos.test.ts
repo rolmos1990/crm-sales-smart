@@ -96,6 +96,10 @@ vi.mock("@/shared/db/prisma", () => ({
     $transaction: (cb: (tx: unknown) => unknown) =>
       cb({
         pedido: { update: () => Promise.resolve({}) },
+        // 036 — editarPedido sincroniza EntregaPedido.fechaEstimada con
+        // Pedido.fechaEntrega; acá ningún caso tiene entrega registrada, así
+        // que el doble devuelve el no-op que daría Prisma (count: 0).
+        entregaPedido: { updateMany: () => Promise.resolve({ count: 0 }) },
         pedidoLinea: {
           deleteMany: () => Promise.resolve({}),
           create: ({ data }: { data: Record<string, unknown> }) => {
