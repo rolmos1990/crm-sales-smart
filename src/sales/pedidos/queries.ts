@@ -7,7 +7,9 @@ import { ocultarCodigo } from "@/shared/lib/codigo-sensible";
 const incluirRelaciones = {
   contacto: { select: { id: true, nombre: true, apellido: true, email: true, telefonoPrincipal: true, telefonoSecundario: true, cargo: true } },
   empresa: { select: { id: true, nombre: true, ruc: true, industria: true, telefono: true, email: true, sitioWeb: true } },
-  entrega: { select: { metodoEntrega: true } },
+  // `nombreDestinatario` alimenta el chip "Recibe" de la columna Cliente
+  // (037): quién recibe el envío, que no siempre es quien compra.
+  entrega: { select: { metodoEntrega: true, nombreDestinatario: true } },
   // 026-preparacion-pedidos — eje independiente del estado comercial. Es
   // nullable a propósito: una instancia que no usa Preparación ve la lista y
   // el detalle exactamente como antes (FR-026).
