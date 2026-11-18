@@ -55,6 +55,22 @@ export interface LineaPreparacion {
   completa: boolean;
 }
 
+/** Datos de despacho que se muestran en la tarjeta: lo que hace falta para
+ *  armar y rotular el paquete sin abrir el pedido. Salen de `EntregaPedido`,
+ *  salvo el teléfono, que cae al del contacto si el pedido no trae uno. */
+export interface DatosEntregaTarjeta {
+  /** Valor crudo de `MetodoEntrega`; la etiqueta la resuelve la UI con
+   *  METODO_ENTREGA_LABELS. */
+  metodoEntrega: string | null;
+  transportista: string | null;
+  nombreDestinatario: string | null;
+  identificacion: string | null;
+  telefono: string | null;
+  /** Dirección ya compuesta: calle, sector, corregimiento y ciudad. */
+  direccion: string | null;
+  observaciones: string | null;
+}
+
 export interface TarjetaPreparacion {
   pedidoId: string;
   numero: string;
@@ -73,6 +89,7 @@ export interface TarjetaPreparacion {
   totalUnidades: number;
   totalProductos: number;
   avanceCompleto: boolean;
+  datosEntrega: DatosEntregaTarjeta;
   /** Entrega vencida (fechaEntrega anterior a hoy). Se muestra en cualquier
    *  rango: los rangos miran hacia adelante y un pedido atrasado quedaría
    *  invisible justo cuando más urge. */

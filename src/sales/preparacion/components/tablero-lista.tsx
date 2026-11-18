@@ -4,6 +4,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { METODO_ENTREGA_LABELS } from "@/sales/pedidos/constantes";
 import type { ColumnaTablero, TarjetaPreparacion as Tarjeta } from "../types";
 
 interface Props {
@@ -32,6 +33,9 @@ export function TableroLista({ columnas }: Props) {
           <tr>
             <th className="px-3 py-2 font-medium">Pedido</th>
             <th className="px-3 py-2 font-medium">Cliente</th>
+            <th className="px-3 py-2 font-medium">Envío</th>
+            <th className="px-3 py-2 font-medium">Recibe</th>
+            <th className="px-3 py-2 font-medium">Dirección y observaciones</th>
             <th className="px-3 py-2 font-medium">Estado de preparación</th>
             <th className="px-3 py-2 font-medium">Avance</th>
             <th className="px-3 py-2 font-medium">Entrega</th>
@@ -49,6 +53,28 @@ export function TableroLista({ columnas }: Props) {
                   </Link>
                 </td>
                 <td className="px-3 py-2 text-foreground">{tarjeta.cliente}</td>
+                <td className="px-3 py-2 text-xs">
+                  <Celda
+                    principal={
+                      tarjeta.datosEntrega.metodoEntrega
+                        ? (METODO_ENTREGA_LABELS[tarjeta.datosEntrega.metodoEntrega] ??
+                          tarjeta.datosEntrega.metodoEntrega)
+                        : null
+                    }
+                    secundario={tarjeta.datosEntrega.transportista}
+                  />
+                </td>
+                <td className="px-3 py-2 text-xs">
+                  <Celda
+                    principal={tarjeta.datosEntrega.nombreDestinatario}
+                    secundario={[tarjeta.datosEntrega.identificacion, tarjeta.datosEntrega.telefono]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  />
+                </td>
+                <td className="max-w-[18rem] px-3 py-2 text-xs">
+                  <Celda principal={tarjeta.datosEntrega.direccion} secundario={tarjeta.datosEntrega.observaciones} />
+                </td>
                 <td className="px-3 py-2">
                   {estado ? (
                     <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
@@ -79,6 +105,18 @@ export function TableroLista({ columnas }: Props) {
         resto por columna.
       </p>
     )}
+    </div>
+  );
+}
+
+/** Dos líneas por celda: el dato principal y su detalle en muted. Si no hay
+ *  ninguno, un guion — la fila nunca queda con una celda vacía sin explicar. */
+function Celda({ principal, secundario }: { principal?: string | null; secundario?: string | null }) {
+  if (!principal && !secundario) return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="space-y-0.5">
+      {principal && <p className="break-words text-foreground">{principal}</p>}
+      {secundario && <p className="break-words text-muted-foreground">{secundario}</p>}
     </div>
   );
 }
