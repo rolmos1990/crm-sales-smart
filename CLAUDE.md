@@ -218,6 +218,29 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
    Detalle completo, tabla de trampas y justificación de por qué no se migró a
    `@db.Date`: **`docs/fechas-y-zonas-horarias.md`** — leerlo antes de tocar
    cualquier fecha.
+
+   **Pedido tiene tres ejes de fecha y cada KPI usa el suyo** (038):
+   `fechaPedido` (la lista y "Total pedidos"), `fechaEntrega`
+   ("Pendientes"/"Expirados") y `fechaVenta` ("Total ventas" y
+   "Total ventas · mes actual"). Equivocarse de eje no rompe nada visible:
+   solo da un número mal.
+
+   `fechaVenta` **se sella una sola vez**: la primera vez que el pedido entra
+   a una etapa con `cuentaComoVenta`. Si hay varias marcadas, manda la
+   primera a la que llegó; avanzar después a otra que también cuenta NO mueve
+   la fecha, y volver a una que no cuenta tampoco la borra. En el `data` de
+   Prisma, "no tocar" es `undefined` — nunca `null`, que la borraría.
+
+   Se escribe **siempre en el mismo `update`/`create` que
+   `flujoVentaEtapaId`**, en la misma transacción y con el mismo objeto
+   `Date` que la fila de `PedidoHistorialEtapa`. Son cuatro sitios: creación
+   manual del pedido, conversión desde cotización, motor de etapas y ejecutor
+   de disparadores. **Si agregás un quinto, tiene que sellarla también** — un
+   pedido sin esa fecha queda fuera de todo total filtrado por rango, sin
+   ningún error.
+
+   `Pedido.fechaExpiracion` ya no existe: un pedido no expira. No confundir
+   con `Cotizacion.fechaVencimiento` ni con `EntregaDigitalPedido.fechaExpiracion`.
 8. **Documentación del agente IA**: los archivos que el negocio sube para su
    agente se indexan en un **vector store de OpenAI por instancia**
    (`Instancia.vectorStoreDocumentacionId`, creado solo la primera vez que la
@@ -286,7 +309,30 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
      `aprobacion/actions.ts`.
 
    Detalle completo en `specs/034-canal-correo-electronico/`.
-10. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
+10. **"Cuenta como Venta" se deriva, nunca se persiste** (038): qué pedidos
+    suman en "Total ventas" sale de leer `FlujoVentaEtapa.cuentaComoVenta` en
+    **cada consulta** (`construirCondicionVenta` en
+    `src/sales/pedidos/condicion-venta.ts`). Esa es la razón por la que marcar
+    o desmarcar una etapa cambia los totales en el siguiente render, sin
+    recálculo ni migración. Copiar el flag al `Pedido` "para optimizar"
+    destruye esa garantía entera.
+
+    El caso que una refactorización rompe sin que nadie lo note: con flujo
+    dinámico y ninguna etapa marcada, la condición es `{ in: [] }` y los
+    totales dan 0. "Simplificarlo" a `{}` hace que vuelvan a sumar **todos**
+    los pedidos — el problema exacto que 038 corrige — y los tests de las
+    demás etapas siguen pasando. Hay un test dedicado a ese caso; no borrarlo.
+
+    Mismo criterio que Preparación de Pedidos (`src/sales/preparacion/utils/entrada.ts:11`).
+
+    **La fecha es el caso contrario y conviene no mezclarlos**: `fechaVenta`
+    sí se materializa y sí queda atada a la configuración vigente al sellarse.
+    Marcar más adelante una etapa anterior del flujo no reescribe los pedidos
+    ya sellados. Es una diferencia deliberada, no una inconsistencia.
+
+    Detalle: `specs/038-cuenta-como-venta/`.
+
+11. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
 
 ---
 

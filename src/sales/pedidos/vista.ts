@@ -94,7 +94,16 @@ export async function cargarVistaPedidos(
 
   const [datos, kpis] = await Promise.all([
     obtenerPedidos(instanciaId, filtros),
-    obtenerPedidosKpis(instanciaId, filtros, rangoMesHastaHoy(zonaHoraria)),
+    // Las dos fechas van resueltas en la zona de negocio: la query no calcula
+    // fechas (CLAUDE.md §7). `rangoHoy().desde` es el corte de "Pendientes" vs
+    // "Expirados" — inicio del día local, no el instante actual, para que un
+    // pedido con entrega HOY siga contando como pendiente todo el día (038).
+    obtenerPedidosKpis(
+      instanciaId,
+      filtros,
+      rangoMesHastaHoy(zonaHoraria),
+      rangoHoy(zonaHoraria).desde,
+    ),
   ]);
 
   const pedidos = datos.map((p) => ({

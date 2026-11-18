@@ -50,7 +50,7 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
 
   let inicial: DatosVistaPedidos = {
     pedidos: [],
-    kpis: { totalPedidos: 0, totalVentas: 0, totalVentasMesActual: 0, pendientes: 0, expirados: 0, entregados: 0 },
+    kpis: { totalPedidos: 0, totalVentas: 0, totalVentasMesActual: 0, pendientes: 0, expirados: 0, ventas: 0 },
     cerradosForzados: false,
     hayFiltrosActivos: false,
     hayRangoFecha: false,

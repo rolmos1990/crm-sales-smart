@@ -59,28 +59,6 @@ function EntregaEstimadaCell({ pedido, zonaHoraria }: { pedido: Pedido; zonaHora
   );
 }
 
-function ExpiracionCell({ pedido }: { pedido: Pedido }) {
-  if (!pedido.fechaExpiracion) return <span className="text-muted-foreground">—</span>;
-
-  const fecha = new Date(pedido.fechaExpiracion);
-  const cerrado = pedido.estado === "ENTREGADO" || pedido.estado === "CANCELADO";
-  const vencido = !cerrado && fecha < new Date();
-  const porVencer = !cerrado && !vencido && fecha.getTime() - Date.now() < 3 * 86400000; // < 3 días
-
-  return (
-    <span
-      className={cn(
-        "text-sm font-medium",
-        vencido && "text-danger",
-        porVencer && "text-warning",
-        (cerrado || (!vencido && !porVencer)) && "text-success"
-      )}
-    >
-      <FechaHora valor={fecha} modo="fecha" />
-    </span>
-  );
-}
-
 type EtapaResumen = { id: string; nombre: string; color: string | null; esFinal: boolean; esCancelacion: boolean; esSecuencial: boolean; orden: number; parentId: string | null } | null;
 
 function EstadoBadge({ estado, etapa }: { estado: EstadoPedido; etapa: EtapaResumen }) {
@@ -300,11 +278,6 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
     ),
     cell: ({ row }) => <EntregaEstimadaCell pedido={row.original} zonaHoraria={zonaHoraria} />,
     sortUndefined: "last",
-  },
-  {
-    id: "fechaExpiracion",
-    header: "Expiración",
-    cell: ({ row }) => <ExpiracionCell pedido={row.original} />,
   },
   ];
 }

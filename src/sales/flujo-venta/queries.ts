@@ -13,7 +13,10 @@ export async function obtenerEtapasFlujoActivo(instanciaId: string) {
     select: {
       etapas: {
         where: { activo: true },
-        select: { id: true, esFinal: true, esCancelacion: true },
+        // `cuentaComoVenta` se lee acá en cada consulta y nunca se copia al
+        // Pedido: así, marcar o desmarcar una etapa se refleja en los KPIs
+        // en el siguiente render, sin recálculo ni migración (038 FR-008).
+        select: { id: true, esFinal: true, esCancelacion: true, cuentaComoVenta: true },
       },
     },
   });

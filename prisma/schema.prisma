@@ -1653,9 +1653,6 @@ model Pedido {
 
   fechaPedido      DateTime     @default(now())
   fechaEntrega     DateTime?
-  // Fecha límite para tener en cuenta el pedido (deadline configurable por el
-  // usuario) — usada para las métricas "Pendientes"/"Expirados" del listado.
-  fechaExpiracion  DateTime?
   subtotal         Decimal      @default(0)
   descuento        Decimal      @default(0)
   impuesto         Decimal      @default(0)
@@ -1708,6 +1705,27 @@ model Pedido {
   flujoVentaEtapaId String?
   flujoVentaEtapa   FlujoVentaEtapa? @relation(fields: [flujoVentaEtapaId], references: [id])
 
+  // 038 — cuándo el pedido se volvió venta. Es el eje de fecha de "Total
+  // ventas": una venta se atribuye al período en que se concretó, no al que
+  // se creó el pedido.
+  //
+  // SE SELLA UNA SOLA VEZ: la primera vez que el pedido entra a una etapa con
+  // `cuentaComoVenta`, y no se vuelve a tocar. Si hay varias etapas marcadas
+  // (p. ej. "Pagado" y "Entregado"), manda la primera a la que llegó; pasar
+  // después a la segunda NO mueve la fecha. Tampoco se borra si el pedido
+  // vuelve a una etapa que no cuenta: deja de sumar —la pertenencia se deriva
+  // siempre de la etapa ACTUAL— pero conserva cuándo se vendió.
+  //
+  // Consecuencia a tener presente: al sellarse con la configuración vigente,
+  // marcar más adelante una etapa ANTERIOR del flujo no reescribe los pedidos
+  // ya sellados; solo aplica a los que todavía no cruzaron. Si alguna vez hace
+  // falta recalcular, se reconstruye desde PedidoHistorialEtapa.
+  //
+  // Se escribe en el mismo update/create que `flujoVentaEtapaId` —desde los
+  // cuatro sitios que mueven un pedido de etapa— con el mismo instante que la
+  // fila de PedidoHistorialEtapa.
+  fechaVenta DateTime?
+
   lineas          PedidoLinea[]
   campos          CampoPersonalizadoValor[]
   historialEtapas PedidoHistorialEtapa[]
@@ -1735,6 +1753,10 @@ model Pedido {
   // es justo lo que un B-tree puede aprovechar.
   @@index([instanciaId, fechaPedido])
   @@index([instanciaId, fechaEntrega])
+  // 038 — eje de "Total ventas"/"Total ventas · mes actual". Mismo criterio
+  // que los dos de arriba: instanciaId primero y rango semiabierto sobre la
+  // columna cruda, que es lo que el B-tree puede aprovechar.
+  @@index([instanciaId, fechaVenta])
 }
 
 model PedidoLinea {
@@ -2321,6 +2343,15 @@ model FlujoVentaEtapa {
   esSecuencial         Boolean  @default(true)
   permiteEditarPedido  Boolean  @default(true)
   permiteEditarEntrega Boolean  @default(false)
+  // 038 — los pedidos cuya etapa actual tenga esto en true cuentan en "Total
+  // ventas" y "Total ventas · mes actual" del listado de Pedidos.
+  //
+  // Se lee SIEMPRE en vivo y NUNCA se copia al Pedido, y eso es el requisito,
+  // no un detalle: al no persistir lo que depende de la configuración, marcar
+  // o desmarcar una etapa se refleja en los KPIs en la siguiente consulta,
+  // sin recálculo ni migración. Mismo criterio que
+  // src/sales/preparacion/utils/entrada.ts:11.
+  cuentaComoVenta      Boolean  @default(false)
   activo               Boolean  @default(true)
   creadoEn             DateTime @default(now())
   actualizadoEn        DateTime @updatedAt

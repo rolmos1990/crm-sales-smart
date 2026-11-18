@@ -19,7 +19,6 @@ export interface Pedido {
   estado: EstadoPedido;
   fechaPedido: Date;
   fechaEntrega: Date | null;
-  fechaExpiracion: Date | null;
   subtotal: number;
   descuento: number;
   impuesto: number;

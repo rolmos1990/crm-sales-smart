@@ -2,6 +2,7 @@ import { prisma } from "@/shared/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { aFiltroPrisma, type RangoUtc } from "@/shared/fechas/rangos";
 import { obtenerEtapasFlujoActivo } from "@/sales/flujo-venta/queries";
+import { construirCondicionAbiertos, construirCondicionVenta } from "./condicion-venta";
 import { ocultarCodigo } from "@/shared/lib/codigo-sensible";
 
 const incluirRelaciones = {
@@ -106,6 +107,49 @@ function construirWhere(instanciaId: string, filtros?: PedidosFiltros): Prisma.P
   return where;
 }
 
+/**
+ * `where` de los KPIs de dinero (038). Mismos filtros no-fecha que el resto
+ * —reutiliza `construirWhereBase`, no los duplica— pero con el eje de fecha
+ * puesto en `fechaVenta`: una venta pertenece al período en que se
+ * CONCRETÓ, no a aquel en que se creó el pedido (FR-017).
+ *
+ * El filtro de entrega estimada se sigue aplicando como predicado
+ * independiente: acota qué pedidos mirar, no afirma cuándo ocurrió la venta
+ * (research.md Decisión 5).
+ *
+ * `condicionVenta` entra por `AND` y no por spread porque puede chocar con el
+ * `flujoVentaEtapaId` que el usuario eligió en la barra de filtros; con
+ * spread uno pisaría al otro en silencio.
+ */
+export function construirWhereVentas(
+  instanciaId: string,
+  filtros: PedidosFiltros | undefined,
+  condicionVenta: Prisma.PedidoWhereInput,
+  rangoForzado?: RangoUtc,
+): Prisma.PedidoWhereInput {
+  const where = construirWhereBase(instanciaId, filtros);
+
+  if (filtros?.entregaDesde || filtros?.entregaHasta) {
+    where.fechaEntrega = {
+      ...(filtros.entregaDesde ? { gte: filtros.entregaDesde } : {}),
+      ...(filtros.entregaHasta ? { lt: filtros.entregaHasta } : {}),
+    };
+  }
+
+  if (rangoForzado) {
+    where.fechaVenta = aFiltroPrisma(rangoForzado);
+  } else if (filtros?.desde || filtros?.hasta) {
+    // Semiabierto como todo rango del proyecto: `hasta` es el inicio del día
+    // siguiente, nunca un `lte` sobre un límite de día.
+    where.fechaVenta = {
+      ...(filtros.desde ? { gte: filtros.desde } : {}),
+      ...(filtros.hasta ? { lt: filtros.hasta } : {}),
+    };
+  }
+
+  return { ...where, AND: [condicionVenta] };
+}
+
 // Fragmento reutilizable para traer oportunidad + sus campos dinámicos del pipeline
 const incluirOportunidadConCampos = {
   select: {
@@ -151,84 +195,109 @@ export async function obtenerPedidos(instanciaId: string, filtros?: PedidosFiltr
 
 export interface PedidosKpis {
   totalPedidos: number;
+  /** Suma de `total - costoEnvio` de los pedidos que CUENTAN COMO VENTA: los
+   *  que están en una etapa marcada `cuentaComoVenta` (038). Su eje de fecha
+   *  es `fechaVenta`, no `fechaPedido`. */
   totalVentas: number;
-  /** Suma de `total` con fechaPedido entre el 1° del mes actual y el final
-   *  del día de hoy — siempre ese rango exacto, sin importar filtros de
-   *  fecha/entrega aplicados en pantalla (ver rangoMesActual). */
+  /** Igual que `totalVentas`, con el rango forzado del 1° del mes actual al
+   *  final del día de hoy — siempre ese rango exacto, sin importar los
+   *  filtros de fecha/entrega aplicados en pantalla (ver rangoMesActual). */
   totalVentasMesActual: number;
   pendientes: number;
   expirados: number;
-  entregados: number;
+  /** Cantidad de pedidos que cuentan como venta — misma población que
+   *  `totalVentas`, para que el conteo y los montos hablen de lo mismo
+   *  (038 FR-012). Antes era "entregados". */
+  ventas: number;
 }
 
 /**
- * KPIs del listado — "Pendientes"/"Expirados" se calculan contra
- * `fechaExpiracion` (el límite que el usuario le da al pedido, no la fecha
- * de entrega): pendientes = todavía no vence y no está cerrado; expirados =
- * ya venció y sigue sin cerrarse (ni entregado ni cancelado).
+ * KPIs del listado.
  *
- * "Cerrado"/"Entregado" se determina por Flujo de Venta dinámico si el
- * tenant tiene uno activo (etapas con esFinal/esCancelacion — mutuamente
- * excluyentes, ver panel-config-etapas.tsx) en vez del enum `estado`, que
+ * 038 — conviven DOS poblaciones distintas acá, y confundirlas es el error
+ * esperable:
+ *
+ *  - Las tarjetas de dinero ("Total ventas", "Total ventas · mes actual") y
+ *    el conteo "Ventas" miran SOLO los pedidos que cuentan como venta: los
+ *    que están en una etapa marcada `cuentaComoVenta`. Su eje de fecha es
+ *    `fechaVenta` —cuándo se concretó la venta—, no `fechaPedido`.
+ *  - "Total pedidos", "Pendientes" y "Expirados" miran la población completa
+ *    del filtro, con `fechaPedido` como eje.
+ *
+ * Que la lista y las tarjetas de dinero muestren poblaciones distintas con un
+ * rango activo es deliberado: un pedido creado en octubre y vendido en
+ * noviembre suma en noviembre y no aparece en la lista de noviembre. Por eso
+ * esas tarjetas dicen "Vendidos en este rango" (research.md Decisión 4).
+ *
+ * `cuentaComoVenta` se lee de la configuración VIGENTE en cada llamada y
+ * nunca se persiste en el Pedido: por eso marcar o desmarcar una etapa cambia
+ * los totales en el siguiente render, sin recálculo ni migración (FR-008).
+ *
+ * "Cerrado" se determina por Flujo de Venta dinámico si el tenant tiene uno
+ * activo (etapas con esFinal/esCancelacion) en vez del enum `estado`, que
  * queda congelado al mover un pedido por el flujo y no sirve para esto (ver
  * motor.ts:_moverInterno, que solo actualiza flujoVentaEtapaId). Sin flujo
- * dinámico, se usa el enum legacy como siempre.
+ * dinámico se usa el enum legacy, como siempre.
  *
- * `rangoMesActual` viene ya resuelto en la zona horaria de negocio (ver
- * rangoMesHastaHoy) — esta función no calcula fechas, solo agrega en BD
- * (SUM/COUNT), nunca trae los pedidos completos a memoria para sumarlos.
+ * "Pendientes"/"Expirados" se calculan contra `fechaEntrega` (la entrega
+ * estimada): pendientes = abiertos con entrega de hoy en adelante; expirados
+ * = abiertos cuya entrega ya pasó. El corte es el INICIO del día de negocio,
+ * no `ahora`: con un corte por instante, un pedido con entrega HOY pasaría a
+ * "expirado" a la medianoche UTC, que puede caer en mitad del día local.
+ *
+ * `rangoMesActual` e `inicioDiaHoy` llegan ya resueltos en la zona horaria de
+ * negocio (ver rangoMesHastaHoy y rangoHoy) — esta función no calcula fechas,
+ * solo agrega en BD (SUM/COUNT), nunca trae los pedidos a memoria.
  */
 export async function obtenerPedidosKpis(
   instanciaId: string,
   filtros: PedidosFiltros | undefined,
-  rangoMesActual: RangoUtc
+  rangoMesActual: RangoUtc,
+  inicioDiaHoy: Date,
 ): Promise<PedidosKpis> {
   const where = construirWhere(instanciaId, filtros);
-  // "Total ventas · mes actual" usa las mismas condiciones no-relacionadas a
-  // fecha (estado, método, cliente, producto, búsqueda) pero SIEMPRE fuerza
-  // fechaPedido al mes actual — ignora cualquier filtro de fecha de pedido o
-  // de entrega estimada que esté activo, para no dejar de representar
-  // "ventas del mes actual según fecha de pedido".
-  const whereMesActual: Prisma.PedidoWhereInput = {
-    ...construirWhereBase(instanciaId, filtros),
-    // Semiabierto como todo rango de día del proyecto: `hasta` es el inicio de
-    // mañana en la zona de negocio, nunca un `lte` sobre un límite de día.
-    fechaPedido: aFiltroPrisma(rangoMesActual),
-  };
-  const ahora = new Date();
 
+  // Derivadas en vivo de la configuración vigente — nunca persistidas en el
+  // Pedido. Ese es el motivo por el que marcar o desmarcar una etapa como
+  // "Cuenta como Venta" se refleja acá sin recálculo ni migración (FR-008).
   const etapasFlujo = await obtenerEtapasFlujoActivo(instanciaId);
-  let condicionAbiertos: Prisma.PedidoWhereInput;
-  let condicionEntregados: Prisma.PedidoWhereInput;
+  const condicionAbiertos = construirCondicionAbiertos(etapasFlujo);
+  const condicionVenta = construirCondicionVenta(etapasFlujo);
 
-  if (etapasFlujo.length > 0) {
-    const idsCerrados = etapasFlujo.filter((e) => e.esFinal || e.esCancelacion).map((e) => e.id);
-    const idsEntregados = etapasFlujo.filter((e) => e.esFinal && !e.esCancelacion).map((e) => e.id);
-    condicionAbiertos = idsCerrados.length > 0 ? { flujoVentaEtapaId: { notIn: idsCerrados } } : {};
-    condicionEntregados = { flujoVentaEtapaId: { in: idsEntregados } };
-  } else {
-    condicionAbiertos = { estado: { notIn: ["ENTREGADO", "CANCELADO"] } };
-    condicionEntregados = { estado: "ENTREGADO" };
-  }
+  const whereVentas = construirWhereVentas(instanciaId, filtros, condicionVenta);
+  // "Total ventas · mes actual" fuerza SIEMPRE su propio rango e ignora el
+  // filtro de fecha que haya en pantalla, para no dejar de representar las
+  // ventas del mes en curso.
+  const whereVentasMes = construirWhereVentas(instanciaId, filtros, condicionVenta, rangoMesActual);
 
-  const [totales, totalesMes, pendientes, expirados, entregados] = await Promise.all([
-    prisma.pedido.aggregate({ where, _count: true, _sum: { total: true, costoEnvio: true } }),
-    prisma.pedido.aggregate({ where: whereMesActual, _sum: { total: true, costoEnvio: true } }),
-    prisma.pedido.count({ where: { ...where, ...condicionAbiertos, fechaExpiracion: { gte: ahora } } }),
-    prisma.pedido.count({ where: { ...where, ...condicionAbiertos, fechaExpiracion: { lt: ahora } } }),
-    prisma.pedido.count({ where: { ...where, ...condicionEntregados } }),
+  // `AND` y no spread: `condicionAbiertos` puede traer `flujoVentaEtapaId` y
+  // `where` ya puede tenerlo por el filtro de etapa de la barra; y el corte
+  // sobre `fechaEntrega` chocaría con el filtro de entrega estimada. Con
+  // spread, uno pisaría al otro sin aviso.
+  const whereAbiertos = (corteEntrega: Prisma.DateTimeFilter): Prisma.PedidoWhereInput => ({
+    ...where,
+    AND: [condicionAbiertos, { fechaEntrega: corteEntrega }],
+  });
+
+  const [totalPedidos, totales, totalesMes, pendientes, expirados, ventas] = await Promise.all([
+    prisma.pedido.count({ where }),
+    prisma.pedido.aggregate({ where: whereVentas, _sum: { total: true, costoEnvio: true } }),
+    prisma.pedido.aggregate({ where: whereVentasMes, _sum: { total: true, costoEnvio: true } }),
+    prisma.pedido.count({ where: whereAbiertos({ gte: inicioDiaHoy }) }),
+    prisma.pedido.count({ where: whereAbiertos({ lt: inicioDiaHoy }) }),
+    prisma.pedido.count({ where: whereVentas }),
   ]);
 
   // "Total ventas"/"Total ventas · mes actual" restan el costo de envío del
   // total — el envío se cobra al cliente (está incluido en `total`) pero no
   // es ganancia, así que no debe contar como venta en estos KPIs.
   return {
-    totalPedidos: totales._count,
+    totalPedidos,
     totalVentas: Number(totales._sum.total ?? 0) - Number(totales._sum.costoEnvio ?? 0),
     totalVentasMesActual: Number(totalesMes._sum.total ?? 0) - Number(totalesMes._sum.costoEnvio ?? 0),
     pendientes,
     expirados,
-    entregados,
+    ventas,
   };
 }
 

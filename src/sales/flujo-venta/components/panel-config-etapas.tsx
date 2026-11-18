@@ -10,7 +10,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical, Pencil, Trash2, Plus, Check, X, Loader2, Flag, XCircle, Circle, Shuffle, Lock, Truck,
+  GripVertical, Pencil, Trash2, Plus, Check, X, Loader2, Flag, XCircle, Circle, Shuffle, Lock, Truck, TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -177,6 +177,11 @@ function SortableEtapaItem({
               <Shuffle className="h-2.5 w-2.5" /> Manual
             </span>
           )}
+          {etapa.cuentaComoVenta && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-cyan-500/12 border border-cyan-500/20 px-1.5 py-0.5 text-xs font-medium text-cyan-600 dark:text-cyan-400">
+              <TrendingUp className="h-2.5 w-2.5" /> Venta
+            </span>
+          )}
           {depth > 0 && (
             <span className="inline-flex items-center rounded-md bg-stone-100 dark:bg-white/8 border border-stone-200 dark:border-white/10 px-1.5 py-0.5 text-xs text-stone-400 dark:text-stone-500">
               sub-etapa
@@ -216,6 +221,7 @@ function DialogEditarEtapa({
   const [esSecuencial, setEsSecuencial] = useState(etapa?.esSecuencial ?? true);
   const [permiteEditar, setPermiteEditar] = useState(etapa?.permiteEditarPedido ?? true);
   const [permiteEntrega, setPermiteEntrega] = useState(etapa?.permiteEditarEntrega ?? false);
+  const [cuentaVenta, setCuentaVenta] = useState(etapa?.cuentaComoVenta ?? false);
   const [isPending, startTransition] = useTransition();
 
   const tipoFlujoLocked = esInicial || esFinal || esCancelacion;
@@ -224,6 +230,11 @@ function DialogEditarEtapa({
   const permiteLocked = esInicial;
   const permiteEfectivo = esInicial ? true : permiteEditar;
   const permiteEntregaEfectivo = permiteEntrega;
+  // 038 FR-005 — contabilizar una cancelación como venta no tiene sentido de
+  // negocio. El servidor también lo rechaza; esto es solo para que la UI no
+  // ofrezca un estado que se va a revertir.
+  const ventaLocked = esCancelacion;
+  const cuentaVentaEfectivo = esCancelacion ? false : cuentaVenta;
 
   const handleGuardar = () => {
     if (!etapa || !nombre.trim()) return;
@@ -233,11 +244,12 @@ function DialogEditarEtapa({
         nombre: nombre.trim(), color, orden: etapa.orden,
         esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal,
         permiteEditarPedido: permiteEfectivo, permiteEditarEntrega: permiteEntregaEfectivo,
+        cuentaComoVenta: cuentaVentaEfectivo,
         activo: true, parentId: etapa.parentId,
       });
       if (resultado.exito) {
         toast.success("Etapa actualizada");
-        onGuardado({ ...etapa, nombre: nombre.trim(), color, esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal, permiteEditarPedido: permiteEfectivo, permiteEditarEntrega: permiteEntregaEfectivo });
+        onGuardado({ ...etapa, nombre: nombre.trim(), color, esInicial, esFinal, esCancelacion, esSecuencial: secuencialFinal, permiteEditarPedido: permiteEfectivo, permiteEditarEntrega: permiteEntregaEfectivo, cuentaComoVenta: cuentaVentaEfectivo });
         onOpenChange(false);
       } else {
         toast.error(resultado.error);
@@ -382,6 +394,56 @@ function DialogEditarEtapa({
                   Las etapas iniciales siempre permiten editar pedidos.
                 </TooltipContent>
               )}
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Cuenta como Venta (038) */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger className="w-full text-left">
+                <div className={cn(
+                  "rounded-xl border p-3 transition-all",
+                  ventaLocked
+                    ? "opacity-50 cursor-not-allowed border-stone-200 dark:border-white/10"
+                    : "border-stone-200 dark:border-white/10 hover:border-stone-300 dark:hover:border-white/20"
+                )}>
+                  <button
+                    type="button"
+                    disabled={ventaLocked}
+                    onClick={() => !ventaLocked && setCuentaVenta(!cuentaVenta)}
+                    className="w-full flex items-center justify-between gap-3 disabled:cursor-not-allowed"
+                  >
+                    <div className="text-left flex items-start gap-2">
+                      <TrendingUp className="h-3.5 w-3.5 mt-0.5 text-stone-400 flex-shrink-0" />
+                      <div>
+                        <p className={cn(
+                          "text-xs font-medium",
+                          cuentaVentaEfectivo ? "text-cyan-600 dark:text-cyan-400" : "text-stone-500 dark:text-stone-400"
+                        )}>
+                          {cuentaVentaEfectivo ? "Cuenta como venta" : "No cuenta como venta"}
+                        </p>
+                        <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+                          Los pedidos en esta etapa suman en los totales de venta.
+                        </p>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "relative flex-shrink-0 h-5 w-9 rounded-full transition-colors",
+                      cuentaVentaEfectivo ? "bg-cyan-500" : "bg-stone-300 dark:bg-white/20"
+                    )}>
+                      <span className={cn(
+                        "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                        cuentaVentaEfectivo ? "translate-x-4" : "translate-x-0"
+                      )} />
+                    </div>
+                  </button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                {ventaLocked
+                  ? "Una etapa de cancelación no puede contar como venta."
+                  : "Si marcas varias etapas, la venta se fecha con la PRIMERA a la que llegó el pedido; avanzar después a otra no mueve la fecha."}
+              </TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
@@ -533,7 +595,7 @@ export function PanelConfigEtapas({ flujoVentaId, etapasIniciales }: PanelConfig
       if (r.exito) {
         const nueva: EtapaFlat = {
           id: r.datos.id, nombre: nuevaNombre.trim(), color: nuevaColor, orden: items.length,
-          esInicial: false, esFinal: false, esCancelacion: false, esSecuencial: true, permiteEditarPedido: true, permiteEditarEntrega: false, activo: true,
+          esInicial: false, esFinal: false, esCancelacion: false, esSecuencial: true, permiteEditarPedido: true, permiteEditarEntrega: false, cuentaComoVenta: false, activo: true,
           descripcion: null, flujoVentaId, parentId: null, depth: 0,
         };
         setItems((prev) => [...prev, nueva]);

@@ -62,11 +62,6 @@ export const CATALOGO_CAMPOS_BASE: CampoRegla[] = [
     resolver: leer("general.fechaEntrega"),
   },
   {
-    key: "general.fechaExpiracion", label: "Fecha de expiración", category: CATEGORIA.GENERAL,
-    dataType: "FECHA", allowedOperators: ["ANTES_DE", "DESPUES_DE", "IGUAL", "ESTA_VENCIDA", "ES_HOY", "PROXIMOS_N_DIAS"],
-    resolver: leer("general.fechaExpiracion"),
-  },
-  {
     key: "general.observaciones", label: "Observaciones", category: CATEGORIA.GENERAL,
     dataType: "TEXTO", allowedOperators: ["CONTIENE", "NO_CONTIENE", "ESTA_VACIO", "NO_ESTA_VACIO"],
     resolver: leer("general.observaciones"),

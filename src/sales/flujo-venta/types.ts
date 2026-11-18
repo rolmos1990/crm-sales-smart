@@ -14,6 +14,8 @@ export interface FlujoVentaEtapa {
   esSecuencial: boolean;
   permiteEditarPedido: boolean;
   permiteEditarEntrega: boolean;
+  /** Los pedidos en esta etapa cuentan en "Total ventas" del listado (038). */
+  cuentaComoVenta: boolean;
   activo: boolean;
   flujoVentaId: string;
   parentId: string | null;

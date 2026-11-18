@@ -25,9 +25,15 @@ export function PedidosKpiCards({ kpis, moneda, hayRangoFecha, etiquetaMesActual
       acento: "text-primary bg-primary-muted",
     },
     {
+      // 038 — solo pedidos en etapas marcadas "Cuenta como Venta", y
+      // atribuidos a la fecha en que llegaron ahí. Por eso el subtítulo dice
+      // "Vendidos" y no "Pedidos": con un rango activo esta tarjeta y la
+      // lista miran poblaciones distintas a propósito (un pedido creado en
+      // octubre y vendido en noviembre suma acá en noviembre, pero no sale en
+      // la lista de noviembre, que se ordena por fecha de creación).
       etiqueta: "Total ventas",
       valor: formatearMoneda(kpis.totalVentas, moneda),
-      subvalor: hayRangoFecha ? "Este rango de fechas" : "Total histórico",
+      subvalor: hayRangoFecha ? "Vendidos en este rango" : "Total histórico",
       Icono: DollarSign,
       acento: "text-stage-cyan-text bg-stage-cyan-muted",
     },
@@ -36,28 +42,33 @@ export function PedidosKpiCards({ kpis, moneda, hayRangoFecha, etiquetaMesActual
       // de fecha activos en pantalla (ver obtenerPedidosKpis / rangoMesHastaHoy).
       etiqueta: "Total ventas · mes actual",
       valor: formatearMoneda(kpis.totalVentasMesActual, moneda),
-      subvalor: `${etiquetaMesActual} · hasta hoy`,
+      subvalor: `Vendidos en ${etiquetaMesActual} · hasta hoy`,
       Icono: CalendarDays,
       acento: "text-stage-purple-text bg-stage-purple-muted",
     },
     {
+      // 038 — contra la entrega estimada, no contra una fecha de expiración
+      // del pedido (que ya no existe). Abiertos con entrega de hoy en
+      // adelante; el corte es el inicio del día de negocio.
       etiqueta: "Pendientes",
       valor: kpis.pendientes,
-      subvalor: "Por vencer",
+      subvalor: "Por entregar",
       Icono: Clock,
       acento: "text-stage-amber-text bg-stage-amber-muted",
     },
     {
       etiqueta: "Expirados",
       valor: kpis.expirados,
-      subvalor: "Fuera de fecha",
+      subvalor: "Entrega vencida",
       Icono: AlertTriangle,
       acento: "text-danger-text bg-danger-muted",
     },
     {
-      etiqueta: "Entregados",
-      valor: kpis.entregados,
-      subvalor: "Completados",
+      // Misma población que las dos tarjetas de dinero, para que el conteo y
+      // los montos hablen de lo mismo (038 FR-012).
+      etiqueta: "Ventas",
+      valor: kpis.ventas,
+      subvalor: "Cuentan como venta",
       Icono: CheckCircle2,
       acento: "text-success-text bg-success-muted",
     },

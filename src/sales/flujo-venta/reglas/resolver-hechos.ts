@@ -58,7 +58,6 @@ export async function resolverHechosPedido(
     "general.moneda": pedido.moneda,
     "general.fechaCreacion": pedido.fechaPedido,
     "general.fechaEntrega": pedido.fechaEntrega,
-    "general.fechaExpiracion": pedido.fechaExpiracion,
     "general.observaciones": pedido.notas,
 
     // Montos
