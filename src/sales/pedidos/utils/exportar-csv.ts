@@ -11,7 +11,7 @@ function escaparCelda(valor: string): string {
 export function exportarPedidosCsv(pedidos: Pedido[]) {
   const encabezados = [
     "Número", "Cliente", "Total", "Moneda", "Estado", "Método de envío",
-    "Fecha pedido", "Entrega estimada",
+    "Fecha pedido", "Entrega estimada", "Fecha de venta",
   ];
 
   const filas = pedidos.map((p) => {
@@ -26,6 +26,7 @@ export function exportarPedidosCsv(pedidos: Pedido[]) {
       metodo ? (METODO_ENTREGA_LABELS[metodo] ?? metodo) : "",
       format(new Date(p.fechaPedido), "yyyy-MM-dd"),
       p.fechaEntrega ? format(new Date(p.fechaEntrega), "yyyy-MM-dd") : "",
+      p.fechaVenta ? format(new Date(p.fechaVenta), "yyyy-MM-dd") : "",
     ];
   });
 

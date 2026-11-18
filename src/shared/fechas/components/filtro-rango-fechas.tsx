@@ -21,6 +21,16 @@ import {
 } from "../rango-ymd";
 import { desdeFechaCalendario, hoyEnZona, sumarDias } from "../zona";
 import type { FechaYMD } from "../tipos";
+// Los atajos viven en un módulo plano para poder probarlos sin parsear TSX.
+// Se re-exportan desde acá para no romper a los callers que ya los importaban.
+import { PRESETS_RANGO_PASADO, type PresetRangoFechas } from "../presets-rango";
+
+export {
+  PRESETS_RANGO_PASADO,
+  PRESETS_RANGO_VENTA,
+  PRESETS_RANGO_FUTURO,
+} from "../presets-rango";
+export type { PresetRangoFechas } from "../presets-rango";
 
 export type { RangoFechasYmd } from "../rango-ymd";
 
@@ -41,16 +51,6 @@ export type { RangoFechasYmd } from "../rango-ymd";
  * mismo día deselecciona todo, o sea que tampoco se podía confirmar un rango
  * de un solo día. Este componente toma el control de esos dos clics.
  */
-
-export interface PresetRangoFechas {
-  etiqueta: string;
-  /**
-   * Recibe el día de hoy **en la zona de negocio**, no en la del navegador.
-   * `null` en un extremo deja el rango abierto de ese lado ("todo lo anterior
-   * a ayer"), que es lo que ya soportan los `where` parciales del servidor.
-   */
-  calcular: (hoy: FechaYMD) => { desde: FechaYMD | null; hasta: FechaYMD | null };
-}
 
 export interface FiltroRangoFechasProps {
   valor: RangoFechasYmd;
@@ -75,38 +75,6 @@ export interface FiltroRangoFechasProps {
   onLimpiar?: () => void;
   className?: string;
 }
-
-// ── Atajos listos para usar ─────────────────────────────────────────────────
-
-const soloDia = (d: FechaYMD) => ({ desde: d, hasta: d });
-
-/** Para fechas que ya ocurrieron (fecha de pedido, de creación, de cierre). */
-export const PRESETS_RANGO_PASADO: PresetRangoFechas[] = [
-  { etiqueta: "Hoy", calcular: soloDia },
-  { etiqueta: "Ayer", calcular: (hoy) => soloDia(sumarDias(hoy, -1)) },
-  { etiqueta: "Últimos 7 días", calcular: (hoy) => ({ desde: sumarDias(hoy, -6), hasta: hoy }) },
-  { etiqueta: "Últimos 30 días", calcular: (hoy) => ({ desde: sumarDias(hoy, -29), hasta: hoy }) },
-  { etiqueta: "Este mes", calcular: (hoy) => ({ desde: { ...hoy, dia: 1 }, hasta: hoy }) },
-  {
-    etiqueta: "Mes pasado",
-    calcular: (hoy) => {
-      const ultimoDelPasado = sumarDias({ ...hoy, dia: 1 }, -1);
-      return { desde: { ...ultimoDelPasado, dia: 1 }, hasta: ultimoDelPasado };
-    },
-  },
-];
-
-/** Para fechas que están por venir (entrega estimada, vencimiento). */
-export const PRESETS_RANGO_FUTURO: PresetRangoFechas[] = [
-  { etiqueta: "Hoy", calcular: soloDia },
-  { etiqueta: "Mañana", calcular: (hoy) => soloDia(sumarDias(hoy, 1)) },
-  { etiqueta: "Hoy y mañana", calcular: (hoy) => ({ desde: hoy, hasta: sumarDias(hoy, 1) }) },
-  { etiqueta: "Próximos 7 días", calcular: (hoy) => ({ desde: hoy, hasta: sumarDias(hoy, 6) }) },
-  { etiqueta: "Próximos 30 días", calcular: (hoy) => ({ desde: hoy, hasta: sumarDias(hoy, 29) }) },
-  // Abierto por la izquierda a propósito: "atrasado" es todo lo anterior a
-  // hoy, sin un piso arbitrario.
-  { etiqueta: "Atrasados", calcular: (hoy) => ({ desde: null, hasta: sumarDias(hoy, -1) }) },
-];
 
 /** `true` en pantallas donde caben dos meses lado a lado. */
 function useCabenDosMeses(): boolean {
