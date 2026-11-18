@@ -15,9 +15,9 @@ import type { ColumnaTablero } from "../types";
 const TableroKanban = dynamic(() => import("./tablero-kanban").then((m) => m.TableroKanban), {
   ssr: false,
   loading: () => (
-    <div className="flex gap-3 overflow-hidden">
-      {[0, 1, 2].map((i) => (
-        <Skeleton key={i} className="h-64 w-[19rem] shrink-0 rounded-2xl" />
+    <div className="flex gap-4 overflow-hidden">
+      {[0, 1].map((i) => (
+        <Skeleton key={i} className="h-72 min-w-[20rem] flex-1 rounded-2xl" />
       ))}
     </div>
   ),
@@ -28,6 +28,7 @@ export function TableroCliente(props: {
   puedeMod: boolean;
   onCargarMas: (estadoId: string) => void;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
+  detalleSiempreVisible: boolean;
 }) {
   return <TableroKanban {...props} />;
 }

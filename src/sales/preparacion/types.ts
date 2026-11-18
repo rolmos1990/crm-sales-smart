@@ -31,6 +31,9 @@ export interface ConfiguracionPreparacion {
   nombre: string;
   agrupacionDefecto: AgrupacionPreparacion;
   rangoDefecto: RangoPreparacion;
+  /** true: las tarjetas pendientes muestran siempre productos y checks.
+   *  false: solo la tarjeta seleccionada se despliega; el resto queda en resumen. */
+  detalleSiempreVisible: boolean;
   estados: EstadoPreparacionConUso[];
   etapasEntrada: EtapaEntrada[];
   etapasDisponibles: Array<{
@@ -49,7 +52,7 @@ export interface ConfiguracionPreparacion {
 export interface LineaPreparacion {
   id: string;
   descripcion: string;
-  producto: { id: string; nombre: string } | null;
+  producto: { id: string; nombre: string; imagenUrl: string | null } | null;
   cantidad: number;
   cantidadPreparada: number;
   completa: boolean;

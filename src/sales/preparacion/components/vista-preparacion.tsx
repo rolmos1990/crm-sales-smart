@@ -84,6 +84,7 @@ export function VistaPreparacion({ inicial, puedeMod, zonaNegocio, actividad }: 
             columnas={tablero.columnas}
             puedeMod={puedeMod}
             agrupacion={tablero.configuracion.agrupacionDefecto}
+            detalleSiempreVisible={tablero.configuracion.detalleSiempreVisible}
             onCargarMas={cargarMas}
           />
         )}

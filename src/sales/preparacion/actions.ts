@@ -576,6 +576,9 @@ export async function actualizarPreferenciasTableroAction(datos: unknown): Promi
     data: {
       agrupacionDefecto: validado.data.agrupacionDefecto,
       rangoDefecto: validado.data.rangoDefecto,
+      ...(validado.data.detalleSiempreVisible !== undefined && {
+        detalleSiempreVisible: validado.data.detalleSiempreVisible,
+      }),
     },
   });
 

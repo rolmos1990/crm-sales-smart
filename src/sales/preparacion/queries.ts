@@ -66,7 +66,7 @@ const SELECT_PEDIDO_TABLERO = {
       descripcion: true,
       cantidad: true,
       cantidadPreparada: true,
-      producto: { select: { id: true, nombre: true } },
+      producto: { select: { id: true, nombre: true, imagenUrl: true } },
     },
   },
 } as const;
@@ -185,6 +185,7 @@ export async function obtenerConfiguracionPreparacion(instanciaId: string): Prom
     nombre: flujo.nombre,
     agrupacionDefecto: flujo.agrupacionDefecto,
     rangoDefecto: flujo.rangoDefecto,
+    detalleSiempreVisible: flujo.detalleSiempreVisible,
     estados: flujo.estados.map((e) => ({
       id: e.id,
       nombre: e.nombre,

@@ -56,6 +56,7 @@ export function PanelConfigPreparacion({ configuracion }: { configuracion: Confi
   );
   const [agrupacion, setAgrupacion] = useState<AgrupacionPreparacion>(configuracion.agrupacionDefecto);
   const [rango, setRango] = useState<RangoPreparacion>(configuracion.rangoDefecto);
+  const [detalleSiempreVisible, setDetalleSiempreVisible] = useState(configuracion.detalleSiempreVisible);
 
   const estados = [...configuracion.estados].sort((a, b) => a.orden - b.orden);
   const ocupado = pendiente || guardando;
@@ -104,7 +105,11 @@ export function PanelConfigPreparacion({ configuracion }: { configuracion: Confi
         toast.error(entradas.error);
         return;
       }
-      const prefs = await actualizarPreferenciasTableroAction({ agrupacionDefecto: agrupacion, rangoDefecto: rango });
+      const prefs = await actualizarPreferenciasTableroAction({
+        agrupacionDefecto: agrupacion,
+        rangoDefecto: rango,
+        detalleSiempreVisible,
+      });
       if (!prefs.exito) {
         toast.error(prefs.error);
         return;
@@ -290,11 +295,11 @@ export function PanelConfigPreparacion({ configuracion }: { configuracion: Confi
             </Banner>
           </SeccionNumerada>
 
-          {/* ── 3. Cómo se agrupa ──────────────────────────────── */}
+          {/* ── 3. Cómo se muestra ─────────────────────────────── */}
           <SeccionNumerada
             numero={3}
-            titulo="Cómo se agrupa"
-            ayuda="Con qué vista y qué rango de entrega abre el tablero por defecto."
+            titulo="Cómo se muestra"
+            ayuda="Con qué vista y qué rango de entrega abre el tablero por defecto, y cuánto detalle muestran los pedidos pendientes."
           >
             <fieldset>
               <legend className="text-xs text-muted-foreground">Agrupación</legend>
@@ -315,6 +320,24 @@ export function PanelConfigPreparacion({ configuracion }: { configuracion: Confi
                     {RANGO_PREPARACION_LABELS[r]}
                   </Opcion>
                 ))}
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend className="text-xs text-muted-foreground">Detalle de los pedidos pendientes</legend>
+              <div role="radiogroup" className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <OpcionDetalle
+                  activa={detalleSiempreVisible}
+                  onClick={() => setDetalleSiempreVisible(true)}
+                  titulo="Siempre desplegado"
+                  descripcion="Cada pedido muestra sus productos y checks. Ideal para armar varios a la vez."
+                />
+                <OpcionDetalle
+                  activa={!detalleSiempreVisible}
+                  onClick={() => setDetalleSiempreVisible(false)}
+                  titulo="Solo el seleccionado"
+                  descripcion="Los pedidos se ven en resumen; al tocar uno se despliega para marcar sus productos."
+                />
               </div>
             </fieldset>
           </SeccionNumerada>
@@ -595,6 +618,45 @@ function Banner({
       <Icono className="mt-0.5 size-4 shrink-0" />
       <p className="leading-relaxed">{children}</p>
     </div>
+  );
+}
+
+function OpcionDetalle({
+  activa,
+  onClick,
+  titulo,
+  descripcion,
+}: {
+  activa: boolean;
+  onClick: () => void;
+  titulo: string;
+  descripcion: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={activa}
+      onClick={onClick}
+      className={cn(
+        "flex items-start gap-2.5 rounded-xl border p-3 text-left transition-colors",
+        activa ? "border-primary/50 bg-primary/5" : "border-border bg-card hover:border-foreground/20",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors",
+          activa ? "border-primary" : "border-border bg-background",
+        )}
+      >
+        {activa && <span className="size-2 rounded-full bg-primary" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-foreground">{titulo}</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">{descripcion}</span>
+      </span>
+    </button>
   );
 }
 
