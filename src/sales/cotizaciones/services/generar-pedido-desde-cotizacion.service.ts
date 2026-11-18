@@ -104,6 +104,14 @@ export async function generarPedidoDesdeCotizacion(
 
   const dest = (cotizacion.metadata as Record<string, unknown> | null)?.destinatario as Record<string, string | null> | undefined ?? {};
 
+  // 038 — un solo instante para el pedido y su fila de historial, ver
+  // motor.ts:_moverInterno. Este es el otro sitio que ubica un pedido en una
+  // etapa al CREARLO, sin pasar por el motor de etapas.
+  const momentoEtapa = new Date();
+  // El pedido nace acá, así que no puede tener `fechaVenta` previa: solo
+  // importa si su etapa inicial cuenta como venta.
+  const sellarFechaVenta = etapaInicial?.cuentaComoVenta ?? false;
+
   const pedido = await prisma.$transaction(async (tx) => {
     const nuevoPedido = await tx.pedido.create({
       data: {
@@ -137,6 +145,10 @@ export async function generarPedidoDesdeCotizacion(
         email:              dest.email || null,
         flujoVentaId:       flujoTenant?.id ?? null,
         flujoVentaEtapaId:  etapaInicial?.id ?? null,
+        // Eje de fecha de "Total ventas" (038). Solo se sella si la etapa
+        // inicial ya cuenta como venta; si no, queda null hasta que el pedido
+        // cruce a una que cuente.
+        fechaVenta: sellarFechaVenta ? momentoEtapa : null,
         // Ya resuelto al crear/editar la cotización — se copia tal cual, no
         // hay que recalcularlo (ver resolverTipoCumplimiento en cotizaciones/actions.ts).
         tipoCumplimiento:   cotizacion.tipoCumplimiento,
@@ -250,6 +262,7 @@ export async function generarPedidoDesdeCotizacion(
           etapaNombre: etapaInicial.nombre,
           tipo:        "AUTOMATICO",
           usuarioId,
+          creadoEn:    momentoEtapa,
         },
       });
     }

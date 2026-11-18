@@ -66,7 +66,6 @@ function FormEditarPedido({
       impuesto: pedido.impuesto ?? 18,
       notas: pedido.notas ?? "",
       fechaEntrega: pedido.fechaEntrega ?? undefined,
-      fechaExpiracion: pedido.fechaExpiracion ?? undefined,
       contactoId: pedido.contactoId ?? "",
       empresaId: pedido.empresaId ?? "",
       nombre: pedido.nombre ?? "",
@@ -149,18 +148,6 @@ function FormEditarPedido({
                   value={field.value}
                   onChange={field.onChange}
                   placeholder="Selecciona fecha de entrega"
-                />
-              </FormControl>
-            </FormItem>
-          )} />
-          <FormField control={form.control} name="fechaExpiracion" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Fecha de expiración</FormLabel>
-              <FormControl>
-                <SmartDatePicker
-                  value={field.value}
-                  onChange={field.onChange}
-                  placeholder="Límite para tener en cuenta el pedido"
                 />
               </FormControl>
             </FormItem>

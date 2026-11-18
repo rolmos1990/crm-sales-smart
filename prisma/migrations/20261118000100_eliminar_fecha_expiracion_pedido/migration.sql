@@ -1,0 +1,18 @@
+-- 038-cuenta-como-venta — parte DESTRUCTIVA (paso 6 de data-model.md).
+--
+-- Un pedido no expira: el campo modelaba un vencimiento que el negocio no usa
+-- y era el eje de las tarjetas "Pendientes"/"Expirados", que ahora se calculan
+-- contra la entrega estimada (`fechaEntrega`).
+--
+-- REQUISITO PREVIO — correr ANTES de aplicar esta migración:
+--
+--     npx tsx scripts/depurar-reglas-fecha-expiracion.ts
+--
+-- Ese script quita `general.fechaExpiracion` de las Reglas de validación. Sin
+-- él, una regla que use el campo resuelve `undefined` en el evaluador y pasa a
+-- bloquear el avance de los pedidos sin mostrar ningún error.
+--
+-- NO se tocan `Cotizacion.fechaVencimiento` (la cotización SÍ expira) ni
+-- `EntregaDigitalPedido.fechaExpiracion` / `EntregaDigitalCotizacion.fechaExpiracion`
+-- (caducidad del acceso digital, por línea). Son conceptos distintos.
+ALTER TABLE "Pedido" DROP COLUMN "fechaExpiracion";

@@ -12,6 +12,8 @@ export const EtapaSchema = z.object({
   esSecuencial:         z.boolean().optional(),
   permiteEditarPedido:  z.boolean().optional(),
   permiteEditarEntrega: z.boolean().optional(),
+  // 038 — los pedidos en esta etapa cuentan en "Total ventas" del listado.
+  cuentaComoVenta:      z.boolean().optional(),
   activo:               z.boolean().optional(),
   parentId:            z.string().nullable().optional(),
 });

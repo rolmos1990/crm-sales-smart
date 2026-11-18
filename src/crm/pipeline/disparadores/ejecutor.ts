@@ -238,7 +238,8 @@ async function ejecutarJobPedido(
     // Para CREAR_TAREA y CREAR_NOTA vinculamos a la oportunidad del pedido si existe
     const pedido = await prisma.pedido.findUnique({
       where: { id: pedidoId },
-      select: { oportunidadId: true, flujoVentaEtapaId: true, metadata: true },
+      // `fechaVenta` — 038: CAMBIAR_ETAPA la sella solo si todavía está vacía.
+      select: { oportunidadId: true, flujoVentaEtapaId: true, metadata: true, fechaVenta: true },
     });
 
     if (tipo === "CREAR_TAREA") {
@@ -330,25 +331,42 @@ async function ejecutarJobPedido(
             throw new ErrorDefinitivo(motivo);
           }
         }
-        await prisma.pedido.update({
-          where: { id: pedidoId },
-          data: { flujoVentaEtapaId: etapaDestinoId },
-        });
         const etapa = await prisma.flujoVentaEtapa.findUnique({
           where: { id: etapaDestinoId },
-          select: { nombre: true, flujoVentaId: true },
+          // `cuentaComoVenta` decide si este movimiento sella `fechaVenta`.
+          select: { nombre: true, flujoVentaId: true, cuentaComoVenta: true },
         });
-        if (etapa) {
-          await prisma.pedidoHistorialEtapa.create({
+        // 038 — el movimiento y su fila de historial van en una transacción,
+        // con un único instante para los dos. Antes eran dos llamadas
+        // sueltas: si el worker caía entre medio, el pedido quedaba movido
+        // sin rastro en el historial, y ahora además dejaría
+        // `fechaVenta` desalineada del `creadoEn` del movimiento,
+        // que es de donde se reconstruye.
+        const momento = new Date();
+        // Se sella una sola vez: solo si la etapa destino cuenta como venta y
+        // el pedido todavía no tiene fecha (ver motor.ts:_moverInterno).
+        const sellarFechaVenta = Boolean(etapa?.cuentaComoVenta) && !pedido?.fechaVenta;
+        await prisma.$transaction([
+          prisma.pedido.update({
+            where: { id: pedidoId },
             data: {
-              pedidoId,
-              etapaId: etapaDestinoId,
-              etapaNombre: etapa.nombre,
-              tipo: "AUTOMATICO",
-              usuarioId: null,
+              flujoVentaEtapaId: etapaDestinoId,
+              ...(sellarFechaVenta ? { fechaVenta: momento } : {}),
             },
-          });
-        }
+          }),
+          ...(etapa
+            ? [prisma.pedidoHistorialEtapa.create({
+                data: {
+                  pedidoId,
+                  etapaId: etapaDestinoId,
+                  etapaNombre: etapa.nombre,
+                  tipo: "AUTOMATICO" as const,
+                  usuarioId: null,
+                  creadoEn: momento,
+                },
+              })]
+            : []),
+        ]);
       }
     } else if (tipo === "CERRAR_OPORTUNIDAD") {
       // Mueve la oportunidad relacionada al pedido a la etapa Ganada o

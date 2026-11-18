@@ -43,13 +43,14 @@ export async function moverPedidoAEtapa(
 ): Promise<{ exito: true } | { exito: false; error: string }> {
   const etapa = await prisma.flujoVentaEtapa.findFirst({
     where: { id: etapaDestinoId, activo: true },
-    select: { id: true, nombre: true, flujoVentaId: true },
+    // `cuentaComoVenta` decide si este movimiento sella `Pedido.fechaVenta`.
+    select: { id: true, nombre: true, flujoVentaId: true, cuentaComoVenta: true },
   });
 
   if (!etapa) return { exito: false, error: "Etapa no encontrada" };
 
   try {
-    await _moverInterno(pedidoId, etapa.id, etapa.nombre, "MANUAL", usuarioId, notas);
+    await _moverInterno(pedidoId, etapa.id, etapa.nombre, "MANUAL", usuarioId, notas, undefined, undefined, etapa.cuentaComoVenta);
     await procesarCambioEtapaPedido(pedidoId, etapa.id, etapa.flujoVentaId);
     revalidatePath(`/sales/pedidos/${pedidoId}`);
     return { exito: true };
@@ -67,11 +68,13 @@ async function _moverInterno(
   notas?: string,
   origen?: string,
   referencia?: string,
+  destinoCuentaComoVenta = false,
 ) {
-  // Capture current stage name before moving
+  // Capture current stage name before moving.
+  // `fechaVenta` se lee acá porque solo se sella si todavía está vacía.
   const pedidoActual = await prisma.pedido.findFirst({
     where: { id: pedidoId },
-    select: { flujoVentaEtapa: { select: { nombre: true } } },
+    select: { fechaVenta: true, flujoVentaEtapa: { select: { nombre: true } } },
   });
 
   // Resolve user display name
@@ -87,10 +90,25 @@ async function _moverInterno(
   const etapaAnteriorNombre = pedidoActual?.flujoVentaEtapa?.nombre ?? null;
   const origenFinal = origen ?? (tipo === "MANUAL" ? "USUARIO" : "SISTEMA");
 
+  // 038 — un solo instante para las dos filas. Dos `new Date()` separados
+  // darían valores distintos y romperían la invariante de que
+  // `Pedido.fechaVenta` coincide con el `creadoEn` del movimiento que la
+  // selló (de ahí se reconstruye si alguna vez hace falta recalcular).
+  const momento = new Date();
+
+  // `fechaVenta` se sella UNA SOLA VEZ: la primera vez que el pedido entra a
+  // una etapa que cuenta como venta. Con "Pagado" y "Entregado" marcadas,
+  // manda la fecha de "Pagado"; pasar después a "Entregado" no la mueve.
+  // `undefined` deja la columna intacta (distinto de `null`, que la borraría).
+  const sellarFechaVenta = destinoCuentaComoVenta && !pedidoActual?.fechaVenta;
+
   await prisma.$transaction([
     prisma.pedido.update({
       where: { id: pedidoId },
-      data: { flujoVentaEtapaId: etapaId },
+      data: {
+        flujoVentaEtapaId: etapaId,
+        ...(sellarFechaVenta ? { fechaVenta: momento } : {}),
+      },
     }),
     prisma.pedidoHistorialEtapa.create({
       data: {
@@ -104,6 +122,7 @@ async function _moverInterno(
         usuarioNombre,
         notas: notas ?? null,
         referencia: referencia ?? null,
+        creadoEn: momento,
       },
     }),
   ]);

@@ -14,7 +14,6 @@ export const LineaPedidoSchema = z.object({
 export const CrearPedidoSchema = z.object({
   estado: z.enum(["PENDIENTE", "CONFIRMADO", "EN_PROCESO", "ENVIADO", "ENTREGADO", "CANCELADO"]).optional(),
   fechaEntrega: z.date().optional(),
-  fechaExpiracion: z.date().optional(),
   moneda: z.string().optional(),
   impuesto: z.number().min(0).max(100),
   notas: z.string().max(2000).optional().or(z.literal("")),
@@ -43,7 +42,6 @@ export const LineaPedidoEditSchema = LineaPedidoSchema.extend({
 export const EditarPedidoSchema = z.object({
   estado: z.enum(["PENDIENTE", "CONFIRMADO", "EN_PROCESO", "ENVIADO", "ENTREGADO", "CANCELADO"]).optional(),
   fechaEntrega: z.date().optional(),
-  fechaExpiracion: z.date().optional(),
   moneda: z.string().optional(),
   impuesto: z.number().min(0).max(100),
   notas: z.string().max(2000).optional().or(z.literal("")),

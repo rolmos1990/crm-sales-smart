@@ -161,10 +161,23 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     const flujoTenant = await obtenerFlujoVenta(sesion.instanciaId);
     if (flujoTenant && flujoTenant.etapas.length > 0) {
       const etapaInicial = flujoTenant.etapas.find((e) => e.esInicial) ?? flujoTenant.etapas[0];
+      // 038 — un solo instante para las dos filas, ver motor.ts:_moverInterno.
+      // Este es uno de los dos sitios que ubican el pedido en una etapa al
+      // CREARLO, sin pasar por el motor: engancharse solo al motor dejaría
+      // estos pedidos sin sellar.
+      const momento = new Date();
+      // Un pedido recién creado nunca tiene `fechaVenta`, así que basta con
+      // mirar si su etapa inicial cuenta como venta. Raro pero posible: un
+      // flujo cuya primera etapa ya está marcada (venta en el acto).
+      const sellarFechaVenta = etapaInicial.cuentaComoVenta;
       await prisma.$transaction([
         prisma.pedido.update({
           where: { id: pedido.id },
-          data: { flujoVentaId: flujoTenant.id, flujoVentaEtapaId: etapaInicial.id },
+          data: {
+            flujoVentaId: flujoTenant.id,
+            flujoVentaEtapaId: etapaInicial.id,
+            ...(sellarFechaVenta ? { fechaVenta: momento } : {}),
+          },
         }),
         prisma.pedidoHistorialEtapa.create({
           data: {
@@ -173,6 +186,7 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
             etapaNombre: etapaInicial.nombre,
             tipo: "AUTOMATICO",
             usuarioId: sesion.usuarioId,
+            creadoEn: momento,
           },
         }),
       ]);
@@ -279,7 +293,6 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
       empresaNombre,
       moneda,
       fechaEntrega,
-      fechaExpiracion,
       estado,
     } = validado.data;
     const lineasActuales = pedidoActual.lineas;
@@ -394,7 +407,6 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
     diffCampo("empresaNombre", pedidoActual.empresaNombre, empresaNombre || null);
     diffCampo("moneda", pedidoActual.moneda, moneda ?? null);
     diffCampo("fechaEntrega", pedidoActual.fechaEntrega?.toISOString() ?? null, fechaEntrega?.toISOString() ?? null);
-    diffCampo("fechaExpiracion", pedidoActual.fechaExpiracion?.toISOString() ?? null, fechaExpiracion?.toISOString() ?? null);
     diffCampo("notas", pedidoActual.notas, notas || null);
     diffCampo("contactoId", pedidoActual.contactoId, contactoId || null);
     diffCampo("empresaId", pedidoActual.empresaId, empresaId || null);
@@ -420,7 +432,6 @@ export async function editarPedido(id: string, datos: unknown): Promise<Resultad
           empresaNombre: empresaNombre || null,
           moneda: moneda ?? undefined,
           fechaEntrega: fechaEntrega ?? null,
-          fechaExpiracion: fechaExpiracion ?? null,
           estado: estado ?? undefined,
           subtotal,
           impuesto: impuestoMonto,

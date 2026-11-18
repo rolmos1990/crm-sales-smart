@@ -80,6 +80,12 @@ export async function crearEtapa(flujoVentaId: string, datos: unknown): Promise<
     // forzando true — edición siempre permitida ahí, fuera de alcance del fix.
     const permiteEditarPedido = esInicial ? true : (validado.data.permiteEditarPedido ?? true);
     const permiteEditarEntrega = validado.data.permiteEditarEntrega ?? false;
+    // 038 FR-005 — contabilizar una cancelación como venta no tiene sentido
+    // de negocio. Se corta en el servidor, no solo en la UI.
+    const cuentaComoVenta = esCancelacion ? false : (validado.data.cuentaComoVenta ?? false);
+    if (esCancelacion && validado.data.cuentaComoVenta) {
+      return { exito: false, error: "Una etapa de cancelación no puede contar como venta." };
+    }
 
     const etapa = await prisma.flujoVentaEtapa.create({
       data: {
@@ -90,6 +96,7 @@ export async function crearEtapa(flujoVentaId: string, datos: unknown): Promise<
         esCancelacion,
         permiteEditarPedido,
         permiteEditarEntrega,
+        cuentaComoVenta,
         activo: validado.data.activo ?? true,
         parentId: validado.data.parentId ?? null,
       },
@@ -122,10 +129,17 @@ export async function actualizarEtapa(etapaId: string, datos: unknown): Promise<
     // forzando true — edición siempre permitida ahí, fuera de alcance del fix.
     const permiteEditarPedido = esInicial ? true : (validado.data.permiteEditarPedido ?? etapa.permiteEditarPedido);
     const permiteEditarEntrega = validado.data.permiteEditarEntrega ?? etapa.permiteEditarEntrega;
+    // 038 FR-005 — ver crearEtapa. Marcar la etapa como cancelación apaga
+    // "Cuenta como Venta" aunque el formulario mande lo contrario.
+    const esCancelacion = validado.data.esCancelacion ?? etapa.esCancelacion;
+    const cuentaComoVenta = esCancelacion ? false : (validado.data.cuentaComoVenta ?? etapa.cuentaComoVenta);
+    if (esCancelacion && validado.data.cuentaComoVenta) {
+      return { exito: false, error: "Una etapa de cancelación no puede contar como venta." };
+    }
 
     await prisma.flujoVentaEtapa.update({
       where: { id: etapaId },
-      data: { ...validado.data, permiteEditarPedido, permiteEditarEntrega },
+      data: { ...validado.data, permiteEditarPedido, permiteEditarEntrega, cuentaComoVenta },
     });
     revalidatePath("/sales/flujo-venta");
     return { exito: true, datos: undefined };

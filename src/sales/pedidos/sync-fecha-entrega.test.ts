@@ -63,7 +63,6 @@ vi.mock("@/shared/db/prisma", () => ({
           // null = sin flujo dinámico: la edición está permitida.
           flujoVentaEtapa: null,
           fechaEntrega: FECHA_VIEJA,
-          fechaExpiracion: null,
           nombre: null, apellido: null, telefono: null, email: null, ruc: null,
           empresaNombre: null, moneda: "PEN", notas: null, contactoId: null, empresaId: null,
           lineas: [{

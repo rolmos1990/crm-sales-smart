@@ -145,6 +145,38 @@ Reglas que no se negocian:
 próximos 7 días incluyendo hoy", **no** la semana calendario. Es otro concepto
 que `rangoEstaSemana`; el tablero de preparación depende de él.
 
+### Los tres ejes de fecha del Pedido
+
+Un `Pedido` tiene tres fechas y **cada KPI del listado usa la que le
+corresponde**. Elegir la equivocada no rompe nada visible: solo da un número
+mal, que es peor.
+
+| Columna | Qué significa | Quién la usa como eje |
+|---|---|---|
+| `fechaPedido` | cuándo se creó el pedido | la lista y "Total pedidos" |
+| `fechaEntrega` | entrega estimada | "Pendientes" y "Expirados", y el filtro "Entrega estimada" |
+| `fechaVenta` | cuándo se volvió venta (primer cruce) | "Total ventas" y "Total ventas · mes actual" (038) |
+
+`fechaVenta` es el eje de las ventas porque una venta pertenece al
+período en que **se concretó**, no a aquel en que se creó el pedido: un pedido
+de octubre entregado en noviembre es una venta de noviembre. Consecuencia
+deliberada: con un rango activo, la lista y las tarjetas de dinero muestran
+poblaciones distintas, y por eso esas tarjetas dicen "Vendidos en este rango".
+
+Se escribe en el **mismo `update`/`create` que `flujoVentaEtapaId`**, con el
+mismo objeto `Date` que la fila de `PedidoHistorialEtapa` —de ahí se
+reconstruye— desde los cuatro sitios que mueven un pedido de etapa. Si aparece
+un quinto, también tiene que escribirla.
+
+`Pedido.fechaExpiracion` **ya no existe** (038): un pedido no expira. No
+confundir con `Cotizacion.fechaVencimiento` ni con
+`EntregaDigitalPedido.fechaExpiracion`, que siguen vigentes.
+
+El corte de "Pendientes" vs "Expirados" es `rangoHoy(zona).desde`, el **inicio
+del día de negocio**, no `new Date()`. Con un corte por instante, un pedido con
+entrega hoy pasaría a atrasado a la medianoche UTC, que en Lima son las 19:00
+del día anterior.
+
 ### El selector de rango en la UI
 
 La barra de filtros no arma su propio `<Calendar mode="range">`: usa
