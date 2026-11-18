@@ -14,6 +14,7 @@ import { lineaCompleta, pedidoCompleto, totalizarAvance } from "./utils/avance";
 import type {
   ColumnaTablero,
   ConfiguracionPreparacion,
+  DatosEntregaTarjeta,
   MovimientoPreparacion,
   ResumenProducto,
   Tablero,
@@ -29,10 +30,26 @@ const SELECT_PEDIDO_TABLERO = {
   fechaEntrega: true,
   nombre: true,
   apellido: true,
+  telefono: true,
   empresaNombre: true,
-  contacto: { select: { nombre: true, apellido: true } },
+  contacto: { select: { nombre: true, apellido: true, telefonoPrincipal: true } },
   empresa: { select: { nombre: true } },
   flujoVentaEtapa: { select: { nombre: true, color: true } },
+  // Datos de despacho: el operario los necesita para rotular el paquete sin
+  // salir del tablero. Es la relación 1-1 del pedido, no una consulta extra.
+  entrega: {
+    select: {
+      metodoEntrega: true,
+      observaciones: true,
+      direccionEntrega: true,
+      identificacion: true,
+      nombreDestinatario: true,
+      ciudad: true,
+      corregimiento: true,
+      sectorOCodigoPostal: true,
+      transportista: { select: { nombre: true } },
+    },
+  },
   preparacion: {
     select: {
       estadoId: true,
@@ -62,6 +79,27 @@ function resolverCliente(p: PedidoTablero): string {
   if (p.contacto) return `${p.contacto.nombre} ${p.contacto.apellido}`.trim();
   const persona = [p.nombre, p.apellido].map((v) => v?.trim()).filter(Boolean).join(" ");
   return persona || p.empresa?.nombre || p.empresaNombre?.trim() || "—";
+}
+
+/** Datos de despacho de la tarjeta. El teléfono cae al del contacto cuando el
+ *  pedido no trae uno propio: un pedido manual lo guarda en sus columnas y uno
+ *  del CRM lo tiene en el contacto. */
+function resolverDatosEntrega(p: PedidoTablero): DatosEntregaTarjeta {
+  const e = p.entrega;
+  const direccion = [e?.direccionEntrega, e?.sectorOCodigoPostal, e?.corregimiento, e?.ciudad]
+    .map((v) => v?.trim())
+    .filter(Boolean)
+    .join(", ");
+
+  return {
+    metodoEntrega: e?.metodoEntrega ?? null,
+    transportista: e?.transportista?.nombre?.trim() || null,
+    nombreDestinatario: e?.nombreDestinatario?.trim() || null,
+    identificacion: e?.identificacion?.trim() || null,
+    telefono: p.telefono?.trim() || p.contacto?.telefonoPrincipal?.trim() || null,
+    direccion: direccion || null,
+    observaciones: e?.observaciones?.trim() || null,
+  };
 }
 
 function aTarjeta(p: PedidoTablero, estadoIdFallback: string, zonaHoraria: string): TarjetaPreparacion {
@@ -95,6 +133,7 @@ function aTarjeta(p: PedidoTablero, estadoIdFallback: string, zonaHoraria: strin
     totalUnidades: totales.unidadesRequeridas,
     totalProductos: lineas.length,
     avanceCompleto: pedidoCompleto(lineas),
+    datosEntrega: resolverDatosEntrega(p),
     atrasado: estaAtrasado(p.fechaEntrega, zonaHoraria),
     sinFechaEntrega: p.fechaEntrega === null,
   };
