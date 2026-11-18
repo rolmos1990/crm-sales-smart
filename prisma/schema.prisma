@@ -2464,6 +2464,10 @@ model FlujoPreparacion {
   activo            Boolean               @default(true)
   agrupacionDefecto AgrupacionPreparacion @default(POR_PEDIDO)
   rangoDefecto      RangoPreparacion      @default(HOY)
+  // true: todas las tarjetas pendientes muestran productos y checks. false:
+  // solo la tarjeta seleccionada se despliega y las demás quedan como resumen.
+  // El default conserva el comportamiento que el tablero tuvo siempre.
+  detalleSiempreVisible Boolean           @default(true)
   creadoEn          DateTime              @default(now())
   actualizadoEn     DateTime              @updatedAt
 

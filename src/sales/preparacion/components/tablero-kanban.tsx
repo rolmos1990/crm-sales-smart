@@ -19,17 +19,27 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { moverPreparacionAction } from "../actions";
 import { LIMITE_POR_ESTADO } from "../constantes";
-import { TarjetaPreparacion } from "./tarjeta-preparacion";
+import { TarjetaPreparacion, type VarianteTarjeta } from "./tarjeta-preparacion";
 import type { ColumnaTablero, TarjetaPreparacion as Tarjeta } from "../types";
 
 interface Props {
   columnas: ColumnaTablero[];
   puedeMod: boolean;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
+  detalleSiempreVisible: boolean;
   onCargarMas: (estadoId: string) => void;
 }
 
-export function TableroKanban({ columnas, puedeMod, agrupacion, onCargarMas }: Props) {
+/** Lo que cada tarjeta necesita saber de la selección, empaquetado para no
+ *  arrastrar cuatro props por columna, grupo y tarjeta. */
+interface Seleccion {
+  pedidoId: string | null;
+  detalleSiempreVisible: boolean;
+  onSeleccionar: (pedidoId: string, alternar: boolean) => void;
+  onLimpiar: () => void;
+}
+
+export function TableroKanban({ columnas, puedeMod, agrupacion, detalleSiempreVisible, onCargarMas }: Props) {
   const router = useRouter();
   const [cargandoMas, setCargandoMas] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -37,6 +47,18 @@ export function TableroKanban({ columnas, puedeMod, agrupacion, onCargarMas }: P
   // conflicto se revierte desde las props.
   const [local, setLocal] = useState(columnas);
   const [arrastrando, setArrastrando] = useState<Tarjeta | null>(null);
+  // Una sola tarjeta seleccionada en todo el tablero. Vive acá (y no en cada
+  // tarjeta) para que elegir otra cierre la anterior, y por pedidoId para que
+  // sobreviva a la recarga que dispara marcar un producto.
+  const [seleccionadoId, setSeleccionadoId] = useState<string | null>(null);
+
+  const seleccion: Seleccion = {
+    pedidoId: seleccionadoId,
+    detalleSiempreVisible,
+    onSeleccionar: (pedidoId, alternar) =>
+      setSeleccionadoId((actual) => (alternar && actual === pedidoId ? null : pedidoId)),
+    onLimpiar: () => setSeleccionadoId(null),
+  };
 
   useEffect(() => setLocal(columnas), [columnas]);
 
@@ -133,13 +155,17 @@ export function TableroKanban({ columnas, puedeMod, agrupacion, onCargarMas }: P
       onDragEnd={handleDragEnd}
       onDragCancel={() => setArrastrando(null)}
     >
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      {/* Las columnas crecen para ocupar el ancho disponible (con dos estados,
+          la mitad cada una) y recién hacen scroll horizontal cuando no entran
+          a su ancho mínimo. */}
+      <div className="flex items-start gap-4 overflow-x-auto pb-2">
         {local.map((col) => (
           <ColumnaPreparacion
             key={col.estado.id}
             columna={col}
             puedeMod={puedeMod}
             agrupacion={agrupacion}
+            seleccion={seleccion}
             tamanoPagina={LIMITE_POR_ESTADO}
             cargando={cargandoMas === col.estado.id}
             onCargarMas={() => cargarMas(col.estado.id)}
@@ -149,7 +175,13 @@ export function TableroKanban({ columnas, puedeMod, agrupacion, onCargarMas }: P
 
       <DragOverlay>
         {arrastrando && (
-          <TarjetaPreparacion tarjeta={arrastrando} puedeMod={false} interactiva={false} className="rotate-2 shadow-lg" />
+          <TarjetaPreparacion
+            tarjeta={arrastrando}
+            puedeMod={false}
+            interactiva={false}
+            variante="resumen"
+            className="rotate-1 shadow-lg"
+          />
         )}
       </DragOverlay>
     </DndContext>
@@ -160,6 +192,7 @@ function ColumnaPreparacion({
   columna,
   puedeMod,
   agrupacion,
+  seleccion,
   tamanoPagina,
   cargando,
   onCargarMas,
@@ -167,6 +200,7 @@ function ColumnaPreparacion({
   columna: ColumnaTablero;
   puedeMod: boolean;
   agrupacion: "POR_PEDIDO" | "POR_PRODUCTO";
+  seleccion: Seleccion;
   tamanoPagina: number;
   cargando: boolean;
   onCargarMas: () => void;
@@ -174,18 +208,19 @@ function ColumnaPreparacion({
   const { setNodeRef, isOver } = useDroppable({ id: columna.estado.id });
   const cargadas = columna.tarjetas.length;
   const faltan = Math.max(columna.total - cargadas, 0);
+  const esFinal = columna.estado.esFinal;
 
   return (
     <section
       ref={setNodeRef}
       data-slot="columna-preparacion"
       className={cn(
-        "flex w-[19rem] shrink-0 flex-col gap-2 rounded-2xl border border-border bg-muted/30 p-2.5 transition-colors",
-        isOver && "border-foreground/20 bg-muted/60",
+        "flex min-w-[20rem] max-w-[40rem] flex-1 basis-0 flex-col gap-2 rounded-2xl bg-muted/40 p-2.5 transition-colors",
+        isOver && "bg-muted/70",
       )}
     >
-      <header className="flex items-center justify-between gap-2 px-1">
-        <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+      <header className="flex items-center justify-between gap-2 px-1.5 py-1">
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
           <span
             aria-hidden
             className="size-2 rounded-full"
@@ -195,15 +230,17 @@ function ColumnaPreparacion({
         </span>
         {/* Se muestra el total real, y cuántas están cargadas solo cuando no
             están todas — así el encabezado no miente en una columna paginada. */}
-        <span className="text-xs tabular-nums text-muted-foreground">
+        <span className="rounded-full bg-card px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
           {faltan > 0 ? `${cargadas} de ${columna.total}` : columna.total}
         </span>
       </header>
 
       {agrupacion === "POR_PRODUCTO" ? (
-        <AgrupadoPorProducto tarjetas={columna.tarjetas} puedeMod={puedeMod} />
+        <AgrupadoPorProducto tarjetas={columna.tarjetas} puedeMod={puedeMod} esFinal={esFinal} seleccion={seleccion} />
       ) : (
-        columna.tarjetas.map((t) => <TarjetaArrastrable key={t.pedidoId} tarjeta={t} puedeMod={puedeMod} />)
+        columna.tarjetas.map((t) => (
+          <TarjetaArrastrable key={t.pedidoId} tarjeta={t} puedeMod={puedeMod} esFinal={esFinal} seleccion={seleccion} />
+        ))
       )}
 
       {columna.tarjetas.length === 0 && (
@@ -237,26 +274,92 @@ function ColumnaPreparacion({
   );
 }
 
-function TarjetaArrastrable({ tarjeta, puedeMod }: { tarjeta: Tarjeta; puedeMod: boolean }) {
+/**
+ * Qué tan desplegada se ve una tarjeta:
+ * - en la columna final, siempre como "preparado" (ya no hay nada que marcar);
+ * - si la configuración pide el detalle siempre visible, en detalle;
+ * - si no, solo la seleccionada se despliega y el resto queda en resumen.
+ */
+function resolverVariante(esFinal: boolean, seleccionada: boolean, detalleSiempreVisible: boolean): VarianteTarjeta {
+  if (esFinal) return "preparado";
+  if (detalleSiempreVisible || seleccionada) return "detalle";
+  return "resumen";
+}
+
+function TarjetaArrastrable({
+  tarjeta,
+  puedeMod,
+  esFinal,
+  seleccion,
+}: {
+  tarjeta: Tarjeta;
+  puedeMod: boolean;
+  esFinal: boolean;
+  seleccion: Seleccion;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tarjeta.pedidoId,
     disabled: !puedeMod,
   });
+  const seleccionada = seleccion.pedidoId === tarjeta.pedidoId;
+  const variante = resolverVariante(esFinal, seleccionada, seleccion.detalleSiempreVisible);
+
+  // Un clic sobre un control de la tarjeta (un check, "+N productos") la
+  // selecciona pero nunca la cierra: marcar productos no debe plegar la
+  // tarjeta que se está armando. Un clic en cualquier otra parte alterna.
+  const alClic = (e: React.MouseEvent<HTMLDivElement>) => {
+    const sobreControl = (e.target as HTMLElement).closest("button, a, input") !== null;
+    seleccion.onSeleccionar(tarjeta.pedidoId, !sobreControl);
+  };
+
+  // Solo PointerSensor está registrado, así que el teclado queda libre para
+  // seleccionar: Enter/Espacio sobre la tarjeta enfocada la abre, Escape la cierra.
+  const alTecla = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      seleccion.onSeleccionar(tarjeta.pedidoId, true);
+    } else if (e.key === "Escape" && seleccionada) {
+      seleccion.onLimpiar();
+    }
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn(isDragging && "opacity-40")}
+      className={cn(
+        "rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        isDragging && "opacity-40",
+      )}
       {...attributes}
       {...listeners}
+      aria-expanded={variante === "preparado" ? undefined : variante === "detalle"}
+      onClick={alClic}
+      onKeyDown={alTecla}
     >
-      <TarjetaPreparacion tarjeta={tarjeta} puedeMod={puedeMod} />
+      <TarjetaPreparacion
+        tarjeta={tarjeta}
+        puedeMod={puedeMod}
+        variante={variante}
+        seleccionada={seleccionada}
+        className="cursor-pointer"
+      />
     </div>
   );
 }
 
-function AgrupadoPorProducto({ tarjetas, puedeMod }: { tarjetas: Tarjeta[]; puedeMod: boolean }) {
+function AgrupadoPorProducto({
+  tarjetas,
+  puedeMod,
+  esFinal,
+  seleccion,
+}: {
+  tarjetas: Tarjeta[];
+  puedeMod: boolean;
+  esFinal: boolean;
+  seleccion: Seleccion;
+}) {
   const grupos = useMemo(() => {
     const mapa = new Map<string, { nombre: string; unidades: number; tarjetas: Tarjeta[] }>();
     for (const t of tarjetas) {
@@ -279,7 +382,13 @@ function AgrupadoPorProducto({ tarjetas, puedeMod }: { tarjetas: Tarjeta[]; pued
             {g.nombre} · {g.unidades} u.
           </p>
           {g.tarjetas.map((t) => (
-            <TarjetaArrastrable key={`${g.nombre}-${t.pedidoId}`} tarjeta={t} puedeMod={puedeMod} />
+            <TarjetaArrastrable
+              key={`${g.nombre}-${t.pedidoId}`}
+              tarjeta={t}
+              puedeMod={puedeMod}
+              esFinal={esFinal}
+              seleccion={seleccion}
+            />
           ))}
         </div>
       ))}

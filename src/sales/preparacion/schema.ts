@@ -26,6 +26,8 @@ export const AvanceLineaSchema = z.object({
 export const PreferenciasTableroSchema = z.object({
   agrupacionDefecto: z.enum(["POR_PEDIDO", "POR_PRODUCTO"]),
   rangoDefecto: z.enum(["HOY", "MANANA", "SEMANA", "PERSONALIZADO"]),
+  // Opcional: un cliente que no lo mande no pisa lo que ya estaba guardado.
+  detalleSiempreVisible: z.boolean().optional(),
 });
 
 export const EtapasEntradaSchema = z.object({
