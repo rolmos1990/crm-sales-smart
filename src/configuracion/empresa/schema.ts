@@ -47,3 +47,18 @@ export const PreferenciaCatalogoVentaSchema = z.object({
   filtroProductosPedido: z.enum(["TODOS", "PRODUCTOS", "COMBOS"]),
 });
 export type PreferenciaCatalogoVentaInput = z.infer<typeof PreferenciaCatalogoVentaSchema>;
+
+// 041 — Umbrales del seguimiento de contactos. La regla Pendiente < Por
+// recuperar ≤ Inactivo es la que hace que los estados no se pisen.
+export const UmbralesSeguimientoSchema = z
+  .object({
+    diasSeguimientoPendiente: z.number().int().min(1, "Mínimo 1 día"),
+    diasSeguimientoRecuperar: z.number().int().min(2),
+    diasSeguimientoInactivo: z.number().int().max(3650, "Máximo 3650 días"),
+  })
+  .refine(
+    (v) => v.diasSeguimientoPendiente < v.diasSeguimientoRecuperar && v.diasSeguimientoRecuperar <= v.diasSeguimientoInactivo,
+    { message: "Los días deben cumplir: Pendiente < Por recuperar ≤ Inactivo" },
+  );
+
+export type UmbralesSeguimientoInput = z.infer<typeof UmbralesSeguimientoSchema>;

@@ -333,6 +333,28 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
     Detalle: `specs/038-cuenta-como-venta/`.
 
 11. **Nombres de eventos de dominio**: todo evento se nombra en pasado (`ContactoCreado`, no `CrearContacto`). Un único contrato compartido en `src/eventos/contratos/`, reutilizado por publicador y suscriptor — nunca DTOs duplicados. Todo contrato lleva `version: number`. Los nombres oficiales viven en `EventosSistema`/`ComandosSistema` (`src/eventos/catalogo`), nunca strings sueltos. Todo evento nuevo se documenta en `docs/eventos.md`
+12. **Segmentación de Contactos** (041): Cliente, Interesado, Lead y el
+    estado de seguimiento se **derivan en cada consulta** desde
+    `src/crm/contactos/segmentacion/condiciones.ts` — la única definición, que
+    usan los indicadores, los filtros, la paginación por prioridad y cada fila.
+    Cliente reutiliza `construirCondicionVenta`; nunca se guarda en el contacto.
+    Las condiciones guardan cada fecha nulable con su `not: null` porque bajo
+    `NOT` un NULL descarta la fila de ambos lados; hay un test de matriz que lo
+    vigila.
+
+    `Contacto.ultimaInteraccionEn` y `esperandoRespuestaDesde` solo se escriben
+    desde `src/crm/contactos/interaccion.ts`. Cuentan como interacción los
+    mensajes del contacto, los de una persona, las actividades y los pedidos;
+    **no** los envíos automáticos de la IA o de un Workflow (que sí cierran la
+    espera de respuesta).
+
+    Todo envío por `enviarMensajeInterno` declara `autor: "PERSONA" | "IA" |
+    "WORKFLOW"` (obligatorio). "No contactar" corta los envíos automáticos ahí
+    mismo, más dos cortes tempranos en `orquestar-ia.suscriptor.ts` y
+    `workflows/motor/disparo.ts`; a una persona solo se le avisa. El interés y
+    "No contactar" se escriben únicamente por `src/crm/contactos/clasificacion.ts`,
+    que rechaza pisar un interés fijado a mano y que un proceso automático
+    vuelva a habilitar un contacto. Detalle: `specs/041-contactos-segmentacion-comercial/`.
 
 ---
 

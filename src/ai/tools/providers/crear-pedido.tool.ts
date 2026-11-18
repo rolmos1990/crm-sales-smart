@@ -1,3 +1,4 @@
+import { registrarInteraccionSinFallar } from "@/crm/contactos/interaccion";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { registroHerramientas } from "@/ai/tools/registry";
@@ -207,6 +208,9 @@ const CrearPedidoTool: IProveedorTool = {
       }
     }
     if (!pedido) throw new Error("No se pudo generar un número de pedido único");
+    // 041 — Un pedido es interacción comercial del contacto, aunque lo cree la IA:
+    // refleja una decisión del cliente, no un envío automático.
+    await registrarInteraccionSinFallar(pedido.contactoId, pedido.creadoEn);
 
     return {
       ok: true,

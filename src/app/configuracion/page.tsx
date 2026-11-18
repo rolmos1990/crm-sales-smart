@@ -62,7 +62,18 @@ export default async function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="preferencias">
-            <TabPreferencias filtroProductosPedidoInicial={configEmpresa?.filtroProductosPedido ?? "TODOS"} />
+            <TabPreferencias
+              filtroProductosPedidoInicial={configEmpresa?.filtroProductosPedido ?? "TODOS"}
+              umbralesSeguimientoInicial={
+                configEmpresa
+                  ? {
+                      pendiente: configEmpresa.diasSeguimientoPendiente,
+                      recuperar: configEmpresa.diasSeguimientoRecuperar,
+                      inactivo: configEmpresa.diasSeguimientoInactivo,
+                    }
+                  : undefined
+              }
+            />
           </TabsContent>
 
           <TabsContent value="usuarios">

@@ -102,6 +102,52 @@ interface ContactoAsignadoPayload {
 
 ---
 
+### ContactoInteresActualizado
+
+**Descripción**: Cambió el nivel de interés vigente de un contacto (Alto, Medio, Bajo, Sin evaluar). Un cambio manual queda fijado y ningún proceso automático lo pisa (041).
+
+**Publicado por**: `src/crm/contactos/clasificacion.ts` (después del commit de la transacción que escribe el contacto y su historial)
+
+**Contrato**: `src/eventos/contratos/contacto-interes-actualizado.event.ts`
+
+```ts
+interface ContactoInteresActualizadoPayload {
+  instanciaId: string;
+  contactoId: string;
+  nivelAnterior: "ALTO" | "MEDIO" | "BAJO" | "SIN_EVALUAR";
+  nivelNuevo: "ALTO" | "MEDIO" | "BAJO" | "SIN_EVALUAR";
+  fijado: boolean;
+  origen: "MANUAL" | "REGLA" | "IA";
+  usuarioInstanciaId: string | null;
+}
+```
+
+**Versión**: v1
+
+---
+
+### ContactoPreferenciaContactoActualizada
+
+**Descripción**: El contacto pasó a "No contactar" o volvió a "Contactable". Mientras esté en "No contactar", la IA y los Workflows no le envían mensajes. Solo una persona puede volverlo a "Contactable" (041).
+
+**Publicado por**: `src/crm/contactos/clasificacion.ts`
+
+**Contrato**: `src/eventos/contratos/contacto-preferencia-contacto-actualizada.event.ts`
+
+```ts
+interface ContactoPreferenciaContactoActualizadaPayload {
+  instanciaId: string;
+  contactoId: string;
+  noContactar: boolean;
+  origen: "MANUAL" | "IA";
+  usuarioInstanciaId: string | null;
+}
+```
+
+**Versión**: v1
+
+---
+
 ### EmpresaCreada
 
 **Descripción**: Se ejecuta cuando una empresa es creada exitosamente.

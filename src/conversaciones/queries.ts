@@ -9,6 +9,8 @@ const contactoSelect = {
   telefonoPrincipal: true,
   email: true,
   avatarUrl: true,
+  // 041 — para el aviso "No contactar" sobre el compositor.
+  noContactarDesde: true,
   identificadoresCanal: {
     select: { identificador: true, canal: true, handle: true },
   },
@@ -106,6 +108,7 @@ function mapearConversacion(conv: any): ConversacionResumen {
       // venía en el select de `contactoSelect` — antes se descartaba acá, así
       // que exponerlo no agrega ninguna consulta.
       identificadoresCanal: conv.contacto.identificadoresCanal ?? [],
+      noContactar: conv.contacto.noContactarDesde != null,
     },
     cuentaCanal: conv.cuentaCanal,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -62,6 +62,7 @@ describe("corte 1/3 — enviarMensajeInterno", () => {
       conversacionId: CONV,
       contenido: "Hola",
       instanciaId: "inst-1",
+      autor: "PERSONA",
     });
 
     expect(r.ok).toBe(false);
@@ -80,6 +81,7 @@ describe("corte 1/3 — enviarMensajeInterno", () => {
       conversacionId: CONV,
       contenido: "Hola",
       instanciaId: "inst-1",
+      autor: "PERSONA",
     });
 
     expect(r.ok).toBe(true);

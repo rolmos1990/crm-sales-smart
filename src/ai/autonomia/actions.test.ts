@@ -117,7 +117,7 @@ describe("autonomia/actions (016)", () => {
       expect(resultado.exito).toBe(true);
       expect(enviarMensajeMock).not.toHaveBeenCalled();
       expect(enviarMensajeInternoMock).toHaveBeenCalledWith(
-        expect.objectContaining({ conversacionId: "c1", contenido: "Hola", instanciaId: "instancia-1", origen: "WORKFLOW" }),
+        expect.objectContaining({ conversacionId: "c1", contenido: "Hola", instanciaId: "instancia-1", autor: "WORKFLOW" }),
       );
     });
 

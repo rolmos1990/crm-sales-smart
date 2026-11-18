@@ -5,7 +5,7 @@ import { prisma } from "@/shared/db/prisma";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
 import { obtenerConfiguracionEmpresa } from "./queries";
-import { ConfiguracionEmpresaSchema, ConfiguracionGeograficaSchema, ConfiguracionEnvioSchema, PreferenciaCatalogoVentaSchema } from "./schema";
+import { ConfiguracionEmpresaSchema, ConfiguracionGeograficaSchema, ConfiguracionEnvioSchema, PreferenciaCatalogoVentaSchema, UmbralesSeguimientoSchema } from "./schema";
 import type { ResultadoAccion, ConfigEmpresa } from "./types";
 
 // 019-cobertura-geografica-envios — entrypoint client-callable liviano
@@ -149,5 +149,32 @@ export async function guardarPreferenciaCatalogoVenta(datos: unknown): Promise<R
     return { exito: true, datos: config as ConfigEmpresa };
   } catch {
     return { exito: false, error: "Error al guardar la preferencia" };
+  }
+}
+
+// 041 — Umbrales del seguimiento de contactos (Pendiente / Por recuperar /
+// Inactivo). Cambian el seguimiento en la siguiente visita a Contactos, sin
+// recálculo: el seguimiento se deriva en cada consulta.
+export async function guardarUmbralesSeguimientoAction(datos: unknown): Promise<ResultadoAccion<ConfigEmpresa>> {
+  const sesion = await requireSesion();
+  const acceso = verificarAcceso(sesion, "configuracion", "modificar");
+  if (!acceso.permitido) return { exito: false, error: acceso.error! };
+
+  const validado = UmbralesSeguimientoSchema.safeParse(datos);
+  if (!validado.success) {
+    return { exito: false, error: validado.error.issues[0]?.message ?? "Error de validación" };
+  }
+
+  try {
+    const config = await prisma.configuracionEmpresa.upsert({
+      where: { instanciaId: sesion.instanciaId },
+      create: { instanciaId: sesion.instanciaId, ...validado.data },
+      update: validado.data,
+    });
+    revalidatePath("/configuracion");
+    revalidatePath("/crm/contactos");
+    return { exito: true, datos: config as ConfigEmpresa };
+  } catch {
+    return { exito: false, error: "Error al guardar los umbrales de seguimiento" };
   }
 }

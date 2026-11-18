@@ -37,7 +37,7 @@ export async function enrutarMensajeEntrante(p: {
     prisma.conversacion.findFirst({
       where: { id: p.conversacionId, instanciaId: p.instanciaId },
       // 034 — bloqueadaPorAprobacion es el corte 3 de 3 (ver más abajo).
-      select: { modoAtencion: true, contactoId: true, bloqueadaPorAprobacion: true },
+      select: { modoAtencion: true, contactoId: true, bloqueadaPorAprobacion: true, contacto: { select: { noContactarDesde: true } } },
     }),
     prisma.mensajeConversacion.findUnique({ where: { id: p.mensajeId }, select: { contenido: true } }),
   ]);
@@ -52,6 +52,12 @@ export async function enrutarMensajeEntrante(p: {
   // Devuelve atendido: true —y no false— para que el mensaje quede consumido
   // y la IA tampoco lo tome.
   if (conv.bloqueadaPorAprobacion) return { atendido: true };
+
+  // 041 — Contacto en "No contactar": ningún Workflow ni la IA lo atienden.
+  // Mismo criterio que el corte de aprobación: atendido: true consume el
+  // mensaje para que la IA tampoco lo tome. El corte principal está en
+  // enviarMensajeInterno, que también frena a los Workflows ya en curso.
+  if (conv.contacto?.noContactarDesde) return { atendido: true };
 
   const activas = await prisma.workflowEjecucion.findMany({
     where: { conversacionId: p.conversacionId, instanciaId: p.instanciaId, estado: { in: ESTADOS_ACTIVOS } },

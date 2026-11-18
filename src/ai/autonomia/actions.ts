@@ -22,7 +22,7 @@ async function enviarSugerenciaAprobada(conversacionId: string, contenido: strin
     select: { modoAtencion: true },
   });
   if (conv?.modoAtencion === "WORKFLOW") {
-    return enviarMensajeInterno({ conversacionId, contenido, tipo: "TEXTO", esNotaInterna: false, instanciaId, origen: "WORKFLOW" });
+    return enviarMensajeInterno({ conversacionId, contenido, tipo: "TEXTO", esNotaInterna: false, instanciaId, autor: "WORKFLOW" });
   }
   return enviarMensaje({ conversacionId, contenido, tipo: "TEXTO", esNotaInterna: false });
 }

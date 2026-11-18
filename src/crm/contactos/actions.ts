@@ -7,8 +7,23 @@ import { requirePermisoAction } from "@/shared/auth/permisos-server";
 import { EventosSistema } from "@/eventos/catalogo";
 import { publicadorEventos } from "@/shared/rabbitmq";
 import { normalizarTelefono } from "@/lib/normalizar-telefono";
-import { CrearContactoSchema, ActualizarContactoSchema } from "./schema";
-import type { ResultadoAccion, Contacto } from "./types";
+import {
+  CrearContactoSchema,
+  ActualizarContactoSchema,
+  FiltrosVistaContactosSchema,
+  ActualizarInteresContactoSchema,
+  ActualizarPreferenciaContactoSchema,
+  ResumenContactoSchema,
+  type FiltrosVistaContactos,
+} from "./schema";
+import { verificarAcceso } from "@/shared/auth/permisos";
+import { obtenerEtapasFlujoActivo } from "@/sales/flujo-venta/queries";
+import { obtenerUmbralesSeguimiento } from "./queries";
+import { cargarVistaContactos } from "./vista";
+import { obtenerResumenContacto, type ResumenContacto } from "./resumen";
+import { actualizarInteres, actualizarPreferenciaContacto } from "./clasificacion";
+import { calcularCortes } from "./segmentacion/cortes";
+import type { ResultadoAccion, Contacto, VistaContactos } from "./types";
 
 const telNorm = (tel: string | undefined | null): string | null => {
   if (!tel) return null;
@@ -181,5 +196,104 @@ export async function eliminarContacto(id: string): Promise<ResultadoAccion> {
   } catch (e) {
     console.error("[eliminarContacto]", e);
     return { exito: false, error: "Error al eliminar el contacto" };
+  }
+}
+
+// ── 041 — Vista comercial ──────────────────────────────────────────────────
+
+/**
+ * Lista + indicadores de Contactos para la barra de filtros. Los filtros
+ * viajan en el cuerpo de la acción, no en la URL (ver FiltrosVistaContactosSchema).
+ */
+export async function consultarVistaContactosAction(entrada: FiltrosVistaContactos): Promise<VistaContactos> {
+  const filtros = FiltrosVistaContactosSchema.parse(entrada);
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "contactos", "ver").permitido) throw new Error("Acceso denegado");
+
+  try {
+    const [etapas, umbrales] = await Promise.all([
+      obtenerEtapasFlujoActivo(sesion.instanciaId),
+      obtenerUmbralesSeguimiento(sesion.instanciaId),
+    ]);
+    return await cargarVistaContactos(sesion.instanciaId, sesion.zonaNegocio, filtros, etapas, umbrales);
+  } catch (err) {
+    console.error("[consultarVistaContactosAction]", err);
+    throw new Error("No se pudieron cargar los contactos");
+  }
+}
+
+/** Panel lateral (041). Un contacto ajeno o inexistente responde "no encontrado". */
+export async function obtenerResumenContactoAction(
+  contactoId: string,
+): Promise<{ ok: true; resumen: ResumenContacto } | { ok: false; error: string }> {
+  const validado = ResumenContactoSchema.safeParse({ contactoId });
+  if (!validado.success) return { ok: false, error: "Contacto no encontrado" };
+  const auth = await requirePermisoAction("contactos", "ver");
+  if (!auth.ok) return { ok: false, error: auth.error };
+
+  try {
+    const { sesion } = auth;
+    const [etapas, umbrales] = await Promise.all([
+      obtenerEtapasFlujoActivo(sesion.instanciaId),
+      obtenerUmbralesSeguimiento(sesion.instanciaId),
+    ]);
+    const cortes = calcularCortes(sesion.zonaNegocio, umbrales);
+    const resumen = await obtenerResumenContacto(validado.data.contactoId, sesion.instanciaId, etapas, cortes);
+    return resumen ? { ok: true, resumen } : { ok: false, error: "Contacto no encontrado" };
+  } catch (err) {
+    console.error("[obtenerResumenContactoAction]", err);
+    return { ok: false, error: "No se pudo cargar el contacto" };
+  }
+}
+
+function revalidarContacto(contactoId: string) {
+  revalidatePath("/crm/contactos");
+  revalidatePath(`/crm/contactos/${contactoId}`);
+}
+
+export async function actualizarInteresContactoAction(entrada: unknown): Promise<ResultadoAccion> {
+  const validado = ActualizarInteresContactoSchema.safeParse(entrada);
+  if (!validado.success) return { exito: false, error: "Datos inválidos" };
+  const auth = await requirePermisoAction("contactos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  try {
+    const r = await actualizarInteres({
+      instanciaId: auth.sesion.instanciaId,
+      contactoId: validado.data.contactoId,
+      accion: validado.data.accion,
+      origen: "MANUAL",
+      usuarioInstanciaId: auth.sesion.usuarioInstanciaId,
+    });
+    if (!r.ok) return { exito: false, error: r.error };
+    revalidarContacto(validado.data.contactoId);
+    return { exito: true, datos: undefined };
+  } catch (err) {
+    console.error("[actualizarInteresContactoAction]", err);
+    return { exito: false, error: "No se pudo actualizar el interés" };
+  }
+}
+
+export async function actualizarPreferenciaContactoAction(entrada: unknown): Promise<ResultadoAccion> {
+  const validado = ActualizarPreferenciaContactoSchema.safeParse(entrada);
+  if (!validado.success) return { exito: false, error: "Datos inválidos" };
+  const auth = await requirePermisoAction("contactos", "modificar");
+  if (!auth.ok) return { exito: false, error: auth.error };
+
+  try {
+    const r = await actualizarPreferenciaContacto({
+      instanciaId: auth.sesion.instanciaId,
+      contactoId: validado.data.contactoId,
+      noContactar: validado.data.noContactar,
+      origen: "MANUAL",
+      usuarioInstanciaId: auth.sesion.usuarioInstanciaId,
+    });
+    if (!r.ok) return { exito: false, error: r.error };
+    revalidarContacto(validado.data.contactoId);
+    revalidatePath("/crm/inbox");
+    return { exito: true, datos: undefined };
+  } catch (err) {
+    console.error("[actualizarPreferenciaContactoAction]", err);
+    return { exito: false, error: "No se pudo actualizar la preferencia de contacto" };
   }
 }

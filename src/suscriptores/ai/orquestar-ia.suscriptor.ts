@@ -34,6 +34,8 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
           modoAtencion: true,
           // 034 — Corte 2 de 3 del bloqueo por aprobación pendiente.
           bloqueadaPorAprobacion: true,
+          // 041 — corte temprano de "No contactar" (el principal está en envio.ts).
+          contacto: { select: { noContactarDesde: true } },
           cuentaCanal: { select: { canal: true } },
           oportunidades: {
             select: {
@@ -83,6 +85,14 @@ export class OrquestarIASuscriptor extends ConsumidorBase<MensajeRecibidoPayload
       console.log(
         `[OrquestarIA] Conversación ${conversacionId} pendiente de aprobación del remitente — IA no responde`,
       );
+      return;
+    }
+
+    // 041 — Contacto que pidió no ser contactado: la IA no responde. El corte
+    // principal está en enviarMensajeInterno; este evita generar (y pagar)
+    // una respuesta que de todos modos no podría salir.
+    if (conv?.contacto?.noContactarDesde) {
+      console.log(`[OrquestarIA] Conversación ${conversacionId} — contacto en No contactar, IA no responde`);
       return;
     }
 

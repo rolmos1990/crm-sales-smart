@@ -1,6 +1,6 @@
 import { prisma } from "@/shared/db/prisma";
 import { moverOportunidadAEtapa } from "@/crm/pipeline/mover-stage";
-import { enviarMensajeInterno } from "@/conversaciones/envio";
+import { enviarMensajeInterno, MENSAJE_NO_CONTACTAR } from "@/conversaciones/envio";
 import { encolarEmail } from "@/lib/email/encolar-email";
 import { CAMPOS_ACTUALIZABLES } from "../definicion/schema";
 import { ErrorDefinitivoWorkflow, type AdaptadoresEjecucion } from "./tipos";
@@ -18,10 +18,11 @@ export function crearAdaptadoresReales(iniciar: AdaptadoresEjecucion["iniciarWor
         contenido: texto,
         mediaUrl,
         tipo: mediaUrl ? "IMAGEN" : "TEXTO",
-        origen: "WORKFLOW",
+        autor: "WORKFLOW",
       });
       if (!r.ok) {
-        if (r.error === "Conversación no encontrada") throw new ErrorDefinitivoWorkflow(r.error);
+        // 041 — "No contactar" no se arregla reintentando: error definitivo.
+        if (r.error === "Conversación no encontrada" || r.error === MENSAJE_NO_CONTACTAR) throw new ErrorDefinitivoWorkflow(r.error);
         throw new Error(r.error);
       }
       return { mensajeId: r.mensaje.id };
