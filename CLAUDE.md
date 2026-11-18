@@ -146,6 +146,10 @@ Reglas para este proyecto:
   usuario abre el popup una vez. Ver `docs/selects.md` para el detalle y el
   checklist antes de tocar o crear cualquier `<Select>`.
 
+- **Mascota de Karia**: usar `<KariaAvatar>` (`src/asistente/karia/karia-avatar.tsx`)
+  y, para el flotante, `usarAsistenteKaria()`; nunca un `<img>` del sprite ni un
+  GIF. Ver `docs/asistente-karia.md`.
+
 Detalle completo (identidad visual y tokens, generación de componentes primitivos, generación
 de patrones compuestos): `.agents/skills/design-systems/`. Este skill reemplaza a los antiguos
 `ui-component` y `ui-pattern` (fusionados para evitar solapamiento).

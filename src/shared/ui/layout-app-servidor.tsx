@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { AppLayout } from "@/shared/ui/app-sidebar";
 import { obtenerSesionActual } from "@/shared/auth/sesion";
 import { obtenerPreferenciasFechaEfectivas } from "@/shared/fechas/presentacion";
+import { AsistenteKariaProvider } from "@/asistente/contexto-asistente";
+import { AsistenteKariaMontaje } from "@/asistente/components/asistente-karia-montaje";
 
 /**
  * Shell autenticado común a todas las secciones de la app.
@@ -26,12 +28,15 @@ export async function LayoutAppServidor({ children }: { children: ReactNode }) {
   });
 
   return (
-    <AppLayout
-      usuario={{ nombre: sesion.nombre, email: sesion.email }}
-      rol={sesion.rol}
-      preferenciasFecha={preferenciasFecha}
-    >
-      {children}
-    </AppLayout>
+    <AsistenteKariaProvider>
+      <AppLayout
+        usuario={{ nombre: sesion.nombre, email: sesion.email }}
+        rol={sesion.rol}
+        preferenciasFecha={preferenciasFecha}
+      >
+        {children}
+      </AppLayout>
+      <AsistenteKariaMontaje />
+    </AsistenteKariaProvider>
   );
 }
