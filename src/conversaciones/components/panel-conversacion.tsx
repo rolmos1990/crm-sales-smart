@@ -10,6 +10,7 @@ import { SelectorCuentaCanal } from "./selector-cuenta-canal";
 import { SelectorAtencion } from "@/workflows/components/selector-atencion";
 import { enviarMensaje, iniciarConversacion } from "../actions";
 import type { ConversacionResumen, MensajeConMeta, CuentaCanalResumen } from "../types";
+import { AvisoNoContactar } from "./aviso-no-contactar";
 
 const PAGE_SIZE = Math.min(
   parseInt(process.env.NEXT_PUBLIC_MENSAJES_POR_PAGINA ?? "") || 50,
@@ -324,6 +325,8 @@ export function PanelConversacion({
           onCargarAnteriores={cargarAnteriores}
         />
       )}
+
+      {!sinConversacion && conversacionActivaObj?.contacto?.noContactar && <AvisoNoContactar />}
 
       {/* Input de mensaje */}
       {!sinConversacion && (

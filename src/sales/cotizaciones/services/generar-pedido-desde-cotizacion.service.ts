@@ -1,3 +1,4 @@
+import { registrarInteraccion } from "@/crm/contactos/interaccion";
 import { prisma } from "@/shared/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { EventosSistema } from "@/eventos/catalogo";
@@ -270,6 +271,9 @@ export async function generarPedidoDesdeCotizacion(
     // Descontar stock dentro de la transacción, como siempre. Se recalcula
     // con `tx` para no descontar sobre una lectura previa a la transacción.
     await aplicarDeltas(await planificarStock([], consumo, tx), tx);
+
+    // 041 — Un pedido es interacción comercial del contacto.
+    if (nuevoPedido.contactoId) await registrarInteraccion(nuevoPedido.contactoId, nuevoPedido.creadoEn, tx);
 
     return nuevoPedido;
   });

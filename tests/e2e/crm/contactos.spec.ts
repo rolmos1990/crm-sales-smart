@@ -147,8 +147,9 @@ test.describe('Creación de contactos', () => {
 test.describe('Detalle y edición de contactos', () => {
   test('C-09 Ver detalle del contacto', async ({ page }) => {
     await page.goto('/crm/contactos');
-    // Clic en el primer contacto de la lista
-    const primerContacto = page.locator('tbody tr a, [data-testid="contacto-fila"] a').first();
+    // 041 — la fila abre el panel lateral; la ficha completa se abre desde ahí.
+    await page.locator('tbody tr').first().click();
+    const primerContacto = page.getByRole('link', { name: /ficha completa/i });
     await primerContacto.click();
     // Esperado: página de detalle con campos, actividades y oportunidades
     await expect(page).toHaveURL(/\/crm\/contactos\/\w+/);
@@ -157,7 +158,8 @@ test.describe('Detalle y edición de contactos', () => {
 
   test('C-10 Editar contacto', async ({ page }) => {
     await page.goto('/crm/contactos');
-    await page.locator('tbody tr a, [data-testid="contacto-fila"] a').first().click();
+    await page.locator('tbody tr').first().click();
+    await page.getByRole('link', { name: /ficha completa/i }).click();
     // El botón "Editar" del detalle es un Link (ButtonLink), no un <button>.
     await page.getByRole('link', { name: /editar/i }).click();
 
@@ -178,6 +180,11 @@ test.describe('Detalle y edición de contactos', () => {
     await page.getByLabel(/apellido/i).fill('Test');
     await page.getByRole('button', { name: /guardar|crear/i }).click();
     await expect(page.locator(`text=${nombreParaEliminar}`).first()).toBeVisible({ timeout: 8000 });
+
+    // 041 — la lista se ordena por prioridad de atención: un contacto nuevo sin
+    // actividad no tiene por qué estar en la primera página, así que se busca.
+    await page.goto('/crm/contactos');
+    await page.getByPlaceholder(/buscar/i).fill(nombreParaEliminar);
 
     // Eliminar: la acción vive en el menú "Acciones" (⋯) de la fila, no en un botón visible.
     const fila = page.locator('tbody tr', { hasText: nombreParaEliminar });

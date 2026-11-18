@@ -1,39 +1,52 @@
 import { Plus, Users } from "lucide-react";
+import { redirect } from "next/navigation";
 import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
-import { ListaContactos } from "@/crm/contactos/components/lista-contactos";
-import { obtenerContactos } from "@/crm/contactos/queries";
-import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { puedeModificar, verificarAcceso } from "@/shared/auth/permisos";
-import type { Contacto } from "@/crm/contactos/types";
+import { obtenerEtapasFlujoActivo } from "@/sales/flujo-venta/queries";
+import { obtenerUmbralesSeguimiento } from "@/crm/contactos/queries";
+import { FILTROS_VISTA_CONTACTOS_DEFECTO } from "@/crm/contactos/schema";
+import { cargarVistaContactos } from "@/crm/contactos/vista";
+import { VistaContactos } from "@/crm/contactos/components/vista-contactos";
+import type { VistaContactos as DatosVistaContactos } from "@/crm/contactos/types";
+
+// Los indicadores y el seguimiento dependen de la hora actual y del Flujo de
+// Venta vigente: nunca se sirven cacheados.
+export const dynamic = "force-dynamic";
 
 export default async function ContactosPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "contactos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "contactos");
-  let contactos: Contacto[] = [];
+
+  let inicial: DatosVistaContactos | null = null;
   try {
-    const datos = await obtenerContactos(sesion.instanciaId);
-    contactos = datos as unknown as Contacto[];
-  } catch {
-    // DB no configurada aún
+    const [etapas, umbrales] = await Promise.all([
+      obtenerEtapasFlujoActivo(sesion.instanciaId),
+      obtenerUmbralesSeguimiento(sesion.instanciaId),
+    ]);
+    inicial = await cargarVistaContactos(sesion.instanciaId, sesion.zonaNegocio, FILTROS_VISTA_CONTACTOS_DEFECTO, etapas, umbrales);
+  } catch (err) {
+    console.error("[ContactosPage] Error al cargar contactos:", err);
   }
+
+  const botonNuevo = puedeMod ? (
+    <ButtonLink href="/crm/contactos/nuevo">
+      <Plus className="mr-2 h-4 w-4" />
+      Nuevo contacto
+    </ButtonLink>
+  ) : undefined;
 
   return (
     <div className="flex flex-col gap-6 p-6">
       <PageHeader
         titulo="Contactos"
-        descripcion="Gestiona tus contactos y relaciones comerciales"
-        accion={puedeMod ? (
-          <ButtonLink href="/crm/contactos/nuevo">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo contacto
-          </ButtonLink>
-        ) : undefined}
+        descripcion="Conoce y gestiona tus contactos, clientes y oportunidades comerciales"
+        accion={botonNuevo}
       />
-      {contactos.length === 0 ? (
+      {!inicial || inicial.indicadores.total === 0 ? (
         <EmptyState
           Icono={Users}
           titulo="Sin contactos todavía"
@@ -46,7 +59,7 @@ export default async function ContactosPage() {
           ) : undefined}
         />
       ) : (
-        <ListaContactos contactos={contactos} />
+        <VistaContactos inicial={inicial} />
       )}
     </div>
   );

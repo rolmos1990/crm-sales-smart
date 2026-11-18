@@ -1,4 +1,5 @@
 import { prisma } from "@/shared/db/prisma";
+import { UMBRALES_SEGUIMIENTO_DEFECTO, type UmbralesSeguimiento } from "./segmentacion/cortes";
 
 export async function obtenerContactos(instanciaId: string) {
   return prisma.contacto.findMany({
@@ -54,4 +55,20 @@ export async function buscarContactos(query: string, instanciaId: string) {
     },
     take: 10,
   });
+}
+
+// ── 041 ────────────────────────────────────────────────────────────────────
+
+/** Umbrales de seguimiento de la cuenta; defaults si nunca se configuraron. */
+export async function obtenerUmbralesSeguimiento(instanciaId: string): Promise<UmbralesSeguimiento> {
+  const config = await prisma.configuracionEmpresa.findUnique({
+    where: { instanciaId },
+    select: { diasSeguimientoPendiente: true, diasSeguimientoRecuperar: true, diasSeguimientoInactivo: true },
+  });
+  if (!config) return UMBRALES_SEGUIMIENTO_DEFECTO;
+  return {
+    pendiente: config.diasSeguimientoPendiente,
+    recuperar: config.diasSeguimientoRecuperar,
+    inactivo: config.diasSeguimientoInactivo,
+  };
 }

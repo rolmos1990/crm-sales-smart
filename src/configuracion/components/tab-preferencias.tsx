@@ -6,6 +6,8 @@ import { Loader2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { guardarPreferenciaCatalogoVenta } from "@/configuracion/empresa/actions";
+import type { UmbralesSeguimiento } from "@/crm/contactos/segmentacion/cortes";
+import { SeccionSeguimientoContactos } from "./seccion-seguimiento-contactos";
 
 type FiltroCatalogoVenta = "TODOS" | "PRODUCTOS" | "COMBOS";
 
@@ -17,11 +19,12 @@ const OPCIONES: { valor: FiltroCatalogoVenta; etiqueta: string }[] = [
 
 interface TabPreferenciasProps {
   filtroProductosPedidoInicial?: FiltroCatalogoVenta;
+  umbralesSeguimientoInicial?: UmbralesSeguimiento;
 }
 
 // 029-combos-productos-compuestos — primera preferencia real de esta pestaña.
 // Mismo patrón de sección autoguardable que SeccionModoGeografico.
-export function TabPreferencias({ filtroProductosPedidoInicial = "TODOS" }: TabPreferenciasProps) {
+export function TabPreferencias({ filtroProductosPedidoInicial = "TODOS", umbralesSeguimientoInicial }: TabPreferenciasProps) {
   const [filtro, setFiltro] = useState<FiltroCatalogoVenta>(filtroProductosPedidoInicial);
   const [guardado, setGuardado] = useState<FiltroCatalogoVenta>(filtroProductosPedidoInicial);
   const [isPending, startTransition] = useTransition();
@@ -69,6 +72,7 @@ export function TabPreferencias({ filtroProductosPedidoInicial = "TODOS" }: TabP
         Define con qué filtro abre el selector al agregar productos a un pedido o cotización. Siempre se puede cambiar
         el filtro a mano mientras se arma la venta.
       </p>
+      <SeccionSeguimientoContactos inicial={umbralesSeguimientoInicial} />
     </div>
   );
 }

@@ -9,6 +9,17 @@ import { publicadorEventos } from "@/shared/rabbitmq";
 import { moverOportunidadAEtapa } from "@/crm/pipeline/mover-stage";
 import { EnviarMensajeSchema } from "./schema";
 import { MENSAJE_BLOQUEO_APROBACION } from "@/integraciones/email/aprobacion/reglas";
+import { registrarInteraccion, registrarRespuesta, sinFallar } from "@/crm/contactos/interaccion";
+
+// 041 — Texto estable: adaptadores.ts lo reconoce para no reintentar.
+export const MENSAJE_NO_CONTACTAR = "El contacto pidió no ser contactado";
+
+/**
+ * 041 — Quién escribe el mensaje. Obligatorio a propósito: cada llamador nuevo
+ * tiene que decidirlo, porque de eso dependen el bloqueo "No contactar" (solo
+ * para envíos automáticos) y la última interacción (solo cuenta una persona).
+ */
+export type AutorMensaje = "PERSONA" | "IA" | "WORKFLOW";
 
 export interface EnviarMensajeInternoInput {
   conversacionId: string;
@@ -21,8 +32,9 @@ export interface EnviarMensajeInternoInput {
   instanciaId: string;
   /** "WORKFLOW": un Workflow solo cambia de etapa con su nodo "Mover etapa"
    *  explícito (D2), así que su mensaje no dispara el movimiento automático
-   *  por primera respuesta. */
-  origen?: "WORKFLOW";
+   *  por primera respuesta. "IA" y "WORKFLOW" quedan bloqueados para un
+   *  contacto "No contactar"; "PERSONA" no (a una persona solo se le avisa). */
+  autor: AutorMensaje;
 }
 
 export type ResultadoEnvio = { ok: true; mensaje: { id: string } } | { ok: false; error: string };
@@ -52,6 +64,16 @@ export async function enviarMensajeInterno(input: EnviarMensajeInternoInput): Pr
     // comportamiento queda idéntico al de antes.
     if (conversacion.bloqueadaPorAprobacion) {
       return { ok: false, error: MENSAJE_BLOQUEO_APROBACION };
+    }
+
+    // 041 — Corte principal de "No contactar". Todo envío automático (IA,
+    // Workflows, aprobaciones en modo Workflow) pasa por acá, así que este
+    // corte cubre también a los que se agreguen después. Hay dos cortes
+    // tempranos más —orquestar-ia.suscriptor.ts y workflows/motor/disparo.ts—
+    // que solo evitan gastar tokens o ejecutar pasos que no podrían enviar.
+    // Una persona sí puede escribirle: la UI le muestra el aviso (FR-025).
+    if (conversacion.contacto.noContactarDesde && input.autor !== "PERSONA") {
+      return { ok: false, error: MENSAJE_NO_CONTACTAR };
     }
 
     // 034 — Un buzón desactivado deja de leerse (el ciclo filtra por `activa`)
@@ -87,8 +109,18 @@ export async function enviarMensajeInterno(input: EnviarMensajeInternoInput): Pr
 
     // Cubre tanto una respuesta manual de un agente humano como una respuesta
     // automática de IA — las notas internas no cuentan como "responder al contacto".
-    if (!validado.esNotaInterna && input.origen !== "WORKFLOW") {
+    if (!validado.esNotaInterna && input.autor !== "WORKFLOW") {
       await procesarPrimeraRespuestaProspecto(validado.conversacionId, mensaje.id);
+    }
+
+    // 041 — Cualquier respuesta cierra la espera; solo la de una persona
+    // cuenta como interacción (clarificación 1 de la spec).
+    if (!validado.esNotaInterna) {
+      const contactoId = conversacion.contactoId;
+      await sinFallar("actualizar el seguimiento del contacto", contactoId, async () => {
+        await registrarRespuesta(contactoId);
+        if (input.autor === "PERSONA") await registrarInteraccion(contactoId, mensaje.creadoEn ?? new Date());
+      });
     }
 
     // Notificar SSE de inmediato para que el panel lo muestre sin esperar al worker

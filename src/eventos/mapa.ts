@@ -13,6 +13,8 @@ import type { ContactoCreadoPayload }      from "./contratos/contacto-creado.eve
 import type { ContactoActualizadoPayload } from "./contratos/contacto-actualizado.event";
 import type { ContactoEliminadoPayload }   from "./contratos/contacto-eliminado.event";
 import type { ContactoAsignadoPayload }    from "./contratos/contacto-asignado.event";
+import type { ContactoInteresActualizadoPayload } from "./contratos/contacto-interes-actualizado.event";
+import type { ContactoPreferenciaContactoActualizadaPayload } from "./contratos/contacto-preferencia-contacto-actualizada.event";
 import type { EmpresaCreadaPayload }       from "./contratos/empresa-creada.event";
 import type { EmpresaActualizadaPayload }  from "./contratos/empresa-actualizada.event";
 import type { OportunidadCreadaPayload }      from "./contratos/oportunidad-creada.event";
@@ -56,6 +58,8 @@ export interface MapaPayloads {
   CONTACTO_ACTUALIZADO:    ContactoActualizadoPayload;
   CONTACTO_ELIMINADO:      ContactoEliminadoPayload;
   CONTACTO_ASIGNADO:       ContactoAsignadoPayload;
+  CONTACTO_INTERES_ACTUALIZADO: ContactoInteresActualizadoPayload;
+  CONTACTO_PREFERENCIA_CONTACTO_ACTUALIZADA: ContactoPreferenciaContactoActualizadaPayload;
   // Empresas
   EMPRESA_CREADA:          EmpresaCreadaPayload;
   EMPRESA_ACTUALIZADA:     EmpresaActualizadaPayload;

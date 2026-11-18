@@ -57,7 +57,7 @@ export function AvatarContacto({
       <AvatarFallback
         className={cn(
           esWhatsApp
-            ? "bg-green-500/15 text-green-400"
+            ? "bg-success-muted text-success-text"
             : "bg-primary/10 text-primary",
         )}
       >

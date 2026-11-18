@@ -1,6 +1,8 @@
 import { prisma } from "@/shared/db/prisma";
 import type { DatosObjetivos } from "./tipos";
 import type { TipoRelacionCliente } from "@/ai/estrategia/tipos";
+import { construirCondicionVenta } from "@/sales/pedidos/condicion-venta";
+import { obtenerEtapasFlujoActivo } from "@/sales/flujo-venta/queries";
 
 const ESTADOS_COTIZACION_ACTIVA = ["BORRADOR", "REVISADA", "APROBADA", "ENVIADA"] as const;
 
@@ -17,6 +19,7 @@ export async function calcularDatosObjetivos(
   contactoId: string,
   instanciaId: string,
 ): Promise<DatosObjetivos> {
+  const etapasFlujo = await obtenerEtapasFlujoActivo(instanciaId);
   const [contacto, pedidosEntregados, oportunidadesActivas, cotizacionesActivas, incidenciasActivas, entregasPedido] =
     await Promise.all([
       prisma.contacto.findFirst({
@@ -24,8 +27,12 @@ export async function calcularDatosObjetivos(
         select: { creadoEn: true },
       }),
       prisma.pedido.findMany({
-        where: { contactoId, instanciaId, estado: "ENTREGADO" },
+        // 041 — Una compra es un pedido que cuenta como venta según el Flujo
+        // de Venta vigente (038), no el estado clásico "ENTREGADO": con flujo
+        // dinámico ese enum queda congelado y los clientes salían de menos.
+        where: { contactoId, instanciaId, ...construirCondicionVenta(etapasFlujo) },
         select: {
+          fechaVenta: true,
           fechaEntrega: true,
           creadoEn: true,
           lineas: { select: { productoId: true, producto: { select: { nombre: true } } } },
@@ -53,7 +60,7 @@ export async function calcularDatosObjetivos(
   const fechaPrimeraInteraccion = (contacto?.creadoEn ?? new Date()).toISOString();
 
   const fechasEntrega = pedidosEntregados
-    .map((p) => p.fechaEntrega ?? p.creadoEn)
+    .map((p) => p.fechaVenta ?? p.fechaEntrega ?? p.creadoEn)
     .sort((a, b) => b.getTime() - a.getTime());
   const fechaUltimaCompra = fechasEntrega[0]?.toISOString() ?? null;
 

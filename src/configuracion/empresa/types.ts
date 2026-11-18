@@ -27,6 +27,10 @@ export interface ConfigEmpresa {
   permiteConvertirSinConfirmarCostoEnvio: boolean;
   // 029-combos-productos-compuestos — filtro inicial del selector de productos
   filtroProductosPedido: "TODOS" | "PRODUCTOS" | "COMBOS";
+  // 041 — umbrales del seguimiento de contactos, en días.
+  diasSeguimientoPendiente: number;
+  diasSeguimientoRecuperar: number;
+  diasSeguimientoInactivo: number;
   instanciaId: string;
   creadoEn: Date;
   actualizadoEn: Date;

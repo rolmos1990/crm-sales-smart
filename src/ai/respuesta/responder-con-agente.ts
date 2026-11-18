@@ -315,7 +315,7 @@ export async function responderConAgente(params: ParamsRespuestaIA): Promise<Res
     tipo: "TEXTO",
     esNotaInterna: false,
     instanciaId,
-    ...(params.origen?.tipo === "WORKFLOW" && { origen: "WORKFLOW" as const }),
+    autor: params.origen?.tipo === "WORKFLOW" ? "WORKFLOW" : "IA",
   });
 
   if (!resultado.ok) {

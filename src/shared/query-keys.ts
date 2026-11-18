@@ -2,6 +2,8 @@ export const queryKeys = {
   contactos: {
     all: () => ["contactos"] as const,
     detail: (id: string) => ["contacto", id] as const,
+    vista: () => ["contactos", "vista"] as const,
+    resumen: (id: string) => ["contactos", "resumen", id] as const,
   },
   empresas: {
     all: () => ["empresas"] as const,

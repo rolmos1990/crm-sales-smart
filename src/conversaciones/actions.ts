@@ -21,6 +21,7 @@ import {
 import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 import { requiereAprobacion } from "@/integraciones/email/aprobacion/reglas";
 import { filaMensajeCorreo } from "@/integraciones/email/mensaje/persistir-correo";
+import { registrarInteraccion, registrarMensajeEntrante, registrarRespuesta, sinFallar } from "@/crm/contactos/interaccion";
 
 // ── Resolución compartida de contacto + conversación ────────────────────────
 //
@@ -530,6 +531,9 @@ export async function procesarMensajeEntrante(
     },
   });
 
+  // 041 — Mensaje del contacto: última interacción y "esperando respuesta".
+  await sinFallar("registrar el mensaje entrante", contactoId, () => registrarMensajeEntrante(contactoId, mensaje.creadoEn));
+
   // 8. Actualizar timestamp de la conversación
   await prisma.conversacion.update({
     where: { id: conversacion.id },
@@ -633,6 +637,13 @@ export async function registrarMensajeAppNativa(
   await prisma.conversacion.update({
     where: { id: conversacion.id },
     data: { actualizadoEn: new Date() },
+  });
+
+  // 041 — La escribió una persona (desde la app nativa): es interacción y
+  // también cierra la espera de respuesta del contacto.
+  await sinFallar("registrar la respuesta desde la app nativa", contactoId, async () => {
+    await registrarInteraccion(contactoId, mensaje.creadoEn);
+    await registrarRespuesta(contactoId);
   });
 
   // Respuesta enviada desde fuera de Karia — también cuenta como "primera
@@ -774,9 +785,12 @@ export async function enviarMensaje(input: {
     contenido: input.contenido,
     tipo: input.tipo,
     esNotaInterna: input.esNotaInterna,
-    usuarioId: input.usuarioId,
+    // 041 — De la sesión, no del input: es la única forma confiable de saber
+    // que el mensaje lo escribió una persona (la UI no lo mandaba).
+    usuarioId: sesion.usuarioId,
     mediaUrl: input.mediaUrl,
     instanciaId: sesion.instanciaId,
+    autor: "PERSONA",
   });
 }
 

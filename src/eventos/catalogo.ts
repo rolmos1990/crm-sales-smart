@@ -7,6 +7,9 @@ export const EventosSistema = {
   ContactoActualizado:    "CONTACTO_ACTUALIZADO",
   ContactoEliminado:      "CONTACTO_ELIMINADO",
   ContactoAsignado:       "CONTACTO_ASIGNADO",
+  // 041-contactos-segmentacion-comercial
+  ContactoInteresActualizado:             "CONTACTO_INTERES_ACTUALIZADO",
+  ContactoPreferenciaContactoActualizada: "CONTACTO_PREFERENCIA_CONTACTO_ACTUALIZADA",
 
   // Empresas
   EmpresaCreada:          "EMPRESA_CREADA",

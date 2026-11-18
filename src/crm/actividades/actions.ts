@@ -1,4 +1,5 @@
 "use server";
+import { registrarInteraccionSinFallar } from "@/crm/contactos/interaccion";
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/shared/db/prisma";
@@ -40,6 +41,9 @@ export async function crearActividad(datos: unknown): Promise<ResultadoAccion<Ac
       },
       include: incluirRelaciones,
     });
+
+    // 041 — Una actividad creada por una persona es interacción con el contacto.
+    await registrarInteraccionSinFallar(actividad.contactoId, actividad.creadoEn);
 
     await publicadorEventos.publicar(EventosSistema.ActividadCreada, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,

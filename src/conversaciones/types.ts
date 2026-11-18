@@ -87,6 +87,8 @@ export interface ContactoResumen {
    *  Define por qué canales se le puede responder (ver canalesDeRespuesta) y
    *  alimenta la sección "Identidades / canales vinculados" del panel (035). */
   identificadoresCanal?: IdentidadCanalResumen[];
+  /** 041 — El contacto pidió no ser contactado: la UI avisa antes de enviar. */
+  noContactar?: boolean;
 }
 
 /** Última oportunidad FINALIZADA del contacto (ganada o perdida) — el nombre

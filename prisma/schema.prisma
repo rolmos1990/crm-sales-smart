@@ -419,35 +419,36 @@ model Instancia {
   aliasesUbicacion       AliasUbicacion[]
 
   // IA
-  configuracionIA               ConfiguracionIA?
-  proveedoresIA                 ProveedorIA[]
-  agentesIAConfig               AgenteIAConfig[]
-  usoIA                         UsoIA[]
-  agenteIAConfigVersions        AgenteIAConfigVersion[]
-  perfilesCliente               PerfilClienteSnapshot[]
+  configuracionIA                 ConfiguracionIA?
+  proveedoresIA                   ProveedorIA[]
+  agentesIAConfig                 AgenteIAConfig[]
+  usoIA                           UsoIA[]
+  agenteIAConfigVersions          AgenteIAConfigVersion[]
+  perfilesCliente                 PerfilClienteSnapshot[]
+  historialClasificacionContactos ContactoClasificacionHistorial[]
   // 031-memoria-y-ficha-conversacion
-  fichasConversacion            FichaConversacionIA[]
-  playbooksEstrategia           PlaybookEstrategia[]
-  seleccionesEstrategia         SeleccionEstrategiaLog[]
-  metodosEntregaConfig          MetodoEntregaConfig[]
-  zonasCobertura                ZonaCobertura[]
-  ubicacionesRetiro             UbicacionRetiro[]
+  fichasConversacion              FichaConversacionIA[]
+  playbooksEstrategia             PlaybookEstrategia[]
+  seleccionesEstrategia           SeleccionEstrategiaLog[]
+  metodosEntregaConfig            MetodoEntregaConfig[]
+  zonasCobertura                  ZonaCobertura[]
+  ubicacionesRetiro               UbicacionRetiro[]
   // 016-niveles-autonomia-automatizacion
-  autonomiaIntencionConfigs     AutonomiaIntencionConfig[]
-  respuestasPendientesRevision  RespuestaPendienteRevision[]
+  autonomiaIntencionConfigs       AutonomiaIntencionConfig[]
+  respuestasPendientesRevision    RespuestaPendienteRevision[]
   // 014-conversaciones-piloto-ejemplos-relevantes
-  conversacionesPiloto          ConversacionPiloto[]
-  recomendacionesComportamiento RecomendacionComportamiento[]
-  ejemplosPrompt                EjemploPrompt[]
+  conversacionesPiloto            ConversacionPiloto[]
+  recomendacionesComportamiento   RecomendacionComportamiento[]
+  ejemplosPrompt                  EjemploPrompt[]
   // 017-aprendizaje-supervisado-auditoria
-  evaluacionesRespuestaIA       EvaluacionRespuestaIA[]
+  evaluacionesRespuestaIA         EvaluacionRespuestaIA[]
   // 026-preparacion-pedidos
-  flujoPreparacion              FlujoPreparacion?
+  flujoPreparacion                FlujoPreparacion?
   // Workflows (docs/WORKFLOWS-PROPUESTA-ARQUITECTURA.md)
-  workflows                     Workflow[]
-  workflowAsignaciones          WorkflowAsignacion[]
+  workflows                       Workflow[]
+  workflowAsignaciones            WorkflowAsignacion[]
   // 033-documentacion-vector-store-openai
-  documentosAgenteIA            DocumentoAgenteIA[]
+  documentosAgenteIA              DocumentoAgenteIA[]
 
   /// Vector store de OpenAI donde se indexa la documentación de ESTA cuenta.
   /// Uno por instancia: así el índice de un comercio no contiene bytes de otro
@@ -627,10 +628,78 @@ model Contacto {
   // 012-perfil-dinamico-cliente
   perfilCliente        PerfilClienteSnapshot?
 
+  // 041 — Interés comercial. Lo escriben personas o la IA (042); mientras
+  // `nivelInteresFijado` sea true, ningún proceso automático lo cambia.
+  // "Cliente" NO vive acá: se deriva en cada consulta de la condición de
+  // venta (regla 10 de CLAUDE.md, src/crm/contactos/segmentacion/condiciones.ts).
+  nivelInteres              NivelInteres         @default(SIN_EVALUAR)
+  nivelInteresOrigen        OrigenClasificacion?
+  nivelInteresFijado        Boolean              @default(false)
+  nivelInteresActualizadoEn DateTime?
+
+  // 041 — No contactar. Corta los envíos automáticos en enviarMensajeInterno;
+  // solo una persona lo vuelve a null.
+  noContactarDesde  DateTime?
+  noContactarOrigen OrigenClasificacion?
+  noContactarPorId  String?
+
+  // 041 — Hechos con fecha materializados para ordenar y filtrar sin agregar
+  // sobre mensajes/actividades/pedidos. Solo se escriben desde
+  // src/crm/contactos/interaccion.ts.
+  ultimaInteraccionEn     DateTime?
+  esperandoRespuestaDesde DateTime?
+
+  historialClasificacion ContactoClasificacionHistorial[]
+
   @@index([instanciaId])
   @@index([nombre])
   @@index([apellido])
   @@index([email])
+  @@index([instanciaId, ultimaInteraccionEn])
+  @@index([instanciaId, nivelInteres])
+  @@index([instanciaId, esperandoRespuestaDesde])
+  @@index([instanciaId, noContactarDesde])
+}
+
+/// El orden de declaración ES el orden de "ordenar por interés" (asc = Alto primero).
+enum NivelInteres {
+  ALTO
+  MEDIO
+  BAJO
+  SIN_EVALUAR
+}
+
+enum OrigenClasificacion {
+  MANUAL
+  REGLA
+  IA
+}
+
+enum DimensionClasificacion {
+  INTERES
+  PREFERENCIA_CONTACTO
+}
+
+// 041 — Traza de cada cambio de interés o de preferencia de contacto. Solo
+// inserción. valorAnterior/valorNuevo son texto porque guarda dos dominios.
+model ContactoClasificacionHistorial {
+  id                 String                 @id @default(cuid())
+  dimension          DimensionClasificacion
+  valorAnterior      String?
+  valorNuevo         String
+  fijado             Boolean                @default(false)
+  origen             OrigenClasificacion
+  usuarioInstanciaId String?
+  creadoEn           DateTime               @default(now())
+
+  contactoId String
+  contacto   Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([contactoId, creadoEn])
+  @@index([instanciaId])
 }
 
 // --- 012-perfil-dinamico-cliente ---
@@ -1056,6 +1125,8 @@ model OportunidadContacto {
 
   @@id([oportunidadId, contactoId])
   @@index([oportunidadId, principal])
+  // 041 — señal comercial de "Interesado"
+  @@index([contactoId])
 }
 
 model OportunidadProducto {
@@ -1402,6 +1473,8 @@ model Actividad {
   @@index([completada])
   @@index([pedidoId])
   @@index([cotizacionId])
+  // 041 — actividad pendiente vencida / vigente por contacto (seguimiento)
+  @@index([contactoId, completada, fecha])
 }
 
 // =====================
@@ -1475,6 +1548,8 @@ model Cotizacion {
   @@index([instanciaId])
   @@index([estado])
   @@index([oportunidadId])
+  // 041 — señal comercial de "Interesado"
+  @@index([contactoId])
 }
 
 // Espejo de EntregaPedido — se captura ya en la cotización para que, al
@@ -1757,6 +1832,8 @@ model Pedido {
   // que los dos de arriba: instanciaId primero y rango semiabierto sobre la
   // columna cruda, que es lo que el B-tree puede aprovechar.
   @@index([instanciaId, fechaVenta])
+  // 041 — EXISTS de "Cliente" por contacto en el listado de Contactos
+  @@index([contactoId])
 }
 
 model PedidoLinea {
@@ -2459,17 +2536,17 @@ model PedidoHistorialEtapa {
 // fuera del tablero (research.md Decisión 1).
 
 model FlujoPreparacion {
-  id                String                @id @default(cuid())
-  nombre            String                @default("Preparación")
-  activo            Boolean               @default(true)
-  agrupacionDefecto AgrupacionPreparacion @default(POR_PEDIDO)
-  rangoDefecto      RangoPreparacion      @default(HOY)
+  id                    String                @id @default(cuid())
+  nombre                String                @default("Preparación")
+  activo                Boolean               @default(true)
+  agrupacionDefecto     AgrupacionPreparacion @default(POR_PEDIDO)
+  rangoDefecto          RangoPreparacion      @default(HOY)
   // true: todas las tarjetas pendientes muestran productos y checks. false:
   // solo la tarjeta seleccionada se despliega y las demás quedan como resumen.
   // El default conserva el comportamiento que el tablero tuvo siempre.
-  detalleSiempreVisible Boolean           @default(true)
-  creadoEn          DateTime              @default(now())
-  actualizadoEn     DateTime              @updatedAt
+  detalleSiempreVisible Boolean               @default(true)
+  creadoEn              DateTime              @default(now())
+  actualizadoEn         DateTime              @updatedAt
 
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -2661,6 +2738,11 @@ model ConfiguracionEmpresa {
   // Workflows — apagado por defecto: sin el flag, el motor no hace nada y la
   // IA por etapa funciona como siempre (D3).
   workflowsHabilitado                    Boolean             @default(false)
+  // 041 — Umbrales en días del seguimiento de contactos (Pendiente <
+  // Por recuperar ≤ Inactivo). Validados en guardarUmbralesSeguimientoAction.
+  diasSeguimientoPendiente               Int                 @default(3)
+  diasSeguimientoRecuperar               Int                 @default(7)
+  diasSeguimientoInactivo                Int                 @default(60)
 
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -2788,7 +2870,7 @@ model ContactoIdentificadorCanal {
 
   @@unique([canal, identificador, instanciaId])
   @@index([instanciaId])
-  @@index([contactoId])
+  @@index([contactoId, canal]) // 041 — filtro por canal en Contactos
 }
 
 // Cuenta configurada por canal (número de WhatsApp, email, cuenta Instagram, etc.)

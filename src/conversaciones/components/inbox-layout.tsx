@@ -50,6 +50,7 @@ import {
 import { useAutoRefresh } from "@/shared/hooks/use-auto-refresh";
 import { IndicadorAutoRefresh } from "@/shared/components/indicador-auto-refresh";
 import type { ConversacionResumen, MensajeConMeta, MensajeReaccionResumen, CuentaCanalResumen } from "../types";
+import { AvisoNoContactar } from "./aviso-no-contactar";
 
 // ── Tipos y configuración de estados ─────────────────────────────────────────
 
@@ -1153,6 +1154,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 {/* 034 — Con el remitente sin aprobar no hay nada que escribir:
                     el servidor rechazaría el envío igual. Se oculta el
                     compositor en vez de dejar al agente redactar para nada. */}
+                {!convActiva.bloqueadaPorAprobacion && convActiva.contacto.noContactar && <AvisoNoContactar />}
                 {!convActiva.bloqueadaPorAprobacion && esCorreo && (
                   <ComposerCorreo
                     key={convActiva.id}
