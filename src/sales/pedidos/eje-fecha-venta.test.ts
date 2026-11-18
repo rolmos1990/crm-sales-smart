@@ -116,3 +116,42 @@ describe("construirWhereVentas — composición de filtros", () => {
     expect(where.AND).toEqual([{ flujoVentaEtapaId: { in: ["entregado"] } }]);
   });
 });
+
+// ── El filtro de la barra ───────────────────────────────────────────────────
+// 038 — `desde`/`hasta` dejaron de filtrar `fechaPedido`: ahora el rango de la
+// barra ("Hoy", "Última semana", "Últimos 15 días"…) filtra por fecha de
+// venta, y la lista comparte eje con las tarjetas de dinero.
+
+const { construirWhere } = await import("./queries");
+
+describe("construirWhere — eje del filtro de la barra", () => {
+  it("aplica desde/hasta sobre fechaVenta, no sobre fechaPedido", () => {
+    const where = construirWhere(INSTANCIA, { desde: NOV_DESDE, hasta: NOV_HASTA });
+
+    expect(where.fechaVenta).toEqual({ gte: NOV_DESDE, lt: NOV_HASTA });
+    expect(where.fechaPedido).toBeUndefined();
+  });
+
+  it("usa el mismo eje que construirWhereVentas, para que lista y montos coincidan", () => {
+    const filtros = { desde: NOV_DESDE, hasta: NOV_HASTA };
+
+    expect(construirWhere(INSTANCIA, filtros).fechaVenta).toEqual(
+      construirWhereVentas(INSTANCIA, filtros, CONDICION_VENTA).fechaVenta,
+    );
+  });
+
+  it("el filtro de entrega estimada sigue cayendo sobre fechaEntrega", () => {
+    const entregaDesde = new Date("2026-11-10T05:00:00.000Z");
+    const where = construirWhere(INSTANCIA, { desde: NOV_DESDE, entregaDesde });
+
+    expect(where.fechaEntrega).toEqual({ gte: entregaDesde });
+    expect(where.fechaVenta).toEqual({ gte: NOV_DESDE });
+  });
+
+  it("sin rango no toca ninguna fecha", () => {
+    const where = construirWhere(INSTANCIA, { busqueda: "ACME" });
+
+    expect(where.fechaVenta).toBeUndefined();
+    expect(where.fechaPedido).toBeUndefined();
+  });
+});

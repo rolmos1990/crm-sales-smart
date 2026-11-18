@@ -19,6 +19,9 @@ export interface Pedido {
   estado: EstadoPedido;
   fechaPedido: Date;
   fechaEntrega: Date | null;
+  /** Cuándo se volvió venta — null si todavía no cruzó a una etapa que
+   *  cuenta como venta (038). */
+  fechaVenta: Date | null;
   subtotal: number;
   descuento: number;
   impuesto: number;

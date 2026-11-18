@@ -66,12 +66,12 @@ export async function cargarVistaPedidos(
     ? etapasFlujo.filter((e) => e.esFinal || e.esCancelacion).map((e) => e.id)
     : undefined;
 
-  // Un rango de fechas es una consulta sobre el histórico, y ahí casi todo ya
-  // está entregado o cancelado. Ocultar los cerrados vaciaba la tabla mientras
-  // los KPIs del mismo rango seguían sumándolos (obtenerPedidosKpis no aplica
-  // ocultarCerrados, sus totales son históricos por diseño), lo que se leía
-  // como que el filtro de fecha no funcionaba. Con un rango activo, el rango
-  // manda: lista y montos miran la misma población.
+  // Un rango de fechas es una consulta sobre ventas ya concretadas, y esos
+  // pedidos están casi siempre en una etapa final. Ocultar los cerrados
+  // vaciaba la tabla mientras los KPIs del mismo rango seguían sumándolos, lo
+  // que se leía como que el filtro de fecha no funcionaba. Con un rango
+  // activo, el rango manda: lista y montos miran la misma población —desde
+  // 038 comparten además el mismo eje, `fechaVenta`.
   const hayFiltroFecha = Boolean(fechaPedidoDesde || fechaPedidoHasta || entregaDesde || entregaHasta);
 
   const filtros: PedidosFiltros = {

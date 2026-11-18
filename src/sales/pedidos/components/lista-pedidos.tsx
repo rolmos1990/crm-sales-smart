@@ -264,6 +264,32 @@ function construirColumnasFijas(zonaHoraria: string): ColumnDef<Pedido>[] {
     cell: ({ row }) => <EntregaEstimadaCell pedido={row.original} zonaHoraria={zonaHoraria} />,
     sortUndefined: "last",
   },
+  {
+    // 038 — cuándo el pedido se volvió venta. Es el eje del filtro de fechas
+    // de la barra, así que verlo en la tabla explica por qué un pedido entra
+    // o no en el rango elegido. Null mientras no haya cruzado a una etapa
+    // marcada "Cuenta como Venta".
+    accessorKey: "fechaVenta",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="-ml-2.5 h-7 text-xs font-semibold tracking-wide uppercase"
+      >
+        Fecha de venta <ArrowUpDown className="ml-1.5 h-3.5 w-3.5" />
+      </Button>
+    ),
+    cell: ({ getValue }) => {
+      const fecha = getValue<Date | null>();
+      if (!fecha) return <span className="text-sm text-muted-foreground">—</span>;
+      return (
+        <span className="text-sm font-medium text-success-text">
+          <FechaHora valor={fecha} modo="fecha" />
+        </span>
+      );
+    },
+    sortUndefined: "last",
+  },
   ];
 }
 

@@ -23,6 +23,8 @@ const incluirRelaciones = {
 } as const;
 
 export interface PedidosFiltros {
+  /** Rango sobre `fechaVenta` — cuándo el pedido se volvió venta (038).
+   *  Hasta esa feature caía sobre `fechaPedido`. */
   desde?: Date;
   hasta?: Date;
   /** Estado del enum legacy — solo se usa cuando el tenant NO tiene un Flujo
@@ -41,7 +43,7 @@ export interface PedidosFiltros {
   /** Busca por número de pedido, nombre/apellido del contacto o razón social */
   busqueda?: string;
   /** Filtro por fechaEntrega (columna "Entrega estimada") — independiente
-   *  del rango `desde`/`hasta`, que filtra por fechaPedido. */
+   *  del rango `desde`/`hasta`, que filtra por fechaVenta. */
   entregaDesde?: Date;
   entregaHasta?: Date;
   /** "Ver cerrados" desmarcado (default en la UI): oculta del listado los
@@ -83,14 +85,25 @@ function construirWhereBase(instanciaId: string, filtros?: PedidosFiltros): Pris
   return where;
 }
 
-function construirWhere(instanciaId: string, filtros?: PedidosFiltros): Prisma.PedidoWhereInput {
+export function construirWhere(instanciaId: string, filtros?: PedidosFiltros): Prisma.PedidoWhereInput {
   const where = construirWhereBase(instanciaId, filtros);
   if (!filtros) return where;
 
   if (filtros.desde || filtros.hasta) {
+    // 038 — el rango de la barra filtra por FECHA DE VENTA, no por fecha de
+    // creación: "las ventas de los últimos 15 días" son las que se
+    // concretaron en esa ventana, sin importar cuándo entró el pedido.
+    //
+    // Antes esto caía sobre `fechaPedido` y la lista miraba una población
+    // distinta de la de "Total ventas", que ya usaba este eje — una
+    // divergencia que había que explicar en la UI. Ahora comparten eje.
+    //
+    // Efecto buscado: un pedido sin `fechaVenta` (todavía no cruzó a una
+    // etapa que cuenta) queda fuera de cualquier rango. No es una venta.
+    //
     // `lt`, igual que fechaEntrega abajo: `hasta` es el inicio del día
     // siguiente, no el último instante del día elegido.
-    where.fechaPedido = {
+    where.fechaVenta = {
       ...(filtros.desde ? { gte: filtros.desde } : {}),
       ...(filtros.hasta ? { lt: filtros.hasta } : {}),
     };
@@ -219,13 +232,11 @@ export interface PedidosKpis {
  *    el conteo "Ventas" miran SOLO los pedidos que cuentan como venta: los
  *    que están en una etapa marcada `cuentaComoVenta`. Su eje de fecha es
  *    `fechaVenta` —cuándo se concretó la venta—, no `fechaPedido`.
- *  - "Total pedidos", "Pendientes" y "Expirados" miran la población completa
- *    del filtro, con `fechaPedido` como eje.
- *
- * Que la lista y las tarjetas de dinero muestren poblaciones distintas con un
- * rango activo es deliberado: un pedido creado en octubre y vendido en
- * noviembre suma en noviembre y no aparece en la lista de noviembre. Por eso
- * esas tarjetas dicen "Vendidos en este rango" (research.md Decisión 4).
+ *  - "Total pedidos" mira la población del filtro, que desde 038 usa el mismo
+ *    eje: el rango de la barra filtra por `fechaVenta`, igual que la lista.
+ *  - "Pendientes" y "Expirados" son estado OPERATIVO y NO se acotan por ese
+ *    rango. Un pedido abierto no tiene `fechaVenta`, así que acotarlo dejaría
+ *    las dos tarjetas en cero apenas se elige cualquier atajo de fecha.
  *
  * `cuentaComoVenta` se lee de la configuración VIGENTE en cada llamada y
  * nunca se persiste en el Pedido: por eso marcar o desmarcar una etapa cambia
@@ -268,12 +279,19 @@ export async function obtenerPedidosKpis(
   // ventas del mes en curso.
   const whereVentasMes = construirWhereVentas(instanciaId, filtros, condicionVenta, rangoMesActual);
 
+  // "Pendientes"/"Expirados" son estado OPERATIVO: qué hay por entregar y qué
+  // se pasó de fecha, hoy. Por eso parten de `construirWhereBase` (búsqueda,
+  // etapa, método, cliente, producto) y NO del rango de venta: un pedido
+  // abierto no tiene `fechaVenta`, así que acotarlo por ese rango dejaría las
+  // dos tarjetas en cero apenas el usuario elige cualquier atajo de fecha.
+  //
   // `AND` y no spread: `condicionAbiertos` puede traer `flujoVentaEtapaId` y
-  // `where` ya puede tenerlo por el filtro de etapa de la barra; y el corte
-  // sobre `fechaEntrega` chocaría con el filtro de entrega estimada. Con
-  // spread, uno pisaría al otro sin aviso.
+  // la base ya puede tenerlo por el filtro de etapa; y el corte sobre
+  // `fechaEntrega` chocaría con el filtro de entrega estimada. Con spread,
+  // uno pisaría al otro sin aviso.
+  const baseOperativa = construirWhereBase(instanciaId, filtros);
   const whereAbiertos = (corteEntrega: Prisma.DateTimeFilter): Prisma.PedidoWhereInput => ({
-    ...where,
+    ...baseOperativa,
     AND: [condicionAbiertos, { fechaEntrega: corteEntrega }],
   });
 

@@ -17,7 +17,7 @@ import { Combobox, type OpcionCombobox } from "@/shared/ui/combobox";
 import {
   FiltroRangoFechas,
   PRESETS_RANGO_FUTURO,
-  PRESETS_RANGO_PASADO,
+  PRESETS_RANGO_VENTA,
   type RangoFechasYmd,
 } from "@/shared/fechas/components/filtro-rango-fechas";
 import { FILTROS_VISTA_PEDIDOS_DEFECTO, type FiltrosVistaPedidos } from "../schema";
@@ -75,7 +75,8 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
   }
   const [masFiltrosAbierto, setMasFiltrosAbierto] = useState(false);
 
-  const rangoPedido: RangoFechasYmd = { desde: filtros.desde, hasta: filtros.hasta };
+  // 038 — este rango filtra por FECHA DE VENTA, no por fecha de creación.
+  const rangoVenta: RangoFechasYmd = { desde: filtros.desde, hasta: filtros.hasta };
   const entregaActiva = filtros.entrega;
   const rangoEntrega: RangoFechasYmd = entregaActiva === "personalizado"
     ? { desde: filtros.entregaDesde, hasta: filtros.entregaHasta }
@@ -96,7 +97,7 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
     actualizarParam("q", busqueda || null);
   };
 
-  const handleRangoPedido = (r: RangoFechasYmd) => onCambiar({ desde: r.desde, hasta: r.hasta });
+  const handleRangoVenta = (r: RangoFechasYmd) => onCambiar({ desde: r.desde, hasta: r.hasta });
 
   const seleccionarEntrega = (valor: FiltrosVistaPedidos["entrega"]) =>
     onCambiar({ entrega: valor, entregaDesde: null, entregaHasta: null });
@@ -133,11 +134,11 @@ export function PedidosFiltrosBar({ filtros, onCambiar, actualizando, contactos,
           </form>
 
           <FiltroRangoFechas
-            valor={rangoPedido}
-            onChange={handleRangoPedido}
+            valor={rangoVenta}
+            onChange={handleRangoVenta}
             zonaNegocio={zonaNegocio}
             placeholder="Todas las fechas"
-            presets={PRESETS_RANGO_PASADO}
+            presets={PRESETS_RANGO_VENTA}
             align="start"
             className="shrink-0"
           />
