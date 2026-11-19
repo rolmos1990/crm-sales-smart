@@ -121,3 +121,25 @@ describe("OpenAIProvider — resultados", () => {
     expect(parametros().model).toBe("gpt-6-luna");
   });
 });
+
+// 042 — Modo JSON y tokens cacheados para el análisis de contactos.
+describe("OpenAIProvider — salida JSON y caché (042)", () => {
+  it("pide response_format json_object solo con formatoRespuesta", async () => {
+    await crearOpenAIProvider("sk-x").chat(chat({ formatoRespuesta: "json" }));
+    expect(parametros().response_format).toEqual({ type: "json_object" });
+  });
+
+  it("sin formatoRespuesta el pedido no cambia", async () => {
+    await crearOpenAIProvider("sk-x").chat(chat());
+    expect(parametros()).not.toHaveProperty("response_format");
+  });
+
+  it("informa los tokens cacheados del prompt", async () => {
+    createMock.mockResolvedValueOnce({
+      ...RESPUESTA_TEXTO,
+      usage: { prompt_tokens: 100, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 64 } },
+    });
+    const r = await crearOpenAIProvider("sk-x").chat(chat());
+    expect(r.tokensCacheados).toBe(64);
+  });
+});

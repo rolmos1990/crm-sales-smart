@@ -27,7 +27,7 @@ export const TAMANOS_PAGINA_CONTACTOS = [20, 50, 100] as const;
 export const FiltrosVistaContactosSchema = z.object({
   pagina: z.number().int().min(1).default(1),
   tamanoPagina: z.union([z.literal(20), z.literal(50), z.literal(100)]).default(50),
-  orden: z.enum(["PRIORIDAD", "NOMBRE", "ULTIMA_ACTIVIDAD", "INTERES"]).default("PRIORIDAD"),
+  orden: z.enum(["PRIORIDAD", "NOMBRE", "ULTIMA_ACTIVIDAD", "INTERES", "PUNTAJE"]).default("PRIORIDAD"),
   direccion: z.enum(["asc", "desc"]).optional(),
   segmento: z.enum(["TODOS", "CLIENTES", "INTERESADOS", "POR_RECUPERAR", "LEADS"]).default("TODOS"),
   busqueda: z.string().trim().max(100).default(""),

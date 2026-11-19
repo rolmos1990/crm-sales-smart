@@ -18,6 +18,8 @@ export const SolicitudIASchema = z.object({
     "EMBEDDINGS",
     // 010-enrutamiento-modelos-ia-por-objetivo
     "IDENTIFICACION_PRODUCTO",
+    // 042-contactos-analisis-ia
+    "ANALISIS_CONTACTOS",
   ]),
   mensajes: z.array(MensajeIASchema).min(1),
   temperatura: z.number().min(0).max(2).optional(),
@@ -26,6 +28,7 @@ export const SolicitudIASchema = z.object({
   entidadId: z.string().optional(),
   // 010-enrutamiento-modelos-ia-por-objetivo — solo aplica cuando tarea === "CHAT"
   requiereRazonamientoSuperior: z.boolean().optional(),
+  formatoRespuesta: z.literal("json").optional(),
 });
 
 export type SolicitudIAInput = z.infer<typeof SolicitudIASchema>;

@@ -41,19 +41,25 @@ export class AnthropicProvider implements IProveedorIA {
       max_tokens: params.maxTokens ?? 2048,
       temperature: params.temperatura ?? 0.7,
       ...(systemMensaje ? { system: systemMensaje.contenido } : {}),
-      messages: userMensajes.map((m) => ({
-        role: m.rol as "user" | "assistant",
-        content: m.contenido,
-      })),
+      messages: [
+        ...userMensajes.map((m) => ({
+          role: m.rol as "user" | "assistant",
+          content: m.contenido,
+        })),
+        // 042 — Anthropic no tiene modo JSON: se fuerza empezando la respuesta con "{".
+        ...(params.formatoRespuesta === "json" ? [{ role: "assistant" as const, content: "{" }] : []),
+      ],
     });
 
     const bloque = respuesta.content[0];
-    const contenido = bloque.type === "text" ? bloque.text : "";
+    const texto = bloque?.type === "text" ? bloque.text : "";
+    const contenido = params.formatoRespuesta === "json" ? `{${texto}` : texto;
 
     return {
       contenido,
       tokensInput: respuesta.usage.input_tokens,
       tokensOutput: respuesta.usage.output_tokens,
+      tokensCacheados: respuesta.usage.cache_read_input_tokens ?? 0,
       modelo,
       proveedor: "ANTHROPIC",
       tiempoMs: Date.now() - inicio,

@@ -21,6 +21,7 @@ const ETIQUETA_OBJETIVO: Record<ObjetivoEnrutamiento, string> = {
   RESUMEN: "Resumen",
   IDENTIFICACION_PRODUCTO: "Identificación de productos",
   SENTIMIENTO: "Detección de sentimiento",
+  ANALISIS_CONTACTOS: "Análisis de contactos",
   CHAT: "Conversación estándar",
   CHAT_RAZONAMIENTO_SUPERIOR: "Conversación de mayor razonamiento",
 };
@@ -31,6 +32,7 @@ const DESCRIPCION_OBJETIVO: Record<ObjetivoEnrutamiento, string> = {
   RESUMEN: "Económico — resume una conversación",
   IDENTIFICACION_PRODUCTO: "Económico — identifica qué producto menciona el cliente",
   SENTIMIENTO: "Económico — detecta el ánimo del cliente",
+  ANALISIS_CONTACTOS: "Económico — analiza contactos por lotes: intención, señales y acción sugerida",
   CHAT: "Conversación normal con el cliente",
   CHAT_RAZONAMIENTO_SUPERIOR: "Reservado para ambigüedad alta, clientes molestos o recomendaciones complejas",
 };

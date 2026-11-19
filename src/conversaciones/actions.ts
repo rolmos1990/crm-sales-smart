@@ -532,7 +532,9 @@ export async function procesarMensajeEntrante(
   });
 
   // 041 — Mensaje del contacto: última interacción y "esperando respuesta".
-  await sinFallar("registrar el mensaje entrante", contactoId, () => registrarMensajeEntrante(contactoId, mensaje.creadoEn));
+  await sinFallar("registrar el mensaje entrante", contactoId, () =>
+    registrarMensajeEntrante(contactoId, mensaje.creadoEn, undefined, instanciaId),
+  );
 
   // 8. Actualizar timestamp de la conversación
   await prisma.conversacion.update({
@@ -642,7 +644,7 @@ export async function registrarMensajeAppNativa(
   // 041 — La escribió una persona (desde la app nativa): es interacción y
   // también cierra la espera de respuesta del contacto.
   await sinFallar("registrar la respuesta desde la app nativa", contactoId, async () => {
-    await registrarInteraccion(contactoId, mensaje.creadoEn);
+    await registrarInteraccion(contactoId, mensaje.creadoEn, undefined, instanciaId);
     await registrarRespuesta(contactoId);
   });
 

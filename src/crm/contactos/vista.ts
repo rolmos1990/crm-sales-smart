@@ -34,6 +34,7 @@ const SELECT_FILA = {
   ultimaInteraccionEn: true,
   esperandoRespuestaDesde: true,
   creadoEn: true,
+  puntajeComercial: true,
 } satisfies Prisma.ContactoSelect;
 
 type ContactoFila = Prisma.ContactoGetPayload<{ select: typeof SELECT_FILA }>;
@@ -87,7 +88,7 @@ export function construirWhereVista(
   return { AND: y };
 }
 
-function ordenSimple(f: FiltrosVistaContactos): Prisma.ContactoOrderByWithRelationInput[] {
+export function ordenSimple(f: FiltrosVistaContactos): Prisma.ContactoOrderByWithRelationInput[] {
   switch (f.orden) {
     case "NOMBRE": {
       const dir = f.direccion ?? "asc";
@@ -98,6 +99,9 @@ function ordenSimple(f: FiltrosVistaContactos): Prisma.ContactoOrderByWithRelati
     case "INTERES":
       // El orden del enum NivelInteres es Alto → Sin evaluar.
       return [{ nivelInteres: f.direccion ?? "asc" }, ...ORDEN_RECIENTE];
+    case "PUNTAJE":
+      // 042 — Sin evaluación al final en ambas direcciones (FR-052a).
+      return [{ puntajeComercial: { sort: f.direccion ?? "desc", nulls: "last" } }, ...ORDEN_RECIENTE];
     case "PRIORIDAD":
       return ORDEN_RECIENTE;
   }
@@ -256,6 +260,7 @@ function construirFila(
     ultimaInteraccionEn: c.ultimaInteraccionEn?.toISOString() ?? null,
     canal: grupoDeCanal(extra.canales.get(c.id)),
     seguimiento,
+    puntaje: c.puntajeComercial,
     recomendacion: calcularRecomendacion({
       noContactar,
       esperandoRespuesta,

@@ -67,12 +67,15 @@ export class OpenAIProvider implements IProveedorIA {
       model: modelo,
       max_completion_tokens: params.maxTokens ?? 2048,
       messages: convertirMensajesSimples(params.mensajes),
+      // 042 — solo si se pide: sin el parámetro, el pedido es idéntico al de siempre.
+      ...(params.formatoRespuesta === "json" ? { response_format: { type: "json_object" as const } } : {}),
     });
 
     return {
       contenido: respuesta.choices[0]?.message?.content ?? "",
       tokensInput: respuesta.usage?.prompt_tokens ?? 0,
       tokensOutput: respuesta.usage?.completion_tokens ?? 0,
+      tokensCacheados: respuesta.usage?.prompt_tokens_details?.cached_tokens ?? 0,
       modelo,
       proveedor: "OPENAI",
       tiempoMs: Date.now() - inicio,

@@ -64,6 +64,15 @@ export async function actualizarInteres(p: {
         nivelInteresActualizadoEn: new Date(),
       },
     });
+    // 042 — Una persona decidió: la sugerencia de la IA que esperaba
+    // respuesta ya no aplica. Mismo commit, para que el panel nunca muestre
+    // una sugerencia sobre un interés que alguien acaba de fijar.
+    if (manual) {
+      await tx.contactoEvaluacion.updateMany({
+        where: { contactoId: p.contactoId, instanciaId: p.instanciaId, interesSugeridoEstado: "PENDIENTE" },
+        data: { interesSugeridoEstado: "REEMPLAZADA" },
+      });
+    }
     await tx.contactoClasificacionHistorial.create({
       data: {
         dimension: "INTERES",

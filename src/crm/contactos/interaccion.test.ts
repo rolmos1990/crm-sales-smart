@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// 042 — El marcado para el análisis se simula: acá importa que se llame (o no) y que nunca rompa.
+const marcar = vi.fn(async (..._a: unknown[]) => {});
+vi.mock("./analisis/cola", () => ({ marcarPendienteSinFallar: (...a: unknown[]) => marcar(...a) }));
 
 import { registrarInteraccion, registrarMensajeEntrante, registrarRespuesta } from "./interaccion";
 import { cumple } from "./segmentacion/evaluar-where.test-util";
@@ -57,5 +61,35 @@ describe("espera de respuesta", () => {
     const { fila, db } = tablaFalsa({ id: "c", ultimaInteraccionEn: null, esperandoRespuestaDesde: t("2026-11-01") });
     await registrarRespuesta("c", db);
     expect(fila.esperandoRespuestaDesde).toBeNull();
+  });
+});
+
+describe("marcado para el análisis (042)", () => {
+  beforeEach(() => marcar.mockClear());
+
+  it("una interacción con instanciaId marca el contacto P1", async () => {
+    const { db } = tablaFalsa({ id: "c", ultimaInteraccionEn: null, esperandoRespuestaDesde: null });
+    await registrarInteraccion("c", t("2026-11-10"), db, "inst-1");
+    expect(marcar).toHaveBeenCalledWith({ instanciaId: "inst-1", contactoId: "c", prioridad: "P1", motivo: "INTERACCION" });
+  });
+
+  it("un mensaje entrante marca con motivo MENSAJE", async () => {
+    const { db } = tablaFalsa({ id: "c", ultimaInteraccionEn: null, esperandoRespuestaDesde: null });
+    await registrarMensajeEntrante("c", t("2026-11-10"), db, "inst-1");
+    expect(marcar).toHaveBeenLastCalledWith(expect.objectContaining({ motivo: "MENSAJE", prioridad: "P1" }));
+  });
+
+  it("sin instanciaId no marca (no se agrega una consulta por mensaje)", async () => {
+    const { db } = tablaFalsa({ id: "c", ultimaInteraccionEn: null, esperandoRespuestaDesde: null });
+    await registrarInteraccion("c", t("2026-11-10"), db);
+    expect(marcar).not.toHaveBeenCalled();
+  });
+
+  it("un error al marcar no impide registrar la interacción", async () => {
+    // marcarPendienteSinFallar nunca lanza; si lo hiciera igual quedaría escrita la fecha antes.
+    marcar.mockRejectedValueOnce(new Error("caída"));
+    const { fila, db } = tablaFalsa({ id: "c", ultimaInteraccionEn: null, esperandoRespuestaDesde: null });
+    await registrarInteraccion("c", t("2026-11-10"), db, "inst-1").catch(() => {});
+    expect(fila.ultimaInteraccionEn).toEqual(t("2026-11-10"));
   });
 });

@@ -26,6 +26,8 @@ const tx = {
       return fila;
     }),
   },
+  // 042 — sugerencias de la IA que una decisión manual deja sin efecto.
+  contactoEvaluacion: { updateMany: vi.fn(async () => ({ count: 1 })) },
   contactoClasificacionHistorial: {
     create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
       historial.push(data);
@@ -94,6 +96,19 @@ describe("actualizarInteres", () => {
   it("contacto de otra instancia: no encontrado", async () => {
     const r = await actualizarInteres({ ...base, instanciaId: "otra", accion: { tipo: "FIJAR", nivel: "ALTO" }, origen: "MANUAL" });
     expect(r).toMatchObject({ ok: false, codigo: "NO_ENCONTRADO" });
+  });
+
+  it("042 — fijar a mano reemplaza la sugerencia pendiente de la IA en la misma transacción", async () => {
+    await actualizarInteres({ ...base, accion: { tipo: "FIJAR", nivel: "BAJO" }, origen: "MANUAL" });
+    expect(tx.contactoEvaluacion.updateMany).toHaveBeenCalledWith({
+      where: { contactoId: "c-1", instanciaId: "inst-1", interesSugeridoEstado: "PENDIENTE" },
+      data: { interesSugeridoEstado: "REEMPLAZADA" },
+    });
+  });
+
+  it("042 — un cambio de la IA no toca las sugerencias", async () => {
+    await actualizarInteres({ ...base, accion: { tipo: "FIJAR", nivel: "MEDIO" }, origen: "IA", usuarioInstanciaId: null });
+    expect(tx.contactoEvaluacion.updateMany).not.toHaveBeenCalled();
   });
 });
 

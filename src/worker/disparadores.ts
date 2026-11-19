@@ -4,6 +4,8 @@ import { cicloWorkflows } from "../workflows/motor/disparo";
 import { registrarTodosSuscriptores } from "../suscriptores/registrar";
 import { reconectarSesionesWA } from "../integraciones/whatsapp-lite/reconectar";
 import { iniciarPollingCorreo } from "../integraciones/email/imap/polling";
+import { iniciarCicloAnalisisContactos } from "../crm/contactos/analisis/motor/ciclo";
+import { dependenciasMotorAnalisis } from "../crm/contactos/analisis/motor/dependencias";
 
 const INTERVALO_MS = 10_000;
 
@@ -17,6 +19,13 @@ async function run() {
   // pipeline ni los timers de Workflows. Corre solo acá — si la app Next.js
   // también leyera, cada réplica duplicaría la lectura.
   await iniciarPollingCorreo();
+
+  // 042 — Análisis de contactos. Ciclo propio, igual que el correo: un
+  // proveedor de IA lento no debe retrasar los disparadores ni los Workflows.
+  // La planificación es por la base (SKIP LOCKED), así que varias réplicas
+  // del worker se reparten el trabajo sin coordinarse.
+  iniciarCicloAnalisisContactos(await dependenciasMotorAnalisis());
+
   console.log(`[worker:disparadores] iniciando — polling cada ${INTERVALO_MS / 1000}s`);
 
   while (true) {

@@ -119,7 +119,7 @@ export async function enviarMensajeInterno(input: EnviarMensajeInternoInput): Pr
       const contactoId = conversacion.contactoId;
       await sinFallar("actualizar el seguimiento del contacto", contactoId, async () => {
         await registrarRespuesta(contactoId);
-        if (input.autor === "PERSONA") await registrarInteraccion(contactoId, mensaje.creadoEn ?? new Date());
+        if (input.autor === "PERSONA") await registrarInteraccion(contactoId, mensaje.creadoEn ?? new Date(), undefined, conversacion.instanciaId);
       });
     }
 

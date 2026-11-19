@@ -6,7 +6,7 @@ import { FILTROS_VISTA_CONTACTOS_DEFECTO } from "./schema";
 import { planificarTramos } from "./segmentacion/paginacion";
 import { UMBRALES_SEGUIMIENTO_DEFECTO, calcularCortes } from "./segmentacion/cortes";
 import { cumple } from "./segmentacion/evaluar-where.test-util";
-import { construirWhereVista, hayFiltrosActivos } from "./vista";
+import { construirWhereVista, hayFiltrosActivos, ordenSimple } from "./vista";
 
 // 041 — Orden por prioridad sin SQL crudo: con los conteos de los cuatro
 // tramos se decide qué rebanada leer de cada uno (research D2).
@@ -108,5 +108,21 @@ describe("hayFiltrosActivos", () => {
     expect(hayFiltrosActivos(FILTROS_VISTA_CONTACTOS_DEFECTO)).toBe(false);
     expect(hayFiltrosActivos({ ...FILTROS_VISTA_CONTACTOS_DEFECTO, pagina: 3, orden: "NOMBRE" })).toBe(false);
     expect(hayFiltrosActivos({ ...FILTROS_VISTA_CONTACTOS_DEFECTO, segmento: "CLIENTES" })).toBe(true);
+  });
+});
+
+describe("orden por puntaje (042, FR-052a)", () => {
+  it("por defecto va de mayor a menor y deja sin evaluar al final", () => {
+    const orden = ordenSimple({ ...FILTROS_VISTA_CONTACTOS_DEFECTO, orden: "PUNTAJE" });
+    expect(orden[0]).toEqual({ puntajeComercial: { sort: "desc", nulls: "last" } });
+  });
+
+  it("en ascendente los sin evaluar también quedan al final", () => {
+    const orden = ordenSimple({ ...FILTROS_VISTA_CONTACTOS_DEFECTO, orden: "PUNTAJE", direccion: "asc" });
+    expect(orden[0]).toEqual({ puntajeComercial: { sort: "asc", nulls: "last" } });
+  });
+
+  it("el orden por defecto de la lista sigue siendo la prioridad de atención", () => {
+    expect(FILTROS_VISTA_CONTACTOS_DEFECTO.orden).toBe("PRIORIDAD");
   });
 });

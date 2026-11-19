@@ -80,12 +80,16 @@ export interface ChatParams {
   temperatura?: number;
   maxTokens?: number;
   tarea: TareaIA;
+  /** 042 — pide salida JSON al proveedor que lo soporte. La validación sigue siendo del llamador. */
+  formatoRespuesta?: "json";
 }
 
 export interface ChatResult {
   contenido: string;
   tokensInput: number;
   tokensOutput: number;
+  /** 042 — tokens de entrada servidos desde la caché del proveedor (0 o ausente si no aplica). */
+  tokensCacheados?: number;
   modelo: string;
   proveedor: ProveedorIAEnum;
   tiempoMs: number;

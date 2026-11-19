@@ -1,4 +1,5 @@
 import { registrarInteraccion } from "@/crm/contactos/interaccion";
+import { marcarPendienteSinFallar } from "@/crm/contactos/analisis/cola";
 import { prisma } from "@/shared/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { EventosSistema } from "@/eventos/catalogo";
@@ -277,6 +278,13 @@ export async function generarPedidoDesdeCotizacion(
 
     return nuevoPedido;
   });
+
+  // 042 — Se marca DESPUÉS del commit: `registrarInteraccion` corre dentro de
+  // la transacción con `tx` y no recibe `instanciaId` a propósito, para que el
+  // marcado del análisis no quede atado a esa transacción.
+  if (pedido.contactoId) {
+    await marcarPendienteSinFallar({ instanciaId, contactoId: pedido.contactoId, prioridad: "P1", motivo: "PEDIDO" });
+  }
 
   await publicadorEventos.publicar(EventosSistema.PedidoCreado, instanciaId, {
     instanciaId,

@@ -210,7 +210,7 @@ const CrearPedidoTool: IProveedorTool = {
     if (!pedido) throw new Error("No se pudo generar un número de pedido único");
     // 041 — Un pedido es interacción comercial del contacto, aunque lo cree la IA:
     // refleja una decisión del cliente, no un envío automático.
-    await registrarInteraccionSinFallar(pedido.contactoId, pedido.creadoEn);
+    await registrarInteraccionSinFallar(pedido.contactoId, pedido.creadoEn, ctx.instanciaId);
 
     return {
       ok: true,

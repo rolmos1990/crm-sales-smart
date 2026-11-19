@@ -70,23 +70,27 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
       temperatura,
       maxTokens: validado.maxTokens,
       tarea: validado.tarea,
+      formatoRespuesta: validado.formatoRespuesta,
     });
     registrarExito(proveedorId);
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     registrarFalla(proveedorId);
 
+    // 042 (FR-040) — si el proveedor informó consumo aun fallando, se registra.
+    const usoError = usoDeError(err);
     await registrarUsoIA({
       instanciaId: validado.instanciaId,
       proveedorIAId: proveedorId,
       agenteIAConfigId: validado.agenteIAConfigId,
       agenteIAConfigVersionId: agenteIAConfigVersionId ?? undefined,
       tarea: validado.tarea,
-      resultado: { contenido: "", tokensInput: 0, tokensOutput: 0, modelo, proveedor: proveedor.nombre, tiempoMs: 0 },
+      resultado: { contenido: "", tokensInput: usoError.tokensInput, tokensOutput: usoError.tokensOutput, modelo, proveedor: proveedor.nombre, tiempoMs: 0 },
       exito: false,
       error: errorMsg,
       entidadTipo: validado.entidadTipo,
       entidadId: validado.entidadId,
+      costoEstimado: calcularCosto(usoError.tokensInput, usoError.tokensOutput, costoInputPorMil, costoOutputPorMil),
     });
 
     throw err;
@@ -120,6 +124,19 @@ export async function generarRespuesta(solicitud: SolicitudIA): Promise<Respuest
     tokensOutput: resultado.tokensOutput,
     tiempoMs: resultado.tiempoMs,
     usoIAId,
+    proveedorIAId: proveedorId,
+    costoEstimado: costo ?? null,
+    tokensCacheados: resultado.tokensCacheados ?? 0,
+  };
+}
+
+/** 042 — Algunos SDKs adjuntan el `usage` al error; si no, 0 como siempre. */
+function usoDeError(err: unknown): { tokensInput: number; tokensOutput: number } {
+  const uso = (err as { usage?: Record<string, unknown> } | null)?.usage;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return {
+    tokensInput: n(uso?.prompt_tokens ?? uso?.input_tokens),
+    tokensOutput: n(uso?.completion_tokens ?? uso?.output_tokens),
   };
 }
 

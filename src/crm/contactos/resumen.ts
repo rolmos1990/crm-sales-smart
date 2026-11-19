@@ -2,6 +2,7 @@ import { prisma } from "@/shared/db/prisma";
 import { construirCondicionVenta, type EtapaParaKpis } from "@/sales/pedidos/condicion-venta";
 import { condicionCliente, condicionInteresado, type EstadoSeguimiento, type TipoComercial } from "./segmentacion/condiciones";
 import type { CortesSeguimiento } from "./segmentacion/cortes";
+import { obtenerAnalisisContacto, type AnalisisContacto } from "./analisis/queries";
 import {
   calcularRecomendacion,
   calcularSeguimientoFila,
@@ -12,6 +13,8 @@ import {
 type Origen = "MANUAL" | "REGLA" | "IA";
 
 export interface ResumenContacto {
+  /** 042 — sección "Análisis de IA" del panel. */
+  analisis: AnalisisContacto;
   contacto: {
     id: string;
     nombre: string;
@@ -142,8 +145,11 @@ export async function obtenerResumenContacto(
     },
     cortes,
   );
+  const recomendacion = calcularRecomendacion({ noContactar, esperandoRespuesta, seguimiento, esCliente, esInteresado, interes: c.nivelInteres });
+  const analisis = await obtenerAnalisisContacto(instanciaId, contactoId, recomendacion, c.nivelInteresFijado);
 
   return {
+    analisis,
     contacto: {
       id: c.id,
       nombre: c.nombre,
@@ -168,7 +174,7 @@ export async function obtenerResumenContacto(
           }
         : null,
       seguimiento,
-      recomendacion: calcularRecomendacion({ noContactar, esperandoRespuesta, seguimiento, esCliente, esInteresado, interes: c.nivelInteres }),
+      recomendacion,
     },
     actividadComercial: {
       ultimaCompra: ultimaCompra

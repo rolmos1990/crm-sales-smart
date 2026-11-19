@@ -1,10 +1,13 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Mail, MessageCircle, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BarraSeleccion } from "../analisis/components/barra-seleccion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { InsigniaPuntaje } from "../analisis/components/insignias-analisis";
 import { FechaHora } from "@/shared/fechas/fecha-hora";
 import { useSesion } from "@/shared/auth/sesion-context";
 import { cn } from "@/lib/utils";
@@ -40,7 +43,7 @@ function EncabezadoOrdenable({
   onOrdenar: (orden: Orden, direccion?: "asc" | "desc") => void;
 }) {
   const activo = filtros.orden === orden;
-  const porDefecto = orden === "ULTIMA_ACTIVIDAD" ? "desc" : "asc";
+  const porDefecto = ORDEN_DESCENDENTE_POR_DEFECTO.has(orden) ? "desc" : "asc";
   const direccion = activo ? (filtros.direccion ?? porDefecto) : undefined;
   const Icono = !activo ? ArrowUpDown : direccion === "asc" ? ArrowUp : ArrowDown;
   return (
@@ -55,9 +58,12 @@ function EncabezadoOrdenable({
   );
 }
 
+// Lo más reciente y lo más caliente primero.
+const ORDEN_DESCENDENTE_POR_DEFECTO = new Set<Orden>(["ULTIMA_ACTIVIDAD", "PUNTAJE"]);
+
 function ariaSort(filtros: FiltrosVistaContactos, orden: Exclude<Orden, "PRIORIDAD">): "ascending" | "descending" | "none" {
   if (filtros.orden !== orden) return "none";
-  const dir = filtros.direccion ?? (orden === "ULTIMA_ACTIVIDAD" ? "desc" : "asc");
+  const dir = filtros.direccion ?? (ORDEN_DESCENDENTE_POR_DEFECTO.has(orden) ? "desc" : "asc");
   return dir === "asc" ? "ascending" : "descending";
 }
 
@@ -70,13 +76,18 @@ const FilaTabla = memo(function FilaTabla({
   seleccionada,
   puedeMod,
   mostrarRecomendacion,
+  marcada,
   onSeleccionar,
+  onMarcar,
 }: {
   fila: FilaContacto;
   seleccionada: boolean;
   puedeMod: boolean;
   mostrarRecomendacion: boolean;
+  /** 042 — casilla de selección para acciones en lote (Historia 7). */
+  marcada: boolean;
   onSeleccionar: (id: string) => void;
+  onMarcar: (id: string, marcada: boolean) => void;
 }) {
   return (
     <TableRow
@@ -84,6 +95,15 @@ const FilaTabla = memo(function FilaTabla({
       className="cursor-pointer"
       onClick={() => onSeleccionar(fila.id)}
     >
+      {puedeMod && (
+        <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={marcada}
+            onCheckedChange={(v) => onMarcar(fila.id, v === true)}
+            aria-label={`Seleccionar ${nombreCompleto(fila)}`}
+          />
+        </TableCell>
+      )}
       <TableCell>
         <button
           type="button"
@@ -108,6 +128,9 @@ const FilaTabla = memo(function FilaTabla({
       </TableCell>
       <TableCell>
         <InsigniaInteres interes={fila.interes} fijado={fila.interesFijado} />
+      </TableCell>
+      <TableCell>
+        <InsigniaPuntaje puntaje={fila.puntaje} />
       </TableCell>
       <TableCell className="text-sm text-foreground">
         <FechaHora valor={fila.ultimaInteraccionEn} modo="relativa" vacio="Sin actividad" />
@@ -145,6 +168,7 @@ function TarjetaMovil({ fila, onSeleccionar }: { fila: FilaContacto; onSeleccion
         <span className="flex flex-wrap items-center gap-1">
           <InsigniaTipo tipo={fila.tipo} />
           <InsigniaInteres interes={fila.interes} fijado={fila.interesFijado} />
+          <InsigniaPuntaje puntaje={fila.puntaje} />
           {fila.noContactar && <InsigniaNoContactar />}
         </span>
       </span>
@@ -237,7 +261,26 @@ export function TablaContactos({
 }) {
   const { puedeModificar } = useSesion();
   const puedeMod = puedeModificar("contactos");
+  const puedeAnalizarSegmento = puedeModificar("ia");
   const ordenar = (orden: Orden, direccion?: "asc" | "desc") => onCambiar({ orden, direccion, pagina: 1 });
+
+  // 042 — Selección para "Analizar seleccionados". Es de la página visible:
+  // cambiar filtros, orden o página la limpia, para no analizar algo que ya no se ve.
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const claveVista = JSON.stringify(filtros);
+  useEffect(() => setMarcados(new Set()), [claveVista]);
+  // Estable entre renders: las filas son memo y no deben repintarse todas al marcar una.
+  const marcar = useCallback(
+    (id: string, marcada: boolean) =>
+      setMarcados((prev) => {
+        const sig = new Set(prev);
+        if (marcada) sig.add(id);
+        else sig.delete(id);
+        return sig;
+      }),
+    [],
+  );
+  const todosMarcados = filas.length > 0 && filas.every((f) => marcados.has(f.id));
 
   if (filas.length === 0) {
     return (
@@ -257,6 +300,15 @@ export function TablaContactos({
 
   return (
     <div data-slot="tabla-contactos" className="overflow-hidden rounded-xl border border-border-subtle bg-card">
+      {puedeMod && (
+        <BarraSeleccion
+          seleccionados={[...marcados]}
+          filtros={filtros}
+          total={total}
+          puedeAnalizarSegmento={puedeAnalizarSegmento}
+          onLimpiar={() => setMarcados(new Set())}
+        />
+      )}
       <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-4 py-2 text-xs text-muted-foreground">
         <span>{filtros.orden === "PRIORIDAD" ? "Ordenado por prioridad de atención" : "Orden personalizado"}</span>
         {filtros.orden !== "PRIORIDAD" && (
@@ -270,12 +322,24 @@ export function TablaContactos({
         <Table>
           <TableHeader>
             <TableRow>
+              {puedeMod && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={todosMarcados}
+                    onCheckedChange={(v) => setMarcados(v === true ? new Set(filas.map((f) => f.id)) : new Set())}
+                    aria-label="Seleccionar la página"
+                  />
+                </TableHead>
+              )}
               <TableHead aria-sort={ariaSort(filtros, "NOMBRE")}>
                 <EncabezadoOrdenable etiqueta="Contacto" orden="NOMBRE" filtros={filtros} onOrdenar={ordenar} />
               </TableHead>
               <TableHead className="text-xs tracking-wide uppercase">Tipo</TableHead>
               <TableHead aria-sort={ariaSort(filtros, "INTERES")}>
                 <EncabezadoOrdenable etiqueta="Interés" orden="INTERES" filtros={filtros} onOrdenar={ordenar} />
+              </TableHead>
+              <TableHead aria-sort={ariaSort(filtros, "PUNTAJE")}>
+                <EncabezadoOrdenable etiqueta="Puntaje" orden="PUNTAJE" filtros={filtros} onOrdenar={ordenar} />
               </TableHead>
               <TableHead aria-sort={ariaSort(filtros, "ULTIMA_ACTIVIDAD")}>
                 <EncabezadoOrdenable etiqueta="Última actividad" orden="ULTIMA_ACTIVIDAD" filtros={filtros} onOrdenar={ordenar} />
@@ -295,7 +359,9 @@ export function TablaContactos({
                 seleccionada={f.id === seleccionadoId}
                 puedeMod={puedeMod}
                 mostrarRecomendacion={mostrarRecomendacion}
+                marcada={marcados.has(f.id)}
                 onSeleccionar={onSeleccionar}
+                onMarcar={marcar}
               />
             ))}
           </TableBody>

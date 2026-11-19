@@ -155,7 +155,7 @@ export async function crearPedido(datos: unknown): Promise<ResultadoAccion<Pedid
     }
     if (!pedido) throw new Error("No se pudo generar un número de pedido único");
     // 041 — Un pedido es interacción comercial del contacto.
-    await registrarInteraccionSinFallar(pedido.contactoId, pedido.creadoEn);
+    await registrarInteraccionSinFallar(pedido.contactoId, pedido.creadoEn, sesion.instanciaId);
 
     // Descontar stock (después del create, igual que antes de 029)
     await aplicarDeltas(planStock, prisma);

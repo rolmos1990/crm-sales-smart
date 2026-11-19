@@ -43,7 +43,7 @@ export async function crearActividad(datos: unknown): Promise<ResultadoAccion<Ac
     });
 
     // 041 — Una actividad creada por una persona es interacción con el contacto.
-    await registrarInteraccionSinFallar(actividad.contactoId, actividad.creadoEn);
+    await registrarInteraccionSinFallar(actividad.contactoId, actividad.creadoEn, sesion.instanciaId);
 
     await publicadorEventos.publicar(EventosSistema.ActividadCreada, sesion.instanciaId, {
       instanciaId: sesion.instanciaId,
