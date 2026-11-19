@@ -59,8 +59,14 @@ export class DeepSeekProvider implements IProveedorIA {
       temperature: params.temperatura ?? 0.7,
       messages: convertirMensajesSimples(params.mensajes),
       // 042 — solo si se pide: sin el parámetro, el pedido es idéntico al de siempre.
-      ...(params.formatoRespuesta === "json" ? { response_format: { type: "json_object" as const } } : {}),
-    });
+      // 042 — los modelos V4 razonan por defecto y ese razonamiento sale del
+      // mismo max_tokens: con un contacto difícil se comía el tope y el JSON
+      // llegaba cortado (RESPUESTA_INVALIDA). Para una salida estructurada no
+      // aporta, así que se apaga. `thinking` no está en el tipo del SDK de OpenAI.
+      ...(params.formatoRespuesta === "json"
+        ? { response_format: { type: "json_object" as const }, thinking: { type: "disabled" } }
+        : {}),
+    } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
 
     const contenido = respuesta.choices[0]?.message?.content ?? "";
     // DeepSeek informa la caché de contexto con un campo propio, fuera del tipo del SDK de OpenAI.
