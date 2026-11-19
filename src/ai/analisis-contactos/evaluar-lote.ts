@@ -14,7 +14,21 @@ import { validarSalidaLote } from "./salida";
  */
 
 const TEMPERATURA = 0.2;
-const TOKENS_SALIDA_POR_CONTACTO = 350;
+
+/**
+ * Tope de la respuesta: una base fija (el envoltorio JSON y lo que el modelo
+ * escribe aunque sea un solo contacto) más un margen por contacto. Con una
+ * base chica, un lote de 1 contacto (P0/P1) quedaba en 750 tokens y la
+ * respuesta llegaba cortada → RESPUESTA_INVALIDA. Medido en producción: ~620
+ * tokens para un contacto solo y ~300 por contacto en lotes grandes.
+ */
+const TOKENS_SALIDA_BASE = 1000;
+const TOKENS_SALIDA_POR_CONTACTO = 400;
+const TOKENS_SALIDA_MAXIMO = 8000;
+
+export function calcularMaxTokensSalida(contactos: number): number {
+  return Math.min(TOKENS_SALIDA_MAXIMO, TOKENS_SALIDA_BASE + TOKENS_SALIDA_POR_CONTACTO * contactos);
+}
 
 export const evaluarLoteConIA: EjecutorIA = async (entrada) => {
   const ahora = new Date();
@@ -42,7 +56,7 @@ export const evaluarLoteConIA: EjecutorIA = async (entrada) => {
       tarea: "ANALISIS_CONTACTOS",
       mensajes,
       temperatura: TEMPERATURA,
-      maxTokens: Math.min(8000, 400 + TOKENS_SALIDA_POR_CONTACTO * entrada.contactos.length),
+      maxTokens: calcularMaxTokensSalida(entrada.contactos.length),
       formatoRespuesta: "json",
       entidadTipo: "AnalisisContactosLote",
     });
