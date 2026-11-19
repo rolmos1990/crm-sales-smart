@@ -58,14 +58,19 @@ export class DeepSeekProvider implements IProveedorIA {
       max_tokens: params.maxTokens ?? 2048,
       temperature: params.temperatura ?? 0.7,
       messages: convertirMensajesSimples(params.mensajes),
+      // 042 — solo si se pide: sin el parámetro, el pedido es idéntico al de siempre.
+      ...(params.formatoRespuesta === "json" ? { response_format: { type: "json_object" as const } } : {}),
     });
 
     const contenido = respuesta.choices[0]?.message?.content ?? "";
+    // DeepSeek informa la caché de contexto con un campo propio, fuera del tipo del SDK de OpenAI.
+    const usoDeepSeek = respuesta.usage as { prompt_cache_hit_tokens?: number } | undefined;
 
     return {
       contenido,
       tokensInput: respuesta.usage?.prompt_tokens ?? 0,
       tokensOutput: respuesta.usage?.completion_tokens ?? 0,
+      tokensCacheados: usoDeepSeek?.prompt_cache_hit_tokens ?? 0,
       modelo,
       proveedor: "DEEPSEEK",
       tiempoMs: Date.now() - inicio,

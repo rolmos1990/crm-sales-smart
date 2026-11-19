@@ -27,6 +27,7 @@ import { obtenerResumenContactoAction } from "../actions";
 import { ETIQUETA_GRUPO_CANAL, grupoDeCanal } from "../segmentacion/canales";
 import { AvatarContacto } from "./avatar-contacto";
 import { ControlClasificacion } from "./control-clasificacion";
+import { SeccionAnalisisIA } from "../analisis/components/seccion-analisis-ia";
 import { ETIQUETA_SEGUIMIENTO } from "./contactos-filtros";
 import { ETIQUETA_INTERES, InsigniaInteres, InsigniaNoContactar, InsigniaRecomendacion, InsigniaTipo } from "./insignias-contacto";
 
@@ -73,6 +74,8 @@ export function PanelContacto({ contactoId, onCerrar }: { contactoId: string | n
     queryKey: queryKeys.contactos.resumen(contactoId ?? ""),
     queryFn: () => obtenerResumenContactoAction(contactoId!),
     enabled: Boolean(contactoId),
+    // 042 — mientras corre un "Analizar con IA", se consulta hasta que termine (FR-051).
+    refetchInterval: (q) => (q.state.data?.ok && q.state.data.resumen.analisis.analizandoAhora ? 3000 : false),
   });
 
   // Contacto eliminado o ajeno mientras el panel estaba abierto.
@@ -212,7 +215,15 @@ export function PanelContacto({ contactoId, onCerrar }: { contactoId: string | n
               </Seccion>
 
               <Seccion titulo="Análisis de IA" Icono={Sparkles}>
-                <p className="text-sm text-muted-foreground">Sin analizar.</p>
+                <SeccionAnalisisIA
+                  contactoId={c.id}
+                  analisis={resumen.analisis}
+                  puedeModificar={puedeMod}
+                  onCambio={() => {
+                    void queryClient.invalidateQueries({ queryKey: queryKeys.contactos.resumen(c.id) });
+                    void queryClient.invalidateQueries({ queryKey: queryKeys.contactos.vista() });
+                  }}
+                />
               </Seccion>
 
               <Seccion titulo="Acciones rápidas" Icono={Zap}>

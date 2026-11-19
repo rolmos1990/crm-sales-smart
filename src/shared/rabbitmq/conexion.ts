@@ -122,6 +122,9 @@ async function configurarTopologia(ch: amqplib.Channel): Promise<void> {
   await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_OPORTUNIDAD_PERDIDA);
   await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_ETAPA_CAMBIADA);
   await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_CONVERSACION_CLASIFICADA);
+  // 042 — el contacto nuevo o editado se marca para el análisis inteligente.
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_CONTACTO_CREADO);
+  await ch.bindQueue(QUEUES.PERFIL_CLIENTE_INVALIDAR, EXCHANGE, RK.EVENTO_CONTACTO_ACTUALIZADO);
 }
 
 async function conectar(): Promise<amqplib.Channel> {

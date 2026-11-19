@@ -42,6 +42,8 @@ export const OBJETIVOS_ENRUTAMIENTO = [
   "RESUMEN",
   "IDENTIFICACION_PRODUCTO",
   "SENTIMIENTO",
+  // 042-contactos-analisis-ia
+  "ANALISIS_CONTACTOS",
   "CHAT",
   "CHAT_RAZONAMIENTO_SUPERIOR",
 ] as const;

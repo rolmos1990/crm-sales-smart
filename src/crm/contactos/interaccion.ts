@@ -1,4 +1,5 @@
 import { prisma } from "@/shared/db/prisma";
+import { marcarPendienteSinFallar } from "./analisis/cola";
 
 /**
  * 041 — Único lugar que escribe `Contacto.ultimaInteraccionEn` y
@@ -18,16 +19,34 @@ import { prisma } from "@/shared/db/prisma";
 
 type ClienteContacto = { contacto: Pick<typeof prisma.contacto, "updateMany"> };
 
+/**
+ * 042 — Junto a cada interacción se marca el contacto para el análisis (P1).
+ * Solo si llega `instanciaId`: no se agrega una consulta por mensaje para
+ * averiguarlo; el barrido de reconciliación cubre a quien no lo pase.
+ * `marcarPendienteSinFallar` usa el cliente global y nunca el `db` recibido:
+ * un fallo al marcar no puede abortar la transacción de quien llama.
+ */
+async function marcarParaAnalisis(
+  contactoId: string,
+  instanciaId: string | null | undefined,
+  motivo: "MENSAJE" | "INTERACCION",
+): Promise<void> {
+  if (!instanciaId) return;
+  await marcarPendienteSinFallar({ instanciaId, contactoId, prioridad: "P1", motivo });
+}
+
 /** Avanza la última interacción; nunca retrocede (tolera eventos fuera de orden). */
 export async function registrarInteraccion(
   contactoId: string,
   fecha: Date,
   db: ClienteContacto = prisma,
+  instanciaId?: string | null,
 ): Promise<void> {
   await db.contacto.updateMany({
     where: { id: contactoId, OR: [{ ultimaInteraccionEn: null }, { ultimaInteraccionEn: { lt: fecha } }] },
     data: { ultimaInteraccionEn: fecha },
   });
+  await marcarParaAnalisis(contactoId, instanciaId, "INTERACCION");
 }
 
 /**
@@ -39,12 +58,14 @@ export async function registrarMensajeEntrante(
   contactoId: string,
   fecha: Date,
   db: ClienteContacto = prisma,
+  instanciaId?: string | null,
 ): Promise<void> {
   await registrarInteraccion(contactoId, fecha, db);
   await db.contacto.updateMany({
     where: { id: contactoId, esperandoRespuestaDesde: null },
     data: { esperandoRespuestaDesde: fecha },
   });
+  await marcarParaAnalisis(contactoId, instanciaId, "MENSAJE");
 }
 
 /** Cualquier respuesta saliente —de una persona o automática— cierra la espera. */
@@ -68,7 +89,13 @@ export async function sinFallar(etiqueta: string, contactoId: string, fn: () => 
   }
 }
 
-export async function registrarInteraccionSinFallar(contactoId: string | null | undefined, fecha: Date): Promise<void> {
+export async function registrarInteraccionSinFallar(
+  contactoId: string | null | undefined,
+  fecha: Date,
+  instanciaId?: string | null,
+): Promise<void> {
   if (!contactoId) return;
-  await sinFallar("registrar la interacción del contacto", contactoId, () => registrarInteraccion(contactoId, fecha));
+  await sinFallar("registrar la interacción del contacto", contactoId, () =>
+    registrarInteraccion(contactoId, fecha, prisma, instanciaId),
+  );
 }

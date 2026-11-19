@@ -64,6 +64,8 @@ export interface FilaContacto {
   canal: GrupoCanal | null;
   seguimiento: EstadoSeguimiento;
   recomendacion: Recomendacion;
+  /** 042 — puntaje comercial 0–100; null si todavía no se analizó. */
+  puntaje: number | null;
 }
 
 export interface VistaContactos {

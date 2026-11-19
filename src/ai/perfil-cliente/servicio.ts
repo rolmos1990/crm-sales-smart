@@ -97,3 +97,39 @@ export async function obtenerPerfil(contactoId: string, instanciaId: string): Pr
 
   return recalcular(contactoId, instanciaId);
 }
+
+/**
+ * 042 (FR-022) — El análisis de contactos con IA entrega su interpretación
+ * con la MISMA forma y los MISMOS valores (INTENCIONES_COMERCIALES) que la
+ * extracción por evento, así el selector de estrategia y el gate de
+ * autonomía no notan la diferencia. Solo se pisan los campos que la IA
+ * devolvió; lo demás se conserva, como siempre ("nunca se borra").
+ */
+export async function fusionarDatosInterpretados(
+  contactoId: string,
+  instanciaId: string,
+  parcial: Partial<Omit<DatosInterpretados, "extraidoEn">>,
+): Promise<void> {
+  let snapshot = await obtenerSnapshotVigente(contactoId, instanciaId);
+  if (!snapshot) snapshot = await recalcular(contactoId, instanciaId);
+
+  const anterior = snapshot.datosInterpretados;
+  const definido = <T>(v: T | null | undefined, previo: T): T => (v === null || v === undefined ? previo : v);
+  const lista = (v: string[] | undefined, previo: string[]) => (v && v.length > 0 ? v : previo);
+
+  const fusionado: DatosInterpretados = {
+    intencionComercialActual: definido(parcial.intencionComercialActual, anterior?.intencionComercialActual ?? null),
+    productosConsultados: lista(parcial.productosConsultados, anterior?.productosConsultados ?? []),
+    preferenciasIdentificadas: lista(parcial.preferenciasIdentificadas, anterior?.preferenciasIdentificadas ?? []),
+    presupuestoConocido: definido(parcial.presupuestoConocido, anterior?.presupuestoConocido ?? null),
+    ocasionActual: definido(parcial.ocasionActual, anterior?.ocasionActual ?? null),
+    fechaRequerida: definido(parcial.fechaRequerida, anterior?.fechaRequerida ?? null),
+    confianza: parcial.confianza ?? anterior?.confianza ?? 0.5,
+    extraidoEn: new Date().toISOString(),
+  };
+
+  await prisma.perfilClienteSnapshot.updateMany({
+    where: { contactoId, instanciaId },
+    data: { datosInterpretados: fusionado as unknown as Prisma.InputJsonValue },
+  });
+}

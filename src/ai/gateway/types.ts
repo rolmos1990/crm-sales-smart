@@ -13,6 +13,8 @@ export interface SolicitudIA {
   // 010-enrutamiento-modelos-ia-por-objetivo — solo tiene efecto cuando
   // tarea === "CHAT"; ausente/false preserva el criterio de selección actual.
   requiereRazonamientoSuperior?: boolean;
+  /** 042 — pide salida JSON al proveedor; sin el campo, el pedido no cambia. */
+  formatoRespuesta?: "json";
 }
 
 export interface RespuestaIA {
@@ -23,4 +25,8 @@ export interface RespuestaIA {
   tokensOutput: number;
   tiempoMs: number;
   usoIAId: string;
+  // 042 — para el registro de cada atención del análisis de contactos.
+  proveedorIAId: string;
+  costoEstimado: number | null;
+  tokensCacheados: number;
 }

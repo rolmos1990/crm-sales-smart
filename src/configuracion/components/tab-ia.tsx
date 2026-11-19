@@ -1,4 +1,4 @@
-import { Brain, TrendingUp, Zap } from "lucide-react";
+import { Brain, Sparkles, TrendingUp, Zap } from "lucide-react";
 import {
   obtenerConfigIA,
   obtenerProveedoresIA,
@@ -13,18 +13,21 @@ import { listarEstrategias } from "@/ai/estrategia/queries";
 import { ListaConversacionesPiloto } from "@/ai/piloto/components/lista-conversaciones-piloto";
 import { BandejaRecomendaciones } from "@/ai/piloto/components/bandeja-recomendaciones";
 import { VistaAuditoria } from "@/ai/autonomia/components/vista-auditoria";
+import { obtenerConfiguracionAnalisis } from "@/crm/contactos/analisis/configuracion/queries";
+import { SeccionAnalisisContactos } from "./analisis-contactos/seccion-analisis-contactos";
 
 interface TabIAProps {
   instanciaId: string;
 }
 
 export async function TabIA({ instanciaId }: TabIAProps) {
-  const [config, proveedores, uso, asignacionesObjetivo, estrategias] = await Promise.all([
+  const [config, proveedores, uso, asignacionesObjetivo, estrategias, configAnalisis] = await Promise.all([
     obtenerConfigIA(instanciaId),
     obtenerProveedoresIA(instanciaId),
     obtenerResumenUsoIA(instanciaId),
     obtenerAsignacionesObjetivoIA(instanciaId),
     listarEstrategias(instanciaId),
+    obtenerConfiguracionAnalisis(instanciaId),
   ]);
 
   const proveedoresActivos = proveedores
@@ -106,6 +109,15 @@ export async function TabIA({ instanciaId }: TabIAProps) {
           asignacionesIniciales={asignacionesObjetivo}
           proveedoresActivos={proveedoresActivos}
         />
+      </section>
+
+      {/* Análisis de contactos (042-contactos-analisis-ia) */}
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden />
+          <h3 className="text-sm font-semibold tracking-wide text-foreground uppercase">Análisis de contactos</h3>
+        </div>
+        <SeccionAnalisisContactos instanciaId={instanciaId} configuracion={configAnalisis} />
       </section>
 
       {/* Estrategias (011-playbook-estrategia-comercial) */}

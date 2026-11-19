@@ -59,13 +59,39 @@ export async function registrarLectura(
   if (!lectura) return;
 
   try {
+    const previa = await obtenerFicha(conversacionId, instanciaId);
     // `updateMany` con instanciaId: acota al tenant y, si la fila todavía no
     // existe, no hace nada en vez de lanzar.
     await prisma.fichaConversacionIA.updateMany({
       where: { conversacionId, instanciaId },
       data: { interpretado: lectura as unknown as Prisma.InputJsonValue },
     });
+    await marcarSiPasaASenalDeCompra(conversacionId, instanciaId, previa?.interpretado?.intencion ?? null, lectura.intencion);
   } catch (err) {
     console.error("[FichaConversacion] No se pudo guardar la lectura interpretada:", err);
   }
+}
+
+// 042 — Señal explícita de compra → el contacto se analiza como urgente (P0).
+// Solo al ENTRAR en la señal: si cada turno con "listo para comprar" lo
+// marcara, un cliente que conversa mucho dispararía un análisis por mensaje.
+const SENALES_DE_COMPRA = new Set(["LISTO_PARA_COMPRAR", "LISTO_PARA_COTIZAR"]);
+
+async function marcarSiPasaASenalDeCompra(
+  conversacionId: string,
+  instanciaId: string,
+  anterior: string | null,
+  nueva: string | null,
+): Promise<void> {
+  if (!nueva || !SENALES_DE_COMPRA.has(nueva) || (anterior && SENALES_DE_COMPRA.has(anterior))) return;
+  const conversacion = await prisma.conversacion.findFirst({ where: { id: conversacionId, instanciaId }, select: { contactoId: true } });
+  if (!conversacion) return;
+  const { marcarPendienteSinFallar } = await import("@/crm/contactos/analisis/cola");
+  await marcarPendienteSinFallar({
+    instanciaId,
+    contactoId: conversacion.contactoId,
+    prioridad: "P0",
+    motivo: "MENSAJE",
+    inmediato: true,
+  });
 }

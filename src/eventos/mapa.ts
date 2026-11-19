@@ -14,6 +14,7 @@ import type { ContactoActualizadoPayload } from "./contratos/contacto-actualizad
 import type { ContactoEliminadoPayload }   from "./contratos/contacto-eliminado.event";
 import type { ContactoAsignadoPayload }    from "./contratos/contacto-asignado.event";
 import type { ContactoInteresActualizadoPayload } from "./contratos/contacto-interes-actualizado.event";
+import type { ContactoAnalizadoPayload } from "./contratos/contacto-analizado.event";
 import type { ContactoPreferenciaContactoActualizadaPayload } from "./contratos/contacto-preferencia-contacto-actualizada.event";
 import type { EmpresaCreadaPayload }       from "./contratos/empresa-creada.event";
 import type { EmpresaActualizadaPayload }  from "./contratos/empresa-actualizada.event";
@@ -60,6 +61,7 @@ export interface MapaPayloads {
   CONTACTO_ASIGNADO:       ContactoAsignadoPayload;
   CONTACTO_INTERES_ACTUALIZADO: ContactoInteresActualizadoPayload;
   CONTACTO_PREFERENCIA_CONTACTO_ACTUALIZADA: ContactoPreferenciaContactoActualizadaPayload;
+  CONTACTO_ANALIZADO: ContactoAnalizadoPayload;
   // Empresas
   EMPRESA_CREADA:          EmpresaCreadaPayload;
   EMPRESA_ACTUALIZADA:     EmpresaActualizadaPayload;

@@ -679,7 +679,51 @@ async function eliminarConversacionCorreoHtml(ids: { conversacionId: string; cue
   return { ok: true };
 }
 
+// 042-contactos-analisis-ia — contacto con una evaluación de IA ya hecha y
+// sugerencias pendientes, para probar el panel sin depender del worker ni de
+// un proveedor de IA real.
+async function crearContactoConAnalisis(overrides: { instanciaId: string; usuarioId: string; nombre: string }) {
+  const contacto = await prisma.contacto.create({
+    data: { nombre: overrides.nombre, apellido: "Analisis", estado: "ACTIVO", instanciaId: overrides.instanciaId, usuarioId: overrides.usuarioId, puntajeComercial: 82 },
+  });
+  await prisma.contactoEvaluacion.create({
+    data: {
+      contactoId: contacto.id,
+      instanciaId: overrides.instanciaId,
+      origen: "IA",
+      relacionComercial: "PROSPECTO",
+      puntaje: 82,
+      puntajeBase: 42,
+      ajusteIA: 40,
+      intencion: "ALTA",
+      urgencia: "ALTA",
+      recuperacion: "NO_APLICA",
+      senales: ["Consultó precio y fecha de entrega"],
+      objeciones: [],
+      motivos: ["Pidió entrega para esta semana"],
+      accionIA: "ENVIAR_COTIZACION",
+      accionSugerida: "ENVIAR_COTIZACION",
+      versionEvaluada: BigInt(1),
+      evaluadoIAEn: new Date(),
+      interesSugerido: "ALTO",
+      interesSugeridoEstado: "PENDIENTE",
+      noContactarSugerido: true,
+      noContactarMotivo: "Pidió no recibir más mensajes",
+      noContactarSugeridoEstado: "PENDIENTE",
+    },
+  });
+  return { id: contacto.id };
+}
+
+async function eliminarContactoE2E(id: string) {
+  await prisma.contacto.deleteMany({ where: { id } });
+  return { ok: true };
+}
+
 const OPERACIONES: Record<string, (...args: any[]) => Promise<unknown>> = {
+  // 042-contactos-analisis-ia
+  crearContactoConAnalisis,
+  eliminarContactoE2E,
   // 035-correo-html-seguro
   crearConversacionCorreoHtml,
   eliminarConversacionCorreoHtml,

@@ -449,6 +449,15 @@ model Instancia {
   workflowAsignaciones            WorkflowAsignacion[]
   // 033-documentacion-vector-store-openai
   documentosAgenteIA              DocumentoAgenteIA[]
+  // 042-contactos-analisis-ia
+  configuracionAnalisisContactos  ConfiguracionAnalisisContactos?
+  colaAnalisisContactos           ContactoAnalisisCola[]
+  evaluacionesContactos           ContactoEvaluacion[]
+  criterioAnalisisContactos       CriterioAnalisisContactos?
+  versionesCriterioAnalisis       CriterioAnalisisContactosVersion[]
+  ejecucionesAnalisisContactos    EjecucionAnalisisContactos[]
+  itemsEjecucionAnalisis          EjecucionAnalisisContactosItem[]
+  resumenesAnalisisContactos      ResumenDiarioAnalisisContactos[]
 
   /// Vector store de OpenAI donde se indexa la documentación de ESTA cuenta.
   /// Uno por instancia: así el índice de un comercio no contiene bytes de otro
@@ -651,6 +660,14 @@ model Contacto {
 
   historialClasificacion ContactoClasificacionHistorial[]
 
+  // 042 — Copia del puntaje vigente para ordenar la tabla sin join (research
+  // D15). Se escribe en la misma transacción que ContactoEvaluacion. No choca
+  // con la regla 10: es el resultado fechado de una evaluación, como el
+  // interés, no algo que se derive de la configuración vigente del flujo.
+  puntajeComercial Int?
+  evaluacion       ContactoEvaluacion?
+  colaAnalisis     ContactoAnalisisCola?
+
   @@index([instanciaId])
   @@index([nombre])
   @@index([apellido])
@@ -659,6 +676,9 @@ model Contacto {
   @@index([instanciaId, nivelInteres])
   @@index([instanciaId, esperandoRespuestaDesde])
   @@index([instanciaId, noContactarDesde])
+  @@index([instanciaId, puntajeComercial])
+  // 042 — barrido de reconciliación: contactos nuevos sin fila de cola.
+  @@index([instanciaId, creadoEn])
 }
 
 /// El orden de declaración ES el orden de "ordenar por interés" (asc = Alto primero).
@@ -700,6 +720,371 @@ model ContactoClasificacionHistorial {
 
   @@index([contactoId, creadoEn])
   @@index([instanciaId])
+}
+
+// =====================
+// 042 — ANÁLISIS INTELIGENTE DE CONTACTOS
+// =====================
+// Detalle: specs/042-contactos-analisis-ia/ y docs/analisis-contactos.md.
+// La planificación vive en PostgreSQL (lease + SKIP LOCKED, mismo patrón que
+// DisparadorJob) y no en RabbitMQ: hace falta repartir turnos por cuenta y
+// deduplicar por contacto, y ninguna de las dos cosas la da una cola de
+// mensajes sin una cola por tenant.
+
+enum ModoAplicacionInteres {
+  SOLO_SUGERIR
+  APLICAR_AUTOMATICO
+}
+
+enum EstadoColaAnalisis {
+  AL_DIA
+  PENDIENTE
+  EN_PROCESO
+  FALLIDO
+}
+
+/// El orden de declaración ES la prioridad (P0 primero).
+enum PrioridadAnalisis {
+  P0
+  P1
+  P2
+}
+
+enum TipoEjecucionAnalisis {
+  INICIAL
+  INCREMENTAL
+  REEVALUACION
+}
+
+enum ModoEjecucionAnalisis {
+  REGLAS
+  IA
+}
+
+enum EstadoEjecucionAnalisis {
+  PENDIENTE
+  EN_CURSO
+  COMPLETADA
+  PARCIAL
+  FALLIDA
+  CANCELADA
+  ABANDONADA
+}
+
+enum EstadoItemAnalisis {
+  EXITOSO
+  OMITIDO
+  INVALIDO
+  DESCARTADO_VERSION
+  FALLIDO
+}
+
+enum OrigenEvaluacion {
+  REGLA
+  IA
+}
+
+enum RelacionComercial {
+  PROSPECTO
+  CLIENTE
+  CLIENTE_RECURRENTE
+  CLIENTE_INACTIVO
+}
+
+enum IntencionCompra {
+  ALTA
+  MEDIA
+  BAJA
+  DESCONOCIDA
+}
+
+enum NivelUrgencia {
+  ALTA
+  MEDIA
+  BAJA
+}
+
+enum NivelRecuperacion {
+  ALTA
+  MEDIA
+  BAJA
+  NO_APLICA
+}
+
+enum AccionComercial {
+  RESPONDER
+  NO_CONTACTAR
+  CONTACTAR_HOY
+  ENVIAR_COTIZACION
+  DAR_SEGUIMIENTO
+  RESOLVER_OBJECION
+  REACTIVAR
+  OFRECER_NOVEDADES
+  ESPERAR
+  SIN_ACCION
+}
+
+enum EstadoSugerencia {
+  PENDIENTE
+  ACEPTADA
+  DESCARTADA
+  REEMPLAZADA
+}
+
+enum EstadoVersionCriterio {
+  BORRADOR
+  PUBLICADA
+  ARCHIVADA
+}
+
+// Configuración del análisis por cuenta. Se crea de forma perezosa la primera
+// vez que se marca un contacto (research D16). `peso` lo ajusta el equipo de
+// Karia: no se acepta desde las acciones de la cuenta.
+model ConfiguracionAnalisisContactos {
+  id                       String                @id @default(cuid())
+  habilitado               Boolean               @default(true)
+  modoInteres              ModoAplicacionInteres @default(SOLO_SUGERIR)
+  mesesAntiguedadInicial   Int                   @default(12)
+  tamanoLote               Int                   @default(20)
+  maxLotesSimultaneos      Int                   @default(1)
+  presupuestoDiarioCosto   Decimal?
+  presupuestoDiarioTokens  Int?
+  ventanaAgrupacionSeg     Int                   @default(300)
+  esperaMaximaSeg          Int                   @default(1800)
+  historicoPausado         Boolean               @default(false)
+  peso                     Int                   @default(1)
+  // Stride scheduling (research D2): la cuenta con menor valor recibe el turno.
+  siguienteTurnoEn         DateTime              @default(now())
+  lotesEnCurso             Int                   @default(0)
+  ultimaAtencionEn         DateTime?
+  modoInteresCambiadoPorId String?
+  modoInteresCambiadoEn    DateTime?
+  creadoEn                 DateTime              @default(now())
+  actualizadoEn            DateTime              @updatedAt
+
+  instanciaId String    @unique
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([habilitado, siguienteTurnoEn])
+}
+
+// Una fila por contacto, PERMANENTE: así `versionDatos` es monótona y la
+// escritura de una evaluación puede descartar resultados viejos (research D4).
+// En estado PENDIENTE es lo que la spec llama "Contacto pendiente". Los índices
+// parciales (estado = PENDIENTE / EN_PROCESO) están en el SQL de la migración.
+model ContactoAnalisisCola {
+  id                String                @id @default(cuid())
+  estado            EstadoColaAnalisis    @default(PENDIENTE)
+  prioridad         PrioridadAnalisis     @default(P2)
+  tipo              TipoEjecucionAnalisis @default(INCREMENTAL)
+  versionDatos      BigInt                @default(1)
+  versionReclamada  BigInt?
+  forzarIA          Boolean               @default(false)
+  primerMarcadoEn   DateTime?
+  elegibleDesde     DateTime              @default(now())
+  datosHasta        DateTime?
+  intentos          Int                   @default(0)
+  bloqueadoHasta    DateTime?
+  ultimaEjecucionId String?
+  motivo            String?
+  creadoEn          DateTime              @default(now())
+  actualizadoEn     DateTime              @updatedAt
+
+  contactoId String   @unique
+  contacto   Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId, estado])
+}
+
+// Resultado vigente del análisis de un contacto. `relacionComercial` es una
+// foto para el panel, NO una fuente de filtros: "Cliente" sigue saliendo de
+// condiciones.ts en cada consulta (regla 10 de CLAUDE.md).
+model ContactoEvaluacion {
+  id                        String             @id @default(cuid())
+  origen                    OrigenEvaluacion
+  relacionComercial         RelacionComercial
+  puntaje                   Int
+  puntajeBase               Int
+  ajusteIA                  Int?
+  intencion                 IntencionCompra?
+  urgencia                  NivelUrgencia?
+  recuperacion              NivelRecuperacion?
+  // Lo de las reglas se reescribe en CADA evaluación; lo de la IA solo cuando
+  // hay evaluación con IA. Por eso van en columnas separadas: un pedido nuevo
+  // (solo reglas) no puede borrar lo que la IA leyó en la conversación.
+  senalesReglas             Json               @default("[]")
+  motivosReglas             Json               @default("[]")
+  senales                   Json               @default("[]")
+  objeciones                Json               @default("[]")
+  motivos                   Json               @default("[]")
+  accionIA                  AccionComercial?
+  /// Acción visible: la de las reglas si es RESPONDER/NO_CONTACTAR (FR-021), si no la de la IA, si no la de las reglas.
+  accionSugerida            AccionComercial
+  versionEvaluada           BigInt
+  iaHasta                   DateTime?
+  evaluadoEn                DateTime           @default(now())
+  evaluadoIAEn              DateTime?
+  proximaEvaluacionEn       DateTime?
+  plantillaAplicada         String?
+  ejecucionId               String?
+  // Sugerencias (research D14): la IA nunca escribe "No contactar", y el
+  // interés solo lo escribe si la cuenta eligió APLICAR_AUTOMATICO.
+  interesSugerido           NivelInteres?
+  interesSugeridoEstado     EstadoSugerencia?
+  noContactarSugerido       Boolean            @default(false)
+  noContactarMotivo         String?
+  noContactarSugeridoEstado EstadoSugerencia?
+  noContactarResueltoEn     DateTime?
+  sugerenciaResueltaPorId   String?
+  sugerenciaResueltaEn      DateTime?
+  actualizadoEn             DateTime           @updatedAt
+
+  criterioVersionId String?
+  criterioVersion   CriterioAnalisisContactosVersion? @relation(fields: [criterioVersionId], references: [id], onDelete: SetNull)
+
+  contactoId String   @unique
+  contacto   Contacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId, proximaEvaluacionEn])
+  @@index([instanciaId, interesSugeridoEstado])
+}
+
+// Criterio de análisis de la cuenta. Sin fila = plantilla GENERAL en memoria
+// (research D12): no hace falta sembrar nada.
+model CriterioAnalisisContactos {
+  id                 String   @id @default(cuid())
+  versionPublicadaId String?  @unique
+  creadoEn           DateTime @default(now())
+  actualizadoEn      DateTime @updatedAt
+
+  instanciaId String    @unique
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  versiones CriterioAnalisisContactosVersion[]
+}
+
+model CriterioAnalisisContactosVersion {
+  id              String                @id @default(cuid())
+  numero          Int?
+  estado          EstadoVersionCriterio
+  plantillaOrigen String
+  // Validado con CriterioContenidoSchema (src/crm/contactos/analisis/criterio/schema.ts).
+  contenido       Json
+  publicadaEn     DateTime?
+  creadaPorId     String?
+  publicadaPorId  String?
+  creadoEn        DateTime              @default(now())
+  actualizadoEn   DateTime              @updatedAt
+
+  criterioId String
+  criterio   CriterioAnalisisContactos @relation(fields: [criterioId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  evaluaciones ContactoEvaluacion[]
+
+  @@index([criterioId, estado])
+  @@index([instanciaId])
+}
+
+// Una fila por INTENTO de procesar un lote (FR-037). Nunca guarda claves,
+// prompts ni texto de conversaciones (FR-041). La finalización lógica de cada
+// contacto se cuenta en la cola, no acá, para no contar dos veces (FR-038).
+model EjecucionAnalisisContactos {
+  id                  String                  @id @default(cuid())
+  loteId              String
+  loteRaizId          String?
+  intento             Int                     @default(1)
+  tipo                TipoEjecucionAnalisis
+  prioridad           PrioridadAnalisis
+  modo                ModoEjecucionAnalisis
+  estado              EstadoEjecucionAnalisis @default(EN_CURSO)
+  proveedor           String?
+  modelo              String?
+  configAplicada      Json                    @default("{}")
+  contactosPedidos    Int                     @default(0)
+  contactosProcesados Int                     @default(0)
+  contactosExitosos   Int                     @default(0)
+  contactosFallidos   Int                     @default(0)
+  tokensEntrada       Int                     @default(0)
+  tokensSalida        Int                     @default(0)
+  tokensCacheados     Int                     @default(0)
+  costoEstimado       Decimal?
+  usoIAId             String?
+  duracionMs          Int?
+  esperaColaMs        Int?
+  iniciadoEn          DateTime                @default(now())
+  finalizadoEn        DateTime?
+  leaseHasta          DateTime
+  errorCodigo         String?
+  errorMensaje        String?
+  creadoEn            DateTime                @default(now())
+
+  proveedorIAId String?
+  proveedorIA   ProveedorIA? @relation(fields: [proveedorIAId], references: [id], onDelete: SetNull)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  items EjecucionAnalisisContactosItem[]
+
+  @@index([instanciaId, creadoEn])
+  @@index([estado, leaseHasta])
+  @@index([loteId])
+}
+
+// Detalle por contacto. Retención de 90 días (motor/retencion.ts). Sin FK a
+// Contacto a propósito: el detalle auditado sobrevive al borrado del contacto.
+model EjecucionAnalisisContactosItem {
+  id          String             @id @default(cuid())
+  contactoId  String
+  estado      EstadoItemAnalisis
+  antes       Json?
+  despues     Json?
+  motivo      String?
+  errorCodigo String?
+  procesadoEn DateTime           @default(now())
+
+  ejecucionId String
+  ejecucion   EjecucionAnalisisContactos @relation(fields: [ejecucionId], references: [id], onDelete: Cascade)
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@index([instanciaId, contactoId, procesadoEn])
+  @@index([procesadoEn])
+}
+
+// Agregado diario por cuenta; se conserva cuando el detalle se purga.
+model ResumenDiarioAnalisisContactos {
+  id                 String   @id @default(cuid())
+  /// YYYY-MM-DD en la zona horaria del negocio.
+  dia                String
+  atenciones         Int      @default(0)
+  atencionesFallidas Int      @default(0)
+  contactosEvaluados Int      @default(0)
+  contactosPorReglas Int      @default(0)
+  contactosConIA     Int      @default(0)
+  contactosFallidos  Int      @default(0)
+  tokensEntrada      Int      @default(0)
+  tokensSalida       Int      @default(0)
+  tokensCacheados    Int      @default(0)
+  costoEstimado      Decimal  @default(0)
+  duracionTotalMs    BigInt   @default(0)
+  esperaTotalMs      BigInt   @default(0)
+  actualizadoEn      DateTime @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  @@unique([instanciaId, dia])
 }
 
 // --- 012-perfil-dinamico-cliente ---
@@ -3222,6 +3607,8 @@ enum TareaIA {
   // la respuesta, y el costo incluye además la tarifa por llamada de file
   // search. Ver src/ai/documentacion/busqueda.ts.
   BUSQUEDA_DOCUMENTAL
+  // 042-contactos-analisis-ia — análisis por lotes de contactos de una cuenta.
+  ANALISIS_CONTACTOS
 }
 
 enum TipoMemoriaIA {
@@ -3291,7 +3678,9 @@ model ProveedorIA {
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
 
-  usoIA UsoIA[]
+  usoIA                        UsoIA[]
+  // 042-contactos-analisis-ia
+  ejecucionesAnalisisContactos EjecucionAnalisisContactos[]
 
   @@unique([instanciaId, aliasNormalizado])
   @@index([instanciaId])
@@ -3539,18 +3928,20 @@ model DocumentoAgenteIA {
 
 // Auditoría de uso y costos de IA
 model UsoIA {
-  id            String   @id @default(cuid())
-  modelo        String
-  tarea         TareaIA
-  tokensInput   Int      @default(0)
-  tokensOutput  Int      @default(0)
-  costoEstimado Decimal?
-  tiempoMs      Int      @default(0)
-  exito         Boolean  @default(true)
-  error         String?
-  entidadTipo   String?
-  entidadId     String?
-  creadoEn      DateTime @default(now())
+  id              String   @id @default(cuid())
+  modelo          String
+  tarea           TareaIA
+  tokensInput     Int      @default(0)
+  tokensOutput    Int      @default(0)
+  // 042 — los informa el proveedor cuando cachea el prompt (0 si no lo soporta).
+  tokensCacheados Int      @default(0)
+  costoEstimado   Decimal?
+  tiempoMs        Int      @default(0)
+  exito           Boolean  @default(true)
+  error           String?
+  entidadTipo     String?
+  entidadId       String?
+  creadoEn        DateTime @default(now())
 
   instanciaId String
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)

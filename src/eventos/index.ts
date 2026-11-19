@@ -13,6 +13,7 @@ export type { ContactoEliminadoPayload }   from "./contratos/contacto-eliminado.
 export type { ContactoAsignadoPayload }    from "./contratos/contacto-asignado.event";
 export type { ContactoInteresActualizadoPayload } from "./contratos/contacto-interes-actualizado.event";
 export type { ContactoPreferenciaContactoActualizadaPayload } from "./contratos/contacto-preferencia-contacto-actualizada.event";
+export type { ContactoAnalizadoPayload } from "./contratos/contacto-analizado.event";
 
 export type { EmpresaCreadaPayload }       from "./contratos/empresa-creada.event";
 export type { EmpresaActualizadaPayload }  from "./contratos/empresa-actualizada.event";

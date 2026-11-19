@@ -355,6 +355,32 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
     "No contactar" se escriben únicamente por `src/crm/contactos/clasificacion.ts`,
     que rechaza pisar un interés fijado a mano y que un proceso automático
     vuelva a habilitar un contacto. Detalle: `specs/041-contactos-segmentacion-comercial/`.
+13. **Análisis de contactos** (042): un perfil comercial por contacto, con
+    reglas para todas las cuentas y con IA solo para leer conversaciones
+    nuevas, en lotes de UNA cuenta.
+    - **La planificación vive en PostgreSQL, no en RabbitMQ.** Usa
+      `ContactoAnalisisCola` con lease, `SKIP LOCKED` y stride scheduling
+      por cuenta.
+    - **Todo marcado pasa por `marcarPendiente`** (`src/crm/contactos/analisis/cola.ts`).
+      Dentro de una transacción ajena se usa `marcarPendienteSinFallar`, que
+      corre con el cliente global y nunca con el `tx`.
+    - **La versión de la cola es monótona.** Una evaluación vieja no pisa a
+      una más nueva.
+    - **`relacionComercial` es una foto, nunca un filtro.** "Cliente" sigue
+      saliendo de `condiciones.ts`.
+    - **La IA no escribe hechos ni "No contactar".** El interés solo lo
+      aplica en modo `APLICAR_AUTOMATICO` y por `clasificacion.ts`.
+    - **Su salida se valida con Zod y con el filtro de privacidad**
+      (`src/ai/analisis-contactos/salida.ts`), que rechaza datos personales y
+      citas textuales.
+    - **Ningún suscriptor que marque contactos escucha `CONTACTO_ANALIZADO`
+      ni `CONTACTO_INTERES_ACTUALIZADO`**: sería un bucle.
+    - **La extracción por evento del perfil 012 solo se apaga si el motor de
+      IA está conectado y disponible** (`motor/disponibilidad.ts`); nunca un
+      camino sin el otro.
+
+    Leer **`docs/analisis-contactos.md`** antes de tocar `src/crm/contactos/analisis/`
+    o `src/ai/analisis-contactos/`.
 
 ---
 

@@ -34,6 +34,7 @@ export async function registrarUsoIA(params: RegistrarUsoParams): Promise<string
       modelo: params.resultado.modelo,
       tokensInput: params.resultado.tokensInput,
       tokensOutput: params.resultado.tokensOutput,
+      tokensCacheados: params.resultado.tokensCacheados ?? 0,
       tiempoMs: params.resultado.tiempoMs,
       exito: params.exito,
       error: params.error,

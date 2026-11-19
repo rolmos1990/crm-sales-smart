@@ -126,6 +126,35 @@ interface ContactoInteresActualizadoPayload {
 
 ---
 
+### ContactoAnalizado
+
+**Descripción**: Terminó una evaluación del análisis inteligente de un contacto, por reglas o con IA (042). Se publica una vez por contacto después del commit de la evaluación. Hoy no tiene suscriptores: queda disponible para Workflows. No lleva señales, objeciones ni motivos, porque son texto generado a partir de conversaciones.
+
+**Publicado por**: `src/crm/contactos/analisis/motor/ejecutor.ts`
+
+**Contrato**: `src/eventos/contratos/contacto-analizado.event.ts`
+
+```ts
+interface ContactoAnalizadoPayload {
+  instanciaId: string;
+  contactoId: string;
+  ejecucionId: string;
+  origen: "REGLA" | "IA";
+  puntaje: number;
+  puntajeAnterior: number | null;
+  intencion: "ALTA" | "MEDIA" | "BAJA" | "DESCONOCIDA" | null;
+  relacionComercial: "PROSPECTO" | "CLIENTE" | "CLIENTE_RECURRENTE" | "CLIENTE_INACTIVO";
+  accionSugerida: string;
+  interesAplicado: boolean;
+}
+```
+
+**Versión**: v1
+
+**Nota**: ningún suscriptor que marque contactos para análisis debe escuchar este evento (ni `CONTACTO_INTERES_ACTUALIZADO`): cerraría un bucle en el que cada evaluación provoca otra.
+
+---
+
 ### ContactoPreferenciaContactoActualizada
 
 **Descripción**: El contacto pasó a "No contactar" o volvió a "Contactable". Mientras esté en "No contactar", la IA y los Workflows no le envían mensajes. Solo una persona puede volverlo a "Contactable" (041).

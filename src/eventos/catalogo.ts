@@ -10,6 +10,8 @@ export const EventosSistema = {
   // 041-contactos-segmentacion-comercial
   ContactoInteresActualizado:             "CONTACTO_INTERES_ACTUALIZADO",
   ContactoPreferenciaContactoActualizada: "CONTACTO_PREFERENCIA_CONTACTO_ACTUALIZADA",
+  // 042-contactos-analisis-ia
+  ContactoAnalizado:                      "CONTACTO_ANALIZADO",
 
   // Empresas
   EmpresaCreada:          "EMPRESA_CREADA",

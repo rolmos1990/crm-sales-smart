@@ -298,6 +298,15 @@ export interface ConversacionCorreoHtml {
   asunto: string;
 }
 
+// 042-contactos-analisis-ia
+export function crearContactoConAnalisis(overrides: { instanciaId: string; usuarioId: string; nombre: string }) {
+  return llamar<RegistroBase>("crearContactoConAnalisis", [overrides]);
+}
+
+export function eliminarContactoE2E(id: string) {
+  return llamar<{ ok: true }>("eliminarContactoE2E", [id]);
+}
+
 export function crearConversacionCorreoHtml(overrides: { instanciaId: string; usuarioId: string; html: string }) {
   return llamar<ConversacionCorreoHtml>("crearConversacionCorreoHtml", [overrides]);
 }
