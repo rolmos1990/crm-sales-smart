@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useTransition, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Loader2, Plus, Phone } from "lucide-react";
+import { ArrowLeft, MessageSquare, Loader2, Plus, Phone } from "lucide-react";
+import { ButtonLink } from "@/components/ui/button";
+import { AvatarContacto } from "@/crm/contactos/components/avatar-contacto";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ListaMensajes } from "./lista-mensajes";
 import { InputMensaje } from "./input-mensaje";
@@ -27,6 +30,9 @@ interface PanelConversacionProps {
   puedeMod?: boolean;
   /** Texto que un panel externo carga en el compositor — ver InputMensaje. */
   textoExterno?: { texto: string; n: number } | null;
+  /** Ficha de contacto: muestra "volver" y el avatar en la cabecera del chat. */
+  hrefVolver?: string;
+  avatarUrl?: string | null;
 }
 
 async function fetchMensajesRecientes(conversacionId: string): Promise<MensajeConMeta[]> {
@@ -55,6 +61,8 @@ export function PanelConversacion({
   conversacionesIniciales,
   puedeMod = true,
   textoExterno = null,
+  hrefVolver,
+  avatarUrl = null,
 }: PanelConversacionProps) {
   const queryClient = useQueryClient();
   const [conversaciones, setConversaciones] = useState<ConversacionResumen[]>(conversacionesIniciales);
@@ -214,14 +222,29 @@ export function PanelConversacion({
     <div className="flex flex-col h-full bg-background-subtle border-r border-border min-w-0">
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-3 border-b border-border shrink-0">
-        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-inbox-accent-muted">
-          <MessageSquare className="h-4 w-4 text-inbox-accent" />
-        </div>
+      <div className={cn("flex items-center gap-2 border-b border-border shrink-0", hrefVolver ? "px-3 py-2.5" : "px-3 py-3")}>
+        {hrefVolver && (
+          <ButtonLink variant="outline" size="icon-sm" href={hrefVolver} aria-label="Volver" className="shrink-0">
+            <ArrowLeft className="h-4 w-4" />
+          </ButtonLink>
+        )}
+        {hrefVolver ? (
+          <AvatarContacto
+            nombre={nombreContacto.split(" ")[0]}
+            apellido={nombreContacto.split(" ").slice(1).join(" ")}
+            avatarUrl={avatarUrl}
+            canal={conversacionActivaObj?.cuentaCanal?.canal}
+            size="md"
+          />
+        ) : (
+          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-inbox-accent-muted">
+            <MessageSquare className="h-4 w-4 text-inbox-accent" />
+          </div>
+        )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{nombreContacto}</p>
+          <p className={cn("font-semibold text-foreground truncate", hrefVolver ? "text-base" : "text-sm")}>{nombreContacto}</p>
           {conversacionActivaObj?.cuentaCanal && (
-            <p className="text-[10px] text-muted-foreground truncate">
+            <p className={cn("text-muted-foreground truncate", hrefVolver ? "text-xs" : "text-[10px]")}>
               {conversacionActivaObj.cuentaCanal.nombre}
               {conversacionActivaObj.cuentaCanal.canal === "instagram" && (conversacionActivaObj.handleCanal || conversacionActivaObj.identificadorCanal) && (
                 <span className="font-mono">

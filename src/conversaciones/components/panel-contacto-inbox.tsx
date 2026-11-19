@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import {
   User, Phone, Mail, Building2, Link2, Check, Loader2, Search, X, Smartphone, Camera,
@@ -20,6 +20,7 @@ import { SelectorTags } from "@/crm/tags/components/selector-tags";
 import type { Tag } from "@/crm/tags/types";
 import { SelectorPipelineStage } from "@/crm/pipeline/components/selector-pipeline-stage";
 import { SmartDatePicker } from "@/components/ui/smart-date-picker";
+import { CampoEditable, CampoEditableTexto } from "@/shared/ui/campo-editable";
 import { vincularConversacionAContacto, clasificarConversacion } from "../actions";
 import { AvatarContacto } from "./avatar-contacto";
 import { SelectorAtencion } from "@/workflows/components/selector-atencion";
@@ -58,170 +59,6 @@ interface PanelContactoInboxProps {
    *  el padre los vuelve a pedir por conversacionId. */
   onConversacionActualizada: (conversacionId: string, datosFrescos?: ConversacionResumen) => void;
 }
-
-// ── Campo editable inline ────────────────────────────────────────────────────
-
-function CampoEditable({
-  label,
-  valor,
-  placeholder,
-  icono,
-  onGuardar,
-}: {
-  label: string;
-  valor: string | null | undefined;
-  placeholder: string;
-  icono: React.ReactNode;
-  onGuardar: (v: string) => Promise<void>;
-}) {
-  const [editando, setEditando] = useState(false);
-  const [val, setVal] = useState(valor ?? "");
-  const [guardando, startGuardando] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setVal(valor ?? "");
-  }, [valor]);
-
-  const guardar = () => {
-    if (val === (valor ?? "")) { setEditando(false); return; }
-    startGuardando(async () => {
-      await onGuardar(val);
-      setEditando(false);
-    });
-  };
-
-  if (editando) {
-    return (
-      <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-input-bg border border-input-focus/50">
-        <span className="text-muted-foreground shrink-0">{icono}</span>
-        <input
-          ref={inputRef}
-          autoFocus
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onBlur={guardar}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") guardar();
-            if (e.key === "Escape") { setVal(valor ?? ""); setEditando(false); }
-          }}
-          placeholder={placeholder}
-          className="flex-1 bg-transparent text-xs text-foreground placeholder:text-input-placeholder outline-none"
-        />
-        {guardando
-          ? <Loader2 className="h-3 w-3 text-inbox-accent animate-spin shrink-0" />
-          : <Check className="h-3 w-3 text-inbox-accent shrink-0" />}
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => { setEditando(true); }}
-      className="w-full flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-muted transition-colors group text-left"
-      title={`Editar ${label}`}
-    >
-      <span className="text-muted-foreground group-hover:text-foreground shrink-0 transition-colors">{icono}</span>
-      <span className={cn(
-        "flex-1 text-xs truncate",
-        valor ? "text-text-secondary" : "text-muted-foreground italic"
-      )}>
-        {valor || placeholder}
-      </span>
-    </button>
-  );
-}
-
-/**
- * Igual que `CampoEditable` pero multilínea, para textos que no caben en una
- * línea (la nota de la oportunidad). Click para editar, se guarda al salir.
- *
- * A diferencia del campo de una línea, Enter NO guarda: en una nota hace falta
- * poder saltar de línea. Se guarda al salir del campo (blur) o con Ctrl/⌘+Enter,
- * y Escape descarta.
- */
-function CampoEditableTexto({
-  label,
-  valor,
-  placeholder,
-  icono,
-  filas = 4,
-  onGuardar,
-}: {
-  label: string;
-  valor: string | null | undefined;
-  placeholder: string;
-  icono: React.ReactNode;
-  filas?: number;
-  onGuardar: (v: string) => Promise<void>;
-}) {
-  const [editando, setEditando] = useState(false);
-  const [val, setVal] = useState(valor ?? "");
-  const [guardando, startGuardando] = useTransition();
-
-  useEffect(() => {
-    setVal(valor ?? "");
-  }, [valor]);
-
-  const guardar = () => {
-    if (val === (valor ?? "")) { setEditando(false); return; }
-    startGuardando(async () => {
-      await onGuardar(val);
-      setEditando(false);
-    });
-  };
-
-  if (editando) {
-    return (
-      <div className="rounded-xl border border-input-focus/50 bg-input-bg px-3 py-2">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="shrink-0 text-muted-foreground">{icono}</span>
-          <span className="flex-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-          {guardando
-            ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-inbox-accent" />
-            : <Check className="h-3 w-3 shrink-0 text-inbox-accent" />}
-        </div>
-        <textarea
-          autoFocus
-          rows={filas}
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onBlur={guardar}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); guardar(); }
-            if (e.key === "Escape") { setVal(valor ?? ""); setEditando(false); }
-          }}
-          placeholder={placeholder}
-          className="w-full resize-none bg-transparent text-xs leading-relaxed text-foreground outline-none placeholder:text-input-placeholder"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setEditando(true)}
-      className="group w-full rounded-xl px-3 py-2 text-left transition-colors hover:bg-muted"
-      title={`Editar ${label}`}
-    >
-      <span className="mb-1 flex items-center gap-2">
-        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-foreground">{icono}</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{label}</span>
-      </span>
-      <span
-        className={cn(
-          "block whitespace-pre-wrap text-xs leading-relaxed",
-          valor ? "text-text-secondary" : "italic text-muted-foreground",
-        )}
-      >
-        {valor || placeholder}
-      </span>
-    </button>
-  );
-}
-
 
 // ── Cotizaciones de la oportunidad activa ────────────────────────────────────
 // El panel mostraba datos del contacto y la oportunidad, pero no las
