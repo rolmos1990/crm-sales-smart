@@ -78,8 +78,8 @@ erDiagram
 - *Agente IA* — `Usuario → AgenteIAConfig`, `Usuario → AgenteIAConfigVersion`, `Usuario → ConversacionPiloto`, `Usuario → RecomendacionComportamiento`
 - *CRM* — `CampoPersonalizado → Pipeline`, `CampoPersonalizado → PipelineStage`, `CampoPersonalizadoValor → Contacto`, `CampoPersonalizadoValor → Empresa`, `CampoPersonalizadoValor → Oportunidad`, `MediaArchivo → Contacto`, `Usuario → Actividad`, `Usuario → Contacto`, `Usuario → Empresa`, `Usuario → Oportunidad`, `UsuarioInstancia → Actividad`, `UsuarioInstancia → Contacto`, `UsuarioInstancia → Empresa`, `UsuarioInstancia → Oportunidad`
 - *Conversaciones y canales* — `MediaArchivo → MensajeConversacion`
-- *Envios y cobertura* — `ConfiguracionEmpresa → Pais`
-- *Preparacion de pedidos* — `Usuario → PreparacionPedido`
+- *Envíos y cobertura* — `ConfiguracionEmpresa → Pais`
+- *Preparación de pedidos* — `Usuario → PreparacionPedido`
 - *Ventas* — `CampoPersonalizadoValor → Cotizacion`, `CampoPersonalizadoValor → Pedido`, `Usuario → Cotizacion`, `Usuario → Pedido`, `Usuario → PedidoLinea`, `UsuarioInstancia → Cotizacion`, `UsuarioInstancia → Pedido`
 
 
@@ -121,8 +121,8 @@ erDiagram
 **Cruces con otros dominios**
 
 - *Agente IA* — `PipelineStage → AgenteIAConfig`
-- *Analisis de contactos* — `Contacto → ContactoAnalisisCola`, `Contacto → ContactoClasificacionHistorial`, `Contacto → ContactoEvaluacion`, `Contacto → PerfilClienteSnapshot`
-- *Automatizacion* — `Oportunidad → DisparadorJob`, `Oportunidad → WorkflowEjecucion`, `Pipeline → Disparador`, `Pipeline → WorkflowAsignacion`, `PipelineStage → Disparador`, `PipelineStage → WorkflowAsignacion`
+- *Análisis de contactos* — `Contacto → ContactoAnalisisCola`, `Contacto → ContactoClasificacionHistorial`, `Contacto → ContactoEvaluacion`, `Contacto → PerfilClienteSnapshot`
+- *Automatización* — `Oportunidad → DisparadorJob`, `Oportunidad → WorkflowEjecucion`, `Pipeline → Disparador`, `Pipeline → WorkflowAsignacion`, `PipelineStage → Disparador`, `PipelineStage → WorkflowAsignacion`
 - *Conversaciones y canales* — `Contacto → Conversacion`, `Oportunidad → Conversacion`, `Oportunidad → OportunidadConversacion`, `Pipeline → CuentaCanal`, `PipelineStage → CuentaCanal`
 - *Identidad y cuenta* — `Actividad → Usuario`, `Actividad → UsuarioInstancia`, `Contacto → CampoPersonalizadoValor`, `Contacto → MediaArchivo`, `Contacto → Usuario`, `Contacto → UsuarioInstancia`, `Empresa → CampoPersonalizadoValor`, `Empresa → Usuario`, `Empresa → UsuarioInstancia`, `Oportunidad → CampoPersonalizadoValor`, `Oportunidad → Usuario`, `Oportunidad → UsuarioInstancia`, `Pipeline → CampoPersonalizado`, `PipelineStage → CampoPersonalizado`
 - *Productos* — `OportunidadProducto → Producto`
@@ -156,7 +156,7 @@ erDiagram
 **Cruces con otros dominios**
 
 - *Agente IA* — `Conversacion → ConversacionPiloto`, `Conversacion → FichaConversacionIA`, `Conversacion → RespuestaPendienteRevision`, `Conversacion → SeleccionEstrategiaLog`
-- *Automatizacion* — `Conversacion → WorkflowEjecucion`
+- *Automatización* — `Conversacion → WorkflowEjecucion`
 - *CRM* — `Conversacion → Contacto`, `Conversacion → Oportunidad`, `CuentaCanal → Pipeline`, `CuentaCanal → PipelineStage`, `OportunidadConversacion → Oportunidad`
 - *Identidad y cuenta* — `MensajeConversacion → MediaArchivo`
 
@@ -283,11 +283,11 @@ erDiagram
 
 **Cruces con otros dominios**
 
-- *Automatizacion* — `FlujoVenta → Disparador`, `FlujoVentaEtapa → Disparador`, `Pedido → DisparadorJob`
+- *Automatización* — `FlujoVenta → Disparador`, `FlujoVentaEtapa → Disparador`, `Pedido → DisparadorJob`
 - *CRM* — `Cotizacion → Actividad`, `Cotizacion → Contacto`, `Cotizacion → Empresa`, `Cotizacion → Oportunidad`, `Pedido → Actividad`, `Pedido → Contacto`, `Pedido → Empresa`, `Pedido → Oportunidad`
-- *Envios y cobertura* — `EntregaCotizacion → EstadoProvincia`, `EntregaCotizacion → Pais`, `EntregaCotizacion → ServicioTransportista`, `EntregaCotizacion → TarifaTransportistaZona`, `EntregaCotizacion → Transportista`, `EntregaCotizacion → ZonaEntrega`, `EntregaPedido → EstadoProvincia`, `EntregaPedido → Pais`, `EntregaPedido → ServicioTransportista`, `EntregaPedido → TarifaTransportistaZona`, `EntregaPedido → Transportista`, `EntregaPedido → ZonaEntrega`
+- *Envíos y cobertura* — `EntregaCotizacion → EstadoProvincia`, `EntregaCotizacion → Pais`, `EntregaCotizacion → ServicioTransportista`, `EntregaCotizacion → TarifaTransportistaZona`, `EntregaCotizacion → Transportista`, `EntregaCotizacion → ZonaEntrega`, `EntregaPedido → EstadoProvincia`, `EntregaPedido → Pais`, `EntregaPedido → ServicioTransportista`, `EntregaPedido → TarifaTransportistaZona`, `EntregaPedido → Transportista`, `EntregaPedido → ZonaEntrega`
 - *Identidad y cuenta* — `Cotizacion → CampoPersonalizadoValor`, `Cotizacion → Usuario`, `Cotizacion → UsuarioInstancia`, `Pedido → CampoPersonalizadoValor`, `Pedido → Usuario`, `Pedido → UsuarioInstancia`, `PedidoLinea → Usuario`
-- *Preparacion de pedidos* — `FlujoVentaEtapa → FlujoPreparacionEntrada`, `Pedido → PreparacionPedido`
+- *Preparación de pedidos* — `FlujoVentaEtapa → FlujoPreparacionEntrada`, `Pedido → PreparacionPedido`
 - *Productos* — `CotizacionLinea → Producto`, `CotizacionLinea → ProductoVariante`, `PedidoLinea → Producto`, `PedidoLinea → ProductoVariante`
 
 
@@ -418,7 +418,7 @@ erDiagram
 
 **Cruces con otros dominios**
 
-- *Analisis de contactos* — `ProveedorIA → EjecucionAnalisisContactos`
+- *Análisis de contactos* — `ProveedorIA → EjecucionAnalisisContactos`
 - *CRM* — `AgenteIAConfig → PipelineStage`
 - *Conversaciones y canales* — `ConversacionPiloto → Conversacion`, `FichaConversacionIA → Conversacion`, `RespuestaPendienteRevision → Conversacion`, `SeleccionEstrategiaLog → Conversacion`
 - *Identidad y cuenta* — `AgenteIAConfig → Usuario`, `AgenteIAConfigVersion → Usuario`, `ConversacionPiloto → Usuario`, `RecomendacionComportamiento → Usuario`
