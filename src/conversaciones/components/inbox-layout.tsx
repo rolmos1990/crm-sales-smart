@@ -778,7 +778,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
       >
 
         {/* Buscador + filtros */}
-        <div className="px-4 pt-4 pb-3 border-b border-border shrink-0 space-y-3">
+        <div className="px-4 pt-3 pb-2.5 border-b border-border shrink-0 space-y-2.5">
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -788,7 +788,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar conversaciones..."
                 className={cn(
-                  "w-full h-8 rounded-lg border pl-8 pr-3 text-xs transition-colors outline-none",
+                  "w-full h-8 rounded-lg border pl-8 pr-3 text-[12.5px] transition-colors outline-none",
                   "bg-input-bg border-input",
                   "text-foreground placeholder:text-input-placeholder",
                   "focus:border-input-focus/50 focus:ring-2 focus:ring-input-focus/15"
@@ -806,7 +806,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
           </div>
 
           {/* Tabs de filtro */}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {FILTROS.map((f) => {
               const activo = filtro === f.key;
               return (
@@ -815,7 +815,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
                   type="button"
                   onClick={() => setFiltro(f.key)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition-colors",
+                    "inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px] font-medium transition-colors",
                     activo
                       ? "bg-inbox-accent-muted border-inbox-accent-border text-inbox-accent"
                       // Un filtro urgente con gente esperando se ve aunque no
@@ -840,7 +840,7 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
         </div>
 
         {/* Lista */}
-        <ul className="flex-1 inbox-scroll divide-y divide-card-divider">
+        <ul className="flex-1 inbox-scroll divide-y divide-card-divider/55">
           {gruposContacto.length === 0 ? (
             <li className="flex flex-col items-center justify-center gap-2 h-40 text-center px-4">
               <MessageSquare className="h-5 w-5 text-muted-foreground/50" />
