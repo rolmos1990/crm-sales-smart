@@ -2,7 +2,7 @@
 
 ## Descripción del proyecto
 
-**Karia** es una aplicación web de CRM (Customer Relationship Management) y ventas construida con Next.js 16 App Router, TypeScript, Prisma ORM sobre PostgreSQL y shadcn/ui.
+**Karia** es una aplicación web de CRM (Customer Relationship Management) y ventas construida con Next.js 15 App Router, TypeScript, Prisma ORM sobre PostgreSQL y shadcn/ui.
 
 El sistema gestiona:
 - **CRM**: contactos, empresas, oportunidades, actividades y pipeline Kanban
@@ -15,7 +15,7 @@ El sistema gestiona:
 
 | Capa | Tecnología |
 |------|-----------|
-| Framework | Next.js 16.2 (App Router) |
+| Framework | Next.js 15.5 (App Router) |
 | Lenguaje | TypeScript 5 |
 | Base de datos | PostgreSQL + Prisma 7 |
 | UI | Tailwind CSS v4 + shadcn/ui (Radix UI) |
