@@ -11,18 +11,12 @@ export default async function DatosPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "datos", "ver").permitido) redirect("/acceso-denegado");
 
-  let camposPersonalizados: Awaited<
-    ReturnType<typeof obtenerCamposPersonalizadosPorEntidad>
-  > = [];
-
-  try {
-    camposPersonalizados = await obtenerCamposPersonalizadosPorEntidad(
-      sesion.instanciaId,
-      "CONTACTO",
-    );
-  } catch {
-    // Continuar sin campos personalizados si hay error de DB
-  }
+  // Sin red: una importación que entre sin los campos personalizados del
+  // destino mapea mal las columnas y guarda datos incompletos (043).
+  const camposPersonalizados = await obtenerCamposPersonalizadosPorEntidad(
+    sesion.instanciaId,
+    "CONTACTO",
+  );
 
   return (
     <div className="flex flex-col gap-6 p-6">

@@ -38,26 +38,10 @@ export default async function CotizacionDetallePage({ params }: { params: Promis
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "cotizaciones", "ver").permitido) redirect("/acceso-denegado");
 
-  let cotizacion = null;
+  const cotizacion = await obtenerCotizacionPorId(id, sesion.instanciaId);
 
-  try {
-    cotizacion = await obtenerCotizacionPorId(id, sesion.instanciaId);
-  } catch {
-    // DB not configured
-  }
-
-  if (!cotizacion && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
-
-  if (!cotizacion) {
-    return (
-      <div className="p-6">
-        <ButtonLink variant="ghost" size="icon-sm" href="/sales/cotizaciones"><ArrowLeft className="h-4 w-4" /></ButtonLink>
-        <p className="text-muted-foreground mt-4">Cotización no disponible</p>
-      </div>
-    );
-  }
+  // 043 — "no existe" solo puede venir de una lectura exitosa sin fila.
+  if (!cotizacion) notFound();
 
   const estadoConf = ESTADO_COTIZACION_CONFIG[cotizacion.estado];
   const siguientesManuales = TRANSICIONES_MANUALES[cotizacion.estado] ?? [];

@@ -13,13 +13,8 @@ export default async function EmpresasPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "empresas", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "empresas");
-  let empresas: EmpresaConRelaciones[] = [];
-  try {
-    const datos = await obtenerEmpresas(sesion.instanciaId);
-    empresas = datos as unknown as EmpresaConRelaciones[];
-  } catch {
-    // DB no configurada
-  }
+  const datos = await obtenerEmpresas(sesion.instanciaId);
+  const empresas = datos as unknown as EmpresaConRelaciones[];
 
   return (
     <div className="flex flex-col gap-6 p-6">

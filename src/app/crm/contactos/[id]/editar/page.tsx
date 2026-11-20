@@ -23,26 +23,17 @@ export default async function EditarContactoPage({ params }: { params: Promise<{
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "contactos", "modificar").permitido) redirect("/acceso-denegado");
 
-  let contacto = null;
-  let empresas: { id: string; nombre: string }[] = [];
-  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
-  let defaultCountryCode = "PA";
+  const [contacto, empresas, tags] = await Promise.all([
+    obtenerContactoPorId(id, sesion.instanciaId),
+    buscarEmpresas("", sesion.instanciaId),
+    obtenerTags(sesion.instanciaId),
+  ]);
+  const config = await obtenerConfiguracionEmpresa(sesion.instanciaId);
+  // "PA" solo cubre un país sin equivalente ISO en el mapa, no un fallo de
+  // lectura: si la configuración no se pudo leer, la página falla (043).
+  const defaultCountryCode = config?.pais ? PAIS_A_ISO[config.pais] ?? "PA" : "PA";
 
-  try {
-    [contacto, empresas, tags] = await Promise.all([
-      obtenerContactoPorId(id, sesion.instanciaId),
-      buscarEmpresas("", sesion.instanciaId),
-      obtenerTags(sesion.instanciaId),
-    ]);
-    const config = await obtenerConfiguracionEmpresa(sesion.instanciaId);
-    if (config?.pais) defaultCountryCode = PAIS_A_ISO[config.pais] ?? "PA";
-  } catch {
-    // DB not configured
-  }
-
-  if (!contacto && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
+  if (!contacto) notFound();
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
 

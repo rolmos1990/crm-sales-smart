@@ -14,17 +14,10 @@ export default async function EditarEmpresaPage({ params }: { params: Promise<{ 
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "empresas", "modificar").permitido) redirect("/acceso-denegado");
 
-  let empresa = null;
+  const empresa = await obtenerEmpresaPorId(id, sesion.instanciaId);
 
-  try {
-    empresa = await obtenerEmpresaPorId(id, sesion.instanciaId);
-  } catch {
-    // DB not configured
-  }
-
-  if (!empresa && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
+  // 043 — "no existe" solo puede venir de una lectura exitosa sin fila.
+  if (!empresa) notFound();
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-2xl mx-auto">

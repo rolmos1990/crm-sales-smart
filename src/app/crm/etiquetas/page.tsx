@@ -8,13 +8,7 @@ import { ListaTags } from "@/crm/tags/components/lista-tags";
 export default async function EtiquetasPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "etiquetas", "ver").permitido) redirect("/acceso-denegado");
-  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
-
-  try {
-    tags = await obtenerTags(sesion.instanciaId);
-  } catch {
-    // DB no configurada
-  }
+  const tags = await obtenerTags(sesion.instanciaId);
 
   return (
     <div className="p-6 max-w-2xl mx-auto">

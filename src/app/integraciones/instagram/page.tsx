@@ -81,14 +81,8 @@ export default async function InstagramPage({ searchParams }: { searchParams: Se
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
 
-  let cuentas: Awaited<ReturnType<typeof obtenerCuentasIG>> = [];
   const instanciaId = sesion.instanciaId;
-
-  try {
-    cuentas = await obtenerCuentasIG(instanciaId);
-  } catch (e) {
-    console.error("[Instagram page] Error cargando datos:", e);
-  }
+  const cuentas = await obtenerCuentasIG(instanciaId);
 
   return (
     <div className="min-h-full p-6 max-w-2xl mx-auto space-y-6">

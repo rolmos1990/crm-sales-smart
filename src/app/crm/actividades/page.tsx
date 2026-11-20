@@ -13,13 +13,8 @@ export default async function ActividadesPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "actividades", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "actividades");
-  let actividades: Actividad[] = [];
-  try {
-    const datos = await obtenerActividades(sesion.instanciaId);
-    actividades = datos as unknown as Actividad[];
-  } catch {
-    // DB no configurada
-  }
+  const datos = await obtenerActividades(sesion.instanciaId);
+  const actividades = datos as unknown as Actividad[];
 
   if (actividades.length === 0) {
     return (

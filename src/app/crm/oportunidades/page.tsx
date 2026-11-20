@@ -33,43 +33,22 @@ export default async function OportunidadesPage({ searchParams }: OportunidadesP
   // Zona de negocio: define qué día es "hoy" para los filtros y los KPIs.
   const zonaHoraria = sesion.zonaNegocio;
 
-  let inicial: DatosVistaOportunidades = {
-    oportunidades: [],
-    kpis: { activas: 0, valorPipeline: 0, porVencer: 0, vencidas: 0 },
-    hayFiltrosActivos: false,
-  };
-  let moneda = "PEN";
-  let productosIniciales: { valor: string; etiqueta: string }[] = [];
-  let contactosIniciales: { valor: string; etiqueta: string; subtitulo?: string }[] = [];
-  let empresasIniciales: { valor: string; etiqueta: string }[] = [];
-  let usuariosOpciones: { valor: string; etiqueta: string }[] = [];
-  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
-  let pipelines: Awaited<ReturnType<typeof obtenerPipelines>> = [];
-
-  try {
-    const [
-      vista, monedaRes, productosRes, contactosRes, empresasRes, usuariosRes, tagsRes, pipelinesRes,
-    ] = await Promise.all([
-      cargarVistaOportunidades(sesion.instanciaId, zonaHoraria, {}),
-      obtenerMonedaPrincipal(sesion.instanciaId),
-      buscarProductos("", sesion.instanciaId),
-      buscarContactos("", sesion.instanciaId),
-      buscarEmpresas("", sesion.instanciaId),
-      obtenerUsuariosInstancia(sesion.instanciaId),
-      obtenerTags(sesion.instanciaId),
-      obtenerPipelines(sesion.instanciaId),
-    ]);
-    inicial = vista;
-    moneda = monedaRes;
-    productosIniciales = productosRes.map((p) => ({ valor: p.id, etiqueta: p.nombre }));
-    contactosIniciales = contactosRes.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}`, subtitulo: c.telefonoPrincipal ?? undefined }));
-    empresasIniciales = empresasRes.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
-    usuariosOpciones = usuariosRes.map((u) => ({ valor: u.usuarioId, etiqueta: u.nombre }));
-    tags = tagsRes;
-    pipelines = pipelinesRes;
-  } catch (err) {
-    console.error("[OportunidadesPage] Error al cargar oportunidades:", err);
-  }
+  const [
+    inicial, moneda, productosRes, contactosRes, empresasRes, usuariosRes, tags, pipelines,
+  ] = await Promise.all([
+    cargarVistaOportunidades(sesion.instanciaId, zonaHoraria, {}),
+    obtenerMonedaPrincipal(sesion.instanciaId),
+    buscarProductos("", sesion.instanciaId),
+    buscarContactos("", sesion.instanciaId),
+    buscarEmpresas("", sesion.instanciaId),
+    obtenerUsuariosInstancia(sesion.instanciaId),
+    obtenerTags(sesion.instanciaId),
+    obtenerPipelines(sesion.instanciaId),
+  ]);
+  const productosIniciales = productosRes.map((p) => ({ valor: p.id, etiqueta: p.nombre }));
+  const contactosIniciales = contactosRes.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}`, subtitulo: c.telefonoPrincipal ?? undefined }));
+  const empresasIniciales = empresasRes.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
+  const usuariosOpciones = usuariosRes.map((u) => ({ valor: u.usuarioId, etiqueta: u.nombre }));
 
   return (
     <div className="flex flex-col gap-6 p-6">

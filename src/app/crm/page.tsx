@@ -26,106 +26,95 @@ import { cn } from "@/lib/utils";
 // ---- KPI data ----
 
 async function obtenerKpis(instanciaId: string, zonaNegocio: string) {
-  try {
-    // "Hoy" y "este mes" en la zona de negocio, no en la del proceso servidor.
-    // Antes este archivo resolvía "hoy" de dos maneras distintas — acá con
-    // `new Date(y, m, d)` y en obtenerActividadesHoy con `setHours(0,0,0,0)` —
-    // así que los dos widgets podían discrepar cerca de medianoche.
-    const mes = rangoEsteMes(zonaNegocio);
-    const hoy = rangoHoy(zonaNegocio);
+  // 043 — sin try/catch: un KPI que no se pudo calcular no se sustituye por
+  // cero. "Pipeline: $0" con $400.000 reales no es un vacío, es un dato falso,
+  // y es la pantalla sobre la que se decide.
+  // "Hoy" y "este mes" en la zona de negocio, no en la del proceso servidor.
+  // Antes este archivo resolvía "hoy" de dos maneras distintas — acá con
+  // `new Date(y, m, d)` y en obtenerActividadesHoy con `setHours(0,0,0,0)` —
+  // así que los dos widgets podían discrepar cerca de medianoche.
+  const mes = rangoEsteMes(zonaNegocio);
+  const hoy = rangoHoy(zonaNegocio);
 
-    const [
-      totalContactos,
-      oportunidadesAbiertas,
-      oportunidadesGanadasMes,
-      actividadesPendientesHoy,
-    ] = await Promise.all([
-      prisma.contacto.count({ where: { instanciaId, estado: "ACTIVO" } }),
-      prisma.oportunidad.findMany({
-        where: { instanciaId, etapa: { notIn: ["GANADO", "PERDIDO"] } },
-        select: { valor: true },
-      }),
-      prisma.oportunidad.findMany({
-        // Se sigue usando `actualizadoEn` y no `fechaGanada` a propósito:
-        // cambiarEtapa (la vía legacy del enum) no setea fechaGanada, así que
-        // el campo no es fiable todavía. Corregirlo es una decisión funcional
-        // aparte, con backfill — no parte del cambio de zonas horarias.
-        where: { instanciaId, etapa: "GANADO", actualizadoEn: { gte: mes.desde, lt: mes.hasta } },
-        select: { valor: true },
-      }),
-      prisma.actividad.count({
-        where: { instanciaId, completada: false, fecha: { gte: hoy.desde, lt: hoy.hasta } },
-      }),
-    ]);
-
-    const valorPipeline = oportunidadesAbiertas.reduce(
-      (sum, o) => sum + Number(o.valor),
-      0
-    );
-    const valorGanadoMes = oportunidadesGanadasMes.reduce(
-      (sum, o) => sum + Number(o.valor),
-      0
-    );
-
-    return {
-      totalContactos,
-      totalOportunidadesAbiertas: oportunidadesAbiertas.length,
-      valorPipeline,
-      totalGanadasMes: oportunidadesGanadasMes.length,
-      valorGanadoMes,
-      actividadesPendientesHoy,
-    };
-  } catch {
-    return {
-      totalContactos: 0,
-      totalOportunidadesAbiertas: 0,
-      valorPipeline: 0,
-      totalGanadasMes: 0,
-      valorGanadoMes: 0,
-      actividadesPendientesHoy: 0,
-    };
-  }
-}
-
-async function obtenerUltimasOportunidades(instanciaId: string) {
-  try {
-    return prisma.oportunidad.findMany({
-      where: { instanciaId },
-      take: 5,
-      orderBy: { creadoEn: "desc" },
-      include: {
-        empresa: { select: { nombre: true } },
-        stage: { select: { nombre: true, color: true } },
-        contactos: {
-          take: 1,
-          include: { contacto: { select: { nombre: true, apellido: true } } },
-        },
-      },
-    });
-  } catch {
-    return [];
-  }
-}
-
-async function obtenerActividadesHoy(instanciaId: string, zonaNegocio: string) {
-  try {
-    // Misma fuente de "hoy" que el KPI de arriba — antes cada uno lo calculaba
-    // por su cuenta y podían no coincidir.
-    const hoy = rangoHoy(zonaNegocio);
-
-    return prisma.actividad.findMany({
+  const [
+    totalContactos,
+    oportunidadesAbiertas,
+    oportunidadesGanadasMes,
+    actividadesPendientesHoy,
+  ] = await Promise.all([
+    prisma.contacto.count({ where: { instanciaId, estado: "ACTIVO" } }),
+    prisma.oportunidad.findMany({
+      where: { instanciaId, etapa: { notIn: ["GANADO", "PERDIDO"] } },
+      select: { valor: true },
+    }),
+    prisma.oportunidad.findMany({
+      // Se sigue usando `actualizadoEn` y no `fechaGanada` a propósito:
+      // cambiarEtapa (la vía legacy del enum) no setea fechaGanada, así que
+      // el campo no es fiable todavía. Corregirlo es una decisión funcional
+      // aparte, con backfill — no parte del cambio de zonas horarias.
+      where: { instanciaId, etapa: "GANADO", actualizadoEn: { gte: mes.desde, lt: mes.hasta } },
+      select: { valor: true },
+    }),
+    prisma.actividad.count({
       where: { instanciaId, completada: false, fecha: { gte: hoy.desde, lt: hoy.hasta } },
-      orderBy: { fecha: "asc" },
-      take: 8,
-      include: {
-        contacto: { select: { nombre: true, apellido: true } },
-        empresa: { select: { nombre: true } },
-        oportunidad: { select: { titulo: true } },
+    }),
+  ]);
+
+  const valorPipeline = oportunidadesAbiertas.reduce(
+    (sum, o) => sum + Number(o.valor),
+    0
+  );
+  const valorGanadoMes = oportunidadesGanadasMes.reduce(
+    (sum, o) => sum + Number(o.valor),
+    0
+  );
+
+  return {
+  totalContactos,
+  totalOportunidadesAbiertas: oportunidadesAbiertas.length,
+  valorPipeline,
+  totalGanadasMes: oportunidadesGanadasMes.length,
+  valorGanadoMes,
+  actividadesPendientesHoy,
+  };
+}
+
+// 043 — antes tenía try/catch, pero era código muerto: `return promesa` sin
+// `await` deja la rechazada fuera del try, así que esta función ya propagaba.
+// Se quita el catch en vez de agregarle `await`: añadirlo habría introducido un
+// tragado que hoy no existe.
+async function obtenerUltimasOportunidades(instanciaId: string) {
+  return prisma.oportunidad.findMany({
+    where: { instanciaId },
+    take: 5,
+    orderBy: { creadoEn: "desc" },
+    include: {
+      empresa: { select: { nombre: true } },
+      stage: { select: { nombre: true, color: true } },
+      contactos: {
+        take: 1,
+        include: { contacto: { select: { nombre: true, apellido: true } } },
       },
-    });
-  } catch {
-    return [];
-  }
+    },
+  });
+}
+
+// 043 — mismo caso que la función de arriba: su try/catch era código muerto.
+async function obtenerActividadesHoy(instanciaId: string, zonaNegocio: string) {
+  // Misma fuente de "hoy" que el KPI de arriba — antes cada uno lo calculaba
+  // por su cuenta y podían no coincidir.
+  const hoy = rangoHoy(zonaNegocio);
+
+  return prisma.actividad.findMany({
+    where: { instanciaId, completada: false, fecha: { gte: hoy.desde, lt: hoy.hasta } },
+    orderBy: { fecha: "asc" },
+    take: 8,
+    include: {
+      contacto: { select: { nombre: true, apellido: true } },
+      empresa: { select: { nombre: true } },
+      oportunidad: { select: { titulo: true } },
+    },
+  });
 }
 
 // ---- Formatting helpers ----

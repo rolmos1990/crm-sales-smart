@@ -18,22 +18,15 @@ export default async function NuevoContactoPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "contactos", "modificar").permitido) redirect("/acceso-denegado");
 
-  let empresas: { valor: string; etiqueta: string }[] = [];
-  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
-  let defaultCountryCode = "PA";
-
-  try {
-    const [datos, t, config] = await Promise.all([
-      buscarEmpresas("", sesion.instanciaId),
-      obtenerTags(sesion.instanciaId),
-      obtenerConfiguracionEmpresa(sesion.instanciaId),
-    ]);
-    empresas = datos.map(e => ({ valor: e.id, etiqueta: e.nombre }));
-    tags = t;
-    if (config?.pais) defaultCountryCode = PAIS_A_ISO[config.pais] ?? "PA";
-  } catch {
-    // DB no configurada
-  }
+  const [datos, tags, config] = await Promise.all([
+    buscarEmpresas("", sesion.instanciaId),
+    obtenerTags(sesion.instanciaId),
+    obtenerConfiguracionEmpresa(sesion.instanciaId),
+  ]);
+  const empresas = datos.map(e => ({ valor: e.id, etiqueta: e.nombre }));
+  // "PA" solo cubre un país sin equivalente ISO en el mapa, no un fallo de
+  // lectura: si la configuración no se pudo leer, la página falla (043).
+  const defaultCountryCode = config?.pais ? PAIS_A_ISO[config.pais] ?? "PA" : "PA";
 
   return (
     <div className="max-w-2xl mx-auto">

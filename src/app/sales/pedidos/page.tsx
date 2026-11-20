@@ -3,7 +3,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { PageHeader } from "@/shared/ui/page-header";
 import { EmptyState } from "@/shared/ui/empty-state";
 import { VistaPedidos } from "@/sales/pedidos/components/vista-pedidos";
-import { cargarVistaPedidos, type EtapaFlujoVista, type VistaPedidos as DatosVistaPedidos } from "@/sales/pedidos/vista";
+import { cargarVistaPedidos, type EtapaFlujoVista } from "@/sales/pedidos/vista";
 import { FILTROS_VISTA_PEDIDOS_DEFECTO } from "@/sales/pedidos/schema";
 import { etiquetaMesAnioEnZona } from "@/shared/fechas/zona";
 import { rangoMesHastaHoy } from "@/shared/fechas/rangos";
@@ -36,43 +36,26 @@ export default async function PedidosPage({ searchParams }: PedidosPageProps) {
 
   // Se necesita antes de consultar: "Ver cerrados" oculta por default las
   // etapas esFinal/esCancelacion, y para eso hay que saber cuáles son.
-  let etapasFlujo: EtapaFlujoVista[] = [];
-  try {
-    const flujo = await obtenerFlujoVenta(sesion.instanciaId);
-    etapasFlujo = flujo?.etapas ?? [];
-  } catch (err) {
-    console.error("[PedidosPage] Error al cargar el flujo de venta:", err);
-  }
+  //
+  // 043 — sin try/catch, y es la diferencia entera de 038: con el catch, un
+  // fallo transitorio dejaba `etapasFlujo` en [] y `construirCondicionVenta`
+  // caía al fallback legacy `{ estado: "ENTREGADO" }`. Ese fallback es correcto
+  // para una instancia SIN flujo dinámico, pero en una CON flujo revertía en
+  // silencio la semántica de "cuenta como venta" y el total salía mal, sin
+  // ningún error visible. Ahora [] significa una sola cosa.
+  const flujo = await obtenerFlujoVenta(sesion.instanciaId);
+  const etapasFlujo: EtapaFlujoVista[] = flujo?.etapas ?? [];
 
   // Del extremo `desde` (el 1° del mes a medianoche local), no de `hasta`: ese
   // es el inicio de mañana, y el último día del mes cae ya en el mes siguiente.
   const etiquetaMesActual = etiquetaMesAnioEnZona(rangoMesHastaHoy(zonaHoraria).desde, zonaHoraria);
 
-  let inicial: DatosVistaPedidos = {
-    pedidos: [],
-    kpis: { totalPedidos: 0, totalVentas: 0, totalVentasMesActual: 0, pendientes: 0, expirados: 0, ventas: 0 },
-    cerradosForzados: false,
-    hayFiltrosActivos: false,
-    hayRangoFecha: false,
-  };
-  let contactosDb: Awaited<ReturnType<typeof buscarContactos>> = [];
-  let productosDb: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
-  let moneda = "PEN";
-
-  try {
-    const [vista, contactosRes, productosRes, monedaRes] = await Promise.all([
-      cargarVistaPedidos(sesion.instanciaId, zonaHoraria, FILTROS_VISTA_PEDIDOS_DEFECTO, etapasFlujo),
-      buscarContactos("", sesion.instanciaId),
-      obtenerProductosCatalogo(sesion.instanciaId),
-      obtenerMonedaPrincipal(sesion.instanciaId),
-    ]);
-    inicial = vista;
-    contactosDb = contactosRes;
-    productosDb = productosRes;
-    moneda = monedaRes;
-  } catch (err) {
-    console.error("[PedidosPage] Error al cargar pedidos:", err);
-  }
+  const [inicial, contactosDb, productosDb, moneda] = await Promise.all([
+    cargarVistaPedidos(sesion.instanciaId, zonaHoraria, FILTROS_VISTA_PEDIDOS_DEFECTO, etapasFlujo),
+    buscarContactos("", sesion.instanciaId),
+    obtenerProductosCatalogo(sesion.instanciaId),
+    obtenerMonedaPrincipal(sesion.instanciaId),
+  ]);
 
   const opcionesContactos = contactosDb.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));
   const opcionesProductos = productosDb.map((p) => ({ valor: p.id, etiqueta: p.nombre }));

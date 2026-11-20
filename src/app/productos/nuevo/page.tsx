@@ -14,8 +14,8 @@ export default async function NuevoProductoPage() {
   if (!verificarAcceso(sesion, "productos", "modificar").permitido) redirect("/acceso-denegado");
   const [monedaDefault, productosComponentes, etiquetas] = await Promise.all([
     obtenerMonedaPrincipal(sesion.instanciaId),
-    obtenerProductosParaComponentes(sesion.instanciaId).catch(() => []),
-    obtenerEtiquetasProducto(sesion.instanciaId).catch(() => []),
+    obtenerProductosParaComponentes(sesion.instanciaId),
+    obtenerEtiquetasProducto(sesion.instanciaId),
   ]);
 
   return (

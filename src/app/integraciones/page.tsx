@@ -9,14 +9,10 @@ import type { IntegracionConEstado } from "@/integraciones/types";
 export default async function IntegracionesPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
-  // Intentar cargar integraciones instaladas — puede no haber DB configurada aún
-  let instaladas: { id: string; clave: string; estado: string }[] = [];
-  try {
-    const { obtenerIntegracionesInstaladas } = await import("@/integraciones/queries");
-    instaladas = await obtenerIntegracionesInstaladas(sesion.instanciaId) as typeof instaladas;
-  } catch {
-    // DB no disponible — se muestra el catálogo vacío igualmente
-  }
+  // 043 — sin red: presentar como "no instalada" una integración que sí lo
+  // está invita al usuario a reconectarla.
+  const { obtenerIntegracionesInstaladas } = await import("@/integraciones/queries");
+  const instaladas = await obtenerIntegracionesInstaladas(sesion.instanciaId) as { id: string; clave: string; estado: string }[];
 
   const integraciones: IntegracionConEstado[] = CATALOGO_INTEGRACIONES.map((item) => {
     const inst = instaladas.find((i) => i.clave === item.clave);

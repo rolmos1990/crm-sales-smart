@@ -13,19 +13,14 @@ export default async function CotizacionesPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "cotizaciones", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "cotizaciones");
-  let cotizaciones: Cotizacion[] = [];
-  try {
-    const datos = await obtenerCotizaciones(sesion.instanciaId);
-    cotizaciones = datos.map((c) => ({
-      ...c,
-      subtotal:  Number(c.subtotal),
-      descuento: Number(c.descuento),
-      impuesto:  Number(c.impuesto),
-      total:     Number(c.total),
-    })) as unknown as Cotizacion[];
-  } catch {
-    // DB no configurada
-  }
+  const datos = await obtenerCotizaciones(sesion.instanciaId);
+  const cotizaciones = datos.map((c) => ({
+    ...c,
+    subtotal:  Number(c.subtotal),
+    descuento: Number(c.descuento),
+    impuesto:  Number(c.impuesto),
+    total:     Number(c.total),
+  })) as unknown as Cotizacion[];
 
   return (
     <div className="space-y-6 p-6">

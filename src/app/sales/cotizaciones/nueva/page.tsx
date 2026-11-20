@@ -1,3 +1,4 @@
+import { AlertTriangle } from "lucide-react";
 import { FormCotizacion } from "@/sales/cotizaciones/components/form-cotizacion";
 import { buscarEmpresas } from "@/crm/empresas/queries";
 import { buscarContactos } from "@/crm/contactos/queries";
@@ -20,34 +21,25 @@ export default async function NuevaCotizacionPage({
   const params = await searchParams;
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "cotizaciones", "modificar").permitido) redirect("/acceso-denegado");
-  let empresas: { id: string; nombre: string }[] = [];
-  let contactos: Awaited<ReturnType<typeof buscarContactos>> = [];
-  let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
-  let filtroCatalogoInicial: FiltroCatalogo = "TODOS";
-  let transportistas: Awaited<ReturnType<typeof obtenerTransportistas>> = [];
-  let monedaDefault = "PEN";
-  let defaultCountryCode = "PA";
-
-  try {
-    let config: Awaited<ReturnType<typeof obtenerConfiguracionEmpresa>> = null;
-    [empresas, contactos, productos, monedaDefault, transportistas, config] = await Promise.all([
-      buscarEmpresas("", sesion.instanciaId),
-      buscarContactos("", sesion.instanciaId),
-      obtenerProductosCatalogo(sesion.instanciaId),
-      obtenerMonedaPrincipal(sesion.instanciaId),
-      obtenerTransportistas(sesion.instanciaId),
-      obtenerConfiguracionEmpresa(sesion.instanciaId),
-    ]);
-    defaultCountryCode = isoDesdePais(config?.pais);
-    filtroCatalogoInicial = config?.filtroProductosPedido ?? "TODOS";
-  } catch {
-    // DB not configured
-  }
+  const [empresas, contactos, productos, monedaDefault, transportistas, config] = await Promise.all([
+    buscarEmpresas("", sesion.instanciaId),
+    buscarContactos("", sesion.instanciaId),
+    obtenerProductosCatalogo(sesion.instanciaId),
+    obtenerMonedaPrincipal(sesion.instanciaId),
+    obtenerTransportistas(sesion.instanciaId),
+    obtenerConfiguracionEmpresa(sesion.instanciaId),
+  ]);
+  const defaultCountryCode = isoDesdePais(config?.pais);
+  const filtroCatalogoInicial: FiltroCatalogo = config?.filtroProductosPedido ?? "TODOS";
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
   const opcionesContactos = contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));
 
   const defaultValues: Partial<CrearCotizacionInput> = {};
+  // 043 — el prefill es accesorio: su fallo no tumba el formulario, pero sí se
+  // avisa. Antes se descartaba en silencio y el usuario que venía desde una
+  // oportunidad recibía un formulario vacío sin saber por qué.
+  let prefillNoDisponible = false;
 
   if (params.oportunidadId) {
     try {
@@ -74,13 +66,22 @@ export default async function NuevaCotizacionPage({
           };
         }
       }
-    } catch {
-      // oportunidad no disponible
+    } catch (err) {
+      console.error("[NuevaCotizacionPage] Error al cargar la oportunidad de origen:", err);
+      prefillNoDisponible = true;
     }
   }
 
   return (
     <div className="min-h-[calc(100vh-56px)] flex flex-col max-w-5xl mx-auto w-full">
+      {prefillNoDisponible && (
+        <div className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-border bg-muted px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            No se pudieron cargar los datos de la oportunidad de origen. Los campos quedaron vacíos; completalos a mano o recargá la página.
+          </p>
+        </div>
+      )}
       <FormCotizacion
         empresas={opcionesEmpresas}
         contactos={opcionesContactos}

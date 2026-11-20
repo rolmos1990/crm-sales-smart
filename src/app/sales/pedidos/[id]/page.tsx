@@ -59,40 +59,18 @@ export default async function PedidoDetallePage({ params }: { params: Promise<{ 
   if (!verificarAcceso(sesion, "pedidos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "pedidos");
 
-  let pedido = null;
-  let opcionesEmpresas: { valor: string; etiqueta: string }[] = [];
-  let opcionesContactos: { valor: string; etiqueta: string }[] = [];
-  let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
-  let filtroCatalogoInicial: FiltroCatalogo = "TODOS";
-  let defaultCountryCode = "PA";
+  const [pedido, opcionesEmpresas, opcionesContactos, productos, config] = await Promise.all([
+    obtenerPedidoPorId(id, sesion.instanciaId),
+    buscarEmpresas("", sesion.instanciaId).then(r => r.map((e: any) => ({ valor: e.id, etiqueta: e.nombre }))),
+    buscarContactos("", sesion.instanciaId).then(r => r.map((c: any) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }))),
+    obtenerProductosCatalogo(sesion.instanciaId),
+    obtenerConfiguracionEmpresa(sesion.instanciaId),
+  ]);
+  const defaultCountryCode = isoDesdePais(config?.pais);
+  const filtroCatalogoInicial: FiltroCatalogo = config?.filtroProductosPedido ?? "TODOS";
 
-  try {
-    let config: Awaited<ReturnType<typeof obtenerConfiguracionEmpresa>> = null;
-    [pedido, opcionesEmpresas, opcionesContactos, productos, config] = await Promise.all([
-      obtenerPedidoPorId(id, sesion.instanciaId),
-      buscarEmpresas("", sesion.instanciaId).then(r => r.map((e: any) => ({ valor: e.id, etiqueta: e.nombre }))),
-      buscarContactos("", sesion.instanciaId).then(r => r.map((c: any) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }))),
-      obtenerProductosCatalogo(sesion.instanciaId),
-      obtenerConfiguracionEmpresa(sesion.instanciaId),
-    ]);
-    defaultCountryCode = isoDesdePais(config?.pais);
-    filtroCatalogoInicial = config?.filtroProductosPedido ?? "TODOS";
-  } catch {
-    // DB not configured
-  }
-
-  if (!pedido && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
-
-  if (!pedido) {
-    return (
-      <div className="p-6">
-        <ButtonLink variant="ghost" size="icon-sm" href="/sales/pedidos"><ArrowLeft className="h-4 w-4" /></ButtonLink>
-        <p className="text-muted-foreground mt-4">Pedido no disponible</p>
-      </div>
-    );
-  }
+  // 043 — "no existe" solo puede venir de una lectura exitosa sin fila.
+  if (!pedido) notFound();
 
   const estadoConf = ESTADO_PEDIDO_CONFIG[pedido.estado];
   const lineas = (pedido as any).lineas ?? [];

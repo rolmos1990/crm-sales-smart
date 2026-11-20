@@ -1,6 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import { ButtonLink } from "@/components/ui/button";
 import { obtenerContactoPorId, obtenerUmbralesSeguimiento } from "@/crm/contactos/queries";
 import { obtenerResumenContacto, type ResumenContacto } from "@/crm/contactos/resumen";
 import { calcularCortes } from "@/crm/contactos/segmentacion/cortes";
@@ -15,8 +13,6 @@ import { PanelConversacion } from "@/conversaciones/components/panel-conversacio
 import { FichaContacto, type OportunidadFicha } from "@/crm/contactos/components/ficha-contacto";
 import { obtenerPerfil } from "@/ai/perfil-cliente/servicio";
 import type { PerfilCliente } from "@/ai/perfil-cliente/tipos";
-import type { Actividad } from "@/crm/actividades/types";
-import type { Tag as TagType } from "@/crm/tags/types";
 
 async function cargarResumen(id: string, instanciaId: string, zonaNegocio: string): Promise<ResumenContacto | null> {
   const [etapas, umbrales] = await Promise.all([
@@ -34,34 +30,16 @@ export default async function ContactoDetallePage({ params }: { params: Promise<
   const puedeMod = puedeModificar(sesion.rol, "contactos");
   const puedeModOportunidades = puedeModificar(sesion.rol, "oportunidades");
 
-  let contacto: Awaited<ReturnType<typeof obtenerContactoPorId>> = null;
-  let actividades: Actividad[] = [];
-  let todosLosTags: TagType[] = [];
+  const [contacto, actividades, todosLosTags] = await Promise.all([
+    obtenerContactoPorId(id, sesion.instanciaId),
+    obtenerActividadesPorContacto(id, sesion.instanciaId),
+    obtenerTags(sesion.instanciaId),
+  ]);
 
-  try {
-    [contacto, actividades, todosLosTags] = await Promise.all([
-      obtenerContactoPorId(id, sesion.instanciaId),
-      obtenerActividadesPorContacto(id, sesion.instanciaId),
-      obtenerTags(sesion.instanciaId),
-    ]);
-  } catch {
-    // DB not configured
-  }
-
-  if (!contacto && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
-
-  if (!contacto) {
-    return (
-      <div className="p-6">
-        <ButtonLink variant="ghost" size="icon-sm" href="/crm/contactos" aria-label="Volver a contactos">
-          <ArrowLeft className="h-4 w-4" />
-        </ButtonLink>
-        <p className="text-muted-foreground mt-4 text-sm">Contacto no disponible</p>
-      </div>
-    );
-  }
+  // 043 — "no existe" solo puede venir de una lectura exitosa sin fila. Antes,
+  // un fallo de lectura dejaba `contacto` en null y caía acá: un 404 sobre un
+  // contacto que sí existía.
+  if (!contacto) notFound();
 
   // Ninguna de estas secciones bloquea el render si falla (FR-004 de 012).
   const [conversacionesR, cuentasR, resumenR, perfilR, empresasR] = await Promise.allSettled([

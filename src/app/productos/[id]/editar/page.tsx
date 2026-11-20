@@ -15,14 +15,12 @@ export default async function EditarProductoPage({ params }: { params: Promise<{
 
   // Sin el propio producto: un combo no puede ser componente de sí mismo.
   const [producto, productosComponentes, etiquetas] = await Promise.all([
-    obtenerProductoPorId(id, sesion.instanciaId).catch(() => null),
-    obtenerProductosParaComponentes(sesion.instanciaId, id).catch(() => []),
-    obtenerEtiquetasProducto(sesion.instanciaId).catch(() => []),
+    obtenerProductoPorId(id, sesion.instanciaId),
+    obtenerProductosParaComponentes(sesion.instanciaId, id),
+    obtenerEtiquetasProducto(sesion.instanciaId),
   ]);
 
-  if (!producto && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
+  if (!producto) notFound();
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-2xl mx-auto">

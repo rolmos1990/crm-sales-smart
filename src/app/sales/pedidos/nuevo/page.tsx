@@ -16,27 +16,15 @@ import { isoDesdePais } from "@/shared/lib/pais-iso";
 export default async function NuevoPedidoPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "pedidos", "modificar").permitido) redirect("/acceso-denegado");
-  let empresas: { id: string; nombre: string }[] = [];
-  let contactos: any[] = [];
-  let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
-  let filtroCatalogoInicial: FiltroCatalogo = "TODOS";
-  let monedaDefault = "PEN";
-  let defaultCountryCode = "PA";
-
-  try {
-    let config: Awaited<ReturnType<typeof obtenerConfiguracionEmpresa>> = null;
-    [empresas, contactos, productos, monedaDefault, config] = await Promise.all([
-      buscarEmpresas("", sesion.instanciaId),
-      buscarContactos("", sesion.instanciaId),
-      obtenerProductosCatalogo(sesion.instanciaId),
-      obtenerMonedaPrincipal(sesion.instanciaId),
-      obtenerConfiguracionEmpresa(sesion.instanciaId),
-    ]);
-    defaultCountryCode = isoDesdePais(config?.pais);
-    filtroCatalogoInicial = config?.filtroProductosPedido ?? "TODOS";
-  } catch {
-    // DB not configured
-  }
+  const [empresas, contactos, productos, monedaDefault, config] = await Promise.all([
+    buscarEmpresas("", sesion.instanciaId),
+    buscarContactos("", sesion.instanciaId),
+    obtenerProductosCatalogo(sesion.instanciaId),
+    obtenerMonedaPrincipal(sesion.instanciaId),
+    obtenerConfiguracionEmpresa(sesion.instanciaId),
+  ]);
+  const defaultCountryCode = isoDesdePais(config?.pais);
+  const filtroCatalogoInicial: FiltroCatalogo = config?.filtroProductosPedido ?? "TODOS";
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
   const opcionesContactos = contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));

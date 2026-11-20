@@ -38,53 +38,44 @@ export default async function PipelinePage(props: {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "pipeline", "ver").permitido) redirect("/acceso-denegado");
 
-  let pipelines: PipelineConStages[] = [];
-  let pipelineId: string | null = null;
   let vistaInicial: VistaPipeline | null = null;
   let oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null = null;
-  let empresasOpciones: OpcionCombobox[] = [];
-  let contactosOpciones: OpcionCombobox[] = [];
-  let contactosFiltroOpciones: OpcionCombobox[] = [];
-  let tags: Tag[] = [];
-  let defaultCountryCode = "PA";
 
-  try {
-    const [pipelinesData, empresas, contactos, tagsData, config] = await Promise.all([
-      obtenerPipelines(sesion.instanciaId),
-      obtenerEmpresas(sesion.instanciaId),
-      obtenerContactos(sesion.instanciaId),
-      obtenerTags(sesion.instanciaId),
-      obtenerConfiguracionEmpresa(sesion.instanciaId),
-    ]);
+  const [pipelinesData, empresas, contactos, tagsData, config] = await Promise.all([
+    obtenerPipelines(sesion.instanciaId),
+    obtenerEmpresas(sesion.instanciaId),
+    obtenerContactos(sesion.instanciaId),
+    obtenerTags(sesion.instanciaId),
+    obtenerConfiguracionEmpresa(sesion.instanciaId),
+  ]);
 
-    pipelines = pipelinesData as unknown as PipelineConStages[];
-    empresasOpciones = empresas.map((e: { id: string; nombre: string }) => ({ valor: e.id, etiqueta: e.nombre }));
-    contactosOpciones = contactos.map((c: { id: string; nombre: string; apellido: string }) => ({
-      valor: c.id,
-      etiqueta: `${c.nombre} ${c.apellido}`,
-    }));
-    contactosFiltroOpciones = contactos.map((c) => ({
-      valor: c.id,
-      etiqueta: `${c.nombre} ${c.apellido}`,
-      subtitulo: c.email ?? undefined,
-      busqueda: [c.telefonoPrincipal, c.telefonoSecundario].filter((v): v is string => !!v),
-    }));
-    tags = tagsData as unknown as Tag[];
-    if (config?.pais) defaultCountryCode = PAIS_A_ISO[config.pais] ?? "PA";
+  const pipelines = pipelinesData as unknown as PipelineConStages[];
+  const empresasOpciones: OpcionCombobox[] = empresas.map((e: { id: string; nombre: string }) => ({ valor: e.id, etiqueta: e.nombre }));
+  const contactosOpciones: OpcionCombobox[] = contactos.map((c: { id: string; nombre: string; apellido: string }) => ({
+    valor: c.id,
+    etiqueta: `${c.nombre} ${c.apellido}`,
+  }));
+  const contactosFiltroOpciones: OpcionCombobox[] = contactos.map((c) => ({
+    valor: c.id,
+    etiqueta: `${c.nombre} ${c.apellido}`,
+    subtitulo: c.email ?? undefined,
+    busqueda: [c.telefonoPrincipal, c.telefonoSecundario].filter((v): v is string => !!v),
+  }));
+  const tags = tagsData as unknown as Tag[];
+  // "PA" solo cubre un país sin equivalente ISO en el mapa, no un fallo de
+  // lectura: si la configuración no se pudo leer, la página falla (043).
+  const defaultCountryCode = config?.pais ? PAIS_A_ISO[config.pais] ?? "PA" : "PA";
 
-    const pipelineDefault = pipelines.find((p) => p.esDefault);
-    pipelineId = pipelineIdParam ?? pipelineDefault?.id ?? null;
+  const pipelineDefault = pipelines.find((p) => p.esDefault);
+  const pipelineId = pipelineIdParam ?? pipelineDefault?.id ?? null;
 
-    const pipelineValido = pipelineId && pipelines.some((p) => p.id === pipelineId);
+  const pipelineValido = pipelineId && pipelines.some((p) => p.id === pipelineId);
 
-    if (pipelineValido && pipelineId) {
-      vistaInicial = await cargarVistaPipeline(pipelineId, sesion.instanciaId, sesion.zonaNegocio, {});
-    } else {
-      const datos = await obtenerOportunidadesPorEtapa(sesion.instanciaId);
-      oportunidadesLegacy = datos as unknown as Map<Etapa, Oportunidad[]>;
-    }
-  } catch {
-    // DB no configurada
+  if (pipelineValido && pipelineId) {
+    vistaInicial = await cargarVistaPipeline(pipelineId, sesion.instanciaId, sesion.zonaNegocio, {});
+  } else {
+    const datos = await obtenerOportunidadesPorEtapa(sesion.instanciaId);
+    oportunidadesLegacy = datos as unknown as Map<Etapa, Oportunidad[]>;
   }
 
   return (
