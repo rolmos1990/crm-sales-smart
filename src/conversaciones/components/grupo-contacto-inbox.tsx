@@ -51,17 +51,33 @@ function nombreVisible(conv: ConversacionResumen): { nombre: string; sinIdentifi
   };
 }
 
+/**
+ * Antigüedad del último mensaje, sin el relleno que agrega date-fns.
+ *
+ * `formatDistanceToNow` en español devuelve "alrededor de 2 horas",
+ * "más de 1 año", "casi 3 meses". En una columna de 384px esas tres palabras
+ * extra empujan la hora contra el borde y la truncan, que es justo lo que
+ * vuelve ileglible la lista cuando hay que escanearla rápido.
+ *
+ * Se quita solo el prefijo: el número y la unidad quedan intactos, así que la
+ * información es exactamente la misma que antes.
+ */
+function antiguedad(fecha: Date): string {
+  const texto = formatDistanceToNow(fecha, { addSuffix: false, locale: es });
+  return texto.replace(/^(alrededor de|más de|casi|cerca de)\s+/i, "");
+}
+
 function BadgeAtencionHumana({ conv }: { conv: ConversacionResumen }) {
   return (
     <span
-      className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[9px] font-semibold text-warning"
+      className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning"
       title={
         conv.modoAtencion === "HUMANO"
           ? conv.atencionMotivo ?? "La atiende una persona"
           : "Hay una respuesta de la IA esperando aprobación"
       }
     >
-      <UserRound className="h-2.5 w-2.5 shrink-0" />
+      <UserRound className="h-3 w-3 shrink-0" />
       Atención humana
     </span>
   );
@@ -123,44 +139,44 @@ function FilaConversacion({
               {anidada ? (
                 // En el hijo, el encabezado es el canal: es lo que distingue
                 // una conversación de la otra dentro de la misma persona.
-                <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold truncate", canal.clase)}>
+                <span className={cn("inline-flex items-center gap-1 text-[12px] font-semibold truncate", canal.clase)}>
                   <canal.Icono className="h-3 w-3 shrink-0" />
                   {conv.cuentaCanal?.nombre ?? "Sin canal"}
                 </span>
               ) : (
                 <>
-                  <p className={cn("text-xs truncate text-foreground", noLeido ? "font-bold" : "font-semibold")}>
+                  <p className={cn("text-[13px] truncate text-foreground", noLeido ? "font-bold" : "font-semibold")}>
                     {nombre}
                   </p>
                   {sinIdentificar && (
-                    <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
                       ?
                     </span>
                   )}
                 </>
               )}
             </div>
-            <span className="text-[9px] text-muted-foreground shrink-0 whitespace-nowrap">
-              {formatDistanceToNow(new Date(conv.actualizadoEn), { addSuffix: false, locale: es })}
+            <span className="text-[11px] text-muted-foreground shrink-0 whitespace-nowrap tabular-nums">
+              {antiguedad(new Date(conv.actualizadoEn))}
             </span>
           </div>
 
           {/* Asunto: lo único que distingue dos hilos del mismo canal (correo
               agrupado por hilo). Solo se muestra si aporta esa distinción. */}
           {anidada && conv.asunto && (
-            <p className="text-[10px] text-text-secondary truncate leading-snug mb-0.5">{conv.asunto}</p>
+            <p className="text-[11.5px] text-text-secondary truncate leading-snug mb-0.5">{conv.asunto}</p>
           )}
 
-          <p className={cn("text-[11px] truncate leading-snug", noLeido ? "text-text-secondary" : "text-muted-foreground")}>
+          <p className={cn("text-[12.5px] truncate leading-snug", noLeido ? "text-text-secondary" : "text-muted-foreground")}>
             {conv.ultimoMensaje?.contenido
-              ? conv.ultimoMensaje.contenido.slice(0, 55)
+              ? conv.ultimoMensaje.contenido.slice(0, 140)
               : <span className="italic text-muted-foreground">Sin mensajes</span>}
           </p>
 
           <div className="flex items-center justify-between mt-1 gap-1">
             {!anidada && conv.cuentaCanal ? (
-              <span className={cn("inline-flex items-center gap-1 text-[9px] font-medium truncate", canal.clase)}>
-                <canal.Icono className="h-2.5 w-2.5 shrink-0" />
+              <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium truncate", canal.clase)}>
+                <canal.Icono className="h-3 w-3 shrink-0" />
                 {conv.cuentaCanal.nombre}
               </span>
             ) : <span />}
@@ -172,7 +188,7 @@ function FilaConversacion({
               {cuentaParaAtencionHumana(conv) && <BadgeAtencionHumana conv={conv} />}
               <span
                 className={cn(
-                  "flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border",
+                  "flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border",
                   cfg.badgeBg,
                   cfg.badgeText,
                 )}
@@ -240,11 +256,11 @@ export function GrupoContactoInbox({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1 mb-0.5">
             <div className="flex items-center gap-1.5 min-w-0">
-              <p className={cn("text-xs truncate text-foreground", grupo.noLeidos > 0 ? "font-bold" : "font-semibold")}>
+              <p className={cn("text-[13px] truncate text-foreground", grupo.noLeidos > 0 ? "font-bold" : "font-semibold")}>
                 {nombre}
               </p>
               {sinIdentificar && (
-                <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
+                <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-stage-amber-muted text-stage-amber-text border border-stage-amber-border">
                   ?
                 </span>
               )}
@@ -258,19 +274,19 @@ export function GrupoContactoInbox({
           </div>
 
           <div className="flex items-center justify-between gap-1">
-            <span className="text-[10px] text-muted-foreground truncate">
+            <span className="text-[11.5px] text-muted-foreground truncate">
               {grupo.totalConversaciones} conversaciones
               {grupo.totalCanales > 1 && ` · ${grupo.totalCanales} canales`}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
               {grupo.noLeidos > 0 && (
-                <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-inbox-accent text-[9px] font-bold text-background tabular-nums">
+                <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-inbox-accent text-[10px] font-bold text-background tabular-nums">
                   {grupo.noLeidos}
                 </span>
               )}
               {grupo.requiereAtencionHumana && (
                 <span
-                  className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[9px] font-semibold text-warning"
+                  className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-semibold text-warning"
                   title="Alguna conversación de este contacto necesita a una persona"
                 >
                   <UserRound className="h-2.5 w-2.5 shrink-0" />
