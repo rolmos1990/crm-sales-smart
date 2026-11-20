@@ -46,6 +46,11 @@ interface PipelineWrapperProps {
   contactosFiltro?: OpcionCombobox[];
   tags?: Tag[];
   defaultCountryCode?: string;
+  /** Moneda principal de la cuenta (ConfiguracionEmpresa). Es la que usan los
+   *  totales por columna: antes estaban cableados a "PEN" y mostraban S/ a
+   *  cuentas configuradas en otra moneda, contradiciendo a las propias
+   *  tarjetas, que sí usan la moneda de cada oportunidad. */
+  moneda?: string;
 }
 
 /**
@@ -125,6 +130,7 @@ export function PipelineWrapper({
   contactosFiltro,
   tags = [],
   defaultCountryCode = "PA",
+  moneda = "PEN",
 }: PipelineWrapperProps) {
   const router = useRouter();
   // Filtros del drawer + paginación por etapa (`limites`): estado de este
@@ -481,6 +487,7 @@ export function PipelineWrapper({
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}
+              moneda={moneda}
               puedeMod={puedeMod}
               verOcultos={verOcultos}
             />
@@ -495,6 +502,7 @@ export function PipelineWrapper({
               empresas={empresas}
               contactos={contactos}
               defaultCountryCode={defaultCountryCode}
+              moneda={moneda}
               puedeMod={puedeMod}
             />
           ) : (
