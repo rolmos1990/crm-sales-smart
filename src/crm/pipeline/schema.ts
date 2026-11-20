@@ -8,6 +8,7 @@ export const SchemaPipeline = z.object({
 export const SchemaStage = z.object({
   nombre: z.string().min(1, "El nombre es requerido").max(100),
   color: z.string().max(20).nullish(),
+  icono: z.string().max(40).nullish(),
   probabilidad: z.number().int().min(0).max(100).default(20),
   esGanado: z.boolean().default(false),
   esPerdido: z.boolean().default(false),

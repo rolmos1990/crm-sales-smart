@@ -48,6 +48,8 @@ export interface PipelineStage {
   nombre: string;
   descripcion: string | null;
   color: string | null;
+  /** Nombre del ícono de lucide (ver ICONOS_ETAPA). null = ícono por defecto. */
+  icono: string | null;
   orden: number;
   probabilidad: number;
   esInicial: boolean;

@@ -1176,6 +1176,10 @@ model PipelineStage {
   nombre        String
   descripcion   String?
   color         String?
+  // Nombre del ícono de lucide-react (ej. "UserRound"). Nullable: una etapa
+  // sin ícono elegido cae a uno por defecto en el tablero, así que las etapas
+  // que ya existen no necesitan backfill. Solo se muestra en el Pipeline.
+  icono         String?
   orden         Int
   probabilidad  Int      @default(20)
   esInicial     Boolean  @default(false)

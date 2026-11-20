@@ -336,12 +336,12 @@ async function main() {
       activo: true,
       stages: {
         create: [
-          { nombre: "Prospecto",   color: "#818cf8", orden: 0, probabilidad: 10,  esInicial: true,  esGanado: false, esPerdido: false },
-          { nombre: "Calificado",  color: "#22d3ee", orden: 1, probabilidad: 25,  esInicial: false, esGanado: false, esPerdido: false },
-          { nombre: "Propuesta",   color: "#fbbf24", orden: 2, probabilidad: 50,  esInicial: false, esGanado: false, esPerdido: false },
-          { nombre: "Negociación", color: "#f97316", orden: 3, probabilidad: 75,  esInicial: false, esGanado: false, esPerdido: false },
-          { nombre: "Ganado",      color: "#4ade80", orden: 4, probabilidad: 100, esInicial: false, esGanado: true,  esPerdido: false },
-          { nombre: "Perdido",     color: "#fb7185", orden: 5, probabilidad: 0,   esInicial: false, esGanado: false, esPerdido: true  },
+          { nombre: "Prospecto",   color: "#818cf8", icono: "Search", orden: 0, probabilidad: 10,  esInicial: true,  esGanado: false, esPerdido: false },
+          { nombre: "Calificado",  color: "#22d3ee", icono: "UserRound", orden: 1, probabilidad: 25,  esInicial: false, esGanado: false, esPerdido: false },
+          { nombre: "Propuesta",   color: "#fbbf24", icono: "FileText", orden: 2, probabilidad: 50,  esInicial: false, esGanado: false, esPerdido: false },
+          { nombre: "Negociación", color: "#f97316", icono: "Handshake", orden: 3, probabilidad: 75,  esInicial: false, esGanado: false, esPerdido: false },
+          { nombre: "Ganado",      color: "#4ade80", icono: "CircleCheck", orden: 4, probabilidad: 100, esInicial: false, esGanado: true,  esPerdido: false },
+          { nombre: "Perdido",     color: "#fb7185", icono: "CircleX", orden: 5, probabilidad: 0,   esInicial: false, esGanado: false, esPerdido: true  },
         ],
       },
     },
