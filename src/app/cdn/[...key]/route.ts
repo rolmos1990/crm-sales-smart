@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStorageProvider } from "@/lib/media/providers/factory";
+import { parsearRange } from "./range";
 
 /**
  * Proxy de media para proveedores S3-compatibles sin soporte de dominio
@@ -7,9 +8,12 @@ import { getStorageProvider } from "@/lib/media/providers/factory";
  * devuelve `/cdn/<key>`, que esta ruta resuelve descargando el archivo del
  * storage real y sirviéndolo bajo el dominio propio de la app — así el
  * navegador nunca ve el host del bucket (hel1.your-objectstorage.com).
+ *
+ * Admite `Range` (048): sin respuestas 206, Safari/iOS no reproduce <video> y
+ * ningún navegador puede adelantar un video sin bajarlo entero.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ key: string[] }> }
 ) {
   const { key: segmentos } = await params;
@@ -27,11 +31,36 @@ export async function GET(
     return new NextResponse(null, { status: 404 });
   }
 
+  const total = archivo.buffer.length;
+  const cabecerasBase = {
+    "Content-Type": archivo.contentType,
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "Accept-Ranges": "bytes",
+  };
+
+  const rango = parsearRange(req.headers.get("range"), total);
+
+  if (rango === "INVALIDO") {
+    return new NextResponse(null, {
+      status: 416,
+      headers: { ...cabecerasBase, "Content-Range": `bytes */${total}` },
+    });
+  }
+
+  if (rango) {
+    const parte = archivo.buffer.subarray(rango.inicio, rango.fin + 1);
+    return new NextResponse(new Uint8Array(parte), {
+      status: 206,
+      headers: {
+        ...cabecerasBase,
+        "Content-Range": `bytes ${rango.inicio}-${rango.fin}/${total}`,
+        "Content-Length": String(parte.length),
+      },
+    });
+  }
+
   return new NextResponse(new Uint8Array(archivo.buffer), {
     status: 200,
-    headers: {
-      "Content-Type": archivo.contentType,
-      "Cache-Control": "public, max-age=31536000, immutable",
-    },
+    headers: { ...cabecerasBase, "Content-Length": String(total) },
   });
 }

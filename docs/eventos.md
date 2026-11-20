@@ -851,6 +851,10 @@ interface ComandoProcesarEntrantePayload {
 }
 ```
 
+**Garantía de `mediaUrl` para Instagram y Messenger** (048): es una URL del storage de Karia o no viene. Nunca es una URL de Meta. El webhook pasa todo lo que publica por `prepararPayloadEntrante` (`src/app/api/webhooks/instagram/reubicacion.ts`), y esa función también quita los campos internos `familiaAdjunto` y `tituloAdjunto` de `MensajeEntranteNormalizado`, que no forman parte de este contrato.
+
+Para Reels, publicaciones, menciones y respuestas a historia, `contenido` trae un texto descriptivo (`contracts/texto-descriptivo.md` de `specs/048-fix-instagram-reels-media`). Lo mismo vale para `ProcesarMensajeAppNativa`.
+
 ---
 
 ### MarcarLeido

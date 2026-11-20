@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff, Loader2, ShieldX, X, Smartphone } from "lucide-react";
+import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff, Loader2, ShieldX, X, Smartphone, Download } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -116,6 +116,79 @@ export function BurbujaImagen({ mensaje }: { mensaje: MensajeConMeta }) {
   );
 }
 
+// ── Burbuja de video con reproductor nativo ───────────────────────────────────
+
+function TarjetaVideoNoDisponible({ icono, texto }: { icono: React.ReactNode; texto: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 min-w-[160px]">
+      {icono}
+      <p className="text-xs text-muted-foreground">{texto}</p>
+    </div>
+  );
+}
+
+export function BurbujaVideo({ mensaje }: { mensaje: MensajeConMeta }) {
+  const [noReproducible, setNoReproducible] = useState(false);
+
+  const src = mensaje.mediaUrlOptimizada ?? mensaje.mediaUrl;
+  const estado = mensaje.mediaEstado;
+
+  if (estado === "PENDIENTE" || estado === "PROCESANDO") {
+    return (
+      <TarjetaVideoNoDisponible
+        icono={<Loader2 className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />}
+        texto="Procesando video…"
+      />
+    );
+  }
+
+  if (estado === "ERROR" || !src) {
+    return (
+      <TarjetaVideoNoDisponible
+        icono={<Video className="h-4 w-4 text-muted-foreground shrink-0" />}
+        texto="Video no disponible"
+      />
+    );
+  }
+
+  // Formato que este navegador no decodifica (ej. .mov de iPhone en Firefox):
+  // mejor un aviso con descarga que un reproductor negro sin explicación.
+  if (noReproducible) {
+    return (
+      <div className="flex items-start gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 min-w-[200px]">
+        <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+        <div className="flex flex-col gap-1">
+          <p className="text-xs text-muted-foreground">Este navegador no puede reproducir el video</p>
+          <a
+            href={src}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-inbox-accent-icon hover:underline"
+          >
+            <Download className="h-3 w-3" />
+            Descargar video
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    // `#t=0.1`: sin poster, Safari/iOS no pinta ningún cuadro con
+    // preload="metadata" — el fragmento lo obliga a decodificar el primero.
+    // playsInline evita que iOS salte solo a pantalla completa al reproducir.
+    <video
+      controls
+      playsInline
+      preload="metadata"
+      src={`${src}#t=0.1`}
+      onError={() => setNoReproducible(true)}
+      className="block max-w-[280px] max-h-[360px] w-auto h-auto object-contain rounded-xl border border-border bg-muted"
+    />
+  );
+}
+
 const TIPO_FALLBACK: Partial<Record<TipoMensaje, { icono: React.ReactNode; texto: string }>> = {
   IMAGEN:    { icono: <ImageIcon className="h-3.5 w-3.5" />, texto: "Imagen" },
   VIDEO:     { icono: <Video className="h-3.5 w-3.5" />,     texto: "Video" },
@@ -187,6 +260,8 @@ export function BurbujaMensaje({
   const esAppNativa = (mensaje.remitente as RemitenteMsg) === "AGENTE_CANAL_NATIVO";
   const esPropioONota = (mensaje.remitente as RemitenteMsg) === "AGENTE" || (mensaje.remitente as RemitenteMsg) === "SISTEMA" || esAppNativa;
   const esNota = mensaje.esNotaInterna;
+  const tieneMediaVisual =
+    (mensaje.tipo === "IMAGEN" || mensaje.tipo === "VIDEO") && !!(mensaje.mediaArchivoId || mensaje.mediaUrl);
   const esContacto = (mensaje.remitente as RemitenteMsg) === "CONTACTO";
   const estadoEfectivo: EstadoMensaje = leidoLocal ? "LEIDO" : (mensaje.estado as EstadoMensaje);
   const esNoLeido = esContacto && estadoEfectivo !== "LEIDO";
@@ -253,7 +328,18 @@ export function BurbujaMensaje({
               Enviado desde la app nativa
             </div>
           )}
-          {mensaje.contenido
+          {mensaje.contenido && tieneMediaVisual
+            ? (
+                // Imagen o video con texto (publicación/historia compartida o
+                // un envío con leyenda): antes solo se veía el texto (048, R3).
+                <div className="flex flex-col gap-1.5">
+                  {mensaje.tipo === "VIDEO"
+                    ? <BurbujaVideo mensaje={mensaje} />
+                    : <BurbujaImagen mensaje={mensaje} />}
+                  <p className="whitespace-pre-wrap break-words">{mensaje.contenido}</p>
+                </div>
+              )
+            : mensaje.contenido
             ? <p className="whitespace-pre-wrap break-words">{mensaje.contenido}</p>
             : (() => {
                 const esAudioTipo = mensaje.tipo === "AUDIO" || mensaje.tipo === "NOTA_VOZ";
@@ -262,6 +348,10 @@ export function BurbujaMensaje({
                 // ── Imagen recibida ───────────────────────────────────────
                 if (esImagenTipo) {
                   return <BurbujaImagen mensaje={mensaje} />;
+                }
+
+                if (mensaje.tipo === "VIDEO") {
+                  return <BurbujaVideo mensaje={mensaje} />;
                 }
 
                 if (esAudioTipo && mensaje.mediaUrl) {

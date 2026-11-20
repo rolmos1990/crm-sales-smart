@@ -141,4 +141,172 @@ describe("InstagramProvider.mapearEntrante", () => {
     });
     expect(normalizado.identificadorContacto).toBe("igsid1");
   });
+
+  // 048 — ninguna URL de Meta para adjuntos que no son media directa.
+  const conAdjunto = (type: string, extra: Record<string, unknown> = {}) =>
+    provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: {
+        mid: `mid-${type}`,
+        attachments: [{ type, payload: { url: "https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1" } }],
+        ...extra,
+      },
+      cuentaCanalId: "cc1",
+    });
+
+  it.each(["template", "fallback", "tipo_inventado"])("adjunto %s → TEXTO genérico, sin mediaUrl", (type) => {
+    const normalizado = conAdjunto(type);
+    expect(normalizado.tipo).toBe("TEXTO");
+    expect(normalizado.mediaUrl).toBeUndefined();
+    expect(normalizado.contenido).toBe("Envió un contenido que Instagram no permite mostrar");
+    expect(normalizado.familiaAdjunto).toBe("NO_ADMITIDO");
+  });
+
+  it("is_unsupported sin adjuntos → TEXTO genérico, sin mediaUrl", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: { mid: "mid-unsup", is_unsupported: true },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado.tipo).toBe("TEXTO");
+    expect(normalizado.mediaUrl).toBeUndefined();
+    expect(normalizado.contenido).toBe("Envió un contenido que Instagram no permite mostrar");
+  });
+
+  it.each([
+    ["image", "IMAGEN"],
+    ["video", "VIDEO"],
+    ["audio", "AUDIO"],
+    ["file", "DOCUMENTO"],
+  ])("regresión: adjunto directo %s → %s con la URL del payload y sin contenido", (type, tipo) => {
+    const normalizado = conAdjunto(type);
+    expect(normalizado.tipo).toBe(tipo);
+    expect(normalizado.mediaUrl).toBe("https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1");
+    expect(normalizado.contenido).toBeUndefined();
+    expect(normalizado.familiaAdjunto).toBe("DIRECTA");
+  });
+
+  // 048 — US3: Reels solo texto; publicaciones e historias de foto con imagen.
+  it.each(["ig_reel", "reel"])("%s sin título → solo texto, NUNCA mediaUrl", (type) => {
+    const normalizado = conAdjunto(type);
+    expect(normalizado).toMatchObject({ tipo: "TEXTO", contenido: "Compartió un Reel", familiaAdjunto: "REEL" });
+    expect(normalizado.mediaUrl).toBeUndefined();
+  });
+
+  it("Reel con título", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: { mid: "mid-r", attachments: [{ type: "ig_reel", payload: { url: "https://x/r.mp4", title: "Zapatillas" } }] },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado.contenido).toBe("Compartió un Reel: «Zapatillas»");
+    expect(normalizado.mediaUrl).toBeUndefined();
+  });
+
+  it("título que no es string se ignora", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: { mid: "mid-r2", attachments: [{ type: "reel", payload: { url: "https://x/r.mp4", title: 42 } }] },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado.contenido).toBe("Compartió un Reel");
+  });
+
+  it.each(["share", "ig_post", "media"])("%s → IMAGEN provisional con la URL a reubicar", (type) => {
+    const normalizado = conAdjunto(type);
+    expect(normalizado).toMatchObject({
+      tipo: "IMAGEN",
+      contenido: "Compartió una publicación",
+      familiaAdjunto: "PUBLICACION",
+      mediaUrl: "https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1",
+    });
+  });
+
+  it("story_mention → IMAGEN provisional, 'Te mencionó en su historia'", () => {
+    const normalizado = conAdjunto("story_mention");
+    expect(normalizado).toMatchObject({
+      tipo: "IMAGEN",
+      contenido: "Te mencionó en su historia",
+      familiaAdjunto: "MENCION_HISTORIA",
+    });
+  });
+
+  it("publicación sin URL → solo texto", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: { mid: "mid-p", attachments: [{ type: "ig_post", payload: {} }] },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado).toMatchObject({ tipo: "TEXTO", contenido: "Compartió una publicación" });
+    expect(normalizado.mediaUrl).toBeUndefined();
+  });
+
+  it("respuesta a historia con texto: conserva el texto y apunta a la historia", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: { mid: "mid-s", text: "hola", reply_to: { story: { url: "https://x/story.jpg", id: "st1" } } },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado).toMatchObject({
+      tipo: "IMAGEN",
+      contenido: "Respondió a tu historia: hola",
+      mediaUrl: "https://x/story.jpg",
+      familiaAdjunto: "RESPUESTA_HISTORIA",
+    });
+  });
+
+  it("respuesta a historia sin texto ni URL → solo la indicación", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: { mid: "mid-s2", reply_to: { story: { id: "st1" } } },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado).toMatchObject({ tipo: "TEXTO", contenido: "Respondió a tu historia" });
+    expect(normalizado.mediaUrl).toBeUndefined();
+  });
+
+  it("respuesta inline a un mensaje (reply_to.mid) sigue siendo texto normal", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igsid1" },
+      recipient: { id: "igbizid" },
+      timestamp: 123,
+      message: { mid: "mid-q", text: "sí", reply_to: { mid: "mid-anterior" } },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado).toMatchObject({ tipo: "TEXTO", contenido: "sí" });
+    expect(normalizado.familiaAdjunto).toBeUndefined();
+  });
+
+  it("ephemeral → solo texto, sin mediaUrl", () => {
+    const normalizado = conAdjunto("ephemeral");
+    expect(normalizado).toMatchObject({ tipo: "TEXTO", contenido: "Envió contenido temporal que no puede guardarse" });
+    expect(normalizado.mediaUrl).toBeUndefined();
+  });
+
+  it("eco de un Reel desde la app nativa: usa recipient.id y tampoco lleva mediaUrl", () => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "igbizid" },
+      recipient: { id: "igsid1" },
+      timestamp: 123,
+      message: { mid: "mid-e", is_echo: true, attachments: [{ type: "ig_reel", payload: { url: "https://x/r.mp4" } }] },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado.identificadorContacto).toBe("igsid1");
+    expect(normalizado.mediaUrl).toBeUndefined();
+    expect(normalizado.contenido).toBe("Compartió un Reel");
+  });
 });

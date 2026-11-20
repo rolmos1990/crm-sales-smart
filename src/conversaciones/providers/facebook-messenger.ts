@@ -1,6 +1,7 @@
 import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, ReaccionCanalPayload } from "./types";
-import type { MensajeEntranteNormalizado, TipoMensaje } from "../types";
+import type { FamiliaAdjunto, MensajeEntranteNormalizado, TipoMensaje } from "../types";
 import { clasificarErrorInstagram } from "./instagram";
+import { textoDescriptivo } from "./instagram-adjuntos";
 import { EnvioMensajeError } from "../errores";
 import { descifrarToken } from "@/shared/lib/cifrado-tokens";
 
@@ -158,17 +159,23 @@ export class FacebookMessengerProvider implements ICanalProvider {
     let contenido: string | undefined;
     let tipo: TipoMensaje = "TEXTO";
     let mediaUrl: string | undefined;
+    let familiaAdjunto: FamiliaAdjunto | undefined;
 
     if (message?.text) {
       contenido = message.text;
       tipo = "TEXTO";
     } else if (message?.attachments?.[0]) {
       const att = message.attachments[0];
-      mediaUrl = att.payload?.url;
-      switch (att.type) {
-        case "image": tipo = "IMAGEN"; break;
-        case "video": tipo = "VIDEO"; break;
-        default:      tipo = "TEXTO"; break;
+      if (att.type === "image" || att.type === "video") {
+        familiaAdjunto = "DIRECTA";
+        mediaUrl = att.payload?.url;
+        tipo = att.type === "image" ? "IMAGEN" : "VIDEO";
+      } else {
+        // Sticker con otro type, share, fallback, template…: sin mediaUrl, para
+        // que la URL de Meta no llegue a la base (048, FR-001/FR-011).
+        familiaAdjunto = "NO_ADMITIDO";
+        tipo = "TEXTO";
+        contenido = textoDescriptivo("NO_ADMITIDO", { canal: "facebook_messenger" });
       }
     }
 
@@ -185,6 +192,7 @@ export class FacebookMessengerProvider implements ICanalProvider {
       tipo,
       idExterno: message?.mid,
       mediaUrl,
+      familiaAdjunto,
     };
   }
 
