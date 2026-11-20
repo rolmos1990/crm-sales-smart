@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useMoverAStageMutation } from "@/crm/oportunidades/hooks";
 import { cn } from "@/lib/utils";
+import { obtenerIconoEtapa } from "@/crm/pipeline/iconos-etapa";
 import { useMediaQuery } from "@/shared/hooks/use-media-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -135,7 +136,7 @@ function ContenidoTarjetaOportunidad({
       {/* Indicador de etapa — línea fina, color desaturado, sin resplandor */}
       <div
         className="h-[2px] rounded-full -mt-0.5 mb-0.5"
-        style={{ backgroundColor: stageColor, opacity: 0.5 }}
+        style={{ backgroundColor: stageColor, opacity: 0.38 }}
       />
 
       {/* Identidad: qué pide el cliente (título) + quién es (contacto / empresa) */}
@@ -218,7 +219,7 @@ function ContenidoTarjetaOportunidad({
         <div className="flex-1 bg-muted rounded-full h-1 overflow-hidden">
           <div
             className="rounded-full h-1 transition-all"
-            style={{ width: `${oportunidad.probabilidad}%`, backgroundColor: stageColor, opacity: 0.55 }}
+            style={{ width: `${oportunidad.probabilidad}%`, backgroundColor: stageColor, opacity: 0.42 }}
           />
         </div>
         <span className="text-[10px] font-medium text-muted-foreground tabular-nums w-7 text-right">
@@ -515,6 +516,7 @@ function ColumnaStage({
   const { setNodeRef, isOver: isOverContenedor } = useDroppable({ id: stage.id });
   const isOver = isOverContenedor || resaltada;
   const color = stage.color ?? "#818cf8";
+  const IconoEtapa = obtenerIconoEtapa(stage.icono);
   const sentinelRef = useCentinelaCargarMas(hayMas, cargando, onCargarMas ?? (() => {}));
 
   return (
@@ -567,18 +569,18 @@ function ColumnaStage({
           )}
           style={isOver ? { backgroundColor: `${color}14` } as React.CSSProperties : undefined}
         >
-          <div className="h-[2px] opacity-70" style={{ backgroundColor: color }} />
+          <div className="h-[2px] opacity-45" style={{ backgroundColor: color }} />
 
           <div className="px-3 pt-3 pb-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
-                  style={{
-                    backgroundColor: `${color}15`,
-                    color: color,
-                  }}
-                >
+              <div className="flex items-center gap-1.5 min-w-0">
+                {/* 046 — el color lo lleva el ícono, no un badge detrás del
+                    nombre. Con el badge había dos superficies de color por
+                    columna (la del nombre y la línea de arriba) y el tablero
+                    saturaba; el nombre en texto neutro se lee mejor y el
+                    ícono alcanza para identificar la etapa de un golpe. */}
+                <IconoEtapa className="h-3.5 w-3.5 shrink-0" style={{ color }} />
+                <span className="text-[12px] font-semibold text-foreground truncate">
                   {stage.nombre}
                 </span>
                 <span
@@ -814,6 +816,7 @@ function TabsEtapasMovil({
       {stages.map((stage) => {
         const activo = stage.id === selectedStageId;
         const color = stage.color ?? "#818cf8";
+  const IconoEtapa = obtenerIconoEtapa(stage.icono);
         return (
           <button
             key={stage.id}
@@ -862,15 +865,14 @@ function ResumenEtapaMovil({
   puedeMod: boolean;
 }) {
   const color = stage.color ?? "#818cf8";
+  const IconoEtapa = obtenerIconoEtapa(stage.icono);
   return (
     <div className="rounded-xl border border-column-border bg-column-bg overflow-hidden shrink-0">
-      <div className="h-[2px] opacity-70" style={{ backgroundColor: color }} />
+      <div className="h-[2px] opacity-45" style={{ backgroundColor: color }} />
       <div className="flex items-center justify-between px-3.5 pt-2.5">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span
-            className="inline-flex items-center rounded-md px-2 py-0.5 text-[12px] font-semibold truncate"
-            style={{ backgroundColor: `${color}15`, color }}
-          >
+          <IconoEtapa className="h-4 w-4 shrink-0" style={{ color }} />
+          <span className="text-[13px] font-semibold text-foreground truncate">
             {stage.nombre}
           </span>
           <span className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded bg-badge-bg text-[10px] font-bold text-badge-text">

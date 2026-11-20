@@ -49,6 +49,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useSesion } from "@/shared/auth/sesion-context";
 import { WorkflowsPorEtapa } from "@/workflows/components/workflows-por-etapa";
 import { cn } from "@/lib/utils";
+import { ICONOS_ETAPA, ICONO_ETAPA_POR_DEFECTO, obtenerIconoEtapa } from "@/crm/pipeline/iconos-etapa";
 import {
   crearStage,
   actualizarStage,
@@ -66,6 +67,54 @@ const COLORES_PALETTE = [
   "#f97316", "#fbbf24", "#a3e635", "#4ade80",
   "#34d399", "#22d3ee", "#60a5fa", "#94a3b8",
 ];
+
+/**
+ * Selector de ícono por etapa (046). Hermano del ColorPicker de abajo: mismo
+ * popover, misma grilla. Muestra el ícono en el color de la etapa para que se
+ * vea exactamente como va a quedar en el tablero.
+ */
+function IconoPicker({
+  icono,
+  color,
+  onChange,
+}: {
+  icono: string;
+  color: string;
+  onChange: (i: string) => void;
+}) {
+  const IconoActual = obtenerIconoEtapa(icono);
+  return (
+    <Popover>
+      <PopoverTrigger
+        className="h-8 w-8 rounded-lg border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/5 hover:bg-stone-100 dark:hover:bg-white/10 transition-colors flex items-center justify-center flex-shrink-0 cursor-pointer"
+        aria-label="Elegir ícono de la etapa"
+      >
+        <IconoActual className="h-4 w-4" style={{ color }} />
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-2 bg-white dark:bg-stone-900 border-stone-200 dark:border-white/10 rounded-xl shadow-xl">
+        <div className="grid grid-cols-6 gap-1">
+          {Object.entries(ICONOS_ETAPA).map(([clave, { Icono, etiqueta }]) => (
+            <button
+              key={clave}
+              type="button"
+              onClick={() => onChange(clave)}
+              title={etiqueta}
+              aria-label={etiqueta}
+              className={cn(
+                "h-8 w-8 rounded-lg flex items-center justify-center transition-colors",
+                icono === clave
+                  ? "bg-stone-200 dark:bg-white/15"
+                  : "hover:bg-stone-100 dark:hover:bg-white/8"
+              )}
+            >
+              <Icono className="h-4 w-4" style={{ color: icono === clave ? color : undefined }} />
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
   return (
@@ -136,10 +185,15 @@ function SortableStageItem({
         <GripVertical className="h-4 w-4" />
       </button>
 
-      <div
-        className="h-2.5 w-2.5 rounded-full flex-shrink-0 ring-1 ring-black/5 dark:ring-white/20"
-        style={{ backgroundColor: stage.color ?? "#818cf8" }}
-      />
+      {(() => {
+        const IconoEtapa = obtenerIconoEtapa(stage.icono);
+        return (
+          <IconoEtapa
+            className="h-4 w-4 flex-shrink-0"
+            style={{ color: stage.color ?? "#818cf8" }}
+          />
+        );
+      })()}
 
       <span className="flex-1 text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
         {stage.nombre}
@@ -196,6 +250,7 @@ function DialogEditarStage({
 }) {
   const [nombre, setNombre] = useState(stage?.nombre ?? "");
   const [color, setColor] = useState(stage?.color ?? "#818cf8");
+  const [icono, setIcono] = useState(stage?.icono ?? ICONO_ETAPA_POR_DEFECTO);
   const [probabilidad, setProbabilidad] = useState(stage?.probabilidad ?? 20);
   const [esGanado, setEsGanado] = useState(stage?.esGanado ?? false);
   const [esPerdido, setEsPerdido] = useState(stage?.esPerdido ?? false);
@@ -212,6 +267,7 @@ function DialogEditarStage({
       const resultado = await actualizarStage(stage.id, {
         nombre: nombre.trim(),
         color,
+        icono,
         probabilidad,
         esGanado,
         esPerdido,
@@ -219,7 +275,7 @@ function DialogEditarStage({
       });
       if (resultado.exito) {
         toast.success("Etapa actualizada");
-        onGuardado({ ...stage, nombre: nombre.trim(), color, probabilidad, esGanado, esPerdido, visible: visibleFinal });
+        onGuardado({ ...stage, nombre: nombre.trim(), color, icono, probabilidad, esGanado, esPerdido, visible: visibleFinal });
         onOpenChange(false);
       } else {
         toast.error(resultado.error);
@@ -237,6 +293,7 @@ function DialogEditarStage({
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="flex items-center gap-3">
+            <IconoPicker icono={icono} color={color} onChange={setIcono} />
             <ColorPicker color={color} onChange={setColor} />
             <div className="flex-1">
               <Label className="text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide mb-1.5 block">
@@ -362,6 +419,7 @@ export function PanelConfigPipeline({
   const [stageEditando, setStageEditando] = useState<PipelineStage | null>(null);
   const [nuevaEtapaNombre, setNuevaEtapaNombre] = useState("");
   const [nuevaEtapaColor, setNuevaEtapaColor] = useState("#818cf8");
+  const [nuevaEtapaIcono, setNuevaEtapaIcono] = useState(ICONO_ETAPA_POR_DEFECTO);
   const [mostrarFormNueva, setMostrarFormNueva] = useState(false);
   const [isPendingNombre, startTransitionNombre] = useTransition();
   const [isPendingNueva, startTransitionNueva] = useTransition();
@@ -423,6 +481,7 @@ export function PanelConfigPipeline({
       const resultado = await crearStage(pipeline.id, {
         nombre: nuevaEtapaNombre.trim(),
         color: nuevaEtapaColor,
+        icono: nuevaEtapaIcono,
         probabilidad: 20,
         esGanado: false,
         esPerdido: false,
@@ -432,6 +491,7 @@ export function PanelConfigPipeline({
           id: resultado.id,
           nombre: nuevaEtapaNombre.trim(),
           color: nuevaEtapaColor,
+          icono: nuevaEtapaIcono,
           probabilidad: 20,
           esGanado: false,
           esPerdido: false,
@@ -553,6 +613,7 @@ export function PanelConfigPipeline({
         {/* Añadir nueva etapa */}
         {mostrarFormNueva ? (
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-stone-300 dark:border-white/15 bg-stone-50/50 dark:bg-white/3">
+            <IconoPicker icono={nuevaEtapaIcono} color={nuevaEtapaColor} onChange={setNuevaEtapaIcono} />
             <ColorPicker color={nuevaEtapaColor} onChange={setNuevaEtapaColor} />
             <Input
               autoFocus

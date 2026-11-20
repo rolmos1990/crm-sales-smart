@@ -23,12 +23,12 @@ export async function obtenerPipelinesAction() {
 }
 
 const STAGES_INICIALES = [
-  { nombre: "Prospecto",   orden: 0, probabilidad: 20, esInicial: true,  color: "#818cf8" },
-  { nombre: "Calificado",  orden: 1, probabilidad: 40,                   color: "#c084fc" },
-  { nombre: "Propuesta",   orden: 2, probabilidad: 60,                   color: "#fbbf24" },
-  { nombre: "Negociación", orden: 3, probabilidad: 80,                   color: "#f97316" },
-  { nombre: "Ganado",      orden: 4, probabilidad: 100, esGanado: true,  color: "#4ade80" },
-  { nombre: "Perdido",     orden: 5, probabilidad: 0,   esPerdido: true, color: "#f87171" },
+  { nombre: "Prospecto",   orden: 0, probabilidad: 20, esInicial: true,  color: "#818cf8", icono: "Search" },
+  { nombre: "Calificado",  orden: 1, probabilidad: 40,                   color: "#c084fc", icono: "UserRound" },
+  { nombre: "Propuesta",   orden: 2, probabilidad: 60,                   color: "#fbbf24", icono: "FileText" },
+  { nombre: "Negociación", orden: 3, probabilidad: 80,                   color: "#f97316", icono: "Handshake" },
+  { nombre: "Ganado",      orden: 4, probabilidad: 100, esGanado: true,  color: "#4ade80", icono: "CircleCheck" },
+  { nombre: "Perdido",     orden: 5, probabilidad: 0,   esPerdido: true, color: "#f87171", icono: "CircleX" },
 ];
 
 export async function crearPipeline(datos: unknown) {
@@ -100,7 +100,7 @@ export async function crearStage(pipelineId: string, datos: unknown) {
       select: { orden: true },
     });
     const stage = await prisma.pipelineStage.create({
-      data: { ...parsed.data, color: parsed.data.color ?? null, pipelineId, orden: (last?.orden ?? -1) + 1 },
+      data: { ...parsed.data, color: parsed.data.color ?? null, icono: parsed.data.icono ?? null, pipelineId, orden: (last?.orden ?? -1) + 1 },
     });
     revalidatePath("/crm/pipeline");
     return { exito: true as const, id: stage.id };
@@ -119,7 +119,11 @@ export async function actualizarStage(id: string, datos: unknown) {
   try {
     await prisma.pipelineStage.update({
       where: { id },
-      data: { ...parsed.data, ...(parsed.data.color !== undefined && { color: parsed.data.color ?? null }) },
+      data: {
+        ...parsed.data,
+        ...(parsed.data.color !== undefined && { color: parsed.data.color ?? null }),
+        ...(parsed.data.icono !== undefined && { icono: parsed.data.icono ?? null }),
+      },
     });
     revalidatePath("/crm/pipeline");
     return { exito: true as const };
