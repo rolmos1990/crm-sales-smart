@@ -118,6 +118,10 @@ function ContenidoTarjetaOportunidad({
   const tagsVisibles = esMovil ? oportunidad.tags.slice(0, 2) : oportunidad.tags;
   const tagsDeMas = esMovil ? oportunidad.tags.length - tagsVisibles.length : 0;
 
+  // El tinte del borde es apenas un eco del color de la etapa: quien lo
+  // comunica es la línea de arriba. Con más opacidad (estaba en 35) cada
+  // tarjeta quedaba con un recuadro de color compitiendo con el de su columna,
+  // y el tablero se leía como una grilla de cajas subrayadas.
   return (
     <div
       className={cn(
@@ -126,7 +130,7 @@ function ContenidoTarjetaOportunidad({
         "shadow-sm dark:shadow-[0_2px_10px_-6px_rgba(0,0,0,0.55)]",
         esMovil ? "p-4 space-y-3" : "p-3.5 space-y-3"
       )}
-      style={{ borderColor: `${stageColor}35` }}
+      style={{ borderColor: `${stageColor}1f` }}
     >
       {/* Indicador de etapa — línea fina, color desaturado, sin resplandor */}
       <div
@@ -466,6 +470,7 @@ function ColumnaStage({
   stage,
   items,
   total,
+  moneda,
   conteo,
   pipelineId,
   onCardClick,
@@ -479,6 +484,7 @@ function ColumnaStage({
   stage: PipelineStage;
   items: OportunidadEnStage[];
   total: number;
+  moneda: string;
   /** Conteo real de la etapa (no solo lo cargado en pantalla) — ver
    *  obtenerConteoPorStage. Cae a items.length si todavía no llegó. */
   conteo: number;
@@ -527,7 +533,7 @@ function ColumnaStage({
     <div className="flex-shrink-0 w-[272px]" data-testid="pipeline-column">
       <div
         className={cn(
-          "flex h-full flex-col rounded-xl border transition-all duration-150",
+          "flex h-full flex-col rounded-2xl border transition-all duration-150",
           "bg-column-bg",
           "border-column-border",
           // Hover del drag: además del anillo, un tinte leve de fondo en el
@@ -543,11 +549,16 @@ function ColumnaStage({
             columna. Fondo casi sólido + blur muy sutil para que las tarjetas
             no se transparenten al pasar por debajo; el `overflow-hidden` que
             antes vivía en el wrapper de arriba se quitó (rompía el sticky),
-            así que acá se repite `rounded-t-xl` a mano para que la línea de
-            color no sobresalga de las esquinas redondeadas de la columna. */}
+            así que acá se repiten a mano `rounded-t-2xl` y `overflow-hidden`.
+            Los dos hacen falta: el radio solo redondea la caja del header,
+            pero sin recortar, la barra de color de 2px se seguía dibujando
+            con esquinas rectas y sobresalía de la curva. `ResumenEtapaMovil`
+            ya lo hacía bien y era la única versión que se veía prolija. El
+            `overflow-hidden` va acá, en el propio elemento sticky, y no en un
+            ancestro — ahí sí rompería el sticky. */}
         <div
           className={cn(
-            "sticky top-0 z-10 rounded-t-xl backdrop-blur-sm transition-shadow duration-150",
+            "sticky top-0 z-10 rounded-t-2xl overflow-hidden backdrop-blur-sm transition-shadow duration-150",
             "bg-column-header-bg/95",
             "border-b border-column-border/70",
             // Sombra muy ligera — solo aparece una vez que el usuario empezó a
@@ -597,7 +608,7 @@ function ColumnaStage({
               <Receipt className="h-3 w-3 shrink-0 text-muted-foreground" />
               <span className="text-muted-foreground font-medium">Total</span>
               <span className="font-semibold tabular-nums text-foreground">
-                {formatearMoneda(total, "PEN")}
+                {formatearMoneda(total, moneda)}
               </span>
             </div>
           </div>
@@ -839,12 +850,14 @@ function ResumenEtapaMovil({
   stage,
   conteo,
   total,
+  moneda,
   pipelineId,
   puedeMod,
 }: {
   stage: PipelineStage;
   conteo: number;
   total: number;
+  moneda: string;
   pipelineId: string;
   puedeMod: boolean;
 }) {
@@ -875,7 +888,7 @@ function ResumenEtapaMovil({
       <div className="flex items-center gap-1.5 px-3.5 pt-1 pb-2.5 text-[11px]">
         <Receipt className="h-3 w-3 shrink-0 text-muted-foreground" />
         <span className="text-muted-foreground font-medium">Total</span>
-        <span className="font-semibold tabular-nums text-foreground">{formatearMoneda(total, "PEN")}</span>
+        <span className="font-semibold tabular-nums text-foreground">{formatearMoneda(total, moneda)}</span>
       </div>
     </div>
   );
@@ -918,6 +931,10 @@ interface PipelineKanbanDinamicoProps {
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
+  /** Moneda principal de la cuenta. Los totales por columna suman valores de
+   *  varias oportunidades, así que no pueden usar la moneda de ninguna en
+   *  particular: usan la configurada. Antes estaba cableada a "PEN". */
+  moneda?: string;
   puedeMod?: boolean;
   /** "Ver ocultos" activo — muestra también las columnas Ganado/Perdido con
    *  visible=false (ver panel-config-pipeline.tsx), que por defecto quedan
@@ -933,6 +950,7 @@ export function PipelineKanbanDinamico({
   empresas,
   contactos,
   defaultCountryCode = "PA",
+  moneda = "PEN",
   puedeMod = true,
   verOcultos = false,
 }: PipelineKanbanDinamicoProps) {
@@ -1514,6 +1532,7 @@ export function PipelineKanbanDinamico({
                 stage={stageActiva}
                 conteo={Math.max(localConteos.get(stageActiva.id) ?? 0, itemsEtapaActiva.length)}
                 total={localTotales.get(stageActiva.id) ?? 0}
+                moneda={moneda}
                 pipelineId={pipeline.id}
                 puedeMod={puedeMod}
               />
@@ -1573,6 +1592,7 @@ export function PipelineKanbanDinamico({
                   pipelineId={pipeline.id}
                   items={items}
                   total={localTotales.get(stage.id) ?? 0}
+                  moneda={moneda}
                   conteo={Math.max(localConteos.get(stage.id) ?? 0, items.length)}
                   onCardClick={(op) => setSelected({ id: op.id, stageId: op.stageId ?? null })}
                   puedeMod={puedeMod}

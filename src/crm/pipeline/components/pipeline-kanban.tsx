@@ -201,11 +201,13 @@ function TarjetaOverlay({ oportunidad }: { oportunidad: Oportunidad }) {
 function ColumnaKanban({
   etapaConfig,
   items,
+  moneda,
   onCardClick,
   puedeMod = true,
 }: {
   etapaConfig: (typeof ETAPAS_ACTIVAS)[number];
   items: Oportunidad[];
+  moneda: string;
   onCardClick: (op: Oportunidad) => void;
   puedeMod?: boolean;
 }) {
@@ -216,7 +218,7 @@ function ColumnaKanban({
     <div className="flex-shrink-0 w-[272px]" data-testid="pipeline-column">
       <div
         className={cn(
-          "flex flex-col rounded-xl border transition-all duration-150",
+          "flex flex-col rounded-2xl border transition-all duration-150",
           "bg-column-bg",
           "border-column-border",
           isOver && "ring-1 ring-primary/30 bg-primary-muted/60"
@@ -252,7 +254,7 @@ function ColumnaKanban({
           </div>
           {items.length > 0 && (
             <p className="mt-1.5 text-[11px] font-semibold text-primary tabular-nums" data-testid="column-total">
-              {formatearMoneda(totalValor, "PEN")}
+              {formatearMoneda(totalValor, moneda)}
             </p>
           )}
         </div>
@@ -295,6 +297,10 @@ interface PipelineKanbanProps {
   empresas: OpcionCombobox[];
   contactos: OpcionCombobox[];
   defaultCountryCode?: string;
+  /** Moneda principal de la cuenta. El total de columna suma varias
+   *  oportunidades, así que usa la configurada y no la de ninguna en
+   *  particular. Antes estaba cableada a "PEN". */
+  moneda?: string;
   puedeMod?: boolean;
 }
 
@@ -303,6 +309,7 @@ export function PipelineKanban({
   empresas,
   contactos,
   defaultCountryCode = "PA",
+  moneda = "PEN",
   puedeMod = true,
 }: PipelineKanbanProps) {
   const [localOps, setLocalOps] = useState<Map<Etapa, Oportunidad[]>>(oportunidades);
@@ -394,6 +401,7 @@ export function PipelineKanban({
               key={etapaConfig.valor}
               etapaConfig={etapaConfig}
               items={localOps.get(etapaConfig.valor) ?? []}
+              moneda={moneda}
               onCardClick={setSelected}
               puedeMod={puedeMod}
             />

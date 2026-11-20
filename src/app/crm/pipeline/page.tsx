@@ -8,7 +8,7 @@ import { obtenerTags } from "@/crm/tags/queries";
 import { redirect } from "next/navigation";
 import { requireSesion } from "@/shared/auth/sesion";
 import { verificarAcceso } from "@/shared/auth/permisos";
-import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
+import { obtenerConfiguracionEmpresa, obtenerMonedaPrincipal } from "@/configuracion/empresa/queries";
 import type { PipelineConStages } from "@/crm/pipeline/types";
 import type { Etapa, Oportunidad } from "@/crm/oportunidades/types";
 import type { OpcionCombobox } from "@/shared/ui/combobox";
@@ -41,12 +41,13 @@ export default async function PipelinePage(props: {
   let vistaInicial: VistaPipeline | null = null;
   let oportunidadesLegacy: Map<Etapa, Oportunidad[]> | null = null;
 
-  const [pipelinesData, empresas, contactos, tagsData, config] = await Promise.all([
+  const [pipelinesData, empresas, contactos, tagsData, config, moneda] = await Promise.all([
     obtenerPipelines(sesion.instanciaId),
     obtenerEmpresas(sesion.instanciaId),
     obtenerContactos(sesion.instanciaId),
     obtenerTags(sesion.instanciaId),
     obtenerConfiguracionEmpresa(sesion.instanciaId),
+    obtenerMonedaPrincipal(sesion.instanciaId),
   ]);
 
   const pipelines = pipelinesData as unknown as PipelineConStages[];
@@ -91,6 +92,7 @@ export default async function PipelinePage(props: {
       contactosFiltro={contactosFiltroOpciones}
       tags={tags}
       defaultCountryCode={defaultCountryCode}
+      moneda={moneda}
     />
   );
 }
