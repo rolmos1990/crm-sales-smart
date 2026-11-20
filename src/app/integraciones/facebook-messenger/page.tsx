@@ -39,12 +39,7 @@ export default async function FacebookMessengerPage({ searchParams }: { searchPa
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
 
-  let cuentas: Awaited<ReturnType<typeof obtenerCuentasFacebookMessenger>> = [];
-  try {
-    cuentas = await obtenerCuentasFacebookMessenger(sesion.instanciaId);
-  } catch (e) {
-    console.error("[Facebook Messenger page] Error cargando datos:", e);
-  }
+  const cuentas = await obtenerCuentasFacebookMessenger(sesion.instanciaId);
 
   return (
     <div className="min-h-full p-6 max-w-2xl mx-auto space-y-6">

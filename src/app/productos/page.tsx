@@ -15,18 +15,11 @@ export default async function ProductosPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "productos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "productos");
-  let productos: ProductoListado[] = [];
-  let etiquetas: EtiquetaProducto[] = [];
-
-  try {
-    // Activos e inactivos: el filtro Estado del listado decide qué se ve.
-    [productos, etiquetas] = await Promise.all([
-      obtenerProductosListado(sesion.instanciaId),
-      obtenerEtiquetasProducto(sesion.instanciaId),
-    ]);
-  } catch {
-    // DB not configured — show empty state
-  }
+  // Activos e inactivos: el filtro Estado del listado decide qué se ve.
+  const [productos, etiquetas]: [ProductoListado[], EtiquetaProducto[]] = await Promise.all([
+    obtenerProductosListado(sesion.instanciaId),
+    obtenerEtiquetasProducto(sesion.instanciaId),
+  ]);
 
   return (
     <div className="flex flex-col gap-6 p-6">

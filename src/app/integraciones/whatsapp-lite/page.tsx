@@ -25,7 +25,11 @@ async function obtenerCuentasWALite(instanciaId: string) {
 }
 
 export default async function WhatsAppLitePage() {
-  let cuentas: {
+  const sesion = await requireSesion();
+  if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
+  const instanciaId = sesion.instanciaId;
+
+  const cuentas: {
     id: string;
     nombre: string;
     identificador: string;
@@ -35,16 +39,7 @@ export default async function WhatsAppLitePage() {
     stage: { nombre: string; color: string | null } | null;
     stageIdRespuestaAutomatica: string | null;
     stageRespuestaAutomatica: { nombre: string; color: string | null; pipelineId: string } | null;
-  }[] = [];
-  const sesion = await requireSesion();
-  if (!verificarAcceso(sesion, "integraciones", "ver").permitido) redirect("/acceso-denegado");
-  const instanciaId = sesion.instanciaId;
-
-  try {
-    cuentas = await obtenerCuentasWALite(instanciaId);
-  } catch (e) {
-    console.error("[WhatsApp Lite page] Error cargando datos:", e);
-  }
+  }[] = await obtenerCuentasWALite(instanciaId);
 
   return (
     <div className="min-h-full p-6 max-w-2xl mx-auto space-y-6">

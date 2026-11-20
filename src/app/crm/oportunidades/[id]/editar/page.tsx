@@ -18,27 +18,15 @@ export default async function EditarOportunidadPage({ params }: { params: Promis
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "oportunidades", "modificar").permitido) redirect("/acceso-denegado");
 
-  let oportunidad = null;
-  let empresas: { id: string; nombre: string }[] = [];
-  let contactos: { id: string; nombre: string; apellido: string }[] = [];
-  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
-  let pipelines: PipelineConStages[] = [];
+  const [oportunidad, empresas, contactos, tags, pipelines] = await Promise.all([
+    obtenerOportunidadPorId(id, sesion.instanciaId),
+    buscarEmpresas("", sesion.instanciaId),
+    buscarContactos("", sesion.instanciaId),
+    obtenerTags(sesion.instanciaId),
+    obtenerPipelines(sesion.instanciaId) as unknown as Promise<PipelineConStages[]>,
+  ]);
 
-  try {
-    [oportunidad, empresas, contactos, tags, pipelines] = await Promise.all([
-      obtenerOportunidadPorId(id, sesion.instanciaId),
-      buscarEmpresas("", sesion.instanciaId),
-      buscarContactos("", sesion.instanciaId),
-      obtenerTags(sesion.instanciaId),
-      obtenerPipelines(sesion.instanciaId) as unknown as Promise<PipelineConStages[]>,
-    ]);
-  } catch {
-    // DB not configured
-  }
-
-  if (!oportunidad && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
+  if (!oportunidad) notFound();
 
   const opcionesEmpresas = empresas.map((e) => ({ valor: e.id, etiqueta: e.nombre }));
   const opcionesContactos = contactos.map((c) => ({ valor: c.id, etiqueta: `${c.nombre} ${c.apellido}` }));

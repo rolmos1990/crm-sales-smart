@@ -20,33 +20,19 @@ export default async function NuevaOportunidadPage(props: {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "oportunidades", "modificar").permitido) redirect("/acceso-denegado");
 
-  let empresas: { valor: string; etiqueta: string }[] = [];
-  let contactos: { valor: string; etiqueta: string }[] = [];
-  let pipeline: PipelineConStages | null = null;
-  let tags: Awaited<ReturnType<typeof obtenerTags>> = [];
-  let monedaDefault = "PEN";
-
-  let pipelines: PipelineConStages[] = [];
-
-  try {
-    const [e, c, pls, t, moneda] = await Promise.all([
-      buscarEmpresas("", sesion.instanciaId),
-      buscarContactos("", sesion.instanciaId),
-      obtenerPipelines(sesion.instanciaId),
-      obtenerTags(sesion.instanciaId),
-      obtenerMonedaPrincipal(sesion.instanciaId),
-    ]);
-    monedaDefault = moneda;
-    empresas = e.map(x => ({ valor: x.id, etiqueta: x.nombre }));
-    contactos = c.map(x => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
-    tags = t;
-    pipelines = pls as unknown as PipelineConStages[];
-    if (pipelineId) {
-      pipeline = pipelines.find(p => p.id === pipelineId) ?? null;
-    }
-  } catch {
-    // DB no configurada
-  }
+  const [e, c, pls, tags, monedaDefault] = await Promise.all([
+    buscarEmpresas("", sesion.instanciaId),
+    buscarContactos("", sesion.instanciaId),
+    obtenerPipelines(sesion.instanciaId),
+    obtenerTags(sesion.instanciaId),
+    obtenerMonedaPrincipal(sesion.instanciaId),
+  ]);
+  const empresas = e.map(x => ({ valor: x.id, etiqueta: x.nombre }));
+  const contactos = c.map(x => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
+  const pipelines = pls as unknown as PipelineConStages[];
+  const pipeline: PipelineConStages | null = pipelineId
+    ? pipelines.find(p => p.id === pipelineId) ?? null
+    : null;
 
   return (
     <div className="max-w-2xl mx-auto">

@@ -19,28 +19,18 @@ export default async function NuevaActividadPage({
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "actividades", "modificar").permitido) redirect("/acceso-denegado");
 
-  let contactos: { valor: string; etiqueta: string }[] = [];
-  let empresas: { valor: string; etiqueta: string }[] = [];
-  let oportunidades: { valor: string; etiqueta: string }[] = [];
-  let pedidos: { valor: string; etiqueta: string }[] = [];
-  let cotizaciones: { valor: string; etiqueta: string }[] = [];
-
-  try {
-    const [c, e, o, p, cot] = await Promise.all([
-      buscarContactos("", sesion.instanciaId),
-      buscarEmpresas("", sesion.instanciaId),
-      obtenerOportunidades(sesion.instanciaId),
-      obtenerPedidos(sesion.instanciaId),
-      prisma.cotizacion.findMany({ where: { instanciaId: sesion.instanciaId }, select: { id: true, numero: true }, orderBy: { creadoEn: "desc" }, take: 100 }),
-    ]);
-    contactos = c.map((x: { id: string; nombre: string; apellido: string }) => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
-    empresas = e.map((x: { id: string; nombre: string }) => ({ valor: x.id, etiqueta: x.nombre }));
-    oportunidades = o.map((x: { id: string; titulo: string }) => ({ valor: x.id, etiqueta: x.titulo }));
-    pedidos = p.map((x: { id: string; numero: string }) => ({ valor: x.id, etiqueta: x.numero }));
-    cotizaciones = cot.map(x => ({ valor: x.id, etiqueta: x.numero }));
-  } catch {
-    // DB no configurada
-  }
+  const [c, e, o, p, cot] = await Promise.all([
+    buscarContactos("", sesion.instanciaId),
+    buscarEmpresas("", sesion.instanciaId),
+    obtenerOportunidades(sesion.instanciaId),
+    obtenerPedidos(sesion.instanciaId),
+    prisma.cotizacion.findMany({ where: { instanciaId: sesion.instanciaId }, select: { id: true, numero: true }, orderBy: { creadoEn: "desc" }, take: 100 }),
+  ]);
+  const contactos = c.map((x: { id: string; nombre: string; apellido: string }) => ({ valor: x.id, etiqueta: `${x.nombre} ${x.apellido}` }));
+  const empresas = e.map((x: { id: string; nombre: string }) => ({ valor: x.id, etiqueta: x.nombre }));
+  const oportunidades = o.map((x: { id: string; titulo: string }) => ({ valor: x.id, etiqueta: x.titulo }));
+  const pedidos = p.map((x: { id: string; numero: string }) => ({ valor: x.id, etiqueta: x.numero }));
+  const cotizaciones = cot.map(x => ({ valor: x.id, etiqueta: x.numero }));
 
   return (
     <div className="max-w-3xl mx-auto">

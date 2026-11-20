@@ -21,16 +21,11 @@ export default async function ContactosPage() {
   if (!verificarAcceso(sesion, "contactos", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "contactos");
 
-  let inicial: DatosVistaContactos | null = null;
-  try {
-    const [etapas, umbrales] = await Promise.all([
-      obtenerEtapasFlujoActivo(sesion.instanciaId),
-      obtenerUmbralesSeguimiento(sesion.instanciaId),
-    ]);
-    inicial = await cargarVistaContactos(sesion.instanciaId, sesion.zonaNegocio, FILTROS_VISTA_CONTACTOS_DEFECTO, etapas, umbrales);
-  } catch (err) {
-    console.error("[ContactosPage] Error al cargar contactos:", err);
-  }
+  const [etapas, umbrales] = await Promise.all([
+    obtenerEtapasFlujoActivo(sesion.instanciaId),
+    obtenerUmbralesSeguimiento(sesion.instanciaId),
+  ]);
+  const inicial = await cargarVistaContactos(sesion.instanciaId, sesion.zonaNegocio, FILTROS_VISTA_CONTACTOS_DEFECTO, etapas, umbrales);
 
   const botonNuevo = puedeMod ? (
     <ButtonLink href="/crm/contactos/nuevo">
@@ -46,7 +41,7 @@ export default async function ContactosPage() {
         descripcion="Conoce y gestiona tus contactos, clientes y oportunidades comerciales"
         accion={botonNuevo}
       />
-      {!inicial || inicial.indicadores.total === 0 ? (
+      {inicial.indicadores.total === 0 ? (
         <EmptyState
           Icono={Users}
           titulo="Sin contactos todavía"

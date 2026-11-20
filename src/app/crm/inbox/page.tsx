@@ -13,18 +13,11 @@ type CuentasType = Awaited<ReturnType<typeof obtenerCuentasCanal>>;
 export default async function InboxPage() {
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "inbox", "ver").permitido) redirect("/acceso-denegado");
-  let conversaciones: ConversacionResumen[] = [];
-  let cuentas: CuentasType = [];
-  let pendientesIA: Awaited<ReturnType<typeof listarRespuestasPendientes>> = [];
-  try {
-    [conversaciones, cuentas, pendientesIA] = await Promise.all([
-      obtenerConversacionesInbox(sesion.instanciaId),
-      obtenerCuentasCanal(sesion.instanciaId),
-      listarRespuestasPendientes(sesion.instanciaId),
-    ]);
-  } catch {
-    // DB no configurada aún
-  }
+  const [conversaciones, cuentas, pendientesIA]: [ConversacionResumen[], CuentasType, Awaited<ReturnType<typeof listarRespuestasPendientes>>] = await Promise.all([
+    obtenerConversacionesInbox(sesion.instanciaId),
+    obtenerCuentasCanal(sesion.instanciaId),
+    listarRespuestasPendientes(sesion.instanciaId),
+  ]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">

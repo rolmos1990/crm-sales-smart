@@ -18,29 +18,16 @@ export default async function EditarCotizacionPage({ params }: { params: Promise
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "cotizaciones", "modificar").permitido) redirect("/acceso-denegado");
 
-  let cotizacion = null;
-  let empresas: { id: string; nombre: string }[] = [];
-  let contactos: Awaited<ReturnType<typeof buscarContactos>> = [];
-  let productos: Awaited<ReturnType<typeof obtenerProductosCatalogo>> = [];
-  let filtroCatalogoInicial: FiltroCatalogo = "TODOS";
-  let transportistas: Awaited<ReturnType<typeof obtenerTransportistas>> = [];
-  let defaultCountryCode = "PA";
-
-  try {
-    let config: Awaited<ReturnType<typeof obtenerConfiguracionEmpresa>> = null;
-    [cotizacion, empresas, contactos, productos, transportistas, config] = await Promise.all([
-      obtenerCotizacionPorId(id, sesion.instanciaId),
-      buscarEmpresas("", sesion.instanciaId),
-      buscarContactos("", sesion.instanciaId),
-      obtenerProductosCatalogo(sesion.instanciaId),
-      obtenerTransportistas(sesion.instanciaId),
-      obtenerConfiguracionEmpresa(sesion.instanciaId),
-    ]);
-    defaultCountryCode = isoDesdePais(config?.pais);
-    filtroCatalogoInicial = config?.filtroProductosPedido ?? "TODOS";
-  } catch {
-    // DB not configured
-  }
+  const [cotizacion, empresas, contactos, productos, transportistas, config] = await Promise.all([
+    obtenerCotizacionPorId(id, sesion.instanciaId),
+    buscarEmpresas("", sesion.instanciaId),
+    buscarContactos("", sesion.instanciaId),
+    obtenerProductosCatalogo(sesion.instanciaId),
+    obtenerTransportistas(sesion.instanciaId),
+    obtenerConfiguracionEmpresa(sesion.instanciaId),
+  ]);
+  const defaultCountryCode = isoDesdePais(config?.pais);
+  const filtroCatalogoInicial: FiltroCatalogo = config?.filtroProductosPedido ?? "TODOS";
 
   if (!cotizacion) notFound();
   // Solo se puede editar mientras la cotización siga en borrador (no enviada)

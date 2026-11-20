@@ -8,6 +8,7 @@ import {
   ArrowLeft, Pencil, Building2, Calendar, Plus,
   Phone, Mail, User, Globe, FileText, Hash,
   Briefcase, ExternalLink, FileCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,48 +34,34 @@ import { cn } from "@/lib/utils";
 export default async function OportunidadDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  let oportunidad = null;
-  let actividades: Actividad[] = [];
-  let todosLosTags: Tag[] = [];
   const sesion = await requireSesion();
   if (!verificarAcceso(sesion, "oportunidades", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "oportunidades");
+
+  const [oportunidad, actividades, todosLosTags, cotizaciones] = await Promise.all([
+    obtenerOportunidadPorId(id, sesion.instanciaId),
+    obtenerActividadesPorOportunidad(id, sesion.instanciaId),
+    obtenerTags(sesion.instanciaId),
+    obtenerCotizacionesPorOportunidad(id, sesion.instanciaId),
+  ]);
+
+  // 043 — "no existe" solo puede venir de una lectura exitosa sin fila.
+  if (!oportunidad) notFound();
+
+  // El panel de conversaciones es accesorio: la oportunidad ya está cargada, así
+  // que su fallo no tumba la página. Pero sí se avisa — antes se renderizaba
+  // vacío, indistinguible de una oportunidad sin conversaciones (043, FR-007).
   let conversaciones: Awaited<ReturnType<typeof obtenerConversacionesPorOportunidad>> = [];
   let cuentasCanal: Awaited<ReturnType<typeof obtenerCuentasCanal>> = [];
-  let cotizaciones: Awaited<ReturnType<typeof obtenerCotizacionesPorOportunidad>> = [];
-
-  try {
-    [oportunidad, actividades, todosLosTags, cotizaciones] = await Promise.all([
-      obtenerOportunidadPorId(id, sesion.instanciaId),
-      obtenerActividadesPorOportunidad(id, sesion.instanciaId),
-      obtenerTags(sesion.instanciaId),
-      obtenerCotizacionesPorOportunidad(id, sesion.instanciaId),
-    ]);
-  } catch {
-    // DB not configured
-  }
-
-  if (!oportunidad && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
-
-  if (!oportunidad) {
-    return (
-      <div className="p-6">
-        <ButtonLink variant="ghost" size="icon-sm" href="/crm/oportunidades"><ArrowLeft className="h-4 w-4" /></ButtonLink>
-        <p className="text-muted-foreground mt-4">Oportunidad no disponible</p>
-      </div>
-    );
-  }
-
-  // Cargar datos de conversaciones (no bloquea si falla)
+  let conversacionesNoDisponibles = false;
   try {
     [conversaciones, cuentasCanal] = await Promise.all([
       obtenerConversacionesPorOportunidad(id, sesion.instanciaId),
       obtenerCuentasCanal(sesion.instanciaId),
     ]);
-  } catch {
-    // Conversaciones aún no disponibles
+  } catch (err) {
+    console.error("[OportunidadDetallePage] Error al cargar las conversaciones:", err);
+    conversacionesNoDisponibles = true;
   }
 
   const productos = (oportunidad as any).productos ?? [];
@@ -105,6 +92,16 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
     <div className="flex h-[calc(100vh-56px)] overflow-hidden">
       {/* ── Panel Chat (izquierda, ancho fijo) ─────────────────── */}
       <div className="w-[360px] shrink-0 flex flex-col">
+        {conversacionesNoDisponibles ? (
+          <div className="flex h-full items-center justify-center border-r border-border p-6">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <AlertTriangle className="h-5 w-5 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                No se pudieron cargar las conversaciones. Recargá la página para volver a intentarlo.
+              </p>
+            </div>
+          </div>
+        ) : (
         <PanelConversacion
           oportunidadId={id}
           contactoId={contactoPrincipal?.id ?? ""}
@@ -113,6 +110,7 @@ export default async function OportunidadDetallePage({ params }: { params: Promi
           conversacionesIniciales={conversaciones}
           puedeMod={puedeMod}
         />
+        )}
       </div>
 
       {/* ── Detalle Oportunidad (derecha, scrollable) ─────────── */}

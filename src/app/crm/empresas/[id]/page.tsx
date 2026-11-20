@@ -22,30 +22,13 @@ export default async function EmpresaDetallePage({ params }: { params: Promise<{
   if (!verificarAcceso(sesion, "empresas", "ver").permitido) redirect("/acceso-denegado");
   const puedeMod = puedeModificar(sesion.rol, "empresas");
 
-  let empresa = null;
-  let actividades: Actividad[] = [];
+  const [empresa, actividades] = await Promise.all([
+    obtenerEmpresaPorId(id, sesion.instanciaId),
+    obtenerActividadesPorEmpresa(id, sesion.instanciaId),
+  ]);
 
-  try {
-    [empresa, actividades] = await Promise.all([
-      obtenerEmpresaPorId(id, sesion.instanciaId),
-      obtenerActividadesPorEmpresa(id, sesion.instanciaId),
-    ]);
-  } catch {
-    // DB not configured
-  }
-
-  if (!empresa && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("placeholder")) {
-    notFound();
-  }
-
-  if (!empresa) {
-    return (
-      <div className="flex flex-col gap-6 p-6">
-        <ButtonLink variant="ghost" size="icon-sm" href="/crm/empresas"><ArrowLeft className="h-4 w-4" /></ButtonLink>
-        <p className="text-muted-foreground">Empresa no disponible</p>
-      </div>
-    );
-  }
+  // 043 — "no existe" solo puede venir de una lectura exitosa sin fila.
+  if (!empresa) notFound();
 
   const contactos = (empresa as any).contactos ?? [];
   const oportunidades = (empresa as any).oportunidades ?? [];
