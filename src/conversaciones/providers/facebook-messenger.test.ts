@@ -196,6 +196,38 @@ describe("FacebookMessengerProvider.mapearEntrante", () => {
     expect(normalizado.identificadorContacto).toBe("psid1");
   });
 
+  it.each(["share", "fallback", "template"])("048 — adjunto %s: sin mediaUrl y con texto genérico", (type) => {
+    const normalizado = provider.mapearEntrante({
+      sender: { id: "psid1" },
+      recipient: { id: "page1" },
+      timestamp: 123,
+      message: { mid: `mid-${type}`, attachments: [{ type, payload: { url: "https://scontent.xx.fbcdn.net/x.jpg" } }] },
+      cuentaCanalId: "cc1",
+    });
+    expect(normalizado.tipo).toBe("TEXTO");
+    expect(normalizado.mediaUrl).toBeUndefined();
+    expect(normalizado.contenido).toBe("Envió un contenido que Messenger no permite mostrar");
+  });
+
+  it("048 — regresión: imagen y video siguen trayendo la URL del payload", () => {
+    const imagen = provider.mapearEntrante({
+      sender: { id: "psid1" },
+      recipient: { id: "page1" },
+      timestamp: 123,
+      message: { mid: "mid-i", attachments: [{ type: "image", payload: { url: "https://x/img.jpg" } }] },
+      cuentaCanalId: "cc1",
+    });
+    expect(imagen).toMatchObject({ tipo: "IMAGEN", mediaUrl: "https://x/img.jpg", contenido: undefined });
+    const video = provider.mapearEntrante({
+      sender: { id: "psid1" },
+      recipient: { id: "page1" },
+      timestamp: 123,
+      message: { mid: "mid-v", attachments: [{ type: "video", payload: { url: "https://x/v.mp4" } }] },
+      cuentaCanalId: "cc1",
+    });
+    expect(video).toMatchObject({ tipo: "VIDEO", mediaUrl: "https://x/v.mp4", contenido: undefined });
+  });
+
   it("mensaje normal (sin is_echo): sigue usando sender.id, sin regresión", () => {
     const normalizado = provider.mapearEntrante({
       sender: { id: "psid1" },

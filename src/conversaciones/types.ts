@@ -184,7 +184,28 @@ export interface MensajeEntranteNormalizado {
    *  MensajeCorreo; el texto de `contenido` sigue siendo la fuente para IA,
    *  búsqueda y lista. */
   correo?: DatosCorreoEntrante;
+  /** 048 — Interno: qué tipo de adjunto de Meta trajo el mensaje, para que el
+   *  webhook decida cómo conservarlo. El webhook lo quita antes de publicar
+   *  (ver prepararPayloadEntrante), así que nunca viaja por RabbitMQ ni forma
+   *  parte del contrato del comando PROCESAR_ENTRANTE. */
+  familiaAdjunto?: FamiliaAdjunto;
+  /** 048 — Interno, igual que `familiaAdjunto`: título que Meta mandó con el
+   *  adjunto compartido, para rearmar el texto si la imagen no se pudo
+   *  guardar. Nunca se publica. */
+  tituloAdjunto?: string;
 }
+
+/** 048 — Familias de adjuntos de Meta (research.md R1 de
+ *  specs/048-fix-instagram-reels-media). Se clasifica por familia y no por el
+ *  string exacto porque Meta ya renombró tipos (`share` → `ig_post`). */
+export type FamiliaAdjunto =
+  | "DIRECTA"
+  | "REEL"
+  | "PUBLICACION"
+  | "MENCION_HISTORIA"
+  | "RESPUESTA_HISTORIA"
+  | "EFIMERO"
+  | "NO_ADMITIDO";
 
 // ── 035-inbox-agrupado-contacto ──────────────────────────────────────────────
 // Modelo derivado del Inbox: se arma en memoria a partir de las conversaciones

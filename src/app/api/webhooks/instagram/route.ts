@@ -8,6 +8,7 @@ import { verificarFirmaWebhookMeta } from "@/shared/lib/verificar-firma-webhook-
 import { descifrarToken } from "@/shared/lib/cifrado-tokens";
 import { resolverCuentaParaEventoPage, type CuentaCanalWebhook } from "@/conversaciones/providers/resolver-canal-webhook-page";
 import type { TipoMensaje } from "@/generated/prisma/enums";
+import { prepararPayloadEntrante, type ResultadoDescarga } from "./reubicacion";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,9 @@ interface IGMessagingEvent {
     mid: string;
     text?: string;
     is_echo?: boolean;
-    attachments?: Array<{ type: string; payload: { url?: string } }>;
+    is_unsupported?: boolean;
+    reply_to?: { story?: { url?: string; id?: string }; mid?: string };
+    attachments?: Array<{ type: string; payload?: { url?: string; title?: unknown } }>;
   };
   reaction?: {
     mid: string;
@@ -152,13 +155,14 @@ async function descargarYAlmacenarMediaIG(
   // specs/005-facebook-messenger-integracion). "facebook" ya existe en
   // CanalOrigen (src/lib/media/types.ts) para ese caso.
   canal: "instagram" | "facebook",
-): Promise<{ url: string; mimeType: string; mediaArchivoId: string } | null> {
+): Promise<ResultadoDescarga> {
+  const fallo: ResultadoDescarga = { ok: false, motivo: "FALLO" };
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) return fallo;
 
     const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.length === 0) return null;
+    if (buffer.length === 0) return fallo;
 
     const mimeType = res.headers.get("content-type")?.split(";")[0].trim() || "application/octet-stream";
 
@@ -171,8 +175,8 @@ async function descargarYAlmacenarMediaIG(
         canal,
         contactoId: null, // se completa en procesarMensajeEntrante cuando el contacto está resuelto
       });
-      if (resultado.rechazada || !resultado.urlOptimizada) return null;
-      return { url: resultado.urlOptimizada, mimeType: "image/webp", mediaArchivoId: resultado.mediaArchivoId };
+      if (resultado.rechazada || !resultado.urlOptimizada) return fallo;
+      return { ok: true, url: resultado.urlOptimizada, mimeType: "image/webp", mediaArchivoId: resultado.mediaArchivoId };
     }
 
     // Video, audio o documento: se guarda tal cual, sin reprocesar
@@ -185,12 +189,54 @@ async function descargarYAlmacenarMediaIG(
       modulo: "conversaciones",
       canalOrigen: canal,
     });
-    return { url: resultado.urlOptimizada, mimeType, mediaArchivoId: resultado.id };
+    return { ok: true, url: resultado.urlOptimizada, mimeType, mediaArchivoId: resultado.id };
   } catch (e) {
     console.error("[IG Webhook] Error descargando/almacenando adjunto:", e);
-    return null;
+    return fallo;
   }
 }
+
+// ── Imagen de una publicación o historia compartida (048) ────────────────────
+//
+// A diferencia de la media directa (que sigue en descargarYAlmacenarMediaIG,
+// sin cambios), acá solo interesa una imagen: si la URL resulta ser un video
+// (historia de video) o una página, se corta sin leer el cuerpo y el mensaje
+// queda solo con su texto (research.md R0/R6). Tope de tiempo porque es una
+// descarga nueva dentro del webhook y Meta no documenta cuánto espera.
+const TIMEOUT_IMAGEN_COMPARTIDA_MS = 15_000;
+
+async function descargarImagenCompartida(url: string, instanciaId: string): Promise<ResultadoDescarga> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_IMAGEN_COMPARTIDA_MS) });
+    if (!res.ok) return { ok: false, motivo: "FALLO" };
+
+    const mimeType = res.headers.get("content-type")?.split(";")[0].trim().toLowerCase() ?? "";
+    if (!mimeType.startsWith("image/")) {
+      await res.body?.cancel().catch(() => {});
+      return { ok: false, motivo: "NO_ES_IMAGEN" };
+    }
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length === 0) return { ok: false, motivo: "FALLO" };
+
+    const { subirImagenConversacion } = await import("@/lib/media/services/media-conversacion.service");
+    const resultado = await subirImagenConversacion({
+      buffer,
+      mimeTypeProveedor: mimeType,
+      instanciaId,
+      canal: "instagram",
+      contactoId: null,
+    });
+    if (resultado.rechazada || !resultado.urlOptimizada) return { ok: false, motivo: "FALLO" };
+    return { ok: true, url: resultado.urlOptimizada, mimeType: "image/webp", mediaArchivoId: resultado.mediaArchivoId };
+  } catch (e) {
+    // Sin la URL: es una URL firmada de Meta y no aporta al diagnóstico.
+    console.error("[IG Webhook] Error descargando imagen compartida:", e instanceof Error ? e.message : e);
+    return { ok: false, motivo: "FALLO" };
+  }
+}
+
+const FAMILIAS_CON_IMAGEN_COMPARTIDA = new Set(["PUBLICACION", "MENCION_HISTORIA", "RESPUESTA_HISTORIA"]);
 
 // ── GET: verificación de webhook por Meta ─────────────────────────────────────
 
@@ -374,24 +420,29 @@ export async function POST(req: NextRequest) {
       // Descargar el adjunto de la URL temporal de Meta y re-subirlo a nuestro
       // storage — la URL que queda guardada en el mensaje debe ser propia de la
       // app (S3), nunca la de Meta/Instagram/Messenger (expira y es de un tercero).
-      if (normalizado.mediaUrl && normalizado.tipo !== "TEXTO") {
-        const reubicado = await descargarYAlmacenarMediaIG(
-          normalizado.mediaUrl,
-          normalizado.tipo,
-          cuentaCanal.instanciaId,
-          canalResuelto === "facebook_messenger" ? "facebook" : "instagram",
-        );
-        if (reubicado) {
-          normalizado.mediaUrl = reubicado.url;
-          normalizado.mediaMimeType = reubicado.mimeType;
-          normalizado.mediaArchivoId = reubicado.mediaArchivoId;
-        } else {
+      // Aplica a TODO adjunto que traiga URL, sin filtrar por tipo: filtrar por
+      // tipo fue justamente lo que dejaba pasar la URL de Meta en los adjuntos
+      // no reconocidos (specs/048-fix-instagram-reels-media, diagnóstico).
+      let resultadoDescarga: ResultadoDescarga | null = null;
+      if (normalizado.mediaUrl) {
+        resultadoDescarga =
+          normalizado.familiaAdjunto && FAMILIAS_CON_IMAGEN_COMPARTIDA.has(normalizado.familiaAdjunto)
+            ? await descargarImagenCompartida(normalizado.mediaUrl, cuentaCanal.instanciaId)
+            : await descargarYAlmacenarMediaIG(
+                normalizado.mediaUrl,
+                normalizado.tipo,
+                cuentaCanal.instanciaId,
+                canalResuelto === "facebook_messenger" ? "facebook" : "instagram",
+              );
+        if (!resultadoDescarga.ok && resultadoDescarga.motivo === "FALLO") {
           // No dejamos la URL de Meta como fallback — mejor sin adjunto que
           // exponer una URL de terceros que además puede haber expirado.
           console.error(`[IG Webhook] No se pudo descargar/almacenar el adjunto → mid: ${mid ?? "sin-id"}`);
-          normalizado.mediaUrl = undefined;
         }
       }
+      // Único punto por el que sale lo que se publica: garantiza que no viaje
+      // ninguna URL de Meta ni los campos internos del provider (FR-001).
+      const payloadEntrante = prepararPayloadEntrante(normalizado, resultadoDescarga);
 
       // Prefetch de nombre/foto del remitente — ya verificado para Instagram
       // y Facebook Messenger (007-enriquecer-contacto-messenger). Si el
@@ -425,7 +476,7 @@ export async function POST(req: NextRequest) {
         // dispara IA ni crea oportunidades (ver
         // specs/020-fix-mensajes-app-nativa/research.md, R3).
         await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_MENSAJE_APP_NATIVA, cuentaCanal.instanciaId, {
-          ...normalizado,
+          ...payloadEntrante,
           ...perfil,
           instanciaId: cuentaCanal.instanciaId,
         });
@@ -434,7 +485,7 @@ export async function POST(req: NextRequest) {
       }
 
       await publicadorEventos.publicar(TIPOS_COMANDO.PROCESAR_ENTRANTE, cuentaCanal.instanciaId, {
-        ...normalizado,
+        ...payloadEntrante,
         ...perfil,
         instanciaId: cuentaCanal.instanciaId,
       });

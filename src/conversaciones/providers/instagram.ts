@@ -1,6 +1,7 @@
 import type { ICanalProvider, CapacidadCanal, MensajeSalientePayload, ReaccionCanalPayload } from "./types";
-import type { MensajeEntranteNormalizado, TipoMensaje } from "../types";
+import type { FamiliaAdjunto, MensajeEntranteNormalizado, TipoMensaje } from "../types";
 import { resolverApiBaseIG } from "./instagram-estrategia-auth";
+import { clasificarAdjuntoInstagram, textoDescriptivo } from "./instagram-adjuntos";
 import { EnvioMensajeError } from "../errores";
 import { descifrarToken } from "@/shared/lib/cifrado-tokens";
 
@@ -244,7 +245,9 @@ export class InstagramProvider implements ICanalProvider {
         mid: string;
         text?: string;
         is_echo?: boolean;
-        attachments?: Array<{ type: string; payload: { url?: string; sticker_id?: number } }>;
+        is_unsupported?: boolean;
+        reply_to?: { story?: { url?: string; id?: string }; mid?: string };
+        attachments?: Array<{ type: string; payload?: { url?: string; title?: unknown; sticker_id?: number } }>;
       };
       cuentaCanalId: string;
     };
@@ -253,19 +256,56 @@ export class InstagramProvider implements ICanalProvider {
     let contenido: string | undefined;
     let tipo: TipoMensaje = "TEXTO";
     let mediaUrl: string | undefined;
+    let familiaAdjunto: FamiliaAdjunto | undefined;
+    let tituloAdjunto: string | undefined;
 
-    if (message?.text) {
+    // Las URLs que se asignan acá son de Meta y solo sirven para que el
+    // webhook intente reubicarlas en nuestro storage; prepararPayloadEntrante
+    // las descarta si no lo logra. Reels, efímeros y no admitidos NUNCA
+    // asignan mediaUrl (048, research.md R0/R5).
+    if (message?.reply_to?.story) {
+      // Va antes que `text`: la respuesta a una historia trae el texto del
+      // contacto Y la historia; sin esta rama se perdía a qué respondía.
+      const story = message.reply_to.story;
+      familiaAdjunto = "RESPUESTA_HISTORIA";
+      contenido = textoDescriptivo("RESPUESTA_HISTORIA", { texto: message.text });
+      if (story.url) {
+        tipo = "IMAGEN"; // provisional: el webhook lo confirma por el mime real
+        mediaUrl = story.url;
+      }
+    } else if (message?.text) {
       contenido = message.text;
       tipo = "TEXTO";
-    } else if (message?.attachments?.[0]) {
-      const att = message.attachments[0];
-      mediaUrl = att.payload?.url;
-      switch (att.type) {
-        case "image":  tipo = "IMAGEN"; break;
-        case "video":  tipo = "VIDEO"; break;
-        case "audio":  tipo = "AUDIO"; break;
-        case "file":   tipo = "DOCUMENTO"; break;
-        default:       tipo = "TEXTO"; break;
+    } else if (message?.attachments?.[0] || message?.is_unsupported) {
+      const att = message.attachments?.[0];
+      familiaAdjunto = clasificarAdjuntoInstagram(att?.type, message.is_unsupported);
+      tituloAdjunto = typeof att?.payload?.title === "string" ? att.payload.title : undefined;
+
+      switch (familiaAdjunto) {
+        case "DIRECTA":
+          mediaUrl = att?.payload?.url;
+          switch (att?.type) {
+            case "image": tipo = "IMAGEN"; break;
+            case "video": tipo = "VIDEO"; break;
+            case "audio": tipo = "AUDIO"; break;
+            case "file":  tipo = "DOCUMENTO"; break;
+          }
+          break;
+        case "PUBLICACION":
+        case "MENCION_HISTORIA":
+          contenido = textoDescriptivo(familiaAdjunto, { titulo: tituloAdjunto });
+          if (att?.payload?.url) {
+            tipo = "IMAGEN"; // provisional: si resulta video, queda solo el texto
+            mediaUrl = att.payload.url;
+          }
+          break;
+        case "REEL":
+        case "EFIMERO":
+        case "NO_ADMITIDO":
+          // Reels: solo texto por decisión de alcance — Karia es para atender,
+          // no para reproducir contenido de la red social (research.md R0).
+          contenido = textoDescriptivo(familiaAdjunto, { titulo: tituloAdjunto, canal: "instagram" });
+          break;
       }
     }
 
@@ -285,6 +325,8 @@ export class InstagramProvider implements ICanalProvider {
       tipo,
       idExterno: message?.mid,
       mediaUrl,
+      familiaAdjunto,
+      tituloAdjunto,
     };
   }
 
