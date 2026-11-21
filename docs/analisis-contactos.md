@@ -71,9 +71,31 @@ RabbitMQ se sigue usando para los eventos de dominio que entran y para `Contacto
   - teléfonos, emails o URLs;
   - números de 7 o más dígitos;
   - direcciones (palabra de vía seguida de un número);
-  - citas copiadas de la conversación.
+  - citas copiadas de la conversación — **tramos de 40 caracteres o más** (052).
 
   Salud y pago no se detectan por patrón: los prohíbe el prompt y se revisan por muestreo.
+
+  **El umbral de cita sale de una medición y bajarlo exige repetirla.** Estuvo en 25 y rechazaba
+  uno de cada diecisiete análisis por frases como *"el precio de las esferas"*: 25 caracteres de
+  español corriente los alcanza cualquier resumen fiel. Sobre 1284 textos libres de 400
+  evaluaciones **ya aceptadas**, el solape máximo era 24 (p50 9 · p90 15 · p95 19 · p99 22) — y
+  que el máximo fuera 24 con el umbral en 25 **no probaba holgura, probaba truncamiento**: todo lo
+  que hubiera superado 24 fue rechazado y nunca llegó a medirse. Los rechazos reproducidos contra
+  la API tienen solape 26–29. Sin hueco entre ambos grupos, el corte partía por el medio la
+  distribución natural de la paráfrasis. Con 40 las 1284 siguen aceptándose y una cita real
+  —48 caracteres en el test de la batería— se sigue rechazando.
+
+  **El rechazo dice cuál control se disparó** (052): `PRIVACIDAD_EMAIL`, `PRIVACIDAD_URL`,
+  `PRIVACIDAD_SECUENCIA_NUMERICA`, `PRIVACIDAD_DIRECCION`, `PRIVACIDAD_CITA`, más
+  `REF_DUPLICADA` y `FORMATO_INVALIDO`, en `EjecucionAnalisisContactosItem.errorCodigo`. Antes los
+  tres motivos compartían `RESPUESTA_INVALIDA` y averiguar cuál había sido exigió reconstruir el
+  pipeline y volver a llamar a la IA contacto por contacto. Separar `PRIVACIDAD_CITA` del resto es
+  lo que permite saber **en una consulta** si una subida de rechazos es calibración del filtro o
+  información personal entrando de verdad.
+
+  Lo que se guarda es siempre un código de un conjunto cerrado: **nunca el texto generado ni el
+  tramo que coincidió**, que son palabras del cliente. Guardar el tramo sería lo más útil para
+  diagnosticar y es exactamente lo prohibido.
 - **Prompt en 3 capas**:
   1. Reglas fijas de Karia.
   2. `<criterio_negocio>`.

@@ -18,7 +18,34 @@ import type { ResultadoIAContacto } from "@/crm/contactos/analisis/types";
 
 const MAX_ITEMS = 5;
 const MAX_LARGO = 120;
-const LARGO_CITA = 25;
+/**
+ * 052 — Largo mínimo de un tramo literal para considerarlo una cita.
+ *
+ * **El número sale de medir producción, no de estimar. Bajarlo exige repetir la
+ * medición.** Estuvo en 25 y rechazaba uno de cada diecisiete análisis por
+ * frases como "el precio de las esferas": 25 caracteres de español corriente
+ * los alcanza cualquier resumen fiel de una conversación comercial.
+ *
+ * Solapamiento máximo medido sobre 1284 textos libres de 400 evaluaciones de IA
+ * YA ACEPTADAS, contra los mensajes de cada contacto:
+ *
+ *   p50  9  ·  p90 15  ·  p95 19  ·  p99 22  ·  p99.9 24  ·  máximo 24
+ *
+ * Que el máximo aceptado fuera 24 **con el umbral en 25 no prueba holgura:
+ * prueba truncamiento**. Todo texto que hubiera superado 24 fue rechazado y
+ * nunca llegó a guardarse, así que no puede aparecer en la medición. Del otro
+ * lado, los cinco rechazos reproducidos contra la API tienen solape 26, 26, 26,
+ * 28 y 29. No hay hueco entre ambos grupos: es una sola distribución de
+ * paráfrasis natural, partida al medio.
+ *
+ * 40 deja ~38 % de margen sobre el peor falso positivo medido y sigue atrapando
+ * una cita de verdad: la del test de esta misma batería tiene 48 caracteres de
+ * solape y se rechaza. El tope del campo es 120, así que 40 es un tercio del
+ * texto máximo — no es un control simbólico.
+ *
+ * Detalle: specs/052-fix-filtro-citas-analisis/research.md Decisión 1.
+ */
+const LARGO_CITA = 40;
 
 const texto = z.string().trim().min(1).max(MAX_LARGO);
 const lista = z.array(texto).max(MAX_ITEMS);
@@ -68,6 +95,8 @@ export function normalizar(t: string): string {
     .trim();
 }
 
+export type MotivoPrivacidad = "EMAIL" | "URL" | "SECUENCIA_NUMERICA" | "DIRECCION" | "CITA";
+
 const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/;
 const URL = /(https?:\/\/|www\.)\S+/i;
 const SECUENCIA_NUMERICA = /\+?\d[\d\s().-]{5,}\d/g;
@@ -91,20 +120,55 @@ function copiaDeFuente(t: string, fuentes: string[]): boolean {
   return false;
 }
 
-/** true si el texto no puede guardarse (FR-017a). `fuentesNormalizadas` ya pasadas por `normalizar`. */
-export function contieneDatosPrivados(textoSalida: string, fuentesNormalizadas: string[]): boolean {
-  if (EMAIL.test(textoSalida) || URL.test(textoSalida) || tieneSecuenciaLarga(textoSalida)) return true;
+/**
+ * 052 — Devuelve el MOTIVO por el que el texto no puede guardarse, o `null` si
+ * es aceptable (FR-017a).
+ *
+ * Antes devolvía un booleano, y los cinco controles eran indistinguibles entre
+ * sí. Aguas abajo los tres motivos de rechazo compartían además el mismo
+ * `RESPUESTA_INVALIDA`, así que averiguar por qué se caía una evaluación exigió
+ * reconstruir el pipeline entero y volver a llamar a la IA contacto por
+ * contacto. La distinción que hacía falta era `CITA` —que es calibración—
+ * contra los otros cuatro, que son datos reales.
+ *
+ * **El orden es parte del contrato.** Un texto que dispara dos controles
+ * reporta el primero; reordenar no cambia qué se rechaza, pero sí qué queda
+ * registrado, que es lo único que evita repetir aquella investigación.
+ *
+ * `fuentesNormalizadas` ya pasadas por `normalizar`.
+ */
+export function contieneDatosPrivados(
+  textoSalida: string,
+  fuentesNormalizadas: string[],
+): MotivoPrivacidad | null {
+  if (EMAIL.test(textoSalida)) return "EMAIL";
+  if (URL.test(textoSalida)) return "URL";
+  if (tieneSecuenciaLarga(textoSalida)) return "SECUENCIA_NUMERICA";
   const n = normalizar(textoSalida);
-  if (DIRECCION.test(n)) return true;
-  return copiaDeFuente(n, fuentesNormalizadas);
+  if (DIRECCION.test(n)) return "DIRECCION";
+  return copiaDeFuente(n, fuentesNormalizadas) ? "CITA" : null;
 }
 
 // ── Validación del lote ───────────────────────────────────────────────────────
 
+/**
+ * 052 — Por qué se rechazó la evaluación de un contacto.
+ *
+ * Los tres grandes motivos compartían `RESPUESTA_INVALIDA` aguas abajo, y los
+ * cinco controles de privacidad eran indistinguibles entre sí. Separarlos es lo
+ * que permite saber, leyendo la auditoría, si una subida de rechazos es
+ * calibración del filtro de citas o información personal entrando de verdad.
+ */
+export type MotivoRechazo =
+  | "REF_DUPLICADA"
+  | "FORMATO_INVALIDO"
+  | `PRIVACIDAD_${MotivoPrivacidad}`;
+
 export interface ResultadoValidacion {
   /** Por contactoId. */
   validos: Map<string, ResultadoIAContacto>;
-  invalidos: string[];
+  /** contactoId → motivo del rechazo. */
+  invalidos: Map<string, MotivoRechazo>;
   omitidos: string[];
   loteInvalido: boolean;
 }
@@ -126,10 +190,10 @@ export function validarSalidaLote(
   let raiz: z.infer<typeof RaizSchema>;
   try {
     const parseado = RaizSchema.safeParse(JSON.parse(limpiarJson(textoRespuesta)));
-    if (!parseado.success) return { validos: new Map(), invalidos: [], omitidos: todos, loteInvalido: true };
+    if (!parseado.success) return { validos: new Map(), invalidos: new Map(), omitidos: todos, loteInvalido: true };
     raiz = parseado.data;
   } catch {
-    return { validos: new Map(), invalidos: [], omitidos: todos, loteInvalido: true };
+    return { validos: new Map(), invalidos: new Map(), omitidos: todos, loteInvalido: true };
   }
 
   const vistas = new Map<string, number>();
@@ -139,19 +203,19 @@ export function validarSalidaLote(
   }
 
   const validos = new Map<string, ResultadoIAContacto>();
-  const invalidos = new Set<string>();
+  const invalidos = new Map<string, MotivoRechazo>();
 
   for (const e of raiz.evaluaciones) {
     const ref = (e as { ref?: unknown })?.ref;
     if (typeof ref !== "string" || !refs.has(ref)) continue; // ajena o inventada: se descarta
     const contactoId = refs.get(ref)!;
     if ((vistas.get(ref) ?? 0) > 1) {
-      invalidos.add(contactoId);
+      invalidos.set(contactoId, "REF_DUPLICADA");
       continue;
     }
     const r = EvaluacionIASchema.safeParse(e);
     if (!r.success) {
-      invalidos.add(contactoId);
+      invalidos.set(contactoId, "FORMATO_INVALIDO");
       continue;
     }
     const d = r.data;
@@ -162,8 +226,14 @@ export function validarSalidaLote(
       ...d.motivos,
       ...(d.motivoNoContactar ? [d.motivoNoContactar] : []),
     ];
-    if (textosLibres.some((t) => contieneDatosPrivados(t, fuentesRef))) {
-      invalidos.add(contactoId);
+    // El primer texto que dispare manda, en el orden en que se armó la lista.
+    let motivoPrivacidad: MotivoPrivacidad | null = null;
+    for (const t of textosLibres) {
+      motivoPrivacidad = contieneDatosPrivados(t, fuentesRef);
+      if (motivoPrivacidad) break;
+    }
+    if (motivoPrivacidad) {
+      invalidos.set(contactoId, `PRIVACIDAD_${motivoPrivacidad}`);
       continue;
     }
     validos.set(contactoId, {
@@ -186,5 +256,5 @@ export function validarSalidaLote(
   }
 
   const omitidos = todos.filter((id) => !validos.has(id) && !invalidos.has(id));
-  return { validos, invalidos: [...invalidos], omitidos, loteInvalido: false };
+  return { validos, invalidos, omitidos, loteInvalido: false };
 }

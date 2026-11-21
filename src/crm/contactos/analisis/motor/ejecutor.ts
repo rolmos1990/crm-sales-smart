@@ -400,12 +400,19 @@ async function procesarGrupoIA(p: {
   const sinResultado = entradas.filter((e) => !respuesta.resultados.has(e.reclamado.contactoId));
 
   const escritura = await escribirGrupo(ctx, ejecucionId, validas, dep, p.ahora);
-  const invalidosSet = new Set(respuesta.invalidos);
-  const itemsSinResultado: ItemEjecucion[] = sinResultado.map((e) => ({
-    contactoId: e.reclamado.contactoId,
-    estado: invalidosSet.has(e.reclamado.contactoId) ? "INVALIDO" : "OMITIDO",
-    errorCodigo: "RESPUESTA_INVALIDA",
-  }));
+  // 052 — El motivo concreto, no un código único para los tres. Un contacto
+  // OMITIDO es otra cosa: la IA simplemente no lo mencionó, y ahí no hay motivo
+  // que nombrar. Lo que se guarda es siempre un código de un conjunto cerrado:
+  // nunca el texto generado ni el tramo que coincidió, que son palabras del
+  // cliente (FR-007).
+  const itemsSinResultado: ItemEjecucion[] = sinResultado.map((e) => {
+    const motivo = respuesta.invalidos.get(e.reclamado.contactoId);
+    return {
+      contactoId: e.reclamado.contactoId,
+      estado: motivo ? "INVALIDO" : "OMITIDO",
+      errorCodigo: motivo ?? "RESPUESTA_INVALIDA",
+    };
+  });
   const aDevolver = [...sinResultado.map((e) => e.reclamado.contactoId), ...escritura.fallidosIds];
   await devolverConBackoff({ instanciaId: ctx.instanciaId, contactoIds: aDevolver, ejecucionId });
   await registrarItems(prisma, ctx.instanciaId, ejecucionId, [...escritura.items, ...itemsSinResultado]).catch((err) =>
