@@ -3617,6 +3617,7 @@ enum ClasificacionConversacion {
 enum ProveedorVozEnum {
   ELEVENLABS
   OPENAI
+  GROQ
   LOCAL
 }
 
