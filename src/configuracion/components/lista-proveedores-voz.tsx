@@ -10,7 +10,8 @@ import {
   eliminarProveedorVoz,
   probarCredencialesVoz,
 } from "@/configuracion/voz/actions";
-import type { ProveedorVozListado } from "@/configuracion/voz/queries";
+import type { ConsumoVoz } from "@/configuracion/voz/queries";
+import type { ProveedorVozConConsumo } from "@/configuracion/voz/fusion";
 import { FormProveedorVoz, type ProveedorVozExistente } from "./form-proveedor-voz";
 
 const ETIQUETA_PROVEEDOR: Record<string, string> = {
@@ -20,7 +21,14 @@ const ETIQUETA_PROVEEDOR: Record<string, string> = {
   LOCAL: "Local",
 };
 
-export function ListaProveedoresVoz({ proveedores }: { proveedores: ProveedorVozListado[] }) {
+export function ListaProveedoresVoz({
+  proveedores,
+  eliminados,
+}: {
+  proveedores: ProveedorVozConConsumo[];
+  /** Consumo cuyo proveedor ya no existe. `null` ⇒ no se renderiza nada. */
+  eliminados: ConsumoVoz | null;
+}) {
   const [formAbierto, setFormAbierto] = useState(false);
   const [editando, setEditando] = useState<ProveedorVozExistente | null>(null);
   const [probandoId, setProbandoId] = useState<string | null>(null);
@@ -35,7 +43,7 @@ export function ListaProveedoresVoz({ proveedores }: { proveedores: ProveedorVoz
     setFormAbierto(true);
   }
 
-  function abrirEdicion(p: ProveedorVozListado) {
+  function abrirEdicion(p: ProveedorVozConConsumo) {
     setEditando({
       id: p.id,
       alias: p.alias,
@@ -51,7 +59,7 @@ export function ListaProveedoresVoz({ proveedores }: { proveedores: ProveedorVoz
     setFormAbierto(true);
   }
 
-  function alternar(p: ProveedorVozListado) {
+  function alternar(p: ProveedorVozConConsumo) {
     iniciar(async () => {
       const r = await toggleProveedorVoz(p.id, !p.activo);
       if (!r.exito) {
@@ -63,7 +71,7 @@ export function ListaProveedoresVoz({ proveedores }: { proveedores: ProveedorVoz
     });
   }
 
-  function eliminar(p: ProveedorVozListado) {
+  function eliminar(p: ProveedorVozConConsumo) {
     iniciar(async () => {
       const r = await eliminarProveedorVoz(p.id);
       if (!r.exito) {
@@ -75,7 +83,7 @@ export function ListaProveedoresVoz({ proveedores }: { proveedores: ProveedorVoz
     });
   }
 
-  async function probar(p: ProveedorVozListado) {
+  async function probar(p: ProveedorVozConConsumo) {
     setProbandoId(p.id);
     try {
       const r = await probarCredencialesVoz(p.id);
@@ -130,6 +138,9 @@ export function ListaProveedoresVoz({ proveedores }: { proveedores: ProveedorVoz
                   {p.costoPorHora ? ` · ${Number(p.costoPorHora)}/hora` : " · sin tarifa cargada"}
                   {p.limiteMinutosDia ? ` · tope ${p.limiteMinutosDia} min/día` : ""}
                 </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {textoConsumo(p.consumoMes)}
+                </p>
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
@@ -177,6 +188,19 @@ export function ListaProveedoresVoz({ proveedores }: { proveedores: ProveedorVoz
               </div>
             </div>
           ))}
+
+          {eliminados && (
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <span className="truncate text-sm font-medium text-muted-foreground">
+                  Proveedor eliminado
+                </span>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {textoConsumo(eliminados)}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -188,4 +212,27 @@ export function ListaProveedoresVoz({ proveedores }: { proveedores: ProveedorVoz
       />
     </div>
   );
+}
+
+/**
+ * El monto va sin símbolo de moneda, igual que la tarjeta de total y la tarifa
+ * por hora de la fila de arriba.
+ *
+ * "Sin consumo" y "costo no estimado" son estados distintos a propósito: un
+ * `0.00` en un proveedor sin tarifa se lee como "este servicio sale gratis".
+ *
+ * Dice "costo no estimado" y no "sin tarifa cargada" porque la línea de arriba
+ * ya lo avisa con esas palabras; repetirlas deja la fila diciendo lo mismo dos
+ * veces seguidas.
+ */
+function textoConsumo(c: ConsumoVoz): string {
+  if (c.transcripciones === 0) return "Sin consumo este mes";
+
+  const minutos = `${c.minutos} min este mes`;
+  if (c.costo === null) return `${minutos} · costo no estimado`;
+
+  const monto = c.costo.toFixed(2);
+  return c.costoCobertura === "PARCIAL"
+    ? `${minutos} · ${monto} (parte del mes sin tarifa)`
+    : `${minutos} · ${monto}`;
 }

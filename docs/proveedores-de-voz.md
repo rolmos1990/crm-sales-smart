@@ -170,6 +170,47 @@ que por defecto simula y exige `--aplicar` para escribir. Referencia medida: 733
 
 ---
 
+## Consumo por proveedor (050)
+
+La pestaña de Voz muestra el total de la cuenta en dos tarjetas **y** el consumo del mes en cada
+fila de proveedor. Todo eso sale de `src/configuracion/voz/`, y cuatro cosas de ahí no son
+obvias:
+
+**El dato ya estaba; 050 no agregó esquema.** `UsoVoz.proveedorVozId` existe desde 049 y
+`transcribir.ts` lo escribe en los dos llamados —el del fallo y el del éxito—. El desglose es un
+cambio de lectura: ni migración, ni backfill, ni índice nuevo. `@@index([instanciaId, creadoEn])`
+cubre el `where` y el agrupado corre sobre ese subconjunto ya filtrado (verificado con
+`EXPLAIN ANALYZE`: `Index Scan using "UsoVoz_instanciaId_creadoEn_idx"`).
+
+**El total del mes se DERIVA del `groupBy`, no de una consulta aparte.** `SUM(x)` sobre todas las
+filas es la suma de los `SUM(x)` por grupo, así que "las filas suman la tarjeta" es aritmética y
+no convención. Volver a partirlo en dos consultas deja esa igualdad a merced de que nadie toque
+un `where`, y el síntoma sería una pantalla de costos que no cuadra —que se lee como rota aunque
+el total sea correcto—.
+
+**El redondeo se reparte, no se aplica por fila** (`reparto.ts`). Tres proveedores con 12,34 min
+redondeados por separado dan 36,9 contra un total de 37,0; con 2–4 proveedores eso pasa buena
+parte de las veces. El reparto recibe el total **ya calculado por la tarjeta** como objetivo: con
+minutos salidos de segundos enteros los límites de redondeo se tocan cada 3 segundos, y derivar
+el objetivo de la suma de los valores deja esos casos a merced del punto flotante.
+
+**`_sum` ignora los NULL, y eso miente.** Un proveedor al que le cargaron la tarifa a mitad de mes
+devuelve un monto que parece completo y cubre solo unos días. Se detecta comparando
+`_count.costoEstimado` con `_count._all` en el mismo `groupBy` — de ahí
+`costoCobertura: COMPLETO | PARCIAL | NO_ESTIMABLE`. Sin tarifa el costo es `null`, **nunca `0`**:
+un cero se lee como "este servicio sale gratis".
+
+**Proveedor eliminado**: `onDelete: SetNull` deja el histórico con `proveedorVozId` en NULL a
+propósito —borrar un proveedor no puede borrar el gasto ya facturado—, y ese grupo se muestra
+agrupado al final de la lista. Es el **único** origen válido de ese NULL: si algún día se agrega
+un camino de escritura que deje el id vacío, esa fila empieza a mentir y no hay error que lo
+delate. No se guarda un snapshot del alias porque no arreglaría las filas que ya lo perdieron,
+que son justamente las del comercio que ya eliminó un proveedor.
+
+Detalle: `specs/050-consumo-voz-por-proveedor/`.
+
+---
+
 ## Canales
 
 | Canal | Notas de voz | Estado |

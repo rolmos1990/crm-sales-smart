@@ -1,5 +1,6 @@
 import { AudioLines, Clock, Wallet } from "lucide-react";
 import { obtenerProveedoresVoz, obtenerResumenUsoVoz } from "@/configuracion/voz/queries";
+import { fusionarConsumoProveedores } from "@/configuracion/voz/fusion";
 import { obtenerConfiguracionEmpresa } from "@/configuracion/empresa/queries";
 import { ListaProveedoresVoz } from "./lista-proveedores-voz";
 import { InterruptorTranscripcion } from "./interruptor-transcripcion";
@@ -15,7 +16,11 @@ export async function TabVoz({ instanciaId }: TabVozProps) {
     obtenerConfiguracionEmpresa(instanciaId),
   ]);
 
-  const hayProveedorUtilizable = proveedores.some((p) => p.activo && p.tieneCredencial);
+  // El desglose por proveedor sale del mismo groupBy que el total del mes, así
+  // que la suma de las filas ES el valor de la tarjeta (FR-004).
+  const { conConsumo, eliminados } = fusionarConsumoProveedores(proveedores, uso.mesPorProveedor);
+
+  const hayProveedorUtilizable = conConsumo.some((p) => p.activo && p.tieneCredencial);
 
   return (
     <div className="space-y-6">
@@ -56,7 +61,7 @@ export async function TabVoz({ instanciaId }: TabVozProps) {
         hayProveedorUtilizable={hayProveedorUtilizable}
       />
 
-      <ListaProveedoresVoz proveedores={proveedores} />
+      <ListaProveedoresVoz proveedores={conConsumo} eliminados={eliminados} />
     </div>
   );
 }
