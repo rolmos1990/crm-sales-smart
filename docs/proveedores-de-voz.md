@@ -211,6 +211,51 @@ Detalle: `specs/050-consumo-voz-por-proveedor/`.
 
 ---
 
+## El nombre del archivo importa (051)
+
+**Hay dos clases de proveedor, y la diferencia estuvo invisible hasta que costó un audio.**
+
+| Proveedor | Cómo decide si acepta el audio |
+|---|---|
+| Groq, OpenAI | por la **extensión del nombre** que viaja en el multipart, antes de mirar un byte |
+| ElevenLabs | por el **contenido** |
+
+**Ningún canal entrega un nombre con extensión.** Los 744 audios en producción tienen
+`nombreOriginal` del estilo `audio-1795275488865`: los 738 de Instagram
+(`webhooks/instagram/route.ts:187` lo arma como `audio-<timestamp>`) y también los 6 de
+WhatsApp. Mientras el proveedor fue ElevenLabs no se notó. En cuanto una cuenta activó Groq, su
+primera nota de voz murió con `FORMATO_NO_SOPORTADO` en 97 ms —siendo un MP4 válido— y quedó en
+`ERROR` al primer intento, porque ese 400 se clasifica (bien) como permanente.
+
+Por eso **el nombre se compone en `transcribir.ts`, no en cada adaptador**
+(`src/voz/nombre-archivo.ts`). Defenderse de esto dentro de cada proveedor obliga a recordarlo
+cada vez que se agregue uno, y el que se olvide falla igual: en silencio, con un error que culpa
+al audio. Hay un test —`transcribir.nombre.test.ts`— que observa lo que de verdad llega a
+`IProveedorVoz.transcribir()` con un proveedor falso, así que un adaptador nuevo queda cubierto
+sin que nadie se acuerde. No se borra.
+
+**La extensión sale de la clave de storage, nunca del mime.** La clave ya la lleva —`extDesde(mime)`
+se la puso al guardar, `media-raw.service.ts:134`—, así que no hay una segunda lista de mimes que
+se desincronice de la primera; de paso resuelve `audio/ogg; codecs=opus`, que ya está mapeado
+allá. Si el sistema no pudo clasificar el mime al guardar, la clave termina en `.bin`, el
+proveedor rechaza, y **ese error es correcto**: el formato de verdad no se reconoce. Nunca se
+inventa una extensión.
+
+La regla no usa heurística de "¿parece que ya tiene extensión?", porque esa heurística no existe:
+`archivo.de.audio` termina en `.audio`, cinco alfanuméricos, indistinguible de una extensión real.
+La única pregunta es si el nombre ya termina en **la extensión que la clave declara**.
+
+**`FORMATO_NO_SOPORTADO` sigue siendo permanente y no se relaja.** Lo que estaba mal no era la
+clasificación sino que se disparara con un formato válido. Volverlo reintentable haría que cada
+audio genuinamente inválido cueste cinco llamadas pagas.
+
+Recuperación de lo que ya murió: `scripts/051-recuperar-formato-no-soportado.ts`, que simula por
+defecto y distingue la causa por el código guardado en `UsoVoz` — no barre todos los `ERROR`.
+
+Detalle: `specs/051-fix-nombre-archivo-voz/`.
+
+---
+
 ## Canales
 
 | Canal | Notas de voz | Estado |
