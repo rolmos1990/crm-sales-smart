@@ -5,6 +5,7 @@ import { getStorageProvider } from "@/lib/media/providers/factory";
 import { configEntornoVoz } from "./config-entorno";
 import { seleccionarProveedorVoz } from "./orquestador";
 import { registrarUsoVoz } from "./auditoria";
+import { nombreConExtension } from "./nombre-archivo";
 import { marcarErrorDefinitivo, marcarNoAplica, devolverConBackoff } from "./cola";
 import { verificarLimiteDiario, registrarConsumoLocal } from "./limites";
 import { EventosSistema } from "@/eventos/catalogo";
@@ -120,7 +121,9 @@ export async function transcribirMediaArchivo(mediaArchivoId: string): Promise<R
     salida = await seleccion.proveedor.transcribir({
       buffer: archivo.buffer,
       mimeType: media.mimeOriginal,
-      nombreArchivo: media.nombreOriginal,
+      // 051 — Groq y OpenAI validan por la EXTENSIÓN del nombre, y ningún
+      // canal la entrega. Ver src/voz/nombre-archivo.ts.
+      nombreArchivo: nombreConExtension(media.nombreOriginal, key),
       timeoutMs: Math.min(seleccion.timeoutMs, config.timeoutMs),
     });
   } catch (e) {

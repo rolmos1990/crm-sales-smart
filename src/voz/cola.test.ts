@@ -97,6 +97,42 @@ describe("marcarPendiente", () => {
     // INAUDIBLE y LISTO no están: volver a marcarlos sería pagar de nuevo.
     expect(sql).not.toContain("INAUDIBLE");
   });
+
+  // 051 — El contador de intentos.
+  it("NO reinicia los intentos por defecto", async () => {
+    // Si este default quedara invertido, el tope de MAX_INTENTOS deja de
+    // existir para todos los llamadores y nadie lo nota hasta que un proveedor
+    // caído genera llamadas sin fin. No se borra.
+    await marcarPendiente({ instanciaId: "i1", mediaArchivoId: "ma1" });
+
+    expect(ultimosValores(executeRaw as unknown as MockLaxo)).toContain(false);
+    expect(ultimosValores(executeRaw as unknown as MockLaxo)).not.toContain(true);
+  });
+
+  it("reinicia los intentos solo si se lo piden explícitamente", async () => {
+    // Lo usa la recuperación de 051: los intentos previos fallaron por una
+    // causa que ya no existe, y contarlos en contra dejaría al audio a un
+    // tropiezo real de volver a ERROR.
+    await marcarPendiente({ instanciaId: "i1", mediaArchivoId: "ma1", reiniciarIntentos: true });
+
+    expect(ultimosValores(executeRaw as unknown as MockLaxo)).toContain(true);
+  });
+
+  it("el reinicio no afloja ninguna guardia", async () => {
+    // Una sola sentencia para los dos casos; si alguien la partiera en dos
+    // UPDATE, este test seguiría pasando para uno y fallando para el otro.
+    for (const reiniciarIntentos of [false, true]) {
+      await marcarPendiente({ instanciaId: "i1", mediaArchivoId: "ma1", reiniciarIntentos });
+
+      const sql = ultimoSql(executeRaw as unknown as MockLaxo);
+      expect(sql).toContain("AUDIO");
+      expect(sql).toContain("NOTA_VOZ");
+      expect(sql).toContain("instanciaId");
+      expect(sql).toContain("NO_APLICA");
+      expect(sql).not.toContain("INAUDIBLE");
+      expect(ultimosValores(executeRaw as unknown as MockLaxo)).toContain("i1");
+    }
+  });
 });
 
 describe("marcarPendienteSinFallar", () => {

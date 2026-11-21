@@ -42,15 +42,31 @@ export interface AudioReclamado {
  *
  * No toca filas que ya estén LISTO, INAUDIBLE o PROCESANDO: INAUDIBLE es
  * terminal y volver a marcarlo sería pagar otra vez por el mismo silencio.
+ *
+ * 051 — `reiniciarIntentos` pone el contador en cero. Por defecto **no**, y ese
+ * default importa: un reintento normal tiene que seguir acumulando, porque es
+ * lo que hace que el backoff y el tope de MAX_INTENTOS funcionen. Solo lo pide
+ * una recuperación manual, donde los intentos previos fallaron por una causa ya
+ * corregida y contarlos en contra dejaría al audio a un tropiezo de volver a
+ * ERROR. Vive acá y no en el script para que las guardias —tenant, tipo de
+ * mensaje, estados que no se tocan— sigan teniendo UNA sola definición en SQL.
  */
 export async function marcarPendiente(p: {
   instanciaId: string;
   mediaArchivoId: string;
+  reiniciarIntentos?: boolean;
 }): Promise<void> {
   await prisma.$executeRaw`
     UPDATE "MediaArchivo" ma SET
       "transcripcionEstado" = 'PENDIENTE'::"EstadoTranscripcion",
-      "transcripcionBloqueadoHasta" = NULL
+      "transcripcionBloqueadoHasta" = NULL,
+      -- Una sola sentencia con el reinicio como parámetro, en vez de dos
+      -- UPDATE casi iguales: las guardias de abajo tienen que tener UNA
+      -- definición, que es la razón de que vivan en SQL y no en TypeScript.
+      "transcripcionIntentos" = CASE
+        WHEN ${p.reiniciarIntentos ?? false} THEN 0
+        ELSE ma."transcripcionIntentos"
+      END
     WHERE ma.id = ${p.mediaArchivoId}
       AND ma."instanciaId" = ${p.instanciaId}
       AND ma."transcripcionEstado" IN ('NO_APLICA', 'ERROR')
