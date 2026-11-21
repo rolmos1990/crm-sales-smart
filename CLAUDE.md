@@ -382,6 +382,32 @@ Regla rápida: si el pedido describe un síntoma sobre algo que ya se prometía/
     Leer **`docs/analisis-contactos.md`** antes de tocar `src/crm/contactos/analisis/`
     o `src/ai/analisis-contactos/`.
 
+14. **Transcripción de notas de voz** (049): **el mime NO decide qué se
+    transcribe.** En Instagram una nota de voz y un video llegan los dos como
+    `video/mp4` (727 contra 203 en datos reales), y ElevenLabs transcribe video
+    sin devolver error: un filtro por mime los factura en silencio. El único
+    discriminador válido es `MensajeConversacion.tipo IN ('AUDIO','NOTA_VOZ')`,
+    y hay **tres cortes** —al marcar, al transcribir y en el backfill— más un
+    test dedicado (`src/voz/transcribir.alcance.test.ts`) que no se borra.
+
+    El texto vive en `MediaArchivo`, no en el mensaje: esa tabla ya deduplica
+    por hash, así que un audio reenviado se transcribe y se cobra una vez. Esa
+    misma fila **es la cola** (índice parcial + `SKIP LOCKED` + lease).
+    Moverlo a `MensajeConversacion.contenido` además haría desaparecer el
+    reproductor en la burbuja.
+
+    **`INAUDIBLE` es terminal y no se reintenta**: reintentar silencio cuesta
+    cinco llamadas pagas para obtener cinco veces el mismo silencio.
+
+    Los entrantes se transcriben **en línea, antes de publicar
+    `MensajeRecibido`**, con timeout duro — es el único punto donde la IA y los
+    Workflows ven el texto. Vencido el timeout se publica igual: nunca se
+    retiene una respuesta esperando a un tercero.
+
+    `src/ai/contexto/texto-mensaje.ts` es la única definición de qué texto lee
+    la IA de un mensaje. Leer **`docs/proveedores-de-voz.md`** antes de tocar
+    `src/voz/`.
+
 ---
 
 ## Comandos útiles
