@@ -194,13 +194,38 @@ describe("degradación ante fallos", () => {
     expect(r).toEqual({ estado: "OMITIDO", motivo: "SIN_PROVEEDOR" });
   });
 
-  it("archivo ausente en el storage ⇒ ERROR definitivo, sin llamar al proveedor", async () => {
+  it("archivo ilegible en el storage ⇒ REINTENTABLE, sin llamar al proveedor", async () => {
+    // No es culpa del archivo: casi siempre es infraestructura nuestra
+    // (STORAGE_PROVIDER mal configurado, credenciales rotadas, un bache del
+    // bucket). Marcarlo definitivo dejaría el audio muerto justo cuando basta
+    // con arreglar el entorno, y haría falta una persona para resucitarlo.
     download.mockResolvedValue(null);
 
     const r = await transcribirMediaArchivo("ma1");
 
     expect(transcribirProveedor).not.toHaveBeenCalled();
-    expect(r).toMatchObject({ estado: "ERROR", codigo: "ARCHIVO_NO_DISPONIBLE" });
+    expect(r).toMatchObject({ estado: "ERROR", codigo: "ARCHIVO_NO_DISPONIBLE", reintentable: true });
+    // Vuelve a la cola con backoff en vez de quedar en ERROR definitivo.
+    const sql = (executeRaw.mock.calls as unknown[][]).flat().map(String).join(" ");
+    expect(sql).toContain("make_interval");
+  });
+
+  it("si el storage lanza, tampoco se pierde: mismo camino reintentable", async () => {
+    download.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const r = await transcribirMediaArchivo("ma1");
+
+    expect(r).toMatchObject({ codigo: "ARCHIVO_NO_DISPONIBLE", reintentable: true });
+  });
+
+  it("un archivo por encima del tope SÍ es definitivo: eso no se arregla solo", async () => {
+    mediaFindUnique.mockResolvedValue({ ...MEDIA, pesoOriginal: 40 * 1024 * 1024 });
+
+    const r = await transcribirMediaArchivo("ma1");
+
+    expect(r).toMatchObject({ codigo: "ARCHIVO_DEMASIADO_GRANDE", reintentable: false });
+    const sql = (executeRaw.mock.calls as unknown[][]).flat().map(String).join(" ");
+    expect(sql).not.toContain("make_interval");
   });
 });
 

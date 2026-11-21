@@ -135,6 +135,23 @@ describe("adaptador ElevenLabs — errores traducidos", () => {
     expect(formato.reintentable).toBe(false);
   });
 
+  it("403 por restricción de IP NO se confunde con credencial inválida", async () => {
+    // Caso real: la key es válida pero tiene lista blanca de IPs. Decir
+    // "credencial rechazada" manda a rotar una key perfecta.
+    fetchMock.mockResolvedValue(
+      respuesta(
+        { detail: { code: "forbidden", status: "ip_not_allowed", message: "The IP address used to make this request is not allowed for this API key." } },
+        { status: 403 },
+      ),
+    );
+
+    const e = await crearElevenLabsProvider("k").transcribir(params).catch((x) => x);
+
+    expect(e.codigo).toBe("IP_NO_PERMITIDA");
+    expect(e.message).toMatch(/restricción por IP/i);
+    expect(e.reintentable).toBe(false);
+  });
+
   it("sin credencial no llega a hacer la petición", async () => {
     const e = await crearElevenLabsProvider("").transcribir(params).catch((x) => x);
 

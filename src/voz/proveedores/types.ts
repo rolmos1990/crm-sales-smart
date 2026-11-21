@@ -70,6 +70,7 @@ export class ErrorProveedorVoz extends Error {
 export type CodigoErrorVoz =
   | "SIN_CREDENCIAL"
   | "CREDENCIAL_INVALIDA"
+  | "IP_NO_PERMITIDA"
   | "FORMATO_NO_SOPORTADO"
   | "ARCHIVO_DEMASIADO_GRANDE"
   | "LIMITE_PROVEEDOR"

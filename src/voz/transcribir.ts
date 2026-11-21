@@ -88,10 +88,30 @@ export async function transcribirMediaArchivo(mediaArchivoId: string): Promise<R
   }
 
   const key = media.keyOriginal ?? media.keyOptimizado;
-  const archivo = await getStorageProvider().download(key).catch(() => null);
+  const archivo = await getStorageProvider()
+    .download(key)
+    .catch((e) => {
+      // El motivo se registra: sin esto, "no se pudo leer el archivo" es
+      // indistinguible de "el archivo no existe", y la única pista que queda
+      // es un ERROR en la fila sin fila de UsoVoz que lo explique.
+      console.error(`[voz] No se pudo leer ${key} del storage:`, e);
+      return null;
+    });
+
   if (!archivo) {
-    await marcarErrorDefinitivo(media.id);
-    return { estado: "ERROR", codigo: "ARCHIVO_NO_DISPONIBLE", reintentable: false };
+    // REINTENTABLE a propósito. Que el archivo no se pueda leer casi nunca es
+    // culpa del archivo: es infraestructura nuestra —proveedor de storage mal
+    // configurado, credenciales rotadas, un bache del bucket—. Marcarlo
+    // definitivo dejaría el audio muerto para siempre justo cuando basta con
+    // arreglar el entorno para que funcione, y haría falta una persona para
+    // resucitarlo. Con backoff se cura solo; si de verdad el archivo no está,
+    // termina en ERROR tras MAX_INTENTOS igual.
+    console.error(
+      `[voz] Archivo ${key} no disponible (storage: ${getStorageProvider().constructor?.name}). ` +
+        `Se reintenta con backoff.`,
+    );
+    await devolverConBackoff([media.id]);
+    return { estado: "ERROR", codigo: "ARCHIVO_NO_DISPONIBLE", reintentable: true };
   }
 
   const inicio = Date.now();
