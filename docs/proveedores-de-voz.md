@@ -96,6 +96,37 @@ Dos defectos del patrón de IA que **no** se replicaron:
 - `IProveedorIA.estaDisponible()` existe y nadie lo llama. Acá está cableado a
   "Probar credenciales" desde el día uno.
 
+### 6. Adaptadores disponibles (050 agrega Groq)
+
+| Servicio | Modelos sugeridos | Host por defecto |
+|---|---|---|
+| `ELEVENLABS` | `scribe_v3`, `scribe_v2` | `https://api.elevenlabs.io` |
+| `OPENAI` | `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1` | `https://api.openai.com` |
+| `GROQ` | `whisper-large-v3-turbo`, `whisper-large-v3` | `https://api.groq.com/openai` |
+
+`LOCAL` figura en el enum de Prisma y **no** está implementado: `PROVEEDORES_VOZ_IMPLEMENTADOS`
+es la lista real y `inicializar.test.ts` la mantiene pegada al registro. Elegir uno sin adaptador
+se guardaría sin una queja y después fallaría en el log del servidor, con el comercio creyendo
+que la transcripción está activa.
+
+**OpenAI y Groq comparten el transporte** (`openai-compatible.ts`): Groq expone la API de
+transcripción de OpenAI tal cual, así que el multipart, el doble corte por `AbortSignal` y el
+conteo de palabras son uno solo. Lo que **no** se comparte, y no conviene colapsar, es la
+traducción de errores: OpenAI manda la falta de saldo por **400** y Groq usa **429** solo para
+cuota. Unificarlas haría que un fallo permanente de uno se reintentara cinco veces en el otro.
+ElevenLabs tiene su propio archivo entero — otra forma de petición y de respuesta.
+
+Tres cosas de Groq que no se deducen leyendo el código:
+
+- **Factura un mínimo de 10 segundos por petición.** Como la mayoría de las notas de voz son más
+  cortas, el gasto real supera al estimado. `UsoVoz.segundos` sigue guardando la duración **real**
+  que devuelve el proveedor, no la facturable: inflarla a 10 falsearía cuánto audio se transcribió,
+  que es lo que el campo significa. El ajuste va en `costoPorHora`.
+- **`distil-whisper-large-v3-en` no está entre los sugeridos**: solo entiende inglés, y como Karia
+  nunca fuerza el idioma, traduciría el español sin que nada lo señale.
+- **El host incluye el segmento `/openai`.** Sin él, cada audio recibe un 404. Hay un test que fija
+  la URL completa.
+
 ---
 
 ## Texto efectivo de un mensaje

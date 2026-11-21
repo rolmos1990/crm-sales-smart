@@ -16,6 +16,7 @@ import { FormProveedorVoz, type ProveedorVozExistente } from "./form-proveedor-v
 const ETIQUETA_PROVEEDOR: Record<string, string> = {
   ELEVENLABS: "ElevenLabs",
   OPENAI: "OpenAI",
+  GROQ: "Groq",
   LOCAL: "Local",
 };
 

@@ -35,11 +35,13 @@ import { ProveedorVozSchema, type ProveedorVozInput } from "@/configuracion/voz/
 import {
   PROVEEDORES_VOZ_IMPLEMENTADOS,
   MODELOS_POR_PROVEEDOR_VOZ,
+  COSTO_HORA_INICIAL_VOZ,
 } from "@/voz/proveedores/disponibles";
 
 const ETIQUETA_PROVEEDOR: Record<string, string> = {
   ELEVENLABS: "ElevenLabs",
   OPENAI: "OpenAI",
+  GROQ: "Groq",
   LOCAL: "Local",
 };
 
@@ -66,9 +68,9 @@ const VALORES_INICIALES: ProveedorVozInput = {
   proveedor: "ELEVENLABS",
   apiKey: "",
   baseUrl: "",
-  modelo: "scribe_v3",
+  modelo: MODELOS_POR_PROVEEDOR_VOZ.ELEVENLABS[0],
   prioridad: 1,
-  costoPorHora: 0.2,
+  costoPorHora: COSTO_HORA_INICIAL_VOZ.ELEVENLABS,
   limiteMinutosDia: null,
   timeoutMs: 30000,
   reintentosMax: 2,
@@ -122,6 +124,10 @@ export function FormProveedorVoz({
     form.setValue("proveedor", valor);
     const sugeridos = MODELOS_POR_PROVEEDOR_VOZ[valor];
     if (sugeridos?.[0]) form.setValue("modelo", sugeridos[0]);
+    // El costo también: entre servicios difiere en un orden de magnitud, y
+    // arrastrar el del anterior deja un gasto estimado que no se parece al
+    // real sin que nada lo señale.
+    form.setValue("costoPorHora", COSTO_HORA_INICIAL_VOZ[valor]);
   }
 
   function onSubmit(datos: ProveedorVozInput) {
@@ -274,7 +280,9 @@ export function FormProveedorVoz({
                         }
                       />
                     </FormControl>
-                    <FormDescription>Sin esto no se estima el gasto.</FormDescription>
+                    <FormDescription>
+                      Sugerido según el servicio. Ajustalo a tu factura; vacío no estima nada.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
