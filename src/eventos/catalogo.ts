@@ -56,6 +56,8 @@ export const EventosSistema = {
   // Mensajería
   MensajeRecibido:        "MENSAJE_RECIBIDO",
   MensajeEnviado:         "MENSAJE_ENVIADO",
+  // 049-proveedores-de-voz
+  AudioTranscrito:        "AUDIO_TRANSCRITO",
   ConversacionCreada:     "CONVERSACION_CREADA",
   ConversacionClasificada: "CONVERSACION_CLASIFICADA",
   ReaccionActualizada:    "REACCION_ACTUALIZADA",

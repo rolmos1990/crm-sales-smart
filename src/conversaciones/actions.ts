@@ -22,6 +22,7 @@ import type { MensajeEntranteNormalizado, ConversacionResumen } from "./types";
 import { requiereAprobacion } from "@/integraciones/email/aprobacion/reglas";
 import { filaMensajeCorreo } from "@/integraciones/email/mensaje/persistir-correo";
 import { registrarInteraccion, registrarMensajeEntrante, registrarRespuesta, sinFallar } from "@/crm/contactos/interaccion";
+import { engancharTranscripcion } from "@/voz/enganche";
 
 // ── Resolución compartida de contacto + conversación ────────────────────────
 //
@@ -542,6 +543,22 @@ export async function procesarMensajeEntrante(
     data: { actualizadoEn: new Date() },
   });
 
+  // 049 — Transcripción de la nota de voz, ANTES de publicar MensajeRecibido.
+  //
+  // El orden no es cosmético: de ese evento cuelgan la IA y los Workflows. Si
+  // se transcribiera después, los dos ganarían la carrera y responderían a un
+  // mensaje vacío — se entregaría la feature sin su mitad más valiosa.
+  //
+  // Tiene timeout duro y no lanza: vencido o fallido, el mensaje se publica
+  // igual, la fila queda en la cola y la termina el barrido. La IA nunca se
+  // queda esperando a un servicio externo (FR-028).
+  await engancharTranscripcion({
+    instanciaId,
+    tipo,
+    mediaArchivoId: mensaje.mediaArchivoId,
+    enLinea: true,
+  });
+
   // 9. Publicar evento para SSE
   void publicadorEventos.publicar(EventosSistema.MensajeRecibido, instanciaId, {
     mensajeId: mensaje.id,
@@ -651,6 +668,16 @@ export async function registrarMensajeAppNativa(
   // Respuesta enviada desde fuera de Karia — también cuenta como "primera
   // respuesta" para el auto-movimiento de etapa (ver procesarPrimeraRespuestaProspecto).
   await procesarPrimeraRespuestaProspecto(conversacion.id, mensaje.id);
+
+  // 049 — Audio saliente: solo se encola. A diferencia del entrante, acá nadie
+  // espera el texto (este camino no dispara IA), así que transcribir en línea
+  // solo agregaría latencia. Lo resuelve el barrido del worker.
+  await engancharTranscripcion({
+    instanciaId,
+    tipo,
+    mediaArchivoId: mensaje.mediaArchivoId,
+    enLinea: false,
+  });
 
   // Reusa el contrato MensajeEnviado (sin cambios) — el frontend ya lo
   // escucha por SSE solo como señal de "volvé a pedir los mensajes"

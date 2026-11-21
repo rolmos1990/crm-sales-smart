@@ -1,3 +1,4 @@
+import { textoDeMensajeODescarte } from "./texto-mensaje";
 import { prisma } from "@/shared/db/prisma";
 import { resolverDecisionContexto } from "./router";
 import { construirContextoCompuesto } from "./context-builder";
@@ -62,7 +63,15 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
             mensajes: {
               orderBy: { creadoEn: "desc" },
               take: mensajesAPedir,
-              select: { contenido: true, remitente: true, creadoEn: true },
+              select: {
+                contenido: true,
+                remitente: true,
+                creadoEn: true,
+                // 049 — Una nota de voz tiene el texto en su MediaArchivo, no
+                // en `contenido`. Sin esto el audio sigue siendo invisible.
+                tipo: true,
+                mediaArchivo: { select: { transcripcion: true, transcripcionEstado: true } },
+              },
             },
           },
         })
@@ -211,12 +220,17 @@ export async function construirContexto(opciones: OpcionesContexto): Promise<Con
         : conversacionRaw.mensajes
             // 031 (FR-005): filtrar ANTES de cortar — si no, un mensaje de
             // solo imagen ocupa un lugar de la ventana y después desaparece.
-            .filter((m) => m.contenido && m.contenido.trim().length > 0)
+            //
+            // 049: una nota de voz ya no se descarta. Con transcripción entra
+            // su texto; sin ella entra un marcador, para que el agente sepa que
+            // el cliente dijo algo en vez de responder en el vacío (FR-027).
+            .map((m) => ({ m, texto: textoDeMensajeODescarte(m) }))
+            .filter((x): x is { m: typeof x.m; texto: string } => Boolean(x.texto))
             .slice(0, cantidadFinal)
             .reverse()
-            .map((m) => ({
+            .map(({ m, texto }) => ({
               rol: m.remitente === "CONTACTO" ? "user" : "assistant",
-              contenido: m.contenido!,
+              contenido: texto,
               creadoEn: m.creadoEn,
             }));
 
@@ -341,11 +355,18 @@ async function ultimoMensajeDelCliente(conversacionId: string): Promise<MensajeC
   const mensaje = await prisma.mensajeConversacion.findFirst({
     where: { conversacionId, remitente: "CONTACTO" },
     orderBy: { creadoEn: "desc" },
-    select: { contenido: true, creadoEn: true },
+    select: {
+      contenido: true,
+      creadoEn: true,
+      tipo: true,
+      mediaArchivo: { select: { transcripcion: true, transcripcionEstado: true } },
+    },
   });
 
-  if (!mensaje?.contenido?.trim()) return [];
-  return [{ rol: "user", contenido: mensaje.contenido, creadoEn: mensaje.creadoEn }];
+  if (!mensaje) return [];
+  const texto = textoDeMensajeODescarte(mensaje);
+  if (!texto) return [];
+  return [{ rol: "user", contenido: texto, creadoEn: mensaje.creadoEn }];
 }
 
 export function serializarContextoComoMensajes(

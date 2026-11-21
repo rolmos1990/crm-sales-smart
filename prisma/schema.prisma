@@ -418,6 +418,10 @@ model Instancia {
   // 024-alias-ubicaciones-transportistas
   aliasesUbicacion       AliasUbicacion[]
 
+  // 049-proveedores-de-voz
+  proveedoresVoz ProveedorVoz[]
+  usoVoz         UsoVoz[]
+
   // IA
   configuracionIA                 ConfiguracionIA?
   proveedoresIA                   ProveedorIA[]
@@ -3132,6 +3136,9 @@ model ConfiguracionEmpresa {
   diasSeguimientoPendiente               Int                 @default(3)
   diasSeguimientoRecuperar               Int                 @default(7)
   diasSeguimientoInactivo                Int                 @default(60)
+  // 049-proveedores-de-voz — apagado por defecto: sin el flag no se transcribe
+  // nada y no se llama a ningún proveedor de voz (FR-008, FR-009).
+  transcripcionVozHabilitada             Boolean             @default(false)
 
   instanciaId String    @unique
   instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
@@ -3209,6 +3216,27 @@ model MediaArchivo {
   canalOrigen     String? // "web" | "whatsapp" | "instagram" | ...
   estadoProcesado EstadoMedia @default(LISTO)
   errorMensaje    String?
+
+  // 049 — Transcripción de audio. Vive acá y no en MensajeConversacion porque
+  // MediaArchivo ya es una fila por archivo y ya deduplica por hash: el mismo
+  // audio reenviado se transcribe y se cobra UNA vez.
+  //
+  // OJO: que estas columnas existan acá NO significa que se transcriba
+  // cualquier MediaArchivo. El mime NO alcanza para decidirlo — en Instagram
+  // una nota de voz y un video llegan los dos como video/mp4 (727 contra 203
+  // en datos reales), y el proveedor transcribe video sin devolver error. Solo
+  // se marca PENDIENTE desde un mensaje con tipo AUDIO o NOTA_VOZ, y
+  // transcribir.ts lo revalida antes de llamar. Ver
+  // specs/049-proveedores-de-voz/contracts/alcance-transcripcion.md.
+  transcripcion               String?
+  transcripcionEstado         EstadoTranscripcion @default(NO_APLICA)
+  transcripcionIdioma         String?
+  transcripcionSegundos       Int?
+  transcripcionIntentos       Int                 @default(0)
+  transcripcionBloqueadoHasta DateTime?
+  // Sin FK: el proveedor puede borrarse y la transcripción sigue siendo válida.
+  transcripcionProveedorVozId String?
+  transcripcionEn             DateTime?
 
   // Relación con contacto (para cascade delete y limpieza de storage)
   contactoId String?
@@ -3581,6 +3609,34 @@ enum ClasificacionConversacion {
 // =====================
 // CAPA DE INTELIGENCIA ARTIFICIAL
 // =====================
+
+// =====================
+// ENUMS DE VOZ (049-proveedores-de-voz)
+// =====================
+
+enum ProveedorVozEnum {
+  ELEVENLABS
+  OPENAI
+  LOCAL
+}
+
+// Estado de la transcripción de un MediaArchivo.
+//
+// NO_APLICA es el default porque la enorme mayoría de los archivos (imágenes,
+// documentos, videos) no se transcribe nunca. El índice de la cola es parcial
+// sobre PENDIENTE justamente por eso.
+//
+// INAUDIBLE es TERMINAL y NO se reintenta: el audio no tenía habla. Tratarlo
+// como un fallo lo metería en el backoff y gastaría cinco llamadas pagas para
+// obtener cinco veces el mismo silencio.
+enum EstadoTranscripcion {
+  NO_APLICA
+  PENDIENTE
+  PROCESANDO
+  LISTO
+  INAUDIBLE
+  ERROR
+}
 
 // =====================
 // ENUMS DE IA
@@ -4404,4 +4460,80 @@ model EjemploPrompt {
   playbookEstrategia   PlaybookEstrategia? @relation("EjemplosPromptPorEstrategia", fields: [playbookEstrategiaId], references: [id], onDelete: SetNull)
 
   @@index([instanciaId, activo])
+}
+
+// =====================
+// VOZ (049-proveedores-de-voz)
+// =====================
+
+// Credenciales y configuración de cada proveedor de voz por instancia.
+//
+// Separado de ProveedorIA a propósito: el consumo se mide en TIEMPO DE AUDIO,
+// no en tokens. Meter segundos en las columnas de tokens de UsoIA rompería
+// obtenerResumenUsoIA y el control de presupuesto de 042, que suman
+// tokensInput + tokensOutput sin discriminar la tarea.
+model ProveedorVoz {
+  id String @id @default(cuid())
+
+  // Mismo par alias/aliasNormalizado de 021: permite varias configuraciones
+  // del mismo servicio dentro de una cuenta.
+  alias            String
+  aliasNormalizado String
+  proveedor        ProveedorVozEnum
+
+  // Salida de cifrarToken(). Nunca el valor plano, nunca sale al cliente.
+  apiKeyEncriptada String?
+  // A diferencia de ProveedorIA.baseUrl, este SÍ llega al adaptador: la
+  // fábrica es (apiKey, modelo?, baseUrl?).
+  baseUrl          String?
+  modelo           String  @default("scribe_v3")
+
+  activo    Boolean @default(true)
+  prioridad Int     @default(1)
+
+  // null = no se calcula costo. Nunca se inventa una tarifa: un costo
+  // inventado contamina todos los agregados.
+  costoPorHora     Decimal?
+  limiteMinutosDia Int?
+
+  timeoutMs     Int @default(30000)
+  reintentosMax Int @default(2)
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  usoVoz UsoVoz[]
+
+  @@unique([instanciaId, aliasNormalizado])
+  @@index([instanciaId])
+  @@index([instanciaId, activo, prioridad])
+}
+
+// Auditoría de uso y costo de voz. El análogo de UsoIA, medido en segundos.
+// Se escribe una fila por intento, con éxito o sin él, para que el gasto real
+// sea auditable aunque la llamada falle después de consumir.
+model UsoVoz {
+  id            String   @id @default(cuid())
+  modelo        String
+  segundos      Int      @default(0)
+  costoEstimado Decimal?
+  tiempoMs      Int      @default(0)
+  exito         Boolean  @default(true)
+  // Motivo funcional, nunca el stack ni la credencial.
+  error         String?
+  entidadTipo   String?
+  entidadId     String?
+  creadoEn      DateTime @default(now())
+
+  instanciaId String
+  instancia   Instancia @relation(fields: [instanciaId], references: [id], onDelete: Cascade)
+
+  proveedorVozId String?
+  proveedorVoz   ProveedorVoz? @relation(fields: [proveedorVozId], references: [id], onDelete: SetNull)
+
+  @@index([instanciaId, creadoEn])
+  @@index([proveedorVozId])
 }

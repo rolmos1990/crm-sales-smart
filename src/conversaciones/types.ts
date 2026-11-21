@@ -55,6 +55,11 @@ export interface MensajeConMeta {
   mediaUrlOptimizada: string | null;
   mediaUrlThumbnail: string | null;
   mediaErrorMensaje: string | null;
+  // 049 — Transcripción de la nota de voz. Vive en el MediaArchivo (un audio
+  // reenviado se transcribe una sola vez) y se aplana acá para la burbuja.
+  transcripcion: string | null;
+  transcripcionEstado: "NO_APLICA" | "PENDIENTE" | "PROCESANDO" | "LISTO" | "INAUDIBLE" | "ERROR" | null;
+  transcripcionIdioma: string | null;
 }
 
 export interface CuentaCanalResumen {

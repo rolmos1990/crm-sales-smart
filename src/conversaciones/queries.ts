@@ -68,6 +68,23 @@ const conversacionInclude = {
     where: { tipo: { not: "EVENTO_SISTEMA" as const } },
     orderBy: { creadoEn: "desc" as const },
     take: 1,
+    // 049 — La vista previa y la búsqueda del inbox leen este mensaje: sin la
+    // transcripción, una conversación que termina en nota de voz se ve vacía
+    // en la lista y no la encuentra ninguna búsqueda.
+    include: {
+      mediaArchivo: {
+        select: {
+          id: true,
+          urlOptimizada: true,
+          urlThumbnail: true,
+          estadoProcesado: true,
+          errorMensaje: true,
+          transcripcion: true,
+          transcripcionEstado: true,
+          transcripcionIdioma: true,
+        },
+      },
+    },
   },
   _count: { select: { mensajes: true } },
 } as const;
@@ -117,7 +134,7 @@ function mapearConversacion(conv: any): ConversacionResumen {
       oportunidad: { ...o.oportunidad, valor: Number(o.oportunidad.valor) },
     })),
     _count: conv._count,
-    ultimoMensaje: (conv.mensajes[0] as MensajeConMeta | null) ?? null,
+    ultimoMensaje: conv.mensajes[0] ? mapearMensaje(conv.mensajes[0]) : null,
     identificadorCanal,
     handleCanal,
   };
@@ -149,13 +166,17 @@ export async function obtenerMensajesConversacion(
   limite = 50,
   cursor?: string
 ): Promise<MensajeConMeta[]> {
+  // 049 — Antes casteaba sin `include`, así que por esta ruta los campos
+  // enriquecidos (media y transcripción) llegaban undefined y la burbuja se
+  // veía distinta según qué endpoint hubiera servido la conversación.
   const mensajes = await prisma.mensajeConversacion.findMany({
     where: { conversacionId },
+    include: mensajeInclude,
     orderBy: { creadoEn: "asc" as const },
     take: limite,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
-  return mensajes as unknown as MensajeConMeta[];
+  return mensajes.map(mapearMensaje);
 }
 
 export async function obtenerCuentasCanal(instanciaId: string) {
@@ -248,13 +269,17 @@ const mensajeInclude = {
       urlThumbnail: true,
       estadoProcesado: true,
       errorMensaje: true,
+      // 049
+      transcripcion: true,
+      transcripcionEstado: true,
+      transcripcionIdioma: true,
     },
   },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
 function mapearMensaje(m: unknown): MensajeConMeta {
-  const raw = m as Record<string, unknown> & { mediaArchivo?: { id: string; urlOptimizada: string; urlThumbnail: string | null; estadoProcesado: string; errorMensaje: string | null } | null };
+  const raw = m as Record<string, unknown> & { mediaArchivo?: { id: string; urlOptimizada: string; urlThumbnail: string | null; estadoProcesado: string; errorMensaje: string | null; transcripcion: string | null; transcripcionEstado: string; transcripcionIdioma: string | null } | null };
   const ma = raw.mediaArchivo;
   return {
     ...(raw as unknown as MensajeConMeta),
@@ -263,6 +288,9 @@ function mapearMensaje(m: unknown): MensajeConMeta {
     mediaUrlOptimizada: ma?.urlOptimizada ?? null,
     mediaUrlThumbnail: ma?.urlThumbnail ?? null,
     mediaErrorMensaje: ma?.errorMensaje ?? null,
+    transcripcion: ma?.transcripcion ?? null,
+    transcripcionEstado: (ma?.transcripcionEstado as MensajeConMeta["transcripcionEstado"]) ?? null,
+    transcripcionIdioma: ma?.transcripcionIdioma ?? null,
   };
 }
 

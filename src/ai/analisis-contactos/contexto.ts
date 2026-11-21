@@ -155,14 +155,26 @@ export async function cargarConversacionesParaIA(
 
   if (sinLectura.length > 0) {
     const filas = await prisma.$queryRaw<Array<{ conversacionId: string; remitente: string; contenido: string }>>`
+      -- 049 — COALESCE con la transcripción: sin esto el análisis comercial no
+      -- lee nada de lo que el cliente dijo hablando, que en algunas cuentas es
+      -- el 15% de las conversaciones.
+      --
+      -- Solo LISTO, a diferencia del inbox: "Inaudible" le dice algo al agente
+      -- humano, pero al análisis solo le mete ruido en el prompt.
       SELECT "conversacionId", "remitente", "contenido" FROM (
-        SELECT m."conversacionId", m."remitente", m."contenido", m."creadoEn",
+        SELECT m."conversacionId", m."remitente",
+               COALESCE(NULLIF(TRIM(m."contenido"), ''), ma."transcripcion") AS "contenido",
+               m."creadoEn",
                ROW_NUMBER() OVER (PARTITION BY m."conversacionId" ORDER BY m."creadoEn" DESC) AS n
         FROM "MensajeConversacion" m
+        LEFT JOIN "MediaArchivo" ma
+          ON ma."id" = m."mediaArchivoId"
+          AND m."tipo" IN ('AUDIO', 'NOTA_VOZ')
+          AND ma."transcripcionEstado" = 'LISTO'
         WHERE m."conversacionId" IN (${Prisma.join(sinLectura.map((c) => c.id))})
           AND m."esNotaInterna" = false
           AND m."remitente" <> 'SISTEMA'
-          AND m."contenido" IS NOT NULL AND length(trim(m."contenido")) > 0
+          AND COALESCE(NULLIF(TRIM(m."contenido"), ''), ma."transcripcion") IS NOT NULL
       ) x
       WHERE x.n <= ${MAX_MENSAJES_POR_CONVERSACION}
       ORDER BY x."conversacionId", x."creadoEn" ASC`;

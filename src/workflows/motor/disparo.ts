@@ -1,3 +1,4 @@
+import { textoDeMensaje } from "@/ai/contexto/texto-mensaje";
 import { prisma } from "@/shared/db/prisma";
 import {
   ESTADOS_ACTIVOS,
@@ -39,7 +40,16 @@ export async function enrutarMensajeEntrante(p: {
       // 034 — bloqueadaPorAprobacion es el corte 3 de 3 (ver más abajo).
       select: { modoAtencion: true, contactoId: true, bloqueadaPorAprobacion: true, contacto: { select: { noContactarDesde: true } } },
     }),
-    prisma.mensajeConversacion.findUnique({ where: { id: p.mensajeId }, select: { contenido: true } }),
+    // 049 — Con solo `contenido`, un cliente que responde hablando le entrega
+    // "" a un nodo Menú o Capturar dato y la ejecución se traba.
+    prisma.mensajeConversacion.findUnique({
+      where: { id: p.mensajeId },
+      select: {
+        contenido: true,
+        tipo: true,
+        mediaArchivo: { select: { transcripcion: true, transcripcionEstado: true } },
+      },
+    }),
   ]);
   if (!conv) return { atendido: true };
   if (conv.modoAtencion === "HUMANO") return { atendido: true };
@@ -65,7 +75,11 @@ export async function enrutarMensajeEntrante(p: {
   });
   for (const ej of activas) {
     if (ej.estado === "ESPERANDO_RESPUESTA" || ej.estado === "IA_ACTIVA") {
-      await avanzarEjecucion(ej.id, { tipo: "MENSAJE", mensajeId: p.mensajeId, texto: mensaje?.contenido ?? "" });
+      await avanzarEjecucion(ej.id, {
+        tipo: "MENSAJE",
+        mensajeId: p.mensajeId,
+        texto: (mensaje ? textoDeMensaje(mensaje) : null) ?? "",
+      });
     } else if (ej.estado === "ESPERANDO_TIMER" && ej.esperaTipo === "TIMER") {
       await aplicarInterrupcion(ej.id, "CLIENTE_RESPONDE");
     }
@@ -243,14 +257,20 @@ export async function cicloWorkflows(ahora: Date = new Date()) {
   // 3. Respaldo de mensajes cuyo evento se perdió: ejecución esperando y un
   //    mensaje del cliente posterior al inicio de la espera, no procesado.
   const limite = new Date(ahora.getTime() - MARGEN_RESPALDO_MS);
+  // 049 — COALESCE con la transcripción: por esta vía de respaldo un audio
+  // también tiene que llegar con su texto, o el workflow avanzaría con "".
   const pendientes = await prisma.$queryRaw<{ id: string; mensajeId: string; contenido: string | null }[]>`
-    SELECT e."id", m."id" AS "mensajeId", m."contenido"
+    SELECT e."id", m."id" AS "mensajeId",
+           COALESCE(NULLIF(TRIM(m."contenido"), ''), ma."transcripcion") AS "contenido"
     FROM "WorkflowEjecucion" e
     JOIN LATERAL (
-      SELECT "id", "contenido", "creadoEn" FROM "MensajeConversacion"
+      SELECT "id", "contenido", "creadoEn", "mediaArchivoId" FROM "MensajeConversacion"
       WHERE "conversacionId" = e."conversacionId" AND "remitente" = 'CONTACTO'
       ORDER BY "creadoEn" DESC LIMIT 1
     ) m ON true
+    LEFT JOIN "MediaArchivo" ma
+      ON ma."id" = m."mediaArchivoId"
+      AND ma."transcripcionEstado" IN ('LISTO', 'INAUDIBLE')
     WHERE e."estado" IN ('ESPERANDO_RESPUESTA', 'IA_ACTIVA')
       AND e."instanciaId" = ANY(${instancias})
       AND e."esperaDesde" IS NOT NULL
