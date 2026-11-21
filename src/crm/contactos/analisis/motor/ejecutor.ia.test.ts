@@ -125,7 +125,7 @@ const ia = (extra: Partial<ResultadoIAContacto> = {}): ResultadoIAContacto => ({
 function respuesta(resultados: Map<string, ResultadoIAContacto>, extra: Partial<RespuestaLoteIA> = {}): RespuestaLoteIA {
   return {
     resultados,
-    invalidos: [],
+    invalidos: new Map(),
     omitidos: [],
     loteInvalido: false,
     tokensEntrada: 1000,

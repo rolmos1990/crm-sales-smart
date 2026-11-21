@@ -131,7 +131,8 @@ export interface EntradaLoteIA {
 
 export interface RespuestaLoteIA {
   resultados: Map<string, ResultadoIAContacto>;
-  invalidos: string[];
+  /** 052 — contactoId → por qué se rechazó. Antes era `string[]`. */
+  invalidos: Map<string, import("@/ai/analisis-contactos/salida").MotivoRechazo>;
   omitidos: string[];
   loteInvalido: boolean;
   tokensEntrada: number;
