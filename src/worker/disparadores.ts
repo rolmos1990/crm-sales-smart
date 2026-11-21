@@ -6,6 +6,7 @@ import { reconectarSesionesWA } from "../integraciones/whatsapp-lite/reconectar"
 import { iniciarPollingCorreo } from "../integraciones/email/imap/polling";
 import { iniciarCicloAnalisisContactos } from "../crm/contactos/analisis/motor/ciclo";
 import { dependenciasMotorAnalisis } from "../crm/contactos/analisis/motor/dependencias";
+import { iniciarBarridoVoz } from "../voz/barrido";
 
 const INTERVALO_MS = 10_000;
 
@@ -25,6 +26,12 @@ async function run() {
   // La planificación es por la base (SKIP LOCKED), así que varias réplicas
   // del worker se reparten el trabajo sin coordinarse.
   iniciarCicloAnalisisContactos(await dependenciasMotorAnalisis());
+
+  // 049 — Transcripción de notas de voz. Ciclo propio por el mismo motivo:
+  // recoge lo que la transcripción en línea no alcanzó (salientes, timeouts y
+  // fallos recuperables). Reclama con SKIP LOCKED, así que varias réplicas se
+  // reparten el trabajo sin coordinarse.
+  iniciarBarridoVoz();
 
   console.log(`[worker:disparadores] iniciando — polling cada ${INTERVALO_MS / 1000}s`);
 

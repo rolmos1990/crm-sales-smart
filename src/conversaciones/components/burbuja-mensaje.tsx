@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff, Loader2, ShieldX, X, Smartphone, Download } from "lucide-react";
+import { Lock, Check, CheckCheck, AlertCircle, ImageIcon, FileText, Mic, Video, EyeOff, Loader2, ShieldX, X, Smartphone, Download, FileText as FileTextIcon, ChevronDown, ChevronUp } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -189,6 +189,87 @@ export function BurbujaVideo({ mensaje }: { mensaje: MensajeConMeta }) {
   );
 }
 
+// ── Burbuja de audio con transcripción desplegable (049) ──────────────────────
+
+/**
+ * Mantiene el reproductor de siempre y suma "Ver transcripción", al estilo de
+ * WhatsApp: el agente se entera de qué dice una nota de voz sin escucharla.
+ *
+ * La transcripción NO vive en `mensaje.contenido` sino en el MediaArchivo. Si
+ * viviera en contenido, este bloque ni se renderizaría: el ternario de arriba
+ * manda a `<p>` cualquier mensaje con contenido, y `tieneMediaVisual` solo
+ * cubre IMAGEN y VIDEO — el reproductor desaparecería.
+ */
+export function BurbujaAudio({ mensaje }: { mensaje: MensajeConMeta }) {
+  const [abierta, setAbierta] = useState(false);
+
+  const esNota = mensaje.tipo === "NOTA_VOZ";
+  const minutos = mensaje.mediaDuracion ? Math.floor(mensaje.mediaDuracion / 60) : null;
+  const segundos = mensaje.mediaDuracion
+    ? String(mensaje.mediaDuracion % 60).padStart(2, "0")
+    : null;
+
+  const estado = mensaje.transcripcionEstado;
+  const enCurso = estado === "PENDIENTE" || estado === "PROCESANDO";
+  const hayTexto = (estado === "LISTO" || estado === "INAUDIBLE") && Boolean(mensaje.transcripcion);
+
+  return (
+    <div className="flex flex-col gap-1.5 min-w-[200px]">
+      <div className="flex items-center gap-1.5">
+        <Mic className="h-3.5 w-3.5 text-inbox-accent-icon shrink-0" />
+        <span className="text-xs text-muted-foreground">
+          {esNota ? "Nota de voz" : "Audio"}
+          {minutos !== null && segundos !== null ? ` · ${minutos}:${segundos}` : ""}
+        </span>
+      </div>
+
+      <audio
+        controls
+        src={mensaje.mediaUrl ?? undefined}
+        preload="metadata"
+        className="w-full max-w-[260px] h-8"
+      />
+
+      {enCurso && (
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Transcribiendo…
+        </span>
+      )}
+
+      {hayTexto && (
+        <>
+          <button
+            type="button"
+            onClick={() => setAbierta((v) => !v)}
+            className="flex items-center gap-1 self-start text-[11px] font-medium text-inbox-accent-icon hover:underline"
+          >
+            <FileTextIcon className="h-3 w-3" />
+            {abierta ? "Ocultar transcripción" : "Ver transcripción"}
+            {abierta ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+
+          {abierta && (
+            <p
+              className={cn(
+                "max-w-[280px] whitespace-pre-wrap break-words rounded-lg bg-muted px-2.5 py-2 text-xs",
+                // "Inaudible" es información para el agente, no un texto del
+                // cliente: se distingue para que no lo lea como tal.
+                estado === "INAUDIBLE" ? "italic text-muted-foreground" : "text-foreground",
+              )}
+            >
+              {mensaje.transcripcion}
+            </p>
+          )}
+        </>
+      )}
+
+      {/* estado ERROR: a propósito no se muestra nada. Un fallo de
+          infraestructura no es asunto del agente de atención. */}
+    </div>
+  );
+}
+
 const TIPO_FALLBACK: Partial<Record<TipoMensaje, { icono: React.ReactNode; texto: string }>> = {
   IMAGEN:    { icono: <ImageIcon className="h-3.5 w-3.5" />, texto: "Imagen" },
   VIDEO:     { icono: <Video className="h-3.5 w-3.5" />,     texto: "Video" },
@@ -355,31 +436,7 @@ export function BurbujaMensaje({
                 }
 
                 if (esAudioTipo && mensaje.mediaUrl) {
-                  const minutos = mensaje.mediaDuracion
-                    ? Math.floor(mensaje.mediaDuracion / 60)
-                    : null;
-                  const segundos = mensaje.mediaDuracion
-                    ? String(mensaje.mediaDuracion % 60).padStart(2, "0")
-                    : null;
-                  return (
-                    <div className="flex flex-col gap-1.5 min-w-[200px]">
-                      <div className="flex items-center gap-1.5">
-                        <Mic className="h-3.5 w-3.5 text-inbox-accent-icon shrink-0" />
-                        <span className="text-xs text-muted-foreground">
-                          {mensaje.tipo === "NOTA_VOZ" ? "Nota de voz" : "Audio"}
-                          {minutos !== null && segundos !== null
-                            ? ` · ${minutos}:${segundos}`
-                            : ""}
-                        </span>
-                      </div>
-                      <audio
-                        controls
-                        src={mensaje.mediaUrl}
-                        preload="metadata"
-                        className="w-full max-w-[260px] h-8"
-                      />
-                    </div>
-                  );
+                  return <BurbujaAudio mensaje={mensaje} />;
                 }
 
                 const fallback = TIPO_FALLBACK[mensaje.tipo as TipoMensaje];

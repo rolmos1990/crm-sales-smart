@@ -10,6 +10,8 @@ export class SSERelaySuscriptor extends ConsumidorBase {
     RK.EVENTO_MENSAJE_RECIBIDO,
     RK.EVENTO_MENSAJE_ENVIADO,
     RK.EVENTO_REACCION_ACTUALIZADA,
+    // 049 — la transcripción que llega tarde refresca la burbuja sola.
+    RK.EVENTO_AUDIO_TRANSCRITO,
   ];
 
   async manejar(envelope: EventoEnvelope): Promise<void> {

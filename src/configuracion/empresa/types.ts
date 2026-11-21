@@ -31,6 +31,8 @@ export interface ConfigEmpresa {
   diasSeguimientoPendiente: number;
   diasSeguimientoRecuperar: number;
   diasSeguimientoInactivo: number;
+  // 049-proveedores-de-voz
+  transcripcionVozHabilitada: boolean;
   instanciaId: string;
   creadoEn: Date;
   actualizadoEn: Date;

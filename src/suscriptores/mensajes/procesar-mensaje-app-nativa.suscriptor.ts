@@ -28,6 +28,8 @@ export class ProcesarMensajeAppNativaSuscriptor extends ConsumidorBase<ComandoPr
       mediaUrl: payload.mediaUrl,
       mediaMimeType: payload.mediaMimeType,
       mediaDuracion: payload.mediaDuracion,
+      // 049 — Ver el comentario gemelo en procesar-entrante.suscriptor.ts.
+      mediaArchivoId: payload.mediaArchivoId,
     });
   }
 }

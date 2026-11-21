@@ -39,6 +39,9 @@ function crearMensaje(over: Partial<MensajeConMeta> = {}): MensajeConMeta {
     mediaUrlOptimizada: null,
     mediaUrlThumbnail: null,
     mediaErrorMensaje: null,
+    transcripcion: null,
+    transcripcionEstado: null,
+    transcripcionIdioma: null,
     ...over,
   };
 }

@@ -126,6 +126,38 @@ interface ContactoInteresActualizadoPayload {
 
 ---
 
+### AudioTranscrito
+
+**Descripción**: Una nota de voz terminó de transcribirse (049-proveedores-de-voz).
+
+Existe para un único fin: que una transcripción que termina **después** de que el mensaje ya
+se pintó en el inbox refresque la burbuja sin recargar. Pasa siempre que la transcripción en
+línea vence su timeout y la resuelve el barrido del worker.
+
+**Publicado por**: `src/voz/transcribir.ts`
+
+**Consumido por**: `src/suscriptores/sse/sse-relay.suscriptor.ts` (relay a SSE).
+
+**Contrato**: `src/eventos/contratos/audio-transcrito.evento.ts`
+
+```ts
+interface AudioTranscritoPayload {
+  version: number;          // 1
+  instanciaId: string;
+  mediaArchivoId: string;
+  conversacionIds: string[]; // una sola, salvo audio reenviado
+  estado: "LISTO" | "INAUDIBLE" | "ERROR";
+  transcripcion?: string;    // en LISTO e INAUDIBLE; nunca en ERROR
+  idioma?: string | null;
+  segundos?: number | null;
+}
+```
+
+> **Ningún suscriptor que marque audios como pendientes puede escuchar este evento.** Sería un
+> bucle: transcribir → evento → marcar → transcribir. Mismo criterio que `ContactoAnalizado`.
+
+---
+
 ### ContactoAnalizado
 
 **Descripción**: Terminó una evaluación del análisis inteligente de un contacto, por reglas o con IA (042). Se publica una vez por contacto después del commit de la evaluación. Hoy no tiene suscriptores: queda disponible para Workflows. No lleva señales, objeciones ni motivos, porque son texto generado a partir de conversaciones.

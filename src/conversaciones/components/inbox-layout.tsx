@@ -351,7 +351,11 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     if (termino) {
       lista = lista.filter((c) => {
         const nombre = `${c.contacto.nombre} ${c.contacto.apellido}`.toLowerCase();
-        const preview = c.ultimoMensaje?.contenido?.toLowerCase() ?? "";
+        // 049 — Una nota de voz no tiene `contenido`: sin la transcripción,
+        // nada de lo que el cliente dijo hablando es buscable.
+        const preview = (
+          c.ultimoMensaje?.contenido ?? c.ultimoMensaje?.transcripcion ?? ""
+        ).toLowerCase();
         const telefono = c.contacto.telefonoPrincipal?.toLowerCase() ?? "";
         return nombre.includes(termino) || preview.includes(termino) || telefono.includes(termino);
       });
@@ -502,6 +506,12 @@ export function InboxLayout({ conversacionesIniciales, cuentas, usuarioActualId 
     });
 
     source.addEventListener("MENSAJE_ENVIADO", () => {
+      queryClient.invalidateQueries({ queryKey: ["inbox-mensajes", seleccionada] });
+    });
+
+    // 049 — Transcripción que termina después de pintado el mensaje: refresca
+    // la burbuja sin que el agente recargue (FR-025).
+    source.addEventListener("AUDIO_TRANSCRITO", () => {
       queryClient.invalidateQueries({ queryKey: ["inbox-mensajes", seleccionada] });
     });
 

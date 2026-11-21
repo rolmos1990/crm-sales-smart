@@ -1,3 +1,4 @@
+import { textoDeMensaje } from "@/ai/contexto/texto-mensaje";
 import { prisma } from "@/shared/db/prisma";
 import { interpolarPlantilla, type ContextoInterpolacion } from "@/conversaciones/interpolacion";
 import type { EjecucionEnCurso, MetaEjecucion } from "./tipos";
@@ -152,7 +153,14 @@ export async function resolverHechos(
       ? prisma.mensajeConversacion.findFirst({
           where: { conversacionId: ej.conversacionId, remitente: "CONTACTO" },
           orderBy: { creadoEn: "desc" },
-          select: { contenido: true, creadoEn: true },
+          // 049 — La variable de plantilla ultimoMensajeCliente queda vacía
+          // ante una nota de voz si no se trae la transcripción.
+          select: {
+            contenido: true,
+            creadoEn: true,
+            tipo: true,
+            mediaArchivo: { select: { transcripcion: true, transcripcionEstado: true } },
+          },
         })
       : null,
     datos.contacto ? prisma.pedido.count({ where: { contactoId: datos.contacto.id, instanciaId: ej.instanciaId } }) : 0,
@@ -160,7 +168,7 @@ export async function resolverHechos(
 
   const hechos: Record<string, unknown> = {
     "conversacion.clienteRespondio": !!ultimoCliente && ultimoCliente.creadoEn > desde,
-    "conversacion.ultimoMensajeCliente": ultimoCliente?.contenido ?? "",
+    "conversacion.ultimoMensajeCliente": (ultimoCliente ? textoDeMensaje(ultimoCliente) : null) ?? "",
     "conversacion.canal": datos.conversacion?.canal ?? null,
     "oportunidad.valor": datos.oportunidad?.valor ?? null,
     "oportunidad.probabilidad": datos.oportunidad?.probabilidad ?? null,

@@ -24,6 +24,11 @@ export class ProcesarEntranteSuscriptor extends ConsumidorBase<ComandoProcesarEn
       mediaUrl: payload.mediaUrl,
       mediaMimeType: payload.mediaMimeType,
       mediaDuracion: payload.mediaDuracion,
+      // 049 — Sin esto el FK al MediaArchivo quedaba NULL siempre: el webhook
+      // lo produce y el contrato lo declara, pero este suscriptor copia campo
+      // por campo y lo descartaba. Dejaba el archivo sin vincular al contacto
+      // y sin forma de colgarle la transcripción.
+      mediaArchivoId: payload.mediaArchivoId,
       asunto: payload.asunto,
       hiloExterno: payload.hiloExterno,
       // 035 — Solo correo. Sin esto el HTML limpio y las cabeceras se perderían

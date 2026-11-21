@@ -33,6 +33,8 @@ export const RK = {
   EVENTO_MENSAJE_RECIBIDO: "evento.mensaje.recibido",
   EVENTO_MENSAJE_ENVIADO: "evento.mensaje.enviado",
   EVENTO_REACCION_ACTUALIZADA: "evento.reaccion.actualizada",
+  // 049 — va a SSE para refrescar la burbuja de una transcripción tardía
+  EVENTO_AUDIO_TRANSCRITO: "evento.audio.transcrito",
   // Dominio: pedidos
   EVENTO_PEDIDO_CREADO: "evento.pedido.creado",
   EVENTO_PEDIDO_ACTUALIZADO: "evento.pedido.actualizado",
@@ -97,6 +99,7 @@ export const TIPO_EVENTO_A_RK: Record<string, RoutingKey> = {
   MARCAR_LEIDO: RK.COMANDO_MENSAJE_LEIDO,
   ENVIAR_EMAIL: RK.COMANDO_EMAIL_ENVIAR,
   INICIALIZAR_INSTANCIA: RK.COMANDO_SISTEMA_INICIALIZAR,
+  AUDIO_TRANSCRITO: RK.EVENTO_AUDIO_TRANSCRITO,
   CONTACTO_CREADO: RK.EVENTO_CONTACTO_CREADO,
   CONTACTO_ACTUALIZADO: RK.EVENTO_CONTACTO_ACTUALIZADO,
   CONTACTO_ELIMINADO: RK.EVENTO_CONTACTO_ELIMINADO,

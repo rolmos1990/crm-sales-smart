@@ -1,3 +1,4 @@
+import { textoDeMensaje } from "@/ai/contexto/texto-mensaje";
 import "@/ai/tools/inicializar"; // registra todos los providers de herramientas
 
 import type { MensajeIATool, ContenidoToolResult } from "@/ai/proveedores/types";
@@ -406,9 +407,16 @@ async function obtenerUltimoMensajeCliente(conversacionId: string): Promise<stri
   const mensaje = await prisma.mensajeConversacion.findFirst({
     where: { conversacionId, remitente: "CONTACTO" },
     orderBy: { creadoEn: "desc" },
-    select: { contenido: true },
+    // 049 — Antes devolvía null ante una nota de voz y el gate de autonomía
+    // se quedaba sin insumo justo en el mensaje que más contexto trae.
+    select: {
+      contenido: true,
+      tipo: true,
+      mediaArchivo: { select: { transcripcion: true, transcripcionEstado: true } },
+    },
   });
-  return mensaje?.contenido?.trim() || null;
+  if (!mensaje) return null;
+  return textoDeMensaje(mensaje);
 }
 
 // Extrae la lista de nombres de herramientas habilitadas para el agente.

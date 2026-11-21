@@ -40,6 +40,7 @@ import type { PreparacionIniciadaPayload }   from "./contratos/preparacion-inici
 import type { PreparacionCompletadaPayload } from "./contratos/preparacion-completada.event";
 import type { LineaPedidoPreparadaPayload }  from "./contratos/linea-pedido-preparada.event";
 import type { MensajeRecibidoPayload }    from "./contratos/mensaje-recibido.event";
+import type { AudioTranscritoPayload }   from "./contratos/audio-transcrito.evento";
 import type { MensajeEnviadoPayload }     from "./contratos/mensaje-enviado.event";
 import type { ConversacionCreadaPayload } from "./contratos/conversacion-creada.event";
 import type { ConversacionClasificadaPayload } from "./contratos/conversacion-clasificada.event";
@@ -95,6 +96,7 @@ export interface MapaPayloads {
   LINEA_PEDIDO_PREPARADA:  LineaPedidoPreparadaPayload;
   // Mensajería
   MENSAJE_RECIBIDO:        MensajeRecibidoPayload;
+  AUDIO_TRANSCRITO:        AudioTranscritoPayload;
   MENSAJE_ENVIADO:         MensajeEnviadoPayload;
   CONVERSACION_CREADA:     ConversacionCreadaPayload;
   CONVERSACION_CLASIFICADA: ConversacionClasificadaPayload;
