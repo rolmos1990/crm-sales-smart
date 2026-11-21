@@ -154,6 +154,17 @@ async function traducirError(res: Response): Promise<ErrorProveedorVoz> {
   const detalle = await res.text().catch(() => "");
 
   if (res.status === 401 || res.status === 403) {
+    // ElevenLabs devuelve 403 tanto para una key inválida como para una key
+    // VÁLIDA con restricción de IP. Decirle "credencial rechazada" al que
+    // configuró manda a rotar una key que está perfecta, y el problema real
+    // —la IP del servidor no está en la lista— no se arregla nunca.
+    if (/ip_not_allowed|IP address/i.test(detalle)) {
+      return new ErrorProveedorVoz(
+        "La API key de ElevenLabs tiene restricción por IP y la IP de este servidor no está permitida",
+        "IP_NO_PERMITIDA",
+        false,
+      );
+    }
     return new ErrorProveedorVoz("Credencial de ElevenLabs rechazada", "CREDENCIAL_INVALIDA", false);
   }
   if (res.status === 413) {
